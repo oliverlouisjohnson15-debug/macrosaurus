@@ -1916,8 +1916,8 @@ test('addExerciseToSession prescribes a compound differently from an isolation',
   assert.equal(c.target.restSec, 150);
   assert.equal(c.target.rir, 2, 'week 2 leaves 2 in the tank');
   const i = T.addExerciseToSession(s, 'db_lateral');
-  assert.equal(i.target.repLow, 10);
-  assert.equal(i.target.restSec, 90);
+  assert.equal(i.target.repLow, 8);
+  assert.equal(i.target.restSec, 120);
   assert.equal(T.sessionItems(s).length, 5);
   assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2, 3, 4]);
 });

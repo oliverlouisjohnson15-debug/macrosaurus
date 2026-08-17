@@ -963,10 +963,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   function addExercise(exId) {
     setPicking(false);
     mutate(n => {
-      const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 3, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
+      const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
       // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
       // its sets still group as one movement when the session is reopened.
-      n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: { sets: 3, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
+      n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
     });
     setFocus(items.length);
   }
@@ -1155,7 +1155,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   if (!u.alt) return;
                   const old2 = n[u.index];
                   if (!old2) return;
-                  const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 3, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
+                  const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
                   n[u.index] = { id: old2.id || ('swap_' + trainUid()), exerciseId: u.alt, target: old2.target, sets: pre.sets, note: coachNote(pre), superset: old2.superset };
                 });
               });
@@ -2310,7 +2310,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
       s.exercises.push({
         id: exId + '_' + trainUid(), exerciseId: exId, order: s.exercises.length,
-        target: { sets: 3, repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15, rir: Math.max(1, 4 - s.week), restSec: compound ? 150 : 90 },
+        target: { sets: 2, repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12, rir: Math.max(0, 4 - s.week), restSec: compound ? 150 : 120 },
       });
     });
   }
@@ -4663,7 +4663,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
                 order: day.exercises.length,
                 // A movement placed by hand keeps the plan's wording for it where there was one.
                 sourceName: from ? from.name : (ex ? ex.name : null),
-                target: { sets: 3, repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15, rir: 2, restSec: compound ? 150 : 90 },
+                target: { sets: 2, repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12, rir: 2, restSec: compound ? 150 : 120 },
               });
               if (picking.replacing != null && day.missing) day.missing.splice(picking.replacing, 1);
             });

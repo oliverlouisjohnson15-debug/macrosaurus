@@ -80,13 +80,36 @@ convention and it is what makes a coverage audit honest: without it, "chest day"
 covers triceps when it does not, and a push/pull split looks like it under-trains delts when it
 does not.
 
-### The other rules the engine holds
+### House style: high intensity, lower volume, at least twice a week
 
-- **Frequency**: each trained muscle group hit at least 2x per week where volume allows.
-- **Proximity to failure**: prescribe in RIR, not "to failure". Week 1 at ~3 RIR, walking down
-  to ~0-1 RIR by week 4.
-- **Rep ranges**: 5-30 all build muscle if effort is matched. Bias compounds to 5-10, isolation
-  to 10-20. Keep the *pattern* even if the user's imported plan is odd.
+Updated 2026-08-17. Olly's own preference, backed by two reference programmes he trains from (a
+6-week straight-sets block and a 12-week RIR-based hypertrophy programme, both built around 2-3
+hard sets a movement taken to genuine failure rather than 5+ sets stopped short of it) and by the
+literature both programmes cite: hypertrophy rises as sets get closer to failure, with most of the
+benefit inside 0-3 RIR (Robinson, Vigotsky et al. 2024, *Sports Medicine*, a meta-regression across
+55 hypertrophy studies), and training a muscle at least twice a week is the sensible floor the
+frequency research converges on (Schoenfeld, Grgic & Krieger 2019, *Sports Medicine*, the
+volume-equated follow-up to their 2016 review). `generateBlock` in `training.js` now encodes this
+directly rather than leaving it to chance:
+
+- **Frequency is GUARANTEED, not aspirational.** Before any volume top-up runs, every muscle is
+  checked against every session in the template; anything trained in fewer than two lands a second
+  low-set exercise on a day of a compatible kind (a lower-back movement never gets dropped into an
+  "Upper" day, which would also quietly reclassify the split). Splits that used to leave abs,
+  obliques, lower back, forearms and front delts to whatever the old MEV gap-filler reached for
+  first now always land on two different days.
+- **Lower starting volume**: a movement starts a block on 2 working sets, not 3. Total sets still
+  build across the block exactly as before; they just start from, and therefore land on, a smaller
+  number throughout - because the case both reference programmes make, in their own words, is that
+  "your intensity will determine the amount of volume you require... you do NOT need a ton of work
+  when training with intent and high intensity."
+- **Proximity to failure**: prescribe in RIR, walking 3-2-1-0 across the block so the final
+  building week lands at TRUE failure (0 RIR), not a floor of 1. Stopping short of failure every
+  week was never "high intensity" in the first place.
+- **Rep ranges**: 5-30 all build muscle if effort is matched, but both reference programmes hold
+  the majority of their work at 5-10 with long rest even on isolation and unilateral movements
+  ("long rest periods are superior to short... this also applies to unilateral training"). Compounds
+  stay 6-10, isolation moved from 10-15 to 8-12, isolation rest from 90s to 120s.
 - **Exercise selection**: prefer a stable stimulus-to-fatigue ratio, and vary resistance
   profile within a muscle (one lengthened-biased, one shortened-biased, one mid-range) rather
   than three variations of the same curve.
@@ -117,10 +140,10 @@ Block (4 weeks) -> Week -> Session (day) -> Exercise -> Sets (target + actual)
 
 | Week | Intent | Volume | Effort |
 |---|---|---|---|
-| 1 | Introduce | MEV, baseline sets | ~3 RIR |
+| 1 | Introduce | MEV, 2 sets a movement to start | ~3 RIR |
 | 2 | Build | +1 set on lagging muscles | ~2 RIR |
 | 3 | Push | +1 set again, approaching MAV | ~1 RIR |
-| 4 | Peak then deload | Overreach first half, deload second half, or full deload week | 0-1 RIR then easy |
+| 4 | Peak then deload | Overreach first half, deload second half, or full deload week | true failure (0 RIR), then easy |
 
 Alternative shapes offered: **3 build + 1 deload** (default), **4 build, deload folded into
 week 1 of the next block** (for people who hate deload weeks), and **linear strength** (top set

@@ -11,7 +11,24 @@
  * Principles encoded (JPS program design, Ryan Jewers, Jeff Nippard, Eric Helms, RP landmarks):
  *   - volume landmarks MEV / MAV / MRV per muscle per week, in HARD sets
  *   - fractional set counting: 1.0 to the primary movers, 0.5 to the secondary movers
- *   - effort prescribed in RIR, walking down across the block, not "to failure" every week
+ *   - effort prescribed in RIR, walking down to true failure (0 RIR) by the final building week,
+ *     not stopping a few reps short forever. Hypertrophy rises as sets get closer to failure, most
+ *     of the benefit sitting inside 0-3 RIR (Robinson et al. 2024, Sports Medicine, a meta-regression
+ *     across 55 hypertrophy studies) - so a house style that calls itself "high intensity" has to
+ *     actually land there, not just start near it and stall.
+ *   - EVERY trained muscle hit at least twice a week, not "where volume allows". Twice weekly is the
+ *     sensible floor the frequency literature converges on (Schoenfeld, Grgic & Krieger 2019,
+ *     Sports Medicine, the volume-equated follow-up to the 2016 review), and splitting a muscle's
+ *     weekly sets across two sessions is what keeps any one session low-volume without losing the
+ *     week's total stimulus - which is the whole shape of "high intensity, lower volume" rather than
+ *     a slogan on top of the same programming.
+ *   - lower starting volume, built on intensity rather than junk sets: 2 working sets to start a
+ *     movement, not 3, growing across the block instead of arriving there in week 1. This is the
+ *     house style set by two reference programs (a 6-week straight-sets block and a 12-week RIR-based
+ *     hypertrophy programme) that both run 2-3 hard sets per movement to genuine failure rather than
+ *     5+ sets short of it, and both name the same reasoning: "your intensity will determine the
+ *     amount of volume you require... you do NOT need a ton of work when training with intent and
+ *     high intensity."
  *   - double progression: reps within range first, then load, then a set, then change the movement
  *   - when performance falls, CUT volume. Never add into a hole.
  */
@@ -1412,6 +1429,21 @@
     pull: ['lt', 'ub', 'rd', 'bi', 'fa'],
     legs: ['qu', 'ha', 'gl', 'ca', 'ad'],
   };
+  // Which day kinds are a sane home for a muscle DAY_MUSCLES does not seed anywhere (front delts,
+  // lower back, forearms, and on a push/pull/legs split, abs and obliques too). Read by
+  // generateBlock's frequency guarantee, so that filling a muscle in to reach twice a week does not
+  // land it on a day splitKind would then read as a different split entirely - a lower-back exercise
+  // dropped into an "Upper" day quietly turns a clean upper/lower split into 'other'. null means any
+  // day kind is fine, which is true of core work: splitKind never weighs abs or obliques either way.
+  var DAY_KIND_HOME = {
+    ch: { push: 1, upper: 1, full: 1 }, fd: { push: 1, upper: 1, full: 1 },
+    sd: { push: 1, upper: 1, full: 1 }, tr: { push: 1, upper: 1, full: 1 },
+    lt: { pull: 1, upper: 1, full: 1 }, ub: { pull: 1, upper: 1, full: 1 },
+    rd: { pull: 1, upper: 1, full: 1 }, bi: { pull: 1, upper: 1, full: 1 }, fa: { pull: 1, upper: 1, full: 1 },
+    qu: { legs: 1, lower: 1, full: 1 }, ha: { legs: 1, lower: 1, full: 1 }, gl: { legs: 1, lower: 1, full: 1 },
+    ca: { legs: 1, lower: 1, full: 1 }, ad: { legs: 1, lower: 1, full: 1 }, lb: { legs: 1, lower: 1, full: 1 },
+    ab: null, ob: null,
+  };
   // Anchor movements: the compound each day should open with if the equipment is there.
   var ANCHORS = {
     ch: ['bb_bench', 'db_bench', 'machine_press', 'pushup'],
@@ -1429,7 +1461,10 @@
     ab: ['cable_crunch', 'hanging_leg_raise', 'ab_wheel', 'crunch'],
     ad: ['hip_adduction', 'copenhagen'],
     fa: ['hammer_curl', 'reverse_curl'],
-    lb: ['back_extension', 'good_morning'],
+    // good_morning used to sit here, but its primary mover is hamstrings, not lower back (see
+    // TABLE) - it let pickFor('lb', ...) hand back a movement that does not actually train lb,
+    // which the frequency guarantee in generateBlock surfaced immediately.
+    lb: ['back_extension', 'back_ext_45'],
     ob: ['pallof_press', 'side_plank'],
   };
 
@@ -1566,10 +1601,14 @@
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
-    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: 60 };
+    // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
+    // (5-10 majority, "3/4 of your training" per the RIR-based programme's own rep-range chapter)
+    // and rest it just as long: "long rest periods are superior to short... this also applies to
+    // unilateral training". Longer, harder-recovered sets beat quick, shallow ones for growth.
+    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: 90 };
     return compound
       ? { repLow: 6 + b, repHigh: 10 + b, restSec: 150 }
-      : { repLow: 10 + b, repHigh: 15 + b, restSec: 90 };
+      : { repLow: 8 + b, repHigh: 12 + b, restSec: 120 };
   }
 
   // Block shapes. The DEFAULT is four building weeks with no deload baked in, and that is a
@@ -1705,7 +1744,9 @@
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
-      var rir = isDeload ? 4 : Math.max(1, 4 - w);
+      // Walks 3-2-1-0: the final building week lands at true failure (0 RIR), not a floor of 1.
+      // Stopping short of failure every week is the thing "high intensity" is supposed to rule out.
+      var rir = isDeload ? 4 : Math.max(0, 4 - w);
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -2104,10 +2145,10 @@
       exerciseId: exerciseId,
       order: list.length,
       target: {
-        sets: 3,
-        repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15,
-        rir: Math.max(1, 4 - (session.week || 1)),
-        restSec: compound ? 150 : 90,
+        sets: 2,
+        repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12,
+        rir: Math.max(0, 4 - (session.week || 1)),
+        restSec: compound ? 150 : 120,
       },
     };
     list.push(item);
@@ -2375,8 +2416,12 @@
     return { block: block, swaps: swaps };
   }
 
-  // Build a 4-week block from scratch. Week 1 sits near MEV, weeks 2 and 3 add a set to the muscles
-  // that most need it, week 4 is the deload (or not, depending on shape). RIR walks 3-2-1.
+  // Build a 4-week block from scratch. Week 1 sits near MEV on 2 working sets a movement, not 3:
+  // start on intensity, not volume. Weeks 2 and 3 add a set to the muscles that most need it, week 4
+  // is the deload (or not, depending on shape). RIR walks 3-2-1-0, reaching true failure by the last
+  // building week. Every muscle is guaranteed at least two sessions a week before volume is topped
+  // up, so the extra stimulus a muscle needs comes from another low-volume exposure, not from piling
+  // more sets into the one session that already trains it.
   function generateBlock(opts) {
     opts = opts || {};
     // A gym profile is just a tidier way of saying equipment + preferences, so resolve it once here
@@ -2414,17 +2459,65 @@
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: 3, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
+          target: { sets: 2, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
         });
       }
       return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
     });
 
+    // Frequency floor: every muscle at least twice a week, before volume gets topped up at all.
+    // "At least twice weekly" is the sensible default the frequency literature converges on
+    // (Schoenfeld, Grgic & Krieger 2019), and it matters more here than usual, because a split's day
+    // types (DAY_MUSCLES) do not seed every muscle in every session type - abs, obliques, lower back
+    // and forearms in particular can otherwise end up confined to whichever single session the MEV
+    // gap-filler below happens to reach for first. Run this BEFORE that pass, so a muscle needing
+    // more volume gets a second low-set exposure on another day rather than a bigger single session.
+    function sessionsTraining(m) {
+      return template.filter(function (d) {
+        return d.exercises.some(function (item) {
+          var exx = byId(item.exerciseId, opts.custom);
+          return exx && (exx.primary || []).indexOf(m) !== -1;
+        });
+      });
+    }
+    if (days >= 2) {
+      MUSCLES.forEach(function (m) {
+        // Keep adding, not just once: a muscle no DAY_MUSCLES list seeds at all (front delts,
+        // forearms) starts from zero sessions, and a single top-up only gets it to one.
+        for (var guard = 0; guard < 2; guard++) {
+          var trainedIn = sessionsTraining(m);
+          if (trainedIn.length >= 2) break;
+          var spare = template.filter(function (d) { return trainedIn.indexOf(d) === -1; })
+            .sort(function (a, b) { return a.exercises.length - b.exercises.length; });
+          // Prefer a day whose kind this muscle actually belongs on. Only fall back to any spare day
+          // (still correct, just a less tidy label) when the split has nowhere else free.
+          var home = DAY_KIND_HOME[m];
+          var onKind = home ? spare.filter(function (d) { return home[d.kind]; }) : spare;
+          var dest = (onKind.length ? onKind : spare)[0];
+          if (!dest) break;
+          var exf = pickFor(m, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
+          if (!exf) break;
+          used[exf.id] = 1;
+          var rsf = repScheme(exf, m, opts.repBias);
+          dest.exercises.push({
+            id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
+            target: { sets: 2, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
+          });
+        }
+      });
+    }
+
     // Nudge week 1 to MEV: while a muscle is short, add a set to the exercise that serves it best.
-    for (var pass = 0; pass < 12; pass++) {
+    // Starting at 2 sets a movement instead of 3 means more muscles start further from MEV, so this
+    // needs more passes than it used to - and a muscle the library has genuinely run out of
+    // candidates for must be set aside, not allowed to abort the pass for every OTHER muscle still
+    // waiting its turn.
+    var stuck = {};
+    for (var pass = 0; pass < 40; pass++) {
       var cov = coverage(plannedVolume(template, opts.custom), targets);
-      if (!cov.gaps.length) break;
-      var gap = cov.gaps[0];
+      var gaps = cov.gaps.filter(function (g) { return !stuck[g.muscle]; });
+      if (!gaps.length) break;
+      var gap = gaps[0];
       var addedThisPass = false;
       for (var s = 0; s < template.length && !addedThisPass; s++) {
         for (var e = 0; e < template[s].exercises.length; e++) {
@@ -2438,13 +2531,13 @@
       // Nothing in the plan trains it, so add a movement to the shortest session.
       if (!addedThisPass) {
         var ex2 = pickFor(gap.muscle, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
-        if (!ex2) break;
+        if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
         var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
         var rs2 = repScheme(ex2, gap.muscle, opts.repBias);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: 3, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
+          target: { sets: 2, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
         });
       }
     }
