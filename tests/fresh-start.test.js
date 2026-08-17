@@ -148,6 +148,18 @@ test('a default fresh start needs no streak credit, because the days are still t
   assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
 });
 
+test('the line is drawn where every "ignore the old run" surface can see it', () => {
+  // fresh_start is the single fact the app reads to know what to ignore (planFloorISO in app.jsx):
+  // the learned burn, the dieting clock, the goal's start post, the burn estimator and its history
+  // chart all hang off it. If a fresh start ever stopped stamping it, every one of those would
+  // quietly go back to reading the run the user just retired.
+  const s = run(livedIn(), KEEP_ALL);
+  assert.strictEqual(s.fresh_start, TODAY);
+  // Kept check-ins are exactly the ones the floor has to hold back: they carry the old TDEE.
+  assert.ok(s.checkins.length > 0, 'check-ins are kept by default');
+  assert.ok(s.checkins.every(c => c.date < s.fresh_start), 'and they all sit behind the line');
+});
+
 test('a stale device merging into a default fresh start loses nothing but the old burn', () => {
   const stale = livedIn();
   const fresh = run(livedIn(), KEEP_ALL);

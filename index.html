@@ -19660,7 +19660,11 @@ function ExpenditureCard({
   })(), (() => {
     // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
     // older check-ins fall back to the adaptive targets history), ending on today's live figure.
-    const hist = (db.checkins || []).map(c => {
+    // Floored at the fresh-start line. The check-in ledger is KEPT through a fresh start now, so
+    // without this the chart draws the old run's burn curve running straight into the new one,
+    // on a screen that has just promised the app forgot that figure. The arithmetic was never
+    // affected; the picture said otherwise, which is its own kind of wrong.
+    const hist = (db.checkins || []).filter(c => c && afterFloor(db, c.date)).map(c => {
       if (c.tdee > 0) return c.tdee;
       const t = (db.targets || []).find(x => x.effective_date === c.date && x.estimatedTDEE > 0);
       return t ? Math.round(t.estimatedTDEE) : null;
