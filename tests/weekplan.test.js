@@ -526,3 +526,67 @@ test('no plans, no hint', () => {
   assert.equal(E.recurringPlanHint([], '2026-08-01'), null);
   assert.equal(E.recurringPlanHint(null, '2026-08-01'), null);
 });
+
+// ---- coming home early -------------------------------------------------------------------------
+// A window's end date is a guess made before the trip. When it turns out long, the app goes on
+// easing targets and excusing weigh-ins for someone who is already home, so there has to be a way to
+// end one that does not also rewrite the days they really were away.
+
+test('coming home early ends the window at yesterday, so today is a normal day again', () => {
+  const p = plan({ start: '2026-08-10', end: '2026-08-20' });
+  const patch = E.planHomeEarly(p, '2026-08-17');
+  assert.equal(patch.remove, false);
+  assert.equal(patch.end, '2026-08-16', 'the last day away is the day before you got back');
+  const ended = Object.assign({}, p, { end: patch.end });
+  assert.ok(E.weekPlanOn([ended], '2026-08-16'), 'yesterday is still a day away');
+  assert.equal(E.weekPlanOn([ended], '2026-08-17'), null, 'today is not');
+});
+
+test('the days already spent away keep the deal they ran under', () => {
+  // The whole point of ending rather than cancelling: 0.25 kg/wk against a 0.5 kg/wk cut is worth
+  // 275 kcal a day, and the days abroad must not lose it retrospectively.
+  const p = plan({ start: '2026-08-10', end: '2026-08-20', acceptRateKgPerWeek: 0.25 });
+  const ended = Object.assign({}, p, { end: E.planHomeEarly(p, '2026-08-17').end });
+  assert.equal(E.planKcalDelta(E.weekPlanOn([ended], '2026-08-12'), cutter), 275, 'a day away is untouched');
+  assert.equal(E.weekPlanOn([ended], '2026-08-18'), null, 'and the days that never happened are gone');
+});
+
+test('big days left on the other side of coming home stop being big', () => {
+  // These matter beyond tidiness: the settle span runs past the window's end, so a boost left here
+  // would go on being paid for by days at home that no longer owe it anything.
+  const p = plan({ start: '2026-08-10', end: '2026-08-20', highDays: ['2026-08-12', '2026-08-19'] });
+  const patch = E.planHomeEarly(p, '2026-08-17');
+  assert.deepEqual(patch.highDays, ['2026-08-12'], 'the one you were there for survives');
+  assert.equal(patch.dropped, 1, 'and the screen can say what it dropped');
+});
+
+test('recorded shapes are trimmed the same way', () => {
+  const p = plan({ start: '2026-08-10', end: '2026-08-20',
+    shapeHistory: [{ from: '2026-08-10', to: '2026-08-20', highDays: ['2026-08-12', '2026-08-19'], deltaPct: 0.25 }] });
+  const patch = E.planHomeEarly(p, '2026-08-17');
+  assert.deepEqual(patch.shapeHistory[0].highDays, ['2026-08-12']);
+  assert.deepEqual(p.shapeHistory[0].highDays, ['2026-08-12', '2026-08-19'], 'without mutating the plan it was given');
+});
+
+test('a window that has not run a day is removed, not shortened to nothing', () => {
+  assert.deepEqual(E.planHomeEarly(plan({ start: '2026-08-20', end: '2026-08-24' }), '2026-08-17'), { remove: true });
+  assert.deepEqual(E.planHomeEarly(plan({ start: '2026-08-17', end: '2026-08-24' }), '2026-08-17'), { remove: true },
+    'including one declared for today: ending it would leave an empty window behind');
+});
+
+test('there is nothing to end on a window that is already over', () => {
+  assert.equal(E.planHomeEarly(plan({ start: '2026-08-01', end: '2026-08-05' }), '2026-08-17'), null);
+  assert.equal(E.planHomeEarly(null, '2026-08-17'), null);
+  assert.equal(E.planHomeEarly(plan(), null), null);
+});
+
+test('ending a window hands the scale prompt straight back', () => {
+  // The symptom people actually report: still being treated as away. Ending the window has to flip
+  // both halves of the context, not just stop bending the target.
+  const p = plan({ start: '2026-08-10', end: '2026-08-20' });
+  assert.ok(E.weekPlanContext([p], '2026-08-17').active, 'before: away');
+  const ended = Object.assign({}, p, { end: E.planHomeEarly(p, '2026-08-17').end });
+  const ctx = E.weekPlanContext([ended], '2026-08-17');
+  assert.equal(ctx.active, null, 'after: not away');
+  assert.ok(ctx.recovering, 'but the scale is still settling, which is a different promise');
+});

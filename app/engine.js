@@ -1864,6 +1864,39 @@
     }
     return best;
   }
+  // Home early, or home on time and only getting round to saying so now. A window is declared before
+  // it happens, off a guess at when the trip ends, and the guess is often long: people come back a
+  // day early, or the flight they padded for landed on time. Until the declared end passes, the app
+  // goes on easing the target, excusing the scale and forgiving the log for someone who is sitting at
+  // their own kitchen table, and the only way out was to find the window in settings and retype its
+  // end date.
+  //
+  // This is deliberately not a cancel. The days already spent away were really spent away: their
+  // eased targets stand, the weigh-ins they were excused stay excused, and a big day the other days
+  // have already paid for keeps what it was given. So the window keeps every day up to YESTERDAY and
+  // simply stops covering `iso` onwards. Nothing behind today is restated, which is the same promise
+  // the rate makes once a window is running, and today is handed straight back to the normal plan.
+  //
+  // Returns the patch to apply, or null when there is nothing to end. `remove` is the degenerate
+  // case: a window that never ran a single day is not a trip anybody came home from, it is a plan
+  // they no longer want, and leaving a zero-day window behind would only clutter the history.
+  function planHomeEarly(plan, iso) {
+    if (!plan || !plan.start || !plan.end || !iso) return null;
+    if (plan.end < iso) return null;                  // already over
+    if (plan.start >= iso) return { remove: true };   // not a day of it has run
+    var end = shiftISOdays(iso, -1);
+    // A big day nobody is away for is not a big day. Dropping it matters beyond tidiness: the
+    // settle span runs past the window's end, so a boost left behind here would go on being paid
+    // for by days at home that no longer owe it anything.
+    var live = (plan.highDays || []).filter(function (d) { return d <= end; });
+    var hist = (plan.shapeHistory || []).map(function (h) {
+      return Object.assign({}, h, { highDays: (h.highDays || []).filter(function (d) { return d <= end; }) });
+    });
+    return {
+      remove: false, end: end, highDays: live, shapeHistory: hist,
+      dropped: ((plan.highDays || []).length - live.length),
+    };
+  }
   // One call for everything the app needs to know about declared windows around a date.
   function weekPlanContext(plans, iso) {
     var active = weekPlanOn(plans, iso);
@@ -1883,7 +1916,7 @@
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
     planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planShapeOn: planShapeOn, planRecoveryOn: planRecoveryOn,
-    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext,
+    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext, planHomeEarly: planHomeEarly,
     recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,

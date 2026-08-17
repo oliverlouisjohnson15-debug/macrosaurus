@@ -5356,23 +5356,65 @@ function startsInWords(todayISO, startISO) {
   const n = daysBetween(todayISO, startISO);
   return n <= 1 ? 'Starts tomorrow' : 'Starts in ' + n + ' days';
 }
+// "I'm back", from wherever it is pressed. One writer, so the dashboard button and the Declared weeks
+// screen cannot drift into ending a window two different ways. See Engine.planHomeEarly for what
+// ending one does and does not touch.
+function endWindowEarly(update, showToast, plan, today) {
+  const patch = E.planHomeEarly(plan, today);
+  if (!patch) return;
+  update(d => {
+    if (patch.remove) {
+      tombstone(d, [plan.id]);
+      d.week_plans = (d.week_plans || []).filter(x => x.id !== plan.id);
+      return;
+    }
+    const x = (d.week_plans || []).find(y => y.id === plan.id);
+    if (!x) return;
+    x.end = patch.end; x.highDays = patch.highDays; x.shapeHistory = patch.shapeHistory;
+  });
+  if (!showToast) return;
+  showToast(patch.remove ? 'Cleared ' + plan.label.toLowerCase() : 'Welcome back. Your normal numbers are on from today.');
+}
+// What ending a window actually costs the person pressing the button, in the words they need before
+// they press it rather than a toast afterwards.
+function endWindowBody(plan, today) {
+  const patch = E.planHomeEarly(plan, today);
+  if (!patch) return '';
+  if (patch.remove) return "It hasn't started, so there is nothing to keep: your normal targets run as usual.";
+  const dropped = patch.dropped;
+  return 'Your targets go back to normal from today. The days you were away keep the numbers they ran under, so nothing you have already logged changes'
+    + (dropped ? ', though ' + (dropped === 1 ? 'a big day you had planned falls outside now and is no longer big' : dropped + ' big days you had planned fall outside now and are no longer big') : '')
+    + '.';
+}
 // The dashboard strip for a declared window: while it runs, while the scale eases back after it, and
 // (the quiet stretch that used to show nothing at all) between declaring it and it starting.
-function WeekPlanBanner({ db, onOpen }) {
+function WeekPlanBanner({ db, update, showToast, onOpen }) {
   const today = Store.todayISO();
+  const [homeAsk, setHomeAsk] = useState(false);
   const ctx = E.weekPlanContext(db.week_plans, today);
   const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
-  return (<button onClick={onOpen} className="w-full pixel-box p-3.5 mb-4 text-left" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
-    <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
-    {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
-    <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
-      ? (pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.')
-      : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.'
-      : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')}</div>
-  </button>);
+  return (<div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
+    <button onClick={onOpen} className="w-full text-left">
+      <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
+      <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
+      {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
+      <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
+        ? (pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.')
+        : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.'
+        : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')}</div>
+    </button>
+    {/* The way out, next to the thing it gets you out of. A window runs on the dates it was given,
+        and those dates were a guess made before the trip: coming home a day early left the app
+        bending numbers for someone standing in their own kitchen, with nothing on this screen to
+        say so and the only fix buried in settings behind a date field. */}
+    {ctx.active && <button onClick={() => setHomeAsk(true)} className="hit mt-2.5 pf text-[9px] uppercase py-2 pr-2"
+      style={{ color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>I'm back &rsaquo;</button>}
+    {homeAsk && <ConfirmDialog title={'Back from ' + pl.label.toLowerCase() + '?'} body={endWindowBody(pl, today)}
+      confirmLabel="I'm back" confirmKind="accent"
+      onConfirm={() => endWindowEarly(update, showToast, pl, today)} onClose={() => setHomeAsk(false)} />}
+  </div>);
 }
 
 function CheckInModal({ db, update, onClose, resume, isPremium }) {
@@ -11603,7 +11645,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
-      <WeekPlanBanner db={db} onOpen={() => setView('more')} />
+      <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
           it never nags). Hidden during egg incubation so onboarding stays focused on hatching. */}
@@ -15311,6 +15353,7 @@ function GhDebug({ db, update }) {
 function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
   const [adding, setAdding] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [confirmHome, setConfirmHome] = useState(null);
   const today = Store.todayISO();
   const p = db.profile;
   const plans = (db.week_plans || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1));
@@ -15377,7 +15420,12 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
                   <Dropdown value={String(w.acceptRateKgPerWeek)} onChange={v => setRate(w, +v)}
                     options={acceptOptions(p, null).map(o => ({ v: String(o.v), l: o.l }))} />
                 </Field>
-              : <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.</div>}
+              : <>
+                  <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.</div>
+                  {/* Home early. Cancelling would wipe the days you were genuinely away and mark you
+                      down for them; this keeps them and stops the window here. */}
+                  <Btn kind="ghost" className="w-full mt-2.5" onClick={() => setConfirmHome(w)}>I'm back</Btn>
+                </>}
           </div>))}</div>
           : <div className="text-[12px] text-[#8A8A90] mb-4">Nothing coming up. Your plan runs as normal.</div>}
         <Btn kind="accent" className="w-full" onClick={() => setAdding(true)}>Tell me what's coming up</Btn>
@@ -15391,6 +15439,9 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
         </div>}
       </>}
     {confirmDel && <ConfirmDialog title={'Cancel ' + confirmDel.label + '?'} body="Your normal targets come back for those days. Nothing you have already logged changes." confirmLabel="Cancel it" onConfirm={() => cancel(confirmDel)} onClose={() => setConfirmDel(null)} />}
+    {confirmHome && <ConfirmDialog title={'Back from ' + confirmHome.label.toLowerCase() + '?'} body={endWindowBody(confirmHome, today)}
+      confirmLabel="I'm back" confirmKind="accent"
+      onConfirm={() => endWindowEarly(update, showToast, confirmHome, today)} onClose={() => setConfirmHome(null)} />}
   </SubScreen>);
 }
 // The goal itself: the most consequential thing in the app, and until now only reachable from a

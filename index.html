@@ -2715,6 +2715,39 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     return best;
   }
+  // Home early, or home on time and only getting round to saying so now. A window is declared before
+  // it happens, off a guess at when the trip ends, and the guess is often long: people come back a
+  // day early, or the flight they padded for landed on time. Until the declared end passes, the app
+  // goes on easing the target, excusing the scale and forgiving the log for someone who is sitting at
+  // their own kitchen table, and the only way out was to find the window in settings and retype its
+  // end date.
+  //
+  // This is deliberately not a cancel. The days already spent away were really spent away: their
+  // eased targets stand, the weigh-ins they were excused stay excused, and a big day the other days
+  // have already paid for keeps what it was given. So the window keeps every day up to YESTERDAY and
+  // simply stops covering `iso` onwards. Nothing behind today is restated, which is the same promise
+  // the rate makes once a window is running, and today is handed straight back to the normal plan.
+  //
+  // Returns the patch to apply, or null when there is nothing to end. `remove` is the degenerate
+  // case: a window that never ran a single day is not a trip anybody came home from, it is a plan
+  // they no longer want, and leaving a zero-day window behind would only clutter the history.
+  function planHomeEarly(plan, iso) {
+    if (!plan || !plan.start || !plan.end || !iso) return null;
+    if (plan.end < iso) return null;                  // already over
+    if (plan.start >= iso) return { remove: true };   // not a day of it has run
+    var end = shiftISOdays(iso, -1);
+    // A big day nobody is away for is not a big day. Dropping it matters beyond tidiness: the
+    // settle span runs past the window's end, so a boost left behind here would go on being paid
+    // for by days at home that no longer owe it anything.
+    var live = (plan.highDays || []).filter(function (d) { return d <= end; });
+    var hist = (plan.shapeHistory || []).map(function (h) {
+      return Object.assign({}, h, { highDays: (h.highDays || []).filter(function (d) { return d <= end; }) });
+    });
+    return {
+      remove: false, end: end, highDays: live, shapeHistory: hist,
+      dropped: ((plan.highDays || []).length - live.length),
+    };
+  }
   // One call for everything the app needs to know about declared windows around a date.
   function weekPlanContext(plans, iso) {
     var active = weekPlanOn(plans, iso);
@@ -2734,7 +2767,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
     planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planShapeOn: planShapeOn, planRecoveryOn: planRecoveryOn,
-    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext,
+    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext, planHomeEarly: planHomeEarly,
     recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
@@ -17663,24 +17696,59 @@ function startsInWords(todayISO, startISO) {
   const n = daysBetween(todayISO, startISO);
   return n <= 1 ? 'Starts tomorrow' : 'Starts in ' + n + ' days';
 }
+// "I'm back", from wherever it is pressed. One writer, so the dashboard button and the Declared weeks
+// screen cannot drift into ending a window two different ways. See Engine.planHomeEarly for what
+// ending one does and does not touch.
+function endWindowEarly(update, showToast, plan, today) {
+  const patch = E.planHomeEarly(plan, today);
+  if (!patch) return;
+  update(d => {
+    if (patch.remove) {
+      tombstone(d, [plan.id]);
+      d.week_plans = (d.week_plans || []).filter(x => x.id !== plan.id);
+      return;
+    }
+    const x = (d.week_plans || []).find(y => y.id === plan.id);
+    if (!x) return;
+    x.end = patch.end;
+    x.highDays = patch.highDays;
+    x.shapeHistory = patch.shapeHistory;
+  });
+  if (!showToast) return;
+  showToast(patch.remove ? 'Cleared ' + plan.label.toLowerCase() : 'Welcome back. Your normal numbers are on from today.');
+}
+// What ending a window actually costs the person pressing the button, in the words they need before
+// they press it rather than a toast afterwards.
+function endWindowBody(plan, today) {
+  const patch = E.planHomeEarly(plan, today);
+  if (!patch) return '';
+  if (patch.remove) return "It hasn't started, so there is nothing to keep: your normal targets run as usual.";
+  const dropped = patch.dropped;
+  return 'Your targets go back to normal from today. The days you were away keep the numbers they ran under, so nothing you have already logged changes' + (dropped ? ', though ' + (dropped === 1 ? 'a big day you had planned falls outside now and is no longer big' : dropped + ' big days you had planned fall outside now and are no longer big') : '') + '.';
+}
 // The dashboard strip for a declared window: while it runs, while the scale eases back after it, and
 // (the quiet stretch that used to show nothing at all) between declaring it and it starting.
 function WeekPlanBanner({
   db,
+  update,
+  showToast,
   onOpen
 }) {
   const today = Store.todayISO();
+  const [homeAsk, setHomeAsk] = useState(false);
   const ctx = E.weekPlanContext(db.week_plans, today);
   const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
-  return /*#__PURE__*/React.createElement("button", {
-    onClick: onOpen,
-    className: "w-full pixel-box p-3.5 mb-4 text-left",
+  return /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3.5 mb-4",
     style: {
       background: 'var(--card)',
       borderColor: 'var(--accent)'
     }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onOpen,
+    className: "w-full text-left"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase mb-1",
     style: {
@@ -17695,7 +17763,21 @@ function WeekPlanBanner({
     }
   }, "Your diet break is running, so you're at maintenance and this is on hold underneath it."), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 leading-snug"
-  }, ctx.active ? pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.' : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.' : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')));
+  }, ctx.active ? pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.' : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.' : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.'))), ctx.active && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setHomeAsk(true),
+    className: "hit mt-2.5 pf text-[9px] uppercase py-2 pr-2",
+    style: {
+      color: 'var(--accent-ink)',
+      letterSpacing: '0.08em'
+    }
+  }, "I'm back ›"), homeAsk && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Back from ' + pl.label.toLowerCase() + '?',
+    body: endWindowBody(pl, today),
+    confirmLabel: "I'm back",
+    confirmKind: "accent",
+    onConfirm: () => endWindowEarly(update, showToast, pl, today),
+    onClose: () => setHomeAsk(false)
+  }));
 }
 function CheckInModal({
   db,
@@ -29806,6 +29888,8 @@ function Dashboard({
     title: "Today"
   }), /*#__PURE__*/React.createElement(WeekPlanBanner, {
     db: db,
+    update: update,
+    showToast: showToast,
     onOpen: () => setView('more')
   }), /*#__PURE__*/React.createElement(OnboardingChecklist, {
     db: db,
@@ -38277,6 +38361,7 @@ function WeekPlansScreen({
 }) {
   const [adding, setAdding] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [confirmHome, setConfirmHome] = useState(null);
   const today = Store.todayISO();
   const p = db.profile;
   const plans = (db.week_plans || []).slice().sort((a, b) => a.start < b.start ? 1 : -1);
@@ -38403,9 +38488,13 @@ function WeekPlansScreen({
       v: String(o.v),
       l: o.l
     }))
-  })) : /*#__PURE__*/React.createElement("div", {
+  })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
-  }, "This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.")))) : /*#__PURE__*/React.createElement("div", {
+  }, "This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mt-2.5",
+    onClick: () => setConfirmHome(w)
+  }, "I'm back"))))) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Nothing coming up. Your plan runs as normal."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -38433,6 +38522,13 @@ function WeekPlansScreen({
     confirmLabel: "Cancel it",
     onConfirm: () => cancel(confirmDel),
     onClose: () => setConfirmDel(null)
+  }), confirmHome && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Back from ' + confirmHome.label.toLowerCase() + '?',
+    body: endWindowBody(confirmHome, today),
+    confirmLabel: "I'm back",
+    confirmKind: "accent",
+    onConfirm: () => endWindowEarly(update, showToast, confirmHome, today),
+    onClose: () => setConfirmHome(null)
   }));
 }
 // The goal itself: the most consequential thing in the app, and until now only reachable from a
