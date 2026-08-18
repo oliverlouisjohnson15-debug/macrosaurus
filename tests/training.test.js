@@ -108,8 +108,10 @@ test('a rare word outweighs a common one, so the specific movement wins', () => 
   // four words. Two real movements, one ambiguous query - and the honest note is that this scores
   // the way it does because the query names the third movement, which the library does not have.
   assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'alternating_dumbbell_curl');
-  assert.equal(T.resolve('DB HAMMER CURLS'), 'dumbbell_hammer_curl', 'the sheet\'s own dumbbell hammer curl');
-  assert.equal(T.resolve('HAMMER CURL'), 'hammer_curl', 'and the plain one is still the plain one');
+  // "DB hammer curls" and "Hammer curl" are one movement: the library leaves the dumbbell implicit
+  // and a spreadsheet spells it out, and the entry is already equipment: dumbbell either way.
+  assert.equal(T.resolve('DB HAMMER CURLS'), 'hammer_curl');
+  assert.equal(T.resolve('HAMMER CURL'), 'hammer_curl');
   assert.equal(T.resolve('SPLIT SQUAT SMITH MACHINE'), 'split_squat', 'not a bilateral Smith squat');
   // A plain "hamstring curl" in a machine-based plan is the machine, not a Nordic.
   assert.equal(T.resolve('HAMSTRING CURL'), 'lying_leg_curl');
@@ -1088,6 +1090,58 @@ test('a spreadsheet cannot smuggle in numbers the app would not accept', () => {
 // the method's style and its volume, so a landmark that flags one of them is a landmark that is
 // wrong - which is how the numbers in MINMAX_LANDMARKS were arrived at.
 
+test('no muscle runs out of movements', () => {
+  // The generator picks per muscle per day and will not repeat a movement inside a block, so a
+  // muscle with four options across twelve sessions is a muscle it runs out of - and what it does
+  // when it runs out is leave the session short. GUIDED is a second floor: this method asks for kit
+  // you can take to failure on your own, and it is most people's gym, so a muscle whose only options
+  // are a barbell and a handstand is not covered for the method it is being programmed by.
+  // See tools/exercise-gaps.mjs, which prints the whole matrix.
+  const GUIDED = ['machine', 'cable', 'smith'];
+  for (const m of T.MUSCLES) {
+    const prim = T.all().filter(e => (e.primary || []).includes(m));
+    const guided = prim.filter(e => GUIDED.includes(e.equipment));
+    assert.ok(prim.length >= 12, `${T.MUSCLE_LABEL[m]} has only ${prim.length} movements`);
+    assert.ok(guided.length >= 5, `${T.MUSCLE_LABEL[m]} has only ${guided.length} on kit you can fail on safely`);
+  }
+});
+
+test('every movement in the library is named the same way as every other', () => {
+  // The grammar lives in tools/name-style.mjs and this is what stops it drifting back. Three
+  // hundred and seventy movements written by several hands over a year is exactly how you end up
+  // with "Chest press machine" beside "Machine shrug" and "DB Incline Press" beside "Incline
+  // dumbbell press" - which costs you twice, once when somebody scans a picker under the wrong
+  // words and once when the resolver has to guess which spelling a coach's spreadsheet meant.
+  const KIT = /\s(smith|machine|cable|dumbbell|barbell|kettlebell|band)$/i;
+  const ABBREV = /\b(db|bb|kb|bw|alt|mach|tricep|bicep|flye)\b/i;
+  const PROPER = /^(Romanian|Nordic|Kelso|Zottman|Copenhagen|Pallof|Bayesian|Bulgarian|Arnold|Zercher|Jefferson|Cuban|Turkish|Swiss|Meadows|Pendlay|Larsen|Spoto|Anderson|Poliquin|JM|EZ|EZ-bar|RDL|OHP|T|Y|X|W|A|T-bar|V-bar|Y-raise|Y-raises|X-body|[A-Z]-\w+)$/;
+  for (const e of T.all()) {
+    assert.ok(!KIT.test(e.name), `"${e.name}" ends on its equipment; kit goes before the movement`);
+    assert.ok(!ABBREV.test(e.name), `"${e.name}" is abbreviated; abbreviations are what people TYPE, not what a movement is called`);
+    assert.ok(/^[A-Z0-9]/.test(e.name), `"${e.name}" should start with a capital`);
+    for (const word of e.name.split(' ').slice(1)) {
+      const core = word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
+      if (!core || !/^[A-Z]/.test(core)) continue;
+      assert.ok(PROPER.test(core), `"${e.name}" capitalises "${core}", which is not a proper noun or an acronym`);
+    }
+  }
+});
+
+test('no two movements in the library are the same movement', () => {
+  // Same words, same order, once the equipment has been set aside. Note this is NOT a sorted-word
+  // comparison: "Low-to-high cable fly" and "High-to-low cable fly" are the same five words and two
+  // different movements, and the library holds both on purpose.
+  const strip = (x) => String(x).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/)
+    .filter(Boolean).filter(w => !/^(smith|machine|cable|dumbbell|barbell|kettlebell|band)$/.test(w))
+    .map(w => w.replace(/s$/, '')).join(' ');
+  const seen = new Map();
+  for (const e of T.all()) {
+    const k = strip(e.name) + ' | ' + e.equipment;
+    if (seen.has(k)) assert.fail(`"${e.name}" and "${seen.get(k)}" are one movement written twice`);
+    seen.set(k, e.name);
+  }
+});
+
 test('a written sheet names its own movements, and the library takes its word', () => {
   // The complaint this was written after: reading the two programmes re-pointed fifty of their
   // ninety movements at something the library already had. A close-grip lat pulldown is not a
@@ -1106,7 +1160,8 @@ test('a written sheet names its own movements, and the library takes its word', 
     const own = T.resolve(written);
     assert.notEqual(own, wasBecoming, written + ' is still being read as ' + wasBecoming);
     assert.ok(T.byId(own), written + ' has no entry of its own');
-    assert.equal(T.byId(own).name, written, 'and it is filed under the name the sheet wrote');
+    // The sheet's words, in the library's case. Style is ours; which movement it is, is the sheet's.
+    assert.equal(T.byId(own).name.toLowerCase(), written.toLowerCase(), 'filed under the sheet\'s own words');
   }
   // Three preacher curls, three entries. One entry would mean one logged history for three lifts.
   const preachers = ['EZ-Bar Preacher Curl', 'Machine Preacher Curl', 'Dumbbell Preacher Curl'].map(n => T.resolve(n));
