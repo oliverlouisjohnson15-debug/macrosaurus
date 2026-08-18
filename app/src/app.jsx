@@ -12673,7 +12673,12 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
   // One-tap targets for the common cases, so most copies never touch the calendar.
   const quick = [{ iso: shiftISO(today, -1), label: 'Yesterday' }, { iso: today, label: 'Today' }, { iso: shiftISO(today, 1), label: 'Tomorrow' }];
   return (
-    <Sheet title={title} onClose={onClose} wide z={60}>
+    /* z-80, the rung the other page-level sheets are on. It used to be 60, which was the toast's
+       layer exactly, and a tie is settled by document order - which the toast wins, being mounted
+       at the root below every screen. So the leftover "1 item copied to tomorrow" from the previous
+       copy was drawn ON TOP of this calendar, and a copy to several days running, which is the
+       whole point of the feature, met a row of days that did not respond. */
+    <Sheet title={title} onClose={onClose} wide z={80}>
       <div>
       {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
       {meals && <div className="mb-3">
@@ -17586,12 +17591,27 @@ function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id)
 function Toast({ toast, onClose, lifted }) {
   if (!toast) return null;
   return (
-    <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: lifted ? 148 : 86 }}>
+    /* A TOAST IS A REPORT, NOT A LAYER. It reaches across the whole width of the screen, so at
+       z-60 with live pointer events it stood between a finger and whatever was underneath it. That
+       is exactly what broke "copy this meal to another day": the copy sheet is a sheet like any
+       other, and the toast left over from the previous copy sat on top of a whole row of its
+       calendar, so tapping the 24th did nothing at all for the five seconds the toast was up. The
+       same strip covered the log and edit sheets, which sit lower still.
+       Two changes, and the bug cannot come back on the next sheet somebody writes. The wrapper is
+       transparent to taps and only the BUTTONS inside it take them back, so nothing but the
+       controls a toast actually has can ever intercept anything. And it moves to the TOP of the
+       stack instead of sitting in the middle of it. The sheets run on a 50-to-95 ladder so a sheet
+       opened from a sheet lands above its parent; z-60 put the toast inside that ladder, which is
+       what made it a coin toss whether any given screen was covered by it. Above the ladder it is
+       always readable - including an Undo raised from inside a sheet, which used to be hidden
+       behind that sheet and could not be pressed at all - and, being transparent, it costs the
+       screen underneath nothing. */
+    <div className="fixed left-0 right-0 z-[97] flex justify-center px-4 pointer-events-none" style={{ bottom: lifted ? 148 : 86 }}>
       <div className="pixel-box px-4 py-3 flex items-center gap-3 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
-        {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
-        {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.actionLabel}</button>}
-        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1" aria-label="Dismiss"><Icon.close width="16" /></button>}
+        {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0 pointer-events-auto">{toast.action2Label}</button>}
+        {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0 pointer-events-auto">{toast.actionLabel}</button>}
+        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1 pointer-events-auto" aria-label="Dismiss"><Icon.close width="16" /></button>}
       </div>
     </div>
   );
@@ -19895,8 +19915,10 @@ function App() {
     <div className="lg:pl-56">
       <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
       <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
-      {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
-        <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
+      {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
+          the empty margins either side of it must not eat taps on whatever is underneath. */}
+      {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
+        <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in pointer-events-auto" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
           <PixelEgg size={20} color="var(--accent)" />
           <div className="min-w-0 flex-1 text-[12px]">A new version is ready.</div>
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
