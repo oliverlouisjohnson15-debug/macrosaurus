@@ -75,7 +75,9 @@ test('strips the noise a caption or spreadsheet carries around the movement name
 // the thirty-one vanish and three more resolve to the wrong machine.
 test('a coach tag in front of every movement does not cost the plan its movements', () => {
   const cases = [
-    ['CAM - SMITH MACHINE INCLINE PRESS', 'machine_incline'],
+    // Was 'machine_incline' ("Incline press machine"), which dropped the word smith. The library
+    // holds the sheet's own "Smith Machine Incline Press" now, and it is the better answer.
+    ['CAM - SMITH MACHINE INCLINE PRESS', 'smith_machine_incline_press'],
     ['CAM - DECLINE CHEST FLY', 'cable_fly_high'],
     ['CAM - DB SEATED SHOULDER PRESS', 'db_ohp'],
     ['CAM - FRENCH PRESS (OHTX)', 'overhead_ez'],
@@ -100,7 +102,14 @@ test('the tag can be an en dash or an em dash, and a hyphenated movement survive
 
 test('a rare word outweighs a common one, so the specific movement wins', () => {
   // Both of these used to tie on a flat token count and fall to whichever sat earlier in the table.
-  assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'hammer_curl', 'not a plain dumbbell curl');
+  // Against a library that holds ONLY "Hammer curl" and "Dumbbell curl", the rare word decides and
+  // the hammer curl wins. It no longer holds only those: the four-day programme prescribes an
+  // "Alternating Dumbbell Curl" and that is now an entry of its own, which matches three of these
+  // four words. Two real movements, one ambiguous query - and the honest note is that this scores
+  // the way it does because the query names the third movement, which the library does not have.
+  assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'alternating_dumbbell_curl');
+  assert.equal(T.resolve('DB HAMMER CURLS'), 'dumbbell_hammer_curl', 'the sheet\'s own dumbbell hammer curl');
+  assert.equal(T.resolve('HAMMER CURL'), 'hammer_curl', 'and the plain one is still the plain one');
   assert.equal(T.resolve('SPLIT SQUAT SMITH MACHINE'), 'split_squat', 'not a bilateral Smith squat');
   // A plain "hamstring curl" in a machine-based plan is the machine, not a Nordic.
   assert.equal(T.resolve('HAMSTRING CURL'), 'lying_leg_curl');
@@ -1078,6 +1087,63 @@ test('a spreadsheet cannot smuggle in numbers the app would not accept', () => {
 // Two written plans in the box, and the thing the generator is aiming at. They are the reference for
 // the method's style and its volume, so a landmark that flags one of them is a landmark that is
 // wrong - which is how the numbers in MINMAX_LANDMARKS were arrived at.
+
+test('a written sheet names its own movements, and the library takes its word', () => {
+  // The complaint this was written after: reading the two programmes re-pointed fifty of their
+  // ninety movements at something the library already had. A close-grip lat pulldown is not a
+  // neutral-grip one and a seated cable deadlift is certainly not a seated cable row, so every one
+  // of those is a line of somebody's plan quietly replaced with a different exercise.
+  const pairs = [
+    ['Close-Grip Lat Pulldown', 'pulldown_neutral'],
+    ['Seated Cable Deadlift', 'seated_cable_row'],
+    ['Smith Machine Lunge', 'split_squat'],
+    ['EZ-Bar Preacher Curl', 'preacher_curl'],
+    ['Triceps Pressdown', 'rope_pushdown'],
+    ['Lying Leg Raise', 'reverse_crunch'],
+    ['Standing Plate Abduction', 'cable_abduction'],
+  ];
+  for (const [written, wasBecoming] of pairs) {
+    const own = T.resolve(written);
+    assert.notEqual(own, wasBecoming, written + ' is still being read as ' + wasBecoming);
+    assert.ok(T.byId(own), written + ' has no entry of its own');
+    assert.equal(T.byId(own).name, written, 'and it is filed under the name the sheet wrote');
+  }
+  // Three preacher curls, three entries. One entry would mean one logged history for three lifts.
+  const preachers = ['EZ-Bar Preacher Curl', 'Machine Preacher Curl', 'Dumbbell Preacher Curl'].map(n => T.resolve(n));
+  assert.equal(new Set(preachers).size, 3, 'three different preacher curls collapsed into ' + new Set(preachers).size);
+});
+
+test('the same words in a different order are still the same movement', () => {
+  // The one thing allowed to overrule the sheet's own name, because no word is added, dropped or
+  // changed - so nothing about the movement can differ. Without it "Machine Chest Press" would sit
+  // beside "Chest press machine" for ever.
+  const key = (x) => String(x).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/)
+    .filter(Boolean).map(w => w.replace(/s$/, '')).sort().join(' ');
+  for (const [written, existing] of [
+    ['Machine Chest Press', 'machine_press'],
+    ['Machine Lateral Raise', 'machine_lateral'],
+    ['Machine Hip Thrust', 'machine_hip_thrust'],
+    ['Barbell Incline Press', 'bb_incline'],
+  ]) {
+    assert.equal(T.resolve(written), existing, written + ' should reuse ' + existing);
+    assert.equal(key(T.byId(existing).name), key(written), 'and they should be the same words');
+    // No second entry filed under the sheet's word order.
+    const twins = T.all().filter(e => key(e.name) === key(written));
+    assert.equal(twins.length, 1, key(written) + ' has ' + twins.length + ' entries: ' + twins.map(e => e.name).join(', '));
+  }
+  // And nothing in either programme points at a movement the library does not hold.
+  for (const p of T.PROGRAMMES) {
+    for (const day of p.template) {
+      for (const e of day.exercises) {
+        assert.ok(T.byId(e.exerciseId), p.name + ' / ' + day.name + ' points at missing ' + e.exerciseId);
+      }
+      for (const e of day.exercises) {
+        (e.alts || []).forEach(a => assert.ok(T.byId(a), 'substitution ' + a + ' is missing'));
+        if (e.choice) e.choice.options.forEach(o => assert.ok(T.byId(o), 'choice option ' + o + ' is missing'));
+      }
+    }
+  }
+});
 
 test('both shipped programmes are four weeks, all-out from the first session', () => {
   assert.ok(T.PROGRAMMES.length >= 2);

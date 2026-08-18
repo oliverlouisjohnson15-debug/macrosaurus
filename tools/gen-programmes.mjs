@@ -83,10 +83,13 @@ function readSheet(path) {
 // The working week, as a template: one week of days, each movement carrying everything the author
 // wrote against it. WEEK is the week of the sheet to take - 2, the first of the working weeks.
 const WEEK = 2;
+const MINTED = [];
 function templateFrom(path) {
   const res = Training.blocksFromGrid(readSheet(path), { splitAt: Infinity });
   if (!res) throw new Error('not a programme: ' + path);
-  if (res.unknown.length) throw new Error('unknown movements, add them to the library first: ' + res.unknown.join(', '));
+  // Not an error any more. A name the library does not hold IS the sheet's movement, and it gets an
+  // entry of its own rather than being read as whatever it most resembles.
+  for (const e of res.custom) if (!MINTED.some(x => x.id === e.id)) MINTED.push(e);
   const block = res.blocks[0];
   // templateOf reads week 1, so hand it a block whose week 1 IS the working week.
   const week = block.sessions.filter(s => s.week === WEEK).map(s => Object.assign({}, s, { week: 1 }));
@@ -113,6 +116,27 @@ function compact(template) {
   }));
 }
 
+/* The movements the sheets name that the library does not hold under that name.
+ *
+ * Printed as TABLE rows, ready to paste into app/training.js, because a written programme's
+ * movements belong in the library properly rather than as auto-minted entries in one person's
+ * account - and because the programmes that ship reference them by id.
+ *
+ * Run this, paste the rows, then run it AGAIN: the second run resolves every name exactly against
+ * the library and mints nothing, which is the check that the paste was complete.
+ */
+function tableRows(mints) {
+  const taken = new Set(Training.all().map(e => e.id));
+  const out = [];
+  for (const e of mints) {
+    let id = e.id.replace(/^cu_auto_/, '').slice(0, 44);
+    while (taken.has(id)) id = id + '2';
+    taken.add(id);
+    out.push([id, e.name, e.equipment, e.pattern, (e.primary || []).join(','), (e.secondary || []).join(','), e.profile].join('|'));
+  }
+  return out;
+}
+
 const [four, five] = process.argv.slice(2);
 if (!four || !five) { console.error('usage: node tools/gen-programmes.mjs <4day.xlsx> <5day.xlsx>'); process.exit(1); }
 const a = templateFrom(four), b = templateFrom(five);
@@ -122,6 +146,14 @@ const out = [
 ];
 // One day per line: readable enough to diff when a sheet changes, compact enough not to add a
 // thousand lines to the engine.
+if (MINTED.length) {
+  console.error('\n// ---- ' + MINTED.length + ' movements to add to TABLE ----');
+  tableRows(MINTED).forEach(r => console.error("    '" + r.replace(/'/g, "\\'") + "',"));
+  console.error('// ---- end ----\n');
+} else {
+  console.error('// every movement resolved against the library by name. Nothing to add.');
+}
+
 console.log('[' + out.map(p => '\n  { key: ' + JSON.stringify(p.key) + ', name: ' + JSON.stringify(p.name)
   + ', daysPerWeek: ' + p.daysPerWeek + ', template: [\n'
   + p.template.map(d => '    ' + JSON.stringify(d)).join(',\n') + '\n  ] }').join(',') + '\n]');
