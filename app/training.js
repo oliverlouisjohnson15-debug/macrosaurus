@@ -4669,7 +4669,10 @@
             (d.exercises || []).forEach(function (e, ei) {
               var ex = byId(e.exerciseId, custom);
               if (!ex || (ex.primary || []).indexOf(r.muscle) === -1) return;
-              if (e.target.sets >= 6) return;
+              // Not past the style's own per-movement ceiling. Proposing a sixth set on a style that
+              // clamps at five is a change the build silently discards, so the screen offers work
+              // that never arrives.
+              if (e.target.sets >= (styleOf(block.style).maxSets || 6)) return;
               if (!pick || e.target.sets < pick.item.target.sets) pick = { day: di, index: ei, item: e, ex: ex };
             });
           });
@@ -4771,6 +4774,357 @@
     var m = n.match(/^(.*), run (\d+)$/);
     if (m) return m[1] + ', run ' + (parseInt(m[2], 10) + 1);
     return n + ', run 2';
+  }
+
+  /* ---- rotating a movement between blocks -------------------------------------------------------
+   * rerunPlan() rotates a lift when the engine spots a stall. This is the other half: the person
+   * standing at the end of a block who wants to CHOOSE what changes, because they have run the same
+   * incline dumbbell press for three blocks and would like the Smith version for a while.
+   *
+   * What the evidence says, and what it does not:
+   *
+   * VARIATION IS NOT A GROWTH LEVER ON ITS OWN. Head to head, varied and constant exercise selection
+   * produce close to the same strength and hypertrophy. So nothing here sells a rotation as extra
+   * progress. What the reviews DO support is that SYSTEMATIC variation helps a little and RANDOM
+   * variation hurts, with two named failure modes: swapping for something that gives the same
+   * stimulus, and changing too often. Both are guarded below, the first by ranking candidates on the
+   * job they do rather than on novelty, the second by CAPS.
+   *
+   * PROGRESSIVE OVERLOAD LIVES IN THE MUSCLE, NOT THE BARBELL. A swap does not continue your run on a
+   * lift, it restarts the number you were reading the run from. The tissue keeps its adaptation; the
+   * trend line does not. Every rotation therefore carries its cost in words, and the lineage is
+   * recorded so the history can still be read as one thing (see familyHistory).
+   *
+   * STRENGTH IS SKILL-SPECIFIC, SO THE BIG LIFTS ARE THE EXPENSIVE ONES TO ROTATE. This is the part
+   * that surprises people, because the big lifts are the ones they most want to change. A barbell
+   * squat is a skill as well as a stimulus, and rotating it costs both the skill and the only
+   * long-run signal you have. So the heaviest, most skilled movement in each pattern is an ANCHOR: it
+   * is scored with a penalty and never switched on by default. It is still offered, because it is
+   * their training and a stalled squat is a real reason.
+   *
+   * THERE IS A RE-LEARNING TAX. Early neural adaptation runs two to four weeks, so the first sessions
+   * on a new movement are load-finding rather than overload. In a four-week block that is a quarter
+   * to half of it. Hence rotations happen at the START of a block and hold for all of it, which is
+   * what returning proposals for the NEXT block (rather than a swap into this one) already enforces.
+   *
+   * Returns verdicts, never a block. `on` is the engine's default answer and the caller is free to
+   * ignore it: this decides what to RECOMMEND, the screen decides what was accepted.
+   */
+
+  // Every other way of doing the same job. Tier 1 is the same movement on different kit, which is
+  // what somebody means by "the Smith version": same pattern, same primary muscles, so the only
+  // thing that changed is what you are holding. Tier 2 widens to the same pattern on the same lead
+  // muscle, which is a different angle on the same job and the honest second answer. Generated grip
+  // and stance variants are tier 0, because changing your stance is the smallest change there is.
+  //
+  // Ranking prefers the SAME resistance profile, which reads backwards until you remember what this
+  // is for: a rotation is meant to keep the job and change the implement. A movement that loads a
+  // different part of the range is a different exercise, and the reviews are explicit that swapping
+  // for a redundant or unrelated stimulus is where variation stops paying.
+  // The words in a movement's name that say what the movement IS, with the ones that only say what
+  // you are holding removed: those are the words a rotation is deliberately changing.
+  //
+  // Named JOB_ rather than KIT_WORDS on purpose. There are already two module-level KIT_WORDS in this
+  // file and a third quietly won, because `var` at this scope is one shared name: it took kitMismatch
+  // out and two import tests with it. Everything declared out here is global to the bundle, so a
+  // generic name is a live hazard rather than a style question.
+  var JOB_KIT_WORDS = { barbell: 1, dumbbell: 1, cable: 1, machine: 1, smith: 1, kettlebell: 1, band: 1, ez: 1, bar: 1, trap: 1, weighted: 1, single: 1, arm: 1 };
+  function jobWords(name) {
+    return norm(name).split(' ').filter(function (w) { return w.length > 2 && !JOB_KIT_WORDS[w]; });
+  }
+  function sharedWords(a, b) {
+    var seen = {}; b.forEach(function (w) { seen[w] = 1; });
+    return a.filter(function (w) { return seen[w]; }).length;
+  }
+  function sameJob(exerciseId, opts) {
+    opts = opts || {};
+    var base = byId(exerciseId, opts.custom);
+    if (!base || isCardio(base)) return [];
+    var lead = (base.primary || [])[0];
+    if (!lead) return [];
+    var have = opts.equipment && opts.equipment.length ? opts.equipment : null;
+    var blocked = {}; (opts.dislikes || []).forEach(function (d) { blocked[d] = 1; });
+    (opts.exclude || []).forEach(function (d) { blocked[d] = 1; });
+    blocked[exerciseId] = 1;
+    var key = function (e) { return (e.primary || []).slice().sort().join(','); };
+    var baseKey = key(base);
+    var kin = {}; (variantsOf(exerciseId, opts.custom) || []).forEach(function (v) { kin[v.id] = 1; });
+    var baseWords = jobWords(base.name);
+
+    return all(opts.custom)
+      .filter(function (e) {
+        if (isCardio(e) || blocked[e.id]) return false;
+        if (e.pattern !== base.pattern) return false;
+        if ((e.primary || []).indexOf(lead) === -1) return false;
+        if (have && have.indexOf(e.equipment) === -1) return false;
+        // A movement that needs kit the gym has not got is not an option, however well it scores.
+        if (have && NEEDS_BENCH[e.id] && !opts.bench) return false;
+        if (have && NEEDS_BAR[e.id] && !opts.bar) return false;
+        return true;
+      })
+      .map(function (e) {
+        var tier = kin[e.id] ? 0 : key(e) === baseKey ? 1 : 2;
+        // Tier 1 leads, not tier 0. A stance change is the smallest possible change and it is worth
+        // offering, but somebody at the end of a block asking to rotate their squat means the hack
+        // squat, not the same bar an inch wider.
+        var score = tier === 1 ? 5 : tier === 0 ? 3 : 1;
+        if (e.profile === base.profile) score += 2;          // same job, different implement
+        if (e.equipment !== base.equipment) score += 1;      // the point of the exercise
+        // Rotating a loaded press onto press-ups is not a rotation, it is a demotion: you cannot add
+        // 2.5kg to your own bodyweight next week, so the thing the whole block is for stops being
+        // possible. Offered further down the list, never first.
+        if (LOADABLE[base.equipment] && !LOADABLE[e.equipment]) score -= 4;
+        // What people actually reach for when they rotate a free-weight lift is the guided version of
+        // it, so a machine, cable or Smith answer outranks another free-weight one at the same tier.
+        if (STABLE_KIT[e.equipment]) score += 1;
+        // And the strongest signal that two movements are the same job is that they are called nearly
+        // the same thing: "incline machine press" against "incline dumbbell press" shares the words
+        // that carry the meaning, which is exactly the pair somebody has in mind.
+        score += 2 * sharedWords(baseWords, jobWords(e.name));
+        return { ex: e, tier: tier, score: score };
+      })
+      .sort(function (a, b) { return b.score - a.score || a.ex.name.localeCompare(b.ex.name); })
+      // One answer per movement. "Machine row" and "Machine row (neutral grip)" are the same
+      // suggestion twice, and offering both spends half a four-slot shortlist saying nothing.
+      .filter(function (r, i, arr) {
+        var fam = baseOf(r.ex.id, opts.custom);
+        return !arr.some(function (o, j) { return j < i && baseOf(o.ex.id, opts.custom) === fam; });
+      })
+      .slice(0, opts.limit || 4)
+      .map(function (r) {
+        return {
+          id: r.ex.id, name: r.ex.name, equipment: r.ex.equipment, profile: r.ex.profile, tier: r.tier,
+          note: r.tier === 0 ? 'The same movement, held differently.'
+            : r.ex.profile === base.profile ? 'The same job on different kit.'
+              : PROFILE_WHY[r.ex.profile] || 'A different angle on the same muscle.',
+        };
+      });
+  }
+
+  // The heaviest, most skilled movement in a pattern is the one whose number is worth protecting.
+  // Barbell and Smith work scores highest because that is where technique carries most of the load,
+  // free weights next, machines and cables least: a leg press is a stimulus, not a skill.
+  // Kit you can add weight to next week. Bodyweight and bands can be progressed, but not in the
+  // small honest steps a block is built on.
+  var LOADABLE = { barbell: 1, trapbar: 1, smith: 1, dumbbell: 1, kettlebell: 1, ez: 1, cable: 1, machine: 1 };
+  var SKILL_KIT = { barbell: 3, trapbar: 3, smith: 2, dumbbell: 2, kettlebell: 2, ez: 1, cable: 1, machine: 0, bodyweight: 1, band: 0 };
+  function skillOf(ex) {
+    if (!ex) return 0;
+    if (ex.pattern === 'isolation' || ex.pattern === 'core' || ex.pattern === 'carry') return 0;
+    return 1 + (SKILL_KIT[ex.equipment] || 0);
+  }
+  function roleOf(ex) {
+    if (!ex) return 'accessory';
+    if (ex.pattern === 'isolation' || ex.pattern === 'core' || ex.pattern === 'carry') return 'accessory';
+    return 'main';
+  }
+
+  // How many separate blocks this movement has been trained across. "Blocks run" is the unit the
+  // rotation guidance is written in (roughly every two to five blocks, not every one), and it is the
+  // number a person actually feels: three blocks of the same press is when it starts to go stale.
+  function blocksRunOn(logs, exerciseId) {
+    var seen = {};
+    (logs || []).forEach(function (l) {
+      if (!l.blockId) return;
+      if ((l.sets || []).some(function (s) { return s.exerciseId === exerciseId && s.done; })) seen[l.blockId] = 1;
+    });
+    return Object.keys(seen).length;
+  }
+
+  // Mean reps in reserve early in the block against late, for one movement. Negative means the same
+  // work is costing more than it did, which is the closest thing to "bar speed looks worse" that a
+  // phone can measure.
+  function rirDrift(blockLogs, exerciseId) {
+    var early = [], late = [];
+    var sorted = (blockLogs || []).slice().sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : 1; });
+    sorted.forEach(function (l, i) {
+      (l.sets || []).forEach(function (s) {
+        if (s.exerciseId !== exerciseId || !s.done || (s.type && s.type !== 'work') || s.rir == null) return;
+        (i < sorted.length / 2 ? early : late).push(+s.rir);
+      });
+    });
+    if (early.length < 3 || late.length < 3) return null;
+    var mean = function (a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; };
+    return round(mean(late) - mean(early), 2);
+  }
+
+  var ROTATE_MAIN_CAP = 1;        // per block, and an anchor counts against it
+  var ROTATE_ACCESSORY_CAP = 2;
+
+  function rotationPlan(block, logs, targets, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var blockLogs = (logs || []).filter(function (l) { return l.blockId === block.id; });
+    var template = templateOf(block);
+    var niggles = {}; (opts.niggles || []).forEach(function (id) { niggles[id] = 1; });
+    var currentIds = template.reduce(function (a, d) {
+      return a.concat((d.exercises || []).map(function (e) { return e.exerciseId; }));
+    }, []);
+
+    // The anchor of each pattern: most skilled first, and among equals the one with the longest run,
+    // because the lift you have the most history on is the one whose history is worth most.
+    var anchorOf = {};
+    template.forEach(function (d, di) {
+      (d.exercises || []).forEach(function (e, ei) {
+        var ex = byId(e.exerciseId, custom);
+        if (!ex || roleOf(ex) !== 'main') return;
+        var cur = anchorOf[ex.pattern];
+        var mine = { id: e.exerciseId, skill: skillOf(ex), runs: blocksRunOn(logs, e.exerciseId) };
+        if (!cur || mine.skill > cur.skill || (mine.skill === cur.skill && mine.runs > cur.runs)) anchorOf[ex.pattern] = mine;
+      });
+    });
+
+    var lifts = [];
+    template.forEach(function (d, di) {
+      (d.exercises || []).forEach(function (e, ei) {
+        var ex = byId(e.exerciseId, custom);
+        if (!ex || isCardio(ex)) return;
+        var role = roleOf(ex);
+        var anchor = anchorOf[ex.pattern] && anchorOf[ex.pattern].id === e.exerciseId;
+        if (anchor) role = 'anchor';
+        var h = exerciseHistory(blockLogs, e.exerciseId);
+        var sessions = h.length;
+        var stall = sessions >= 2 ? detectStall(h) : null;
+        var delta = (sessions >= 2 && h[0].e1rm) ? round(((h[sessions - 1].e1rm - h[0].e1rm) / h[0].e1rm) * 100, 1) : 0;
+        var runs = blocksRunOn(logs, e.exerciseId);
+        var drift = rirDrift(blockLogs, e.exerciseId);
+        var planned = (block.sessions || []).filter(function (s) {
+          return (s.exercises || []).some(function (x) { return x.exerciseId === e.exerciseId; });
+        }).length;
+        var loggedIds = {}; blockLogs.forEach(function (l) { if (l.sessionId) loggedIds[l.sessionId] = 1; });
+        var missed = (block.sessions || []).filter(function (s) {
+          return !loggedIds[s.id] && (s.exercises || []).some(function (x) { return x.exerciseId === e.exerciseId; });
+        }).length;
+
+        var score = 0, reasons = [];
+        if (stall) { score += 2; reasons.push({ key: 'stall', text: 'It has not moved in ' + (stall.sessions || sessions) + ' sessions.' }); }
+        else if (sessions >= 3 && delta <= 0) { score += 2; reasons.push({ key: 'flat', text: 'It finished the block no stronger than it started.' }); }
+        if (runs >= 3) { score += 1; reasons.push({ key: 'runs', text: 'You have run it for ' + runs + ' blocks.' }); }
+        if (drift != null && drift <= -0.75) { score += 1; reasons.push({ key: 'effort', text: 'The same sets are costing you more than they did at the start.' }); }
+        if (planned >= 3 && missed / planned >= 0.4) { score += 1; reasons.push({ key: 'missed', text: 'You skipped ' + missed + ' of the ' + planned + ' sessions it was in.' }); }
+        if (niggles[e.exerciseId]) { score += 2; reasons.push({ key: 'niggle', text: 'You flagged this one as sore in the bad way.' }); }
+        // And everything that argues for leaving it exactly where it is.
+        if (delta > 3) { score -= 3; reasons.push({ key: 'moved', text: 'Up ' + delta + ' percent over the block. That is a run worth keeping.' }); }
+        if (role === 'anchor') { score -= 1; reasons.push({ key: 'anchor', text: 'It is the heaviest skilled movement of its kind here, so it is also your clearest read on whether anything is working.' }); }
+        if (runs <= 1) { score -= 1; reasons.push({ key: 'new', text: 'One block in. There is nothing to say it has stopped working yet.' }); }
+        if (sessions && sessions < 3) { score -= 1; reasons.push({ key: 'thin', text: 'Only ' + sessions + ' logged ' + (sessions === 1 ? 'session' : 'sessions') + ', which is not enough to read.' }); }
+        if (!sessions) { score -= 1; reasons.push({ key: 'unlogged', text: 'Never logged this block, so there is nothing to judge it on.' }); }
+
+        lifts.push({
+          exerciseId: e.exerciseId, name: ex.name, day: di, index: ei, dayName: d.name,
+          role: role, equipment: ex.equipment, pattern: ex.pattern,
+          score: score, reasons: reasons,
+          sessions: sessions, deltaPct: delta, blocksRun: runs, stalled: !!stall, missed: missed, plannedSessions: planned,
+          verdict: score >= 3 ? 'rotate' : score === 2 ? 'your-call' : 'keep',
+          on: false,
+          candidates: sameJob(e.exerciseId, {
+            custom: custom, equipment: opts.equipment, dislikes: opts.dislikes,
+            bench: opts.bench, bar: opts.bar, exclude: currentIds, limit: 4,
+          }),
+          // The cost, in the only terms that matter, and only where it is real. Restarting the number
+          // on a lateral raise is not news; restarting it on the squat is the whole decision.
+          cost: role === 'accessory' ? null
+            : 'Your run on ' + ex.name.toLowerCase() + ' stops here. The muscle keeps what it built, but the numbers start again on the new movement.',
+        });
+      });
+    });
+
+    // Nothing to swap TO is not a recommendation to swap.
+    lifts.forEach(function (l) { if (!l.candidates.length && l.verdict !== 'keep') { l.verdict = 'keep'; l.reasons.push({ key: 'nowhere', text: 'There is nothing in your gym that does the same job.' }); } });
+
+    // THE CAP, which is the whole guard against the failure mode the reviews name. Changing three
+    // movements is variation; changing nine is a different programme with no thread running through
+    // it, and you would not be able to tell afterwards which change did anything. Everything over the
+    // line drops to "your call" rather than disappearing, with the cap named as the reason, because a
+    // proposal that quietly vanishes reads as a bug.
+    var mains = 0, accessories = 0;
+    lifts.slice().sort(function (a, b) { return b.score - a.score; }).forEach(function (l) {
+      if (l.verdict !== 'rotate') return;
+      // An anchor is never switched on for you, however the evidence reads. Rotating the one lift
+      // your whole history hangs off is a decision with a real cost, and a decision with a real cost
+      // should be made by the person paying it. It stays on the list, marked, ready to be turned on.
+      if (l.role === 'anchor') {
+        l.verdict = 'your-call';
+        l.reasons.push({ key: 'anchor-hold', text: 'Turn it on if you want to. It is not switched on for you, because this is the lift you read everything else against.' });
+        return;
+      }
+      var isMain = l.role !== 'accessory';
+      if (isMain && mains < ROTATE_MAIN_CAP) { l.on = true; mains++; return; }
+      if (!isMain && accessories < ROTATE_ACCESSORY_CAP) { l.on = true; accessories++; return; }
+      l.verdict = 'your-call';
+      l.reasons.push({ key: 'cap', text: 'Worth changing, but you are already changing enough this block. Rotating everything at once means nothing you learn can be pinned on anything.' });
+    });
+
+    var offered = lifts.filter(function (l) { return l.on; }).length;
+    return {
+      blockId: block.id,
+      lifts: lifts.sort(function (a, b) { return b.score - a.score || a.day - b.day || a.index - b.index; }),
+      offered: offered,
+      caps: { main: ROTATE_MAIN_CAP, accessory: ROTATE_ACCESSORY_CAP },
+      headline: offered
+        ? offered + ' ' + (offered === 1 ? 'movement is' : 'movements are') + ' worth changing. Everything else earned its place, and keeping it is what lets you read the next block against this one.'
+        : lifts.some(function (l) { return l.verdict === 'your-call'; })
+          ? 'Nothing here has to change. A few are borderline if you fancy a change, and they are marked.'
+          : 'Nothing here needs changing. Movements you keep are movements whose numbers you can still read a trend from.',
+    };
+  }
+
+  // Turn accepted rotations into the next block, plus the lineage rows that keep the history whole.
+  // Shares applyRerun's contract: the OLD template with the accepted changes written into it, so
+  // everything nobody chose to change survives exactly as it was.
+  function applyRotation(block, picks, opts) {
+    opts = opts || {};
+    var changes = (picks || []).map(function (p) {
+      return { kind: 'swap', day: p.day, index: p.index, from: p.from, to: p.to };
+    });
+    // The volume proposals from rerunPlan ride along, because they are decisions about the SAME next
+    // block and applying them in two passes would build two blocks.
+    var next = applyRerun(block, changes.concat(opts.also || []), opts);
+    var when = opts.startISO || null;
+    var rotations = (picks || []).map(function (p) {
+      return { from: p.from, to: p.to, dateISO: when, blockId: next.id, fromBlockId: block.id };
+    });
+    return { block: next, rotations: rotations };
+  }
+
+  // ---- reading a lift's history across the rotations ---------------------------------------------
+  // A rotation restarts the load, and if the history restarts with it then every rotation looks like
+  // losing your progress, which is both wrong and the fastest way to make somebody never rotate
+  // anything. The lineage rows say which movement became which, so a chain can be walked in both
+  // directions and the whole run shown as one thing with a marker where the movement changed.
+  function rotationChain(rotations, exerciseId) {
+    var rows = (rotations || []).filter(function (r) { return r && r.from && r.to; });
+    var chain = [exerciseId], guard = 0;
+    // Backwards, to whatever this came from.
+    for (var back = exerciseId; guard < 20; guard++) {
+      var prev = null;
+      rows.forEach(function (r) { if (r.to === back && chain.indexOf(r.from) === -1) prev = r; });
+      if (!prev) break;
+      chain.unshift(prev.from); back = prev.from;
+    }
+    // Forwards, to whatever it became.
+    for (var fwd = exerciseId, g2 = 0; g2 < 20; g2++) {
+      var nextRow = null;
+      rows.forEach(function (r) { if (r.from === fwd && chain.indexOf(r.to) === -1) nextRow = r; });
+      if (!nextRow) break;
+      chain.push(nextRow.to); fwd = nextRow.to;
+    }
+    return chain;
+  }
+  // The same rows exerciseHistory returns, for every movement in the chain, in date order, each
+  // tagged with the movement it was actually done on so a chart can mark where the change happened.
+  function familyHistory(logs, exerciseId, custom, rotations) {
+    var chain = rotationChain(rotations, exerciseId);
+    var out = [];
+    chain.forEach(function (id) {
+      var ex = byId(id, custom);
+      exerciseHistory(logs, id).forEach(function (row) {
+        out.push(Object.assign({}, row, { exerciseId: id, name: ex ? ex.name : id, changed: false }));
+      });
+    });
+    out.sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0; });
+    out.forEach(function (row, i) { if (i && out[i - 1].exerciseId !== row.exerciseId) row.changed = true; });
+    return out;
   }
 
   // ---- bringing an older block up to date --------------------------------------------------------
@@ -4978,6 +5332,8 @@
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
+    sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn, rirDrift: rirDrift,
+    rotationPlan: rotationPlan, applyRotation: applyRotation, rotationChain: rotationChain, familyHistory: familyHistory,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
     VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
     baseOf: baseOf, variantsOf: variantsOf,

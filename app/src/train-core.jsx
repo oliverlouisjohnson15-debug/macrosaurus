@@ -35,6 +35,13 @@ function tdb(db) {
     // "here is Upper A, here is Upper B, here is Lower A" from four separate posts turns into one
     // programme, rather than four one-day blocks that overwrite each other.
     draft: t.draft || null,
+    // The saved gyms. They are written straight onto db.training.gyms, and every reader goes through
+    // here, so leaving the key out of this object made every saved gym invisible: the picker never
+    // fired and the kit swaps had nothing to offer.
+    gyms: t.gyms || [],
+    // Which movement became which, written when a block-end rotation is accepted. It is what lets a
+    // rotated lift's history read as one run rather than two unrelated stubs.
+    rotations: t.rotations || [],
     prefs: Object.assign({ units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true }, t.prefs || {}),
   };
 }

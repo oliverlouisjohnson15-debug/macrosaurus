@@ -228,3 +228,84 @@ test('a returning user gets the block the wizard would actually build', () => {
   const wiz = render(A.BlockWizard, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} });
   assert.ok(/4 weeks/.test(wiz.text), 'the wizard should open on the four-week shape: ' + (wiz.text.match(/[^.]*weeks[^.]*/) || [''])[0]);
 });
+
+// ---- run it again, and the rotation wizard inside it ---------------------------------------------
+// This screen threw a ReferenceError on every single visit for as long as it existed, because a line
+// read the block one line above the const that declares it. Nothing caught it, because nothing
+// rendered it. That is the entire reason these exist.
+
+// A block with enough behind it that the rotation engine has something to say: three blocks of
+// history and an opening movement whose weight never moved.
+function ranAndStalled() {
+  const block = T.generateBlock({ daysPerWeek: 4, weeks: 4, shape: 'build4' });
+  block.startISO = '2026-07-01';
+  const logs = [];
+  for (let b = 0; b < 2; b++) {
+    (block.sessions || []).slice(0, 8).forEach((s, i) => logs.push({
+      id: 'p' + b + i, blockId: 'prior' + b, sessionId: 'p' + b + 's' + i,
+      dateISO: '2026-0' + (3 + b) + '-' + String(1 + i).padStart(2, '0'),
+      sets: (s.exercises || []).map(e => ({ exerciseId: e.exerciseId, done: true, reps: 8, rir: 2, weightKg: 50 })),
+    }));
+  }
+  (block.sessions || []).forEach((s, i) => {
+    const sets = [];
+    (s.exercises || []).forEach((e, j) => {
+      for (let k = 0; k < (e.target.sets || 3); k++) {
+        sets.push({ exerciseId: e.exerciseId, done: true, reps: 8, rir: 2, weightKg: j === 0 ? 60 : 40 + s.week * 5 });
+      }
+    });
+    logs.push({ id: 'l' + i, blockId: block.id, sessionId: s.id, dateISO: '2026-07-' + String(1 + i).padStart(2, '0'), sets });
+  });
+  const db = accountWith(block);
+  db.training.logs = logs;
+  db.training.prefs.style = block.style;
+  return { db, block };
+}
+const rerun = (db, block) => render(A.RerunScreen, {
+  db, update() {}, showToast() {}, blockId: block.id, onBack() {}, onDraft() {},
+});
+
+test('run it again renders at all', () => {
+  const { db, block } = ranAndStalled();
+  const r = rerun(db, block);
+  assert.ok(r.has('Run it again'), 'the screen did not render: ' + r.text.slice(0, 120));
+  assert.ok(r.has('Movements'), 'the movement list is the point of the screen');
+  assert.ok(/Build it/.test(r.text), 'and there has to be a way out of it');
+});
+
+test('it names the movements and what they would become', () => {
+  const { db, block } = ranAndStalled();
+  const r = rerun(db, block);
+  assert.ok(/Worth changing|Your call/.test(r.text), 'no verdict was shown: ' + r.text.slice(0, 200));
+  // A rotation that is switched on has to say what it turns into, or the switch means nothing.
+  assert.ok(/&rarr;|→/.test(r.html), 'a switched-on rotation did not name its replacement');
+});
+
+test('a rotation says what it costs, where the cost is real', () => {
+  const { db, block } = ranAndStalled();
+  const r = rerun(db, block);
+  assert.ok(/numbers start again/.test(r.text),
+    'a main lift was offered for rotation without saying the run on it restarts: ' + r.text.slice(0, 300));
+});
+
+test('every other movement is one tap away, not gone', () => {
+  const { db, block } = ranAndStalled();
+  const r = rerun(db, block);
+  assert.ok(/Change something else/.test(r.text),
+    'the rest of the block was hidden with no way back to it: ' + r.text.slice(0, 200));
+});
+
+test('a block with no history still gives a screen rather than an error', () => {
+  const db = accountWith();
+  const block = db.training.blocks[0];
+  const r = rerun(db, block);
+  assert.ok(r.has('Run it again'));
+  assert.ok(/Nothing here needs changing|Nothing here has to change/.test(r.text),
+    'an unrun block should say there is nothing to go on: ' + r.text.slice(0, 200));
+});
+
+test('a block that has been deleted underneath you says so', () => {
+  const db = accountWith();
+  const r = render(A.RerunScreen, { db, update() {}, showToast() {}, blockId: 'gone', onBack() {}, onDraft() {} });
+  assert.ok(r.has('not here any more'), r.text.slice(0, 120));
+});

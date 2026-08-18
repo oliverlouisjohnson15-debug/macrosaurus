@@ -3884,10 +3884,18 @@ function useBackClose(onClose) {
     return () => {
       const i = BACK_LAYERS.indexOf(layer);
       if (i >= 0) BACK_LAYERS.splice(i, 1);
-      if (!BACK_LAYERS.length && _backArmed) {
+      if (BACK_LAYERS.length) return;
+      // DEFERRED, and the deferral is the whole point. Stepping from one screen to the next unmounts
+      // the old one before it mounts the new one, so the stack is empty for an instant even though a
+      // layer is about to take the place of the one that just went. Unwinding right here spent a real
+      // history entry on every one of those steps, and four screens into a walk you were somewhere
+      // upstream of where the app started. Checked again on the next tick, when whatever was mounting
+      // has mounted, and skipped entirely if a layer is still there to need the sentinel.
+      setTimeout(() => {
+        if (BACK_LAYERS.length || !_backArmed) return;
         _backArmed = false; _backIgnore++;
         try { window.history.back(); } catch (e) { _backIgnore--; }
-      }
+      }, 0);
     };
   }, [armed]);
 }

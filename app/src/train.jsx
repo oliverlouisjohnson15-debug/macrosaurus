@@ -502,20 +502,117 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
 }
 
 // ---- running the same block again ---------------------------------------------------------------
+// The three tones a verdict comes in, and the words that go with them. Same grammar as the deload
+// advice on the screen before this one, deliberately: somebody has just read "Straight on / Your
+// call / Take a lighter week" and should not have to learn a second scale a tap later.
+const ROTATE_TONE = {
+  rotate: { label: 'Worth changing', color: 'var(--warn)' },
+  'your-call': { label: 'Your call', color: 'var(--muted)' },
+  keep: { label: 'Keep it', color: 'var(--good)' },
+};
+const ROLE_LABEL = { anchor: 'Anchor lift', main: 'Main lift', accessory: 'Accessory' };
+
+// One movement, its verdict, the evidence behind it, and what it could become.
+function RotationCard({ lift, on, chosen, onToggle, onPick, muted }) {
+  const tone = ROTATE_TONE[lift.verdict] || ROTATE_TONE.keep;
+  return (
+    <Card className="p-4 mb-3" style={{ opacity: muted && !on ? 0.62 : 1 }}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          {/* Once it is switched on, the label has to say what is HAPPENING. It read "Keep it" over a
+              card showing an arrow to a replacement, which is the app disagreeing with itself. */}
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: on ? 'var(--accent-ink)' : tone.color }}>
+            {on ? 'Changing' : tone.label} &middot; {ROLE_LABEL[lift.role]}{lift.dayName ? ' · ' + lift.dayName : ''}
+          </div>
+          <div className="text-[13.5px] font-semibold leading-tight">
+            {on && chosen ? <span>{lift.name} &rarr; {chosen.name}</span> : <span>{lift.name}</span>}
+          </div>
+        </div>
+        <button onClick={onToggle} disabled={!lift.candidates.length}
+          className="pf text-[9px] px-3 py-2 shrink-0 hit"
+          style={{
+            background: on ? 'var(--accent)' : 'var(--surface3)',
+            color: on ? 'var(--on-accent)' : 'var(--muted)',
+            border: '2px solid var(--border)', opacity: lift.candidates.length ? 1 : 0.4,
+          }}>
+          {on ? 'ON' : 'OFF'}
+        </button>
+      </div>
+
+      {/* The evidence, not a verdict on its own. Somebody turning a rotation down is entitled to see
+          exactly what the app thought it knew. */}
+      {lift.reasons.length > 0 && (
+        <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+          {/* The two that carried the verdict, not all of them. They are pushed in weight order, and
+              four sentences of hedging on a movement nobody is changing is a card people stop reading. */}
+          {lift.reasons.slice(0, 2).map(r => r.text).join(' ')}
+        </div>
+      )}
+
+      {on && (lift.candidates || []).length > 1 && (
+        <div className="flex gap-2 flex-wrap mt-3">
+          {lift.candidates.map(c => {
+            const picked = chosen && chosen.id === c.id;
+            return (
+              <button key={c.id} onClick={() => onPick(c)} className="pixel-box px-2 py-2 text-[11px] text-left hit"
+                style={{ background: picked ? 'var(--good)' : 'var(--surface2)', color: picked ? '#05140a' : 'var(--text2)' }}>
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {on && chosen && chosen.note && (
+        <div className="text-[11px] leading-snug mt-2" style={{ color: 'var(--muted)' }}>{chosen.note}</div>
+      )}
+      {/* What it costs, said once, where the decision is being made rather than in a help screen
+          nobody opens. Only on the lifts where the cost is real. */}
+      {on && lift.cost && (
+        <div className="pixel-box p-2.5 mt-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+          <div className="text-[11px] leading-snug" style={{ color: 'var(--text2)' }}>{lift.cost}</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // Every proposal Training.rerunPlan made, each with the reason it was made and a switch. Nothing is
 // applied until you say so, and what you turn down survives exactly as your coach wrote it. The
 // engine decides WHAT to propose; this screen only decides what you accepted.
+//
+// Movements are the rotation engine's business and volume is rerunPlan's, which is why the two lists
+// are drawn separately from two calls. They used to be one list of "swaps", and it could not answer
+// the question people actually arrive with: not "what does the app want to change" but "I have run
+// this incline dumbbell press for three blocks, what else could it be?". Every movement in the block
+// is therefore listed and switchable, with the engine's opinion attached rather than in charge.
 function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   useBackClose(onBack);
   const t = tdb(db);
+  const block = t.blocks.filter(b => b.id === blockId)[0];
   // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
   // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  // Read AFTER the block it is reading from: this line used to sit above it and threw on every
+  // visit, which is a whole screen dying to a two-line reorder.
   const targets = trainTargets(db, block ? block.style : undefined);
-  const block = t.blocks.filter(b => b.id === blockId)[0];
+  const gym = currentGym(db);
+  const kit = gym ? Training.gymEquipment(gym) : null;
   const plan = useMemo(() => (block ? Training.rerunPlan(block, t.logs, targets, t.custom) : null), [blockId]);
-  const [off, setOff] = useState({});          // proposals turned down, by index
-  const [pick, setPick] = useState({});         // a different alternative chosen, by index
-  if (!block || !plan) {
+  const rot = useMemo(() => (block ? Training.rotationPlan(block, t.logs, targets, {
+    custom: t.custom, equipment: kit, dislikes: t.prefs.dislikes,
+    bench: !gym || gym.bench !== false, bar: !gym || gym.pullupBar !== false,
+  }) : null), [blockId]);
+  const [off, setOff] = useState({});          // volume proposals turned down, by index
+  const [swaps, setSwaps] = useState(null);     // rotation choices, by exerciseId
+  const [showAll, setShowAll] = useState(false);
+
+  // The engine's answer is the starting position, not the state: seed once, then it is yours.
+  const chosen = swaps || (rot ? rot.lifts.reduce((a, l) => {
+    if (l.on && l.candidates.length) a[l.exerciseId] = l.candidates[0];
+    return a;
+  }, {}) : {});
+  const setChosen = (fn) => setSwaps(s => fn(s || chosen));
+
+  if (!block || !plan || !rot) {
     return (
       <div className="fade-in">
         <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
@@ -523,26 +620,50 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
       </div>
     );
   }
-  const actionable = plan.changes.filter(c => c.kind !== 'keep');
-  const kept = plan.changes.filter(c => c.kind === 'keep');
-  const accepted = actionable
-    .map((c, i) => ({ c, i }))
-    .filter(x => !off[x.i])
-    .map(x => (pick[x.i] ? Object.assign({}, x.c, { to: pick[x.i].id, toName: pick[x.i].name }) : x.c));
 
-  function build() {
-    const next = Training.applyRerun(block, accepted, {
-      targets: targets, custom: t.custom, startISO: Store.todayISO(),
+  // rerunPlan still owns the volume decisions. Its own swap proposals are dropped here because the
+  // rotation list below covers the same ground with the whole block in view rather than only the
+  // lifts that stalled.
+  const volume = plan.changes.filter(c => c.kind === 'sets' || c.kind === 'add');
+  const rotations = Object.keys(chosen).map(id => {
+    const lift = rot.lifts.filter(l => l.exerciseId === id)[0];
+    return lift ? { day: lift.day, index: lift.index, from: id, to: chosen[id].id } : null;
+  }).filter(Boolean);
+  const acceptedVolume = volume.map((c, i) => ({ c, i })).filter(x => !off[x.i]).map(x => x.c);
+  const changeCount = rotations.length + acceptedVolume.length;
+
+  // Worth a decision now; everything else is a keystroke away rather than gone. "Any movement, if
+  // you want to" is the whole point, so nothing is hidden, only folded.
+  const upFront = rot.lifts.filter(l => l.verdict !== 'keep' || chosen[l.exerciseId]);
+  const rest = rot.lifts.filter(l => upFront.indexOf(l) === -1);
+
+  function toggle(lift) {
+    if (!lift.candidates.length) return;
+    setChosen(c => {
+      const next = Object.assign({}, c);
+      if (next[lift.exerciseId]) delete next[lift.exerciseId];
+      else next[lift.exerciseId] = lift.candidates[0];
+      return next;
     });
-    onDraft(next);
   }
 
-  const LABEL = { swap: 'Swap', sets: 'More work', add: 'Missing' };
+  function build() {
+    const out = Training.applyRotation(block, rotations, {
+      targets: targets, custom: t.custom, startISO: Store.todayISO(), also: acceptedVolume,
+    });
+    // The lineage is what keeps a rotated lift's history readable as one run instead of two stubs,
+    // so it is written whether or not the draft is ever started: it describes a decision that was
+    // made, and the block it belongs to carries its own id.
+    if (out.rotations.length) trainUpdate(update, (tr) => { tr.rotations = (tr.rotations || []).concat(out.rotations); });
+    onDraft(out.block);
+  }
+
+  const LABEL = { sets: 'More work', add: 'Missing' };
   return (
     <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
       <h1 className="pf text-lg mb-1">Run it again</h1>
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{plan.headline}</div>
+      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{rot.headline}</div>
 
       {/* The block you are about to run, drawn, before the list of individual changes. The screen
           was a column of swap decisions with no sense of the whole, so you were agreeing to changes
@@ -558,18 +679,45 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
         );
       })()}
 
-      {!actionable.length && (
-        <Card className="p-4 mb-4">
-          <div className="text-[13px] mb-1">Nothing to change.</div>
-          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-            Every lift moved and there is no room worth adding. Run it as it stands.
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Movements</div>
+      {upFront.map(l => (
+        <RotationCard key={l.exerciseId + '_' + l.day + '_' + l.index} lift={l} on={!!chosen[l.exerciseId]}
+          chosen={chosen[l.exerciseId]} onToggle={() => toggle(l)}
+          onPick={(c) => setChosen(x => Object.assign({}, x, { [l.exerciseId]: c }))} />
+      ))}
+
+      {/* Rotating everything at once is the failure mode the research actually names, so the count is
+          said out loud rather than enforced silently. */}
+      {rotations.length > (rot.caps.main + rot.caps.accessory) && (
+        <Card className="p-4 mb-3" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>That is a lot at once</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+            You are changing {rotations.length} movements. Nothing stops you, but a block where most of
+            it is new is a block you cannot compare to this one, and none of what happens can be pinned
+            on any one change.
           </div>
         </Card>
       )}
 
-      {actionable.map((c, i) => {
+      {rest.length > 0 && (
+        <>
+          <button onClick={() => setShowAll(v => !v)} className="pf text-[9px] uppercase mb-3 hit"
+            style={{ color: 'var(--accent-ink)' }}>
+            {showAll ? '‹ Hide the rest' : 'Change something else (' + rest.length + ') ›'}
+          </button>
+          {showAll && rest.map(l => (
+            <RotationCard key={l.exerciseId + '_' + l.day + '_' + l.index} lift={l} on={!!chosen[l.exerciseId]}
+              chosen={chosen[l.exerciseId]} onToggle={() => toggle(l)} muted
+              onPick={(c) => setChosen(x => Object.assign({}, x, { [l.exerciseId]: c }))} />
+          ))}
+        </>
+      )}
+
+      {volume.length > 0 && (
+        <div className="pf text-[9px] uppercase mb-2 mt-5" style={{ color: 'var(--accent-ink)' }}>How much</div>
+      )}
+      {volume.map((c, i) => {
         const isOff = !!off[i];
-        const chosen = pick[i] || (c.to ? { id: c.to, name: c.toName } : null);
         return (
           <Card key={i} className="p-4 mb-3" style={{ opacity: isOff ? 0.5 : 1 }}>
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -578,53 +726,24 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
                   {LABEL[c.kind]}{c.dayName ? ' · ' + c.dayName : ''}
                 </div>
                 <div className="text-[13.5px] font-semibold leading-tight">
-                  {c.kind === 'swap' && <span>{c.fromName} &rarr; {chosen ? chosen.name : c.toName}</span>}
                   {c.kind === 'sets' && <span>{c.fromName}, {c.from} to {c.to} sets</span>}
-                  {c.kind === 'add' && <span>Add {chosen ? chosen.name : c.toName}, {c.sets} sets</span>}
+                  {c.kind === 'add' && <span>Add {c.toName}, {c.sets} sets</span>}
                 </div>
               </div>
               <button onClick={() => setOff(o => Object.assign({}, o, { [i]: !isOff }))}
-                className="pf text-[9px] px-3 py-2 shrink-0"
+                className="pf text-[9px] px-3 py-2 shrink-0 hit"
                 style={{ background: isOff ? 'var(--surface3)' : 'var(--accent)', color: isOff ? 'var(--muted)' : 'var(--on-accent)', border: '2px solid var(--border)' }}>
                 {isOff ? 'OFF' : 'ON'}
               </button>
             </div>
             <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{c.why}</div>
-            {/* The engine's first pick is a suggestion, not a verdict. The others it shortlisted are
-                right here, because "not that one, the cable version" is the commonest correction. */}
-            {!isOff && (c.alts || []).length > 1 && (
-              <div className="flex gap-2 flex-wrap mt-3">
-                {c.alts.map(a => {
-                  const on = chosen && chosen.id === a.id;
-                  return (
-                    <button key={a.id} onClick={() => setPick(p => Object.assign({}, p, { [i]: a }))}
-                      className="pixel-box px-2 py-2 text-[11px]"
-                      style={{ background: on ? 'var(--good)' : 'var(--surface2)', color: on ? '#05140a' : 'var(--text2)' }}>
-                      {a.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </Card>
         );
       })}
 
-      {kept.length > 0 && (
-        <Card className="p-4 mb-3">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--good)' }}>Left alone on purpose</div>
-          {kept.map((c, i) => (
-            <div key={i} className="text-[12px] leading-snug mb-2" style={{ color: 'var(--text2)' }}>
-              <span className="font-semibold">{c.fromName}</span>
-              <span style={{ color: 'var(--muted)' }}> &middot; {c.why}</span>
-            </div>
-          ))}
-        </Card>
-      )}
-
       <StickyAction>
         <button onClick={build} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          Build it{accepted.length ? ' with ' + accepted.length + ' change' + (accepted.length === 1 ? '' : 's') : ' unchanged'}
+          Build it{changeCount ? ' with ' + changeCount + ' change' + (changeCount === 1 ? '' : 's') : ' unchanged'}
         </button>
       </StickyAction>
     </div>
@@ -803,9 +922,18 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
-  const hist = Training.exerciseHistory(t.logs, exerciseId);
-  const stall = Training.detectStall(hist);
+  // The whole run, across every movement this one was rotated into or out of. A rotation restarts
+  // the load and nothing else, so a chart that restarts with it turns "I changed the implement" into
+  // "I lost my progress", which is both untrue and the fastest way to stop anybody ever rotating
+  // anything. Where nothing was ever rotated this is exactly exerciseHistory, so nothing changes for
+  // the movements it does not apply to.
+  const hist = Training.familyHistory(t.logs, exerciseId, t.custom, t.rotations);
+  // Judged on this movement alone, though: a stall is about whether THIS lift is moving, and the
+  // sessions before the change were a different exercise.
+  const own = hist.filter(h => h.exerciseId === exerciseId);
+  const stall = Training.detectStall(own);
   const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
+  const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
 
   return (
     <div className="fade-in">
@@ -819,11 +947,29 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
           <div className="pf text-[9px] uppercase mb-4" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
           <div className="flex items-end gap-1 h-24">
             {hist.slice(-24).map((h, i) => (
-              <div key={i} className="flex-1" style={{ height: Math.max(2, (h.e1rm / max) * 100) + '%', background: 'var(--accent)' }} title={h.dateISO} />
+              <div key={i} className="flex-1" title={h.dateISO + ' · ' + h.name}
+                style={{
+                  height: Math.max(2, (h.e1rm / max) * 100) + '%',
+                  // The sessions on an earlier movement are shown, and shown as not-this-movement:
+                  // the shape of the run is the useful part, but the bars are not comparable loads.
+                  background: h.exerciseId === exerciseId ? 'var(--accent)' : 'var(--surface3)',
+                  borderLeft: h.changed ? '2px solid var(--warn)' : 'none',
+                }} />
             ))}
           </div>
           <div className="flex justify-between text-[10px] mt-2" style={{ color: 'var(--muted2)' }}>
             <span>{hist[Math.max(0, hist.length - 24)].dateISO}</span><span>{hist[hist.length - 1].dateISO}</span>
+          </div>
+        </Card>
+      )}
+
+      {cameFrom && (
+        <Card className="p-4 mb-4">
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Rotated</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+            You came here from {hist.filter(h => h.exerciseId !== exerciseId).slice(-1)[0].name.toLowerCase()} on {cameFrom.dateISO}.
+            The earlier sessions are in the chart in grey, because the muscle carried on from where it
+            was but the weight on this movement started again.
           </div>
         </Card>
       )}
@@ -838,7 +984,10 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Every session</div>
         {hist.slice().reverse().map((h, i) => (
           <div key={i} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
-            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{h.dateISO}</span>
+            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              {h.dateISO}
+              {h.exerciseId !== exerciseId && <span className="block text-[10px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
+            </span>
             <span className="text-[12px]">{h.sets} sets · top {toDisplayWeight(h.topWeight, units)}{unitLabel(units)} x {h.topReps}</span>
           </div>
         ))}
@@ -2031,6 +2180,12 @@ function HowItWorks({ onBack }) {
       'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'],
     ['Stalling is a movement problem, not a volume problem',
       'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'],
+    ['Changing a movement between blocks',
+      'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'],
+    ['A swap restarts the number, not the muscle',
+      'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'],
+    ['The big lifts are the expensive ones to change',
+      'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'],
     ['Every muscle, twice a week',
       'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'],
     ['A plan you bring is a starting point, not a stencil',

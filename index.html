@@ -10612,7 +10612,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
             (d.exercises || []).forEach(function (e, ei) {
               var ex = byId(e.exerciseId, custom);
               if (!ex || (ex.primary || []).indexOf(r.muscle) === -1) return;
-              if (e.target.sets >= 6) return;
+              // Not past the style's own per-movement ceiling. Proposing a sixth set on a style that
+              // clamps at five is a change the build silently discards, so the screen offers work
+              // that never arrives.
+              if (e.target.sets >= (styleOf(block.style).maxSets || 6)) return;
               if (!pick || e.target.sets < pick.item.target.sets) pick = { day: di, index: ei, item: e, ex: ex };
             });
           });
@@ -10714,6 +10717,357 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var m = n.match(/^(.*), run (\d+)$/);
     if (m) return m[1] + ', run ' + (parseInt(m[2], 10) + 1);
     return n + ', run 2';
+  }
+
+  /* ---- rotating a movement between blocks -------------------------------------------------------
+   * rerunPlan() rotates a lift when the engine spots a stall. This is the other half: the person
+   * standing at the end of a block who wants to CHOOSE what changes, because they have run the same
+   * incline dumbbell press for three blocks and would like the Smith version for a while.
+   *
+   * What the evidence says, and what it does not:
+   *
+   * VARIATION IS NOT A GROWTH LEVER ON ITS OWN. Head to head, varied and constant exercise selection
+   * produce close to the same strength and hypertrophy. So nothing here sells a rotation as extra
+   * progress. What the reviews DO support is that SYSTEMATIC variation helps a little and RANDOM
+   * variation hurts, with two named failure modes: swapping for something that gives the same
+   * stimulus, and changing too often. Both are guarded below, the first by ranking candidates on the
+   * job they do rather than on novelty, the second by CAPS.
+   *
+   * PROGRESSIVE OVERLOAD LIVES IN THE MUSCLE, NOT THE BARBELL. A swap does not continue your run on a
+   * lift, it restarts the number you were reading the run from. The tissue keeps its adaptation; the
+   * trend line does not. Every rotation therefore carries its cost in words, and the lineage is
+   * recorded so the history can still be read as one thing (see familyHistory).
+   *
+   * STRENGTH IS SKILL-SPECIFIC, SO THE BIG LIFTS ARE THE EXPENSIVE ONES TO ROTATE. This is the part
+   * that surprises people, because the big lifts are the ones they most want to change. A barbell
+   * squat is a skill as well as a stimulus, and rotating it costs both the skill and the only
+   * long-run signal you have. So the heaviest, most skilled movement in each pattern is an ANCHOR: it
+   * is scored with a penalty and never switched on by default. It is still offered, because it is
+   * their training and a stalled squat is a real reason.
+   *
+   * THERE IS A RE-LEARNING TAX. Early neural adaptation runs two to four weeks, so the first sessions
+   * on a new movement are load-finding rather than overload. In a four-week block that is a quarter
+   * to half of it. Hence rotations happen at the START of a block and hold for all of it, which is
+   * what returning proposals for the NEXT block (rather than a swap into this one) already enforces.
+   *
+   * Returns verdicts, never a block. `on` is the engine's default answer and the caller is free to
+   * ignore it: this decides what to RECOMMEND, the screen decides what was accepted.
+   */
+
+  // Every other way of doing the same job. Tier 1 is the same movement on different kit, which is
+  // what somebody means by "the Smith version": same pattern, same primary muscles, so the only
+  // thing that changed is what you are holding. Tier 2 widens to the same pattern on the same lead
+  // muscle, which is a different angle on the same job and the honest second answer. Generated grip
+  // and stance variants are tier 0, because changing your stance is the smallest change there is.
+  //
+  // Ranking prefers the SAME resistance profile, which reads backwards until you remember what this
+  // is for: a rotation is meant to keep the job and change the implement. A movement that loads a
+  // different part of the range is a different exercise, and the reviews are explicit that swapping
+  // for a redundant or unrelated stimulus is where variation stops paying.
+  // The words in a movement's name that say what the movement IS, with the ones that only say what
+  // you are holding removed: those are the words a rotation is deliberately changing.
+  //
+  // Named JOB_ rather than KIT_WORDS on purpose. There are already two module-level KIT_WORDS in this
+  // file and a third quietly won, because `var` at this scope is one shared name: it took kitMismatch
+  // out and two import tests with it. Everything declared out here is global to the bundle, so a
+  // generic name is a live hazard rather than a style question.
+  var JOB_KIT_WORDS = { barbell: 1, dumbbell: 1, cable: 1, machine: 1, smith: 1, kettlebell: 1, band: 1, ez: 1, bar: 1, trap: 1, weighted: 1, single: 1, arm: 1 };
+  function jobWords(name) {
+    return norm(name).split(' ').filter(function (w) { return w.length > 2 && !JOB_KIT_WORDS[w]; });
+  }
+  function sharedWords(a, b) {
+    var seen = {}; b.forEach(function (w) { seen[w] = 1; });
+    return a.filter(function (w) { return seen[w]; }).length;
+  }
+  function sameJob(exerciseId, opts) {
+    opts = opts || {};
+    var base = byId(exerciseId, opts.custom);
+    if (!base || isCardio(base)) return [];
+    var lead = (base.primary || [])[0];
+    if (!lead) return [];
+    var have = opts.equipment && opts.equipment.length ? opts.equipment : null;
+    var blocked = {}; (opts.dislikes || []).forEach(function (d) { blocked[d] = 1; });
+    (opts.exclude || []).forEach(function (d) { blocked[d] = 1; });
+    blocked[exerciseId] = 1;
+    var key = function (e) { return (e.primary || []).slice().sort().join(','); };
+    var baseKey = key(base);
+    var kin = {}; (variantsOf(exerciseId, opts.custom) || []).forEach(function (v) { kin[v.id] = 1; });
+    var baseWords = jobWords(base.name);
+
+    return all(opts.custom)
+      .filter(function (e) {
+        if (isCardio(e) || blocked[e.id]) return false;
+        if (e.pattern !== base.pattern) return false;
+        if ((e.primary || []).indexOf(lead) === -1) return false;
+        if (have && have.indexOf(e.equipment) === -1) return false;
+        // A movement that needs kit the gym has not got is not an option, however well it scores.
+        if (have && NEEDS_BENCH[e.id] && !opts.bench) return false;
+        if (have && NEEDS_BAR[e.id] && !opts.bar) return false;
+        return true;
+      })
+      .map(function (e) {
+        var tier = kin[e.id] ? 0 : key(e) === baseKey ? 1 : 2;
+        // Tier 1 leads, not tier 0. A stance change is the smallest possible change and it is worth
+        // offering, but somebody at the end of a block asking to rotate their squat means the hack
+        // squat, not the same bar an inch wider.
+        var score = tier === 1 ? 5 : tier === 0 ? 3 : 1;
+        if (e.profile === base.profile) score += 2;          // same job, different implement
+        if (e.equipment !== base.equipment) score += 1;      // the point of the exercise
+        // Rotating a loaded press onto press-ups is not a rotation, it is a demotion: you cannot add
+        // 2.5kg to your own bodyweight next week, so the thing the whole block is for stops being
+        // possible. Offered further down the list, never first.
+        if (LOADABLE[base.equipment] && !LOADABLE[e.equipment]) score -= 4;
+        // What people actually reach for when they rotate a free-weight lift is the guided version of
+        // it, so a machine, cable or Smith answer outranks another free-weight one at the same tier.
+        if (STABLE_KIT[e.equipment]) score += 1;
+        // And the strongest signal that two movements are the same job is that they are called nearly
+        // the same thing: "incline machine press" against "incline dumbbell press" shares the words
+        // that carry the meaning, which is exactly the pair somebody has in mind.
+        score += 2 * sharedWords(baseWords, jobWords(e.name));
+        return { ex: e, tier: tier, score: score };
+      })
+      .sort(function (a, b) { return b.score - a.score || a.ex.name.localeCompare(b.ex.name); })
+      // One answer per movement. "Machine row" and "Machine row (neutral grip)" are the same
+      // suggestion twice, and offering both spends half a four-slot shortlist saying nothing.
+      .filter(function (r, i, arr) {
+        var fam = baseOf(r.ex.id, opts.custom);
+        return !arr.some(function (o, j) { return j < i && baseOf(o.ex.id, opts.custom) === fam; });
+      })
+      .slice(0, opts.limit || 4)
+      .map(function (r) {
+        return {
+          id: r.ex.id, name: r.ex.name, equipment: r.ex.equipment, profile: r.ex.profile, tier: r.tier,
+          note: r.tier === 0 ? 'The same movement, held differently.'
+            : r.ex.profile === base.profile ? 'The same job on different kit.'
+              : PROFILE_WHY[r.ex.profile] || 'A different angle on the same muscle.',
+        };
+      });
+  }
+
+  // The heaviest, most skilled movement in a pattern is the one whose number is worth protecting.
+  // Barbell and Smith work scores highest because that is where technique carries most of the load,
+  // free weights next, machines and cables least: a leg press is a stimulus, not a skill.
+  // Kit you can add weight to next week. Bodyweight and bands can be progressed, but not in the
+  // small honest steps a block is built on.
+  var LOADABLE = { barbell: 1, trapbar: 1, smith: 1, dumbbell: 1, kettlebell: 1, ez: 1, cable: 1, machine: 1 };
+  var SKILL_KIT = { barbell: 3, trapbar: 3, smith: 2, dumbbell: 2, kettlebell: 2, ez: 1, cable: 1, machine: 0, bodyweight: 1, band: 0 };
+  function skillOf(ex) {
+    if (!ex) return 0;
+    if (ex.pattern === 'isolation' || ex.pattern === 'core' || ex.pattern === 'carry') return 0;
+    return 1 + (SKILL_KIT[ex.equipment] || 0);
+  }
+  function roleOf(ex) {
+    if (!ex) return 'accessory';
+    if (ex.pattern === 'isolation' || ex.pattern === 'core' || ex.pattern === 'carry') return 'accessory';
+    return 'main';
+  }
+
+  // How many separate blocks this movement has been trained across. "Blocks run" is the unit the
+  // rotation guidance is written in (roughly every two to five blocks, not every one), and it is the
+  // number a person actually feels: three blocks of the same press is when it starts to go stale.
+  function blocksRunOn(logs, exerciseId) {
+    var seen = {};
+    (logs || []).forEach(function (l) {
+      if (!l.blockId) return;
+      if ((l.sets || []).some(function (s) { return s.exerciseId === exerciseId && s.done; })) seen[l.blockId] = 1;
+    });
+    return Object.keys(seen).length;
+  }
+
+  // Mean reps in reserve early in the block against late, for one movement. Negative means the same
+  // work is costing more than it did, which is the closest thing to "bar speed looks worse" that a
+  // phone can measure.
+  function rirDrift(blockLogs, exerciseId) {
+    var early = [], late = [];
+    var sorted = (blockLogs || []).slice().sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : 1; });
+    sorted.forEach(function (l, i) {
+      (l.sets || []).forEach(function (s) {
+        if (s.exerciseId !== exerciseId || !s.done || (s.type && s.type !== 'work') || s.rir == null) return;
+        (i < sorted.length / 2 ? early : late).push(+s.rir);
+      });
+    });
+    if (early.length < 3 || late.length < 3) return null;
+    var mean = function (a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; };
+    return round(mean(late) - mean(early), 2);
+  }
+
+  var ROTATE_MAIN_CAP = 1;        // per block, and an anchor counts against it
+  var ROTATE_ACCESSORY_CAP = 2;
+
+  function rotationPlan(block, logs, targets, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var blockLogs = (logs || []).filter(function (l) { return l.blockId === block.id; });
+    var template = templateOf(block);
+    var niggles = {}; (opts.niggles || []).forEach(function (id) { niggles[id] = 1; });
+    var currentIds = template.reduce(function (a, d) {
+      return a.concat((d.exercises || []).map(function (e) { return e.exerciseId; }));
+    }, []);
+
+    // The anchor of each pattern: most skilled first, and among equals the one with the longest run,
+    // because the lift you have the most history on is the one whose history is worth most.
+    var anchorOf = {};
+    template.forEach(function (d, di) {
+      (d.exercises || []).forEach(function (e, ei) {
+        var ex = byId(e.exerciseId, custom);
+        if (!ex || roleOf(ex) !== 'main') return;
+        var cur = anchorOf[ex.pattern];
+        var mine = { id: e.exerciseId, skill: skillOf(ex), runs: blocksRunOn(logs, e.exerciseId) };
+        if (!cur || mine.skill > cur.skill || (mine.skill === cur.skill && mine.runs > cur.runs)) anchorOf[ex.pattern] = mine;
+      });
+    });
+
+    var lifts = [];
+    template.forEach(function (d, di) {
+      (d.exercises || []).forEach(function (e, ei) {
+        var ex = byId(e.exerciseId, custom);
+        if (!ex || isCardio(ex)) return;
+        var role = roleOf(ex);
+        var anchor = anchorOf[ex.pattern] && anchorOf[ex.pattern].id === e.exerciseId;
+        if (anchor) role = 'anchor';
+        var h = exerciseHistory(blockLogs, e.exerciseId);
+        var sessions = h.length;
+        var stall = sessions >= 2 ? detectStall(h) : null;
+        var delta = (sessions >= 2 && h[0].e1rm) ? round(((h[sessions - 1].e1rm - h[0].e1rm) / h[0].e1rm) * 100, 1) : 0;
+        var runs = blocksRunOn(logs, e.exerciseId);
+        var drift = rirDrift(blockLogs, e.exerciseId);
+        var planned = (block.sessions || []).filter(function (s) {
+          return (s.exercises || []).some(function (x) { return x.exerciseId === e.exerciseId; });
+        }).length;
+        var loggedIds = {}; blockLogs.forEach(function (l) { if (l.sessionId) loggedIds[l.sessionId] = 1; });
+        var missed = (block.sessions || []).filter(function (s) {
+          return !loggedIds[s.id] && (s.exercises || []).some(function (x) { return x.exerciseId === e.exerciseId; });
+        }).length;
+
+        var score = 0, reasons = [];
+        if (stall) { score += 2; reasons.push({ key: 'stall', text: 'It has not moved in ' + (stall.sessions || sessions) + ' sessions.' }); }
+        else if (sessions >= 3 && delta <= 0) { score += 2; reasons.push({ key: 'flat', text: 'It finished the block no stronger than it started.' }); }
+        if (runs >= 3) { score += 1; reasons.push({ key: 'runs', text: 'You have run it for ' + runs + ' blocks.' }); }
+        if (drift != null && drift <= -0.75) { score += 1; reasons.push({ key: 'effort', text: 'The same sets are costing you more than they did at the start.' }); }
+        if (planned >= 3 && missed / planned >= 0.4) { score += 1; reasons.push({ key: 'missed', text: 'You skipped ' + missed + ' of the ' + planned + ' sessions it was in.' }); }
+        if (niggles[e.exerciseId]) { score += 2; reasons.push({ key: 'niggle', text: 'You flagged this one as sore in the bad way.' }); }
+        // And everything that argues for leaving it exactly where it is.
+        if (delta > 3) { score -= 3; reasons.push({ key: 'moved', text: 'Up ' + delta + ' percent over the block. That is a run worth keeping.' }); }
+        if (role === 'anchor') { score -= 1; reasons.push({ key: 'anchor', text: 'It is the heaviest skilled movement of its kind here, so it is also your clearest read on whether anything is working.' }); }
+        if (runs <= 1) { score -= 1; reasons.push({ key: 'new', text: 'One block in. There is nothing to say it has stopped working yet.' }); }
+        if (sessions && sessions < 3) { score -= 1; reasons.push({ key: 'thin', text: 'Only ' + sessions + ' logged ' + (sessions === 1 ? 'session' : 'sessions') + ', which is not enough to read.' }); }
+        if (!sessions) { score -= 1; reasons.push({ key: 'unlogged', text: 'Never logged this block, so there is nothing to judge it on.' }); }
+
+        lifts.push({
+          exerciseId: e.exerciseId, name: ex.name, day: di, index: ei, dayName: d.name,
+          role: role, equipment: ex.equipment, pattern: ex.pattern,
+          score: score, reasons: reasons,
+          sessions: sessions, deltaPct: delta, blocksRun: runs, stalled: !!stall, missed: missed, plannedSessions: planned,
+          verdict: score >= 3 ? 'rotate' : score === 2 ? 'your-call' : 'keep',
+          on: false,
+          candidates: sameJob(e.exerciseId, {
+            custom: custom, equipment: opts.equipment, dislikes: opts.dislikes,
+            bench: opts.bench, bar: opts.bar, exclude: currentIds, limit: 4,
+          }),
+          // The cost, in the only terms that matter, and only where it is real. Restarting the number
+          // on a lateral raise is not news; restarting it on the squat is the whole decision.
+          cost: role === 'accessory' ? null
+            : 'Your run on ' + ex.name.toLowerCase() + ' stops here. The muscle keeps what it built, but the numbers start again on the new movement.',
+        });
+      });
+    });
+
+    // Nothing to swap TO is not a recommendation to swap.
+    lifts.forEach(function (l) { if (!l.candidates.length && l.verdict !== 'keep') { l.verdict = 'keep'; l.reasons.push({ key: 'nowhere', text: 'There is nothing in your gym that does the same job.' }); } });
+
+    // THE CAP, which is the whole guard against the failure mode the reviews name. Changing three
+    // movements is variation; changing nine is a different programme with no thread running through
+    // it, and you would not be able to tell afterwards which change did anything. Everything over the
+    // line drops to "your call" rather than disappearing, with the cap named as the reason, because a
+    // proposal that quietly vanishes reads as a bug.
+    var mains = 0, accessories = 0;
+    lifts.slice().sort(function (a, b) { return b.score - a.score; }).forEach(function (l) {
+      if (l.verdict !== 'rotate') return;
+      // An anchor is never switched on for you, however the evidence reads. Rotating the one lift
+      // your whole history hangs off is a decision with a real cost, and a decision with a real cost
+      // should be made by the person paying it. It stays on the list, marked, ready to be turned on.
+      if (l.role === 'anchor') {
+        l.verdict = 'your-call';
+        l.reasons.push({ key: 'anchor-hold', text: 'Turn it on if you want to. It is not switched on for you, because this is the lift you read everything else against.' });
+        return;
+      }
+      var isMain = l.role !== 'accessory';
+      if (isMain && mains < ROTATE_MAIN_CAP) { l.on = true; mains++; return; }
+      if (!isMain && accessories < ROTATE_ACCESSORY_CAP) { l.on = true; accessories++; return; }
+      l.verdict = 'your-call';
+      l.reasons.push({ key: 'cap', text: 'Worth changing, but you are already changing enough this block. Rotating everything at once means nothing you learn can be pinned on anything.' });
+    });
+
+    var offered = lifts.filter(function (l) { return l.on; }).length;
+    return {
+      blockId: block.id,
+      lifts: lifts.sort(function (a, b) { return b.score - a.score || a.day - b.day || a.index - b.index; }),
+      offered: offered,
+      caps: { main: ROTATE_MAIN_CAP, accessory: ROTATE_ACCESSORY_CAP },
+      headline: offered
+        ? offered + ' ' + (offered === 1 ? 'movement is' : 'movements are') + ' worth changing. Everything else earned its place, and keeping it is what lets you read the next block against this one.'
+        : lifts.some(function (l) { return l.verdict === 'your-call'; })
+          ? 'Nothing here has to change. A few are borderline if you fancy a change, and they are marked.'
+          : 'Nothing here needs changing. Movements you keep are movements whose numbers you can still read a trend from.',
+    };
+  }
+
+  // Turn accepted rotations into the next block, plus the lineage rows that keep the history whole.
+  // Shares applyRerun's contract: the OLD template with the accepted changes written into it, so
+  // everything nobody chose to change survives exactly as it was.
+  function applyRotation(block, picks, opts) {
+    opts = opts || {};
+    var changes = (picks || []).map(function (p) {
+      return { kind: 'swap', day: p.day, index: p.index, from: p.from, to: p.to };
+    });
+    // The volume proposals from rerunPlan ride along, because they are decisions about the SAME next
+    // block and applying them in two passes would build two blocks.
+    var next = applyRerun(block, changes.concat(opts.also || []), opts);
+    var when = opts.startISO || null;
+    var rotations = (picks || []).map(function (p) {
+      return { from: p.from, to: p.to, dateISO: when, blockId: next.id, fromBlockId: block.id };
+    });
+    return { block: next, rotations: rotations };
+  }
+
+  // ---- reading a lift's history across the rotations ---------------------------------------------
+  // A rotation restarts the load, and if the history restarts with it then every rotation looks like
+  // losing your progress, which is both wrong and the fastest way to make somebody never rotate
+  // anything. The lineage rows say which movement became which, so a chain can be walked in both
+  // directions and the whole run shown as one thing with a marker where the movement changed.
+  function rotationChain(rotations, exerciseId) {
+    var rows = (rotations || []).filter(function (r) { return r && r.from && r.to; });
+    var chain = [exerciseId], guard = 0;
+    // Backwards, to whatever this came from.
+    for (var back = exerciseId; guard < 20; guard++) {
+      var prev = null;
+      rows.forEach(function (r) { if (r.to === back && chain.indexOf(r.from) === -1) prev = r; });
+      if (!prev) break;
+      chain.unshift(prev.from); back = prev.from;
+    }
+    // Forwards, to whatever it became.
+    for (var fwd = exerciseId, g2 = 0; g2 < 20; g2++) {
+      var nextRow = null;
+      rows.forEach(function (r) { if (r.from === fwd && chain.indexOf(r.to) === -1) nextRow = r; });
+      if (!nextRow) break;
+      chain.push(nextRow.to); fwd = nextRow.to;
+    }
+    return chain;
+  }
+  // The same rows exerciseHistory returns, for every movement in the chain, in date order, each
+  // tagged with the movement it was actually done on so a chart can mark where the change happened.
+  function familyHistory(logs, exerciseId, custom, rotations) {
+    var chain = rotationChain(rotations, exerciseId);
+    var out = [];
+    chain.forEach(function (id) {
+      var ex = byId(id, custom);
+      exerciseHistory(logs, id).forEach(function (row) {
+        out.push(Object.assign({}, row, { exerciseId: id, name: ex ? ex.name : id, changed: false }));
+      });
+    });
+    out.sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0; });
+    out.forEach(function (row, i) { if (i && out[i - 1].exerciseId !== row.exerciseId) row.changed = true; });
+    return out;
   }
 
   // ---- bringing an older block up to date --------------------------------------------------------
@@ -10921,6 +11275,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
+    sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn, rirDrift: rirDrift,
+    rotationPlan: rotationPlan, applyRotation: applyRotation, rotationChain: rotationChain, familyHistory: familyHistory,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
     VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
     baseOf: baseOf, variantsOf: variantsOf,
@@ -16481,7 +16837,15 @@ function useBackClose(onClose) {
     return () => {
       const i = BACK_LAYERS.indexOf(layer);
       if (i >= 0) BACK_LAYERS.splice(i, 1);
-      if (!BACK_LAYERS.length && _backArmed) {
+      if (BACK_LAYERS.length) return;
+      // DEFERRED, and the deferral is the whole point. Stepping from one screen to the next unmounts
+      // the old one before it mounts the new one, so the stack is empty for an instant even though a
+      // layer is about to take the place of the one that just went. Unwinding right here spent a real
+      // history entry on every one of those steps, and four screens into a walk you were somewhere
+      // upstream of where the app started. Checked again on the next tick, when whatever was mounting
+      // has mounted, and skipped entirely if a layer is still there to need the sentinel.
+      setTimeout(() => {
+        if (BACK_LAYERS.length || !_backArmed) return;
         _backArmed = false;
         _backIgnore++;
         try {
@@ -16489,7 +16853,7 @@ function useBackClose(onClose) {
         } catch (e) {
           _backIgnore--;
         }
-      }
+      }, 0);
     };
   }, [armed]);
 }
@@ -51910,6 +52274,13 @@ function tdb(db) {
     // "here is Upper A, here is Upper B, here is Lower A" from four separate posts turns into one
     // programme, rather than four one-day blocks that overwrite each other.
     draft: t.draft || null,
+    // The saved gyms. They are written straight onto db.training.gyms, and every reader goes through
+    // here, so leaving the key out of this object made every saved gym invisible: the picker never
+    // fired and the kit swaps had nothing to offer.
+    gyms: t.gyms || [],
+    // Which movement became which, written when a block-end rotation is accepted. It is what lets a
+    // rotated lift's history read as one run rather than two unrelated stubs.
+    rotations: t.rotations || [],
     prefs: Object.assign({
       units: 'kg',
       experience: 'intermediate',
@@ -58455,9 +58826,111 @@ function BlockReviewScreen({
 }
 
 // ---- running the same block again ---------------------------------------------------------------
+// The three tones a verdict comes in, and the words that go with them. Same grammar as the deload
+// advice on the screen before this one, deliberately: somebody has just read "Straight on / Your
+// call / Take a lighter week" and should not have to learn a second scale a tap later.
+const ROTATE_TONE = {
+  rotate: {
+    label: 'Worth changing',
+    color: 'var(--warn)'
+  },
+  'your-call': {
+    label: 'Your call',
+    color: 'var(--muted)'
+  },
+  keep: {
+    label: 'Keep it',
+    color: 'var(--good)'
+  }
+};
+const ROLE_LABEL = {
+  anchor: 'Anchor lift',
+  main: 'Main lift',
+  accessory: 'Accessory'
+};
+
+// One movement, its verdict, the evidence behind it, and what it could become.
+function RotationCard({
+  lift,
+  on,
+  chosen,
+  onToggle,
+  onPick,
+  muted
+}) {
+  const tone = ROTATE_TONE[lift.verdict] || ROTATE_TONE.keep;
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-3",
+    style: {
+      opacity: muted && !on ? 0.62 : 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: on ? 'var(--accent-ink)' : tone.color
+    }
+  }, on ? 'Changing' : tone.label, " · ", ROLE_LABEL[lift.role], lift.dayName ? ' · ' + lift.dayName : ''), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13.5px] font-semibold leading-tight"
+  }, on && chosen ? /*#__PURE__*/React.createElement("span", null, lift.name, " → ", chosen.name) : /*#__PURE__*/React.createElement("span", null, lift.name))), /*#__PURE__*/React.createElement("button", {
+    onClick: onToggle,
+    disabled: !lift.candidates.length,
+    className: "pf text-[9px] px-3 py-2 shrink-0 hit",
+    style: {
+      background: on ? 'var(--accent)' : 'var(--surface3)',
+      color: on ? 'var(--on-accent)' : 'var(--muted)',
+      border: '2px solid var(--border)',
+      opacity: lift.candidates.length ? 1 : 0.4
+    }
+  }, on ? 'ON' : 'OFF')), lift.reasons.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, lift.reasons.slice(0, 2).map(r => r.text).join(' ')), on && (lift.candidates || []).length > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap mt-3"
+  }, lift.candidates.map(c => {
+    const picked = chosen && chosen.id === c.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: c.id,
+      onClick: () => onPick(c),
+      className: "pixel-box px-2 py-2 text-[11px] text-left hit",
+      style: {
+        background: picked ? 'var(--good)' : 'var(--surface2)',
+        color: picked ? '#05140a' : 'var(--text2)'
+      }
+    }, c.name);
+  })), on && chosen && chosen.note && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-snug mt-2",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, chosen.note), on && lift.cost && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2.5 mt-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-snug",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, lift.cost)));
+}
+
 // Every proposal Training.rerunPlan made, each with the reason it was made and a switch. Nothing is
 // applied until you say so, and what you turn down survives exactly as your coach wrote it. The
 // engine decides WHAT to propose; this screen only decides what you accepted.
+//
+// Movements are the rotation engine's business and volume is rerunPlan's, which is why the two lists
+// are drawn separately from two calls. They used to be one list of "swaps", and it could not answer
+// the question people actually arrive with: not "what does the app want to change" but "I have run
+// this incline dumbbell press for three blocks, what else could it be?". Every movement in the block
+// is therefore listed and switchable, with the engine's opinion attached rather than in charge.
 function RerunScreen({
   db,
   update,
@@ -58468,14 +58941,33 @@ function RerunScreen({
 }) {
   useBackClose(onBack);
   const t = tdb(db);
+  const block = t.blocks.filter(b => b.id === blockId)[0];
   // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
   // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  // Read AFTER the block it is reading from: this line used to sit above it and threw on every
+  // visit, which is a whole screen dying to a two-line reorder.
   const targets = trainTargets(db, block ? block.style : undefined);
-  const block = t.blocks.filter(b => b.id === blockId)[0];
+  const gym = currentGym(db);
+  const kit = gym ? Training.gymEquipment(gym) : null;
   const plan = useMemo(() => block ? Training.rerunPlan(block, t.logs, targets, t.custom) : null, [blockId]);
-  const [off, setOff] = useState({}); // proposals turned down, by index
-  const [pick, setPick] = useState({}); // a different alternative chosen, by index
-  if (!block || !plan) {
+  const rot = useMemo(() => block ? Training.rotationPlan(block, t.logs, targets, {
+    custom: t.custom,
+    equipment: kit,
+    dislikes: t.prefs.dislikes,
+    bench: !gym || gym.bench !== false,
+    bar: !gym || gym.pullupBar !== false
+  }) : null, [blockId]);
+  const [off, setOff] = useState({}); // volume proposals turned down, by index
+  const [swaps, setSwaps] = useState(null); // rotation choices, by exerciseId
+  const [showAll, setShowAll] = useState(false);
+
+  // The engine's answer is the starting position, not the state: seed once, then it is yours.
+  const chosen = swaps || (rot ? rot.lifts.reduce((a, l) => {
+    if (l.on && l.candidates.length) a[l.exerciseId] = l.candidates[0];
+    return a;
+  }, {}) : {});
+  const setChosen = fn => setSwaps(s => fn(s || chosen));
+  if (!block || !plan || !rot) {
     return /*#__PURE__*/React.createElement("div", {
       className: "fade-in"
     }, /*#__PURE__*/React.createElement("button", {
@@ -58490,25 +58982,54 @@ function RerunScreen({
       className: "text-[13px]"
     }, "That block is not here any more.")));
   }
-  const actionable = plan.changes.filter(c => c.kind !== 'keep');
-  const kept = plan.changes.filter(c => c.kind === 'keep');
-  const accepted = actionable.map((c, i) => ({
+
+  // rerunPlan still owns the volume decisions. Its own swap proposals are dropped here because the
+  // rotation list below covers the same ground with the whole block in view rather than only the
+  // lifts that stalled.
+  const volume = plan.changes.filter(c => c.kind === 'sets' || c.kind === 'add');
+  const rotations = Object.keys(chosen).map(id => {
+    const lift = rot.lifts.filter(l => l.exerciseId === id)[0];
+    return lift ? {
+      day: lift.day,
+      index: lift.index,
+      from: id,
+      to: chosen[id].id
+    } : null;
+  }).filter(Boolean);
+  const acceptedVolume = volume.map((c, i) => ({
     c,
     i
-  })).filter(x => !off[x.i]).map(x => pick[x.i] ? Object.assign({}, x.c, {
-    to: pick[x.i].id,
-    toName: pick[x.i].name
-  }) : x.c);
+  })).filter(x => !off[x.i]).map(x => x.c);
+  const changeCount = rotations.length + acceptedVolume.length;
+
+  // Worth a decision now; everything else is a keystroke away rather than gone. "Any movement, if
+  // you want to" is the whole point, so nothing is hidden, only folded.
+  const upFront = rot.lifts.filter(l => l.verdict !== 'keep' || chosen[l.exerciseId]);
+  const rest = rot.lifts.filter(l => upFront.indexOf(l) === -1);
+  function toggle(lift) {
+    if (!lift.candidates.length) return;
+    setChosen(c => {
+      const next = Object.assign({}, c);
+      if (next[lift.exerciseId]) delete next[lift.exerciseId];else next[lift.exerciseId] = lift.candidates[0];
+      return next;
+    });
+  }
   function build() {
-    const next = Training.applyRerun(block, accepted, {
+    const out = Training.applyRotation(block, rotations, {
       targets: targets,
       custom: t.custom,
-      startISO: Store.todayISO()
+      startISO: Store.todayISO(),
+      also: acceptedVolume
     });
-    onDraft(next);
+    // The lineage is what keeps a rotated lift's history readable as one run instead of two stubs,
+    // so it is written whether or not the draft is ever started: it describes a decision that was
+    // made, and the block it belongs to carries its own id.
+    if (out.rotations.length) trainUpdate(update, tr => {
+      tr.rotations = (tr.rotations || []).concat(out.rotations);
+    });
+    onDraft(out.block);
   }
   const LABEL = {
-    swap: 'Swap',
     sets: 'More work',
     add: 'Missing'
   };
@@ -58527,7 +59048,7 @@ function RerunScreen({
     style: {
       color: 'var(--muted)'
     }
-  }, plan.headline), (() => {
+  }, rot.headline), (() => {
     const read = readBlock(block);
     if (!read) return null;
     return /*#__PURE__*/React.createElement(Card, {
@@ -58541,21 +59062,58 @@ function RerunScreen({
       weeks: read.weeks,
       sessions: read.sessions
     })));
-  })(), !actionable.length && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
+  })(), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Movements"), upFront.map(l => /*#__PURE__*/React.createElement(RotationCard, {
+    key: l.exerciseId + '_' + l.day + '_' + l.index,
+    lift: l,
+    on: !!chosen[l.exerciseId],
+    chosen: chosen[l.exerciseId],
+    onToggle: () => toggle(l),
+    onPick: c => setChosen(x => Object.assign({}, x, {
+      [l.exerciseId]: c
+    }))
+  })), rotations.length > rot.caps.main + rot.caps.accessory && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-3",
+    style: {
+      background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'
+    }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] mb-1"
-  }, "Nothing to change."), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--warn)'
+    }
+  }, "That is a lot at once"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] leading-snug",
     style: {
-      color: 'var(--muted)'
+      color: 'var(--text2)'
     }
-  }, "Every lift moved and there is no room worth adding. Run it as it stands.")), actionable.map((c, i) => {
+  }, "You are changing ", rotations.length, " movements. Nothing stops you, but a block where most of it is new is a block you cannot compare to this one, and none of what happens can be pinned on any one change.")), rest.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAll(v => !v),
+    className: "pf text-[9px] uppercase mb-3 hit",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, showAll ? '‹ Hide the rest' : 'Change something else (' + rest.length + ') ›'), showAll && rest.map(l => /*#__PURE__*/React.createElement(RotationCard, {
+    key: l.exerciseId + '_' + l.day + '_' + l.index,
+    lift: l,
+    on: !!chosen[l.exerciseId],
+    chosen: chosen[l.exerciseId],
+    onToggle: () => toggle(l),
+    muted: true,
+    onPick: c => setChosen(x => Object.assign({}, x, {
+      [l.exerciseId]: c
+    }))
+  }))), volume.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2 mt-5",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "How much"), volume.map((c, i) => {
     const isOff = !!off[i];
-    const chosen = pick[i] || (c.to ? {
-      id: c.to,
-      name: c.toName
-    } : null);
     return /*#__PURE__*/React.createElement(Card, {
       key: i,
       className: "p-4 mb-3",
@@ -58573,11 +59131,11 @@ function RerunScreen({
       }
     }, LABEL[c.kind], c.dayName ? ' · ' + c.dayName : ''), /*#__PURE__*/React.createElement("div", {
       className: "text-[13.5px] font-semibold leading-tight"
-    }, c.kind === 'swap' && /*#__PURE__*/React.createElement("span", null, c.fromName, " → ", chosen ? chosen.name : c.toName), c.kind === 'sets' && /*#__PURE__*/React.createElement("span", null, c.fromName, ", ", c.from, " to ", c.to, " sets"), c.kind === 'add' && /*#__PURE__*/React.createElement("span", null, "Add ", chosen ? chosen.name : c.toName, ", ", c.sets, " sets"))), /*#__PURE__*/React.createElement("button", {
+    }, c.kind === 'sets' && /*#__PURE__*/React.createElement("span", null, c.fromName, ", ", c.from, " to ", c.to, " sets"), c.kind === 'add' && /*#__PURE__*/React.createElement("span", null, "Add ", c.toName, ", ", c.sets, " sets"))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setOff(o => Object.assign({}, o, {
         [i]: !isOff
       })),
-      className: "pf text-[9px] px-3 py-2 shrink-0",
+      className: "pf text-[9px] px-3 py-2 shrink-0 hit",
       style: {
         background: isOff ? 'var(--surface3)' : 'var(--accent)',
         color: isOff ? 'var(--muted)' : 'var(--on-accent)',
@@ -58588,49 +59146,15 @@ function RerunScreen({
       style: {
         color: 'var(--muted)'
       }
-    }, c.why), !isOff && (c.alts || []).length > 1 && /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2 flex-wrap mt-3"
-    }, c.alts.map(a => {
-      const on = chosen && chosen.id === a.id;
-      return /*#__PURE__*/React.createElement("button", {
-        key: a.id,
-        onClick: () => setPick(p => Object.assign({}, p, {
-          [i]: a
-        })),
-        className: "pixel-box px-2 py-2 text-[11px]",
-        style: {
-          background: on ? 'var(--good)' : 'var(--surface2)',
-          color: on ? '#05140a' : 'var(--text2)'
-        }
-      }, a.name);
-    })));
-  }), kept.length > 0 && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
-    style: {
-      color: 'var(--good)'
-    }
-  }, "Left alone on purpose"), kept.map((c, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    className: "text-[12px] leading-snug mb-2",
-    style: {
-      color: 'var(--text2)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-semibold"
-  }, c.fromName), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--muted)'
-    }
-  }, " · ", c.why)))), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
+    }, c.why));
+  }), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
     onClick: build,
     className: "pixel-btn w-full h-14 font-bold",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "Build it", accepted.length ? ' with ' + accepted.length + ' change' + (accepted.length === 1 ? '' : 's') : ' unchanged')));
+  }, "Build it", changeCount ? ' with ' + changeCount + ' change' + (changeCount === 1 ? '' : 's') : ' unchanged')));
 }
 
 // Has sleep been short lately? Feeds the deload decision, because the same block costs more on
@@ -58874,9 +59398,18 @@ function ExerciseDetail({
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
-  const hist = Training.exerciseHistory(t.logs, exerciseId);
-  const stall = Training.detectStall(hist);
+  // The whole run, across every movement this one was rotated into or out of. A rotation restarts
+  // the load and nothing else, so a chart that restarts with it turns "I changed the implement" into
+  // "I lost my progress", which is both untrue and the fastest way to stop anybody ever rotating
+  // anything. Where nothing was ever rotated this is exactly exerciseHistory, so nothing changes for
+  // the movements it does not apply to.
+  const hist = Training.familyHistory(t.logs, exerciseId, t.custom, t.rotations);
+  // Judged on this movement alone, though: a stall is about whether THIS lift is moving, and the
+  // sessions before the change were a different exercise.
+  const own = hist.filter(h => h.exerciseId === exerciseId);
+  const stall = Training.detectStall(own);
   const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
+  const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -58909,17 +59442,32 @@ function ExerciseDetail({
   }, hist.slice(-24).map((h, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "flex-1",
+    title: h.dateISO + ' · ' + h.name,
     style: {
       height: Math.max(2, h.e1rm / max * 100) + '%',
-      background: 'var(--accent)'
-    },
-    title: h.dateISO
+      // The sessions on an earlier movement are shown, and shown as not-this-movement:
+      // the shape of the run is the useful part, but the bars are not comparable loads.
+      background: h.exerciseId === exerciseId ? 'var(--accent)' : 'var(--surface3)',
+      borderLeft: h.changed ? '2px solid var(--warn)' : 'none'
+    }
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between text-[10px] mt-2",
     style: {
       color: 'var(--muted2)'
     }
-  }, /*#__PURE__*/React.createElement("span", null, hist[Math.max(0, hist.length - 24)].dateISO), /*#__PURE__*/React.createElement("span", null, hist[hist.length - 1].dateISO))), stall && /*#__PURE__*/React.createElement(Card, {
+  }, /*#__PURE__*/React.createElement("span", null, hist[Math.max(0, hist.length - 24)].dateISO), /*#__PURE__*/React.createElement("span", null, hist[hist.length - 1].dateISO))), cameFrom && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--warn)'
+    }
+  }, "Rotated"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] leading-snug",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, "You came here from ", hist.filter(h => h.exerciseId !== exerciseId).slice(-1)[0].name.toLowerCase(), " on ", cameFrom.dateISO, ". The earlier sessions are in the chart in grey, because the muscle carried on from where it was but the weight on this movement started again.")), stall && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4",
     style: {
       background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'
@@ -58944,7 +59492,12 @@ function ExerciseDetail({
     style: {
       color: 'var(--muted)'
     }
-  }, h.dateISO), /*#__PURE__*/React.createElement("span", {
+  }, h.dateISO, h.exerciseId !== exerciseId && /*#__PURE__*/React.createElement("span", {
+    className: "block text-[10px]",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, h.name)), /*#__PURE__*/React.createElement("span", {
     className: "text-[12px]"
   }, h.sets, " sets · top ", toDisplayWeight(h.topWeight, units), unitLabel(units), " x ", h.topReps))), !hist.length && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px]",
@@ -60760,7 +61313,7 @@ function HowItWorks({
   onBack
 }) {
   useBackClose(onBack);
-  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'], ['The last set is the one that goes', 'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
+  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'], ['The last set is the one that goes', 'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Changing a movement between blocks', 'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'], ['A swap restarts the number, not the muscle', 'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'], ['The big lifts are the expensive ones to change', 'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
