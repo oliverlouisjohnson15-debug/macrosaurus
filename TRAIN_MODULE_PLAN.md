@@ -47,30 +47,41 @@ to-failure style. Two related faults came out with it:
 
 ## The queue
 
-### 5. Generate last-set intensity techniques  — half a day
-The published programmes add drop sets, myo-reps, lengthened partials and weighted static holds to
-about 40% of movements in the SECOND block of a cycle, and add nothing else: that is how the method
-progresses between blocks when there are no sets to add. We import and display them
-(`target.technique`) but cannot produce them.
+### 5. Generate last-set intensity techniques ✔
+Done. `Training.applyTechniques` decorates a built block; `techniqueFor` decides which technique a
+movement can carry, and the rule is about what is safe to fail twice on: nothing on a loaded
+free-weight compound, nothing at all on core work (a plank has no rep to extend and no weight to
+drop), a hold on grip work, partials where the movement has a stretched position, drop sets on
+guided kit, myo-reps on the rest. Applied from the END of a session, never the opener, to about four
+movements in ten - the published share is 43%, ours lands at 38.
 
-- `nextBlock` is the home: when `block.style` is min-max and the block completed, the next one is the
-  same skeleton plus techniques.
-- Which movements: isolation and machine work, never the heavy free-weight compounds - a drop set on
-  a squat is how people get hurt, and the sheets never do it.
-- Which technique: match the movement. Drop sets suit machines and cables; myo-reps suit small
-  isolation; lengthened partials suit anything with a stretched position; static holds suit grip.
-- The runner already renders it. The session's time estimate should account for it.
+`nextBlock` now carries a min-max block forward INTACT rather than regenerating it: the same
+movements in the same order, plus the techniques. The published programmes run the same twelve
+movements for twelve weeks and change nothing else, and regenerating would quietly reshuffle
+exercise selection on a style whose progression depends on running one lift long enough to load it.
+A third block is plain again - twelve weeks is two blocks, not an endless ramp. The session estimate
+counts a technique as the two and a half minutes it costs, and the builder says plainly what the
+block adds.
 
-### 6. A shared block should stay the block that was shared — half a day
-`publishBlock` (train.jsx) sends `templateOf(block)`, which drops `choice`, `alts` and `technique`,
-and there is no `p_style` column at all. Adopting a min-max block therefore hands somebody a
-volume-model block with min-max movements: the worst of both. Needs a Supabase column, the fields
-carried through `templateOf`, and `adoptTemplate` to build in the author's style.
+Writing the test for this turned up a real trap behind it: `generateBlock({ style: 'minmax' })` with
+no explicit targets built against the VOLUME model's landmarks - a 22-set chest ceiling on a method
+that caps at 8 - because `defaultTargets` was being called without the style. Every caller in the app
+passed targets, so nothing showed. `targetsFor(opts)` is now the single answer to "which landmarks
+does this call use", and it cannot be asked without the style.
 
-### 7. Keep the warm-up sets an imported plan prescribes — an hour
-The sheets say 0-1, 1-2 or 2-4 warm-up sets per movement. `tools/minmax-import.mjs` reads the column
-and throws it away, and the app recomputes its own from load. The author's number is better
-information than our guess, and it is already parsed.
+### 6. A shared block stays the block that was shared ✔
+Done, without a migration. The library's template column is jsonb and has always held a bare array
+of days, so the payload is versioned in place: an array is the old shape and still reads, an object
+carries `{ v: 2, style, days }`. `templateOf` now keeps the parts of a movement that belong to its
+author rather than to the week it sat in - the slot they left open, the substitutions they wrote,
+the technique they asked for, the effort pair - and `SharedBlockPreview` adopts in the author's
+style, judged against the adopter's own landmarks for that style.
+
+### 7. Keep the warm-up sets an imported plan prescribes ✔
+Done. The converter reads the column it was already parsing and the loader carries it; `warmupSets`
+takes an optional count and slices from the TOP of the ramp, because somebody asked for two warm-up
+sets wants the two nearest their working weight, not the two lightest. All 210 movements in the 5x
+programme now carry the count their author wrote. The session line says whose number it is.
 
 ### 8. Let somebody write "last set to failure" by hand — an hour
 The block editor's RIR stepper edits `target.rir` only. A movement added by hand to a min-max block

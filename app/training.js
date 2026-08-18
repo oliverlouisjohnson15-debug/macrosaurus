@@ -1093,6 +1093,16 @@
     return out;
   }
 
+  // The landmarks a call should use when it was not handed any. The style has to be part of that
+  // question: asking for a min-max block without passing targets used to build it against the volume
+  // model's ceilings - twenty-two sets of chest as the limit on a method that caps at eight - and
+  // nothing about the result would have said so.
+  function targetsFor(opts) {
+    if (opts && opts.targets) return opts.targets;
+    var prefs = (opts && opts.prefs) || {};
+    return defaultTargets(Object.assign({}, prefs, { style: (opts && opts.style) || prefs.style }));
+  }
+
   // "I want to bring my shoulders up." A block cannot grow everything hardest at once, so emphasis is
   // a TRADE: the named muscles start nearer the top of their productive band, and everything else
   // drops back toward its floor to pay for the extra fatigue. Without the second half this would just
@@ -1382,6 +1392,7 @@
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
     var barKg = usesBar(ex) ? (opts.barKg != null ? opts.barKg : 20) : 0;
     if (!compound) {
+      if (opts.count === 0) return [];
       if (w < 15) return [];
       return [{ pct: 0.5, weightKg: roundToIncrement(w * 0.5, ex), reps: 10 }];
     }
@@ -1391,6 +1402,15 @@
     var ramp = w >= 100 ? [[0.4, 8], [0.6, 5], [0.8, 3], [0.9, 1]]
       : w >= 60 ? [[0.5, 8], [0.75, 4], [0.9, 2]]
       : [[0.5, 8], [0.8, 4]];
+    // A written plan often states how many warm-up sets a movement wants - 0 to 1 on a cable curl,
+    // 2 to 4 on a squat - and the author's number beats ours, because they know what the movement
+    // costs in their programme. Taken from the TOP of the ramp: asked for two, you want the two
+    // nearest your working weight, not the two lightest.
+    if (opts.count != null) {
+      var want = clamp(Math.round(+opts.count), 0, ramp.length);
+      if (!want) return [];
+      ramp = ramp.slice(ramp.length - want);
+    }
     return ramp.map(function (r) {
       return { pct: r[0], weightKg: roundToIncrement(Math.max(barKg, w * r[0]), ex), reps: r[1] };
     }).filter(function (s, i, arr) {
@@ -1619,7 +1639,7 @@
     // people who need to see it move: someone training three muscles hard and ignoring the rest
     // should score badly, but someone training everything a little should not score nothing.
     var perf = performedVolume(recent, custom);
-    var targets2 = opts.targets || defaultTargets(opts.prefs);
+    var targets2 = targetsFor(opts);
     var balScore = MUSCLES.reduce(function (a, m) {
       var perWeek = (perf[m] || 0) / weeks;
       var floor = (targets2[m] && targets2[m].mev) || 1;
@@ -2050,7 +2070,7 @@
     opts = opts || {};
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
-    var targets = opts.targets || defaultTargets(opts.prefs);
+    var targets = targetsFor(opts);
     var iv = intensityOf(opts.intensity);
 
     // Adding a set a week is how a block builds, but it must never walk a muscle past its own
@@ -2820,6 +2840,72 @@
     return days;
   }
 
+  /* ---- what a second block adds, when there are no sets to add ----------------------------------
+   * The published min-max programmes run twelve weeks as two six-week blocks, and the difference
+   * between the blocks is not volume - it is identical - and not effort, which is already at failure.
+   * It is a technique on the LAST set of about four movements in ten: two drop sets, myo-reps, a set
+   * extended with lengthened partials, a static hold. That is the whole progression model between
+   * blocks on a style that has run out of sets to give.
+   *
+   * Which movement gets which is not arbitrary either, and the rule the sheets follow is about what
+   * is safe to fail twice on. Nothing goes on a loaded free-weight compound: a drop set on a squat is
+   * a second failure with a bar on your back. Bodyweight compounds are fine, which is why the pull-up
+   * carries one and the barbell incline press does not.
+   */
+  var TECHNIQUES = {
+    drop: 'Two drop sets (~25% each)',
+    myo: 'Myo-reps',
+    partials: 'Lengthened partials (extend the set)',
+    hold: 'Weighted static hold (30 sec)',
+  };
+  function techniqueFor(ex) {
+    if (!ex) return null;
+    var compound = ex.pattern !== 'isolation' && ex.pattern !== 'core';
+    var guided = !!STABLE_KIT[ex.equipment];
+    var loadedFree = ex.equipment === 'barbell' || ex.equipment === 'dumbbell'
+      || ex.equipment === 'kettlebell' || ex.equipment === 'ez';
+    // Core work is out. A plank has no rep to extend, no weight to drop and no lengthened position
+    // to hold, and "two drop sets" against a Pallof press is the app talking nonsense confidently.
+    if (ex.pattern === 'core') return null;
+    // And nothing goes on a compound you could be pinned under.
+    if (compound && loadedFree) return null;
+    // The hold is for grip: a movement whose only job is the forearms. A hammer curl trains them
+    // too, and it is still a curl.
+    if ((ex.primary || []).length === 1 && ex.primary[0] === 'fa') return 'hold';
+    // A stretched position is where extra partial reps are worth having, which is why partials are
+    // the technique the published programmes reach for most.
+    if (ex.profile === 'len') return 'partials';
+    if (guided) return 'drop';
+    return 'myo';
+  }
+  // Decorate a built block. Deterministic, and taken from the END of each session: a technique is
+  // fatigue you are choosing to buy, and it is worth buying on the accessory work rather than on the
+  // movement the session is built around. The opener never gets one.
+  function applyTechniques(block, opts) {
+    opts = opts || {};
+    var share = opts.share == null ? 0.45 : opts.share;
+    var given = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      var items = (s.exercises || []).slice().sort(function (a, b) { return a.order - b.order; });
+      var cap = Math.floor(items.length * share);
+      var done = 0;
+      for (var i = items.length - 1; i >= 1 && done < cap; i--) {
+        var key = techniqueFor(byId(items[i].exerciseId, opts.custom));
+        if (!key) continue;
+        items[i].technique = TECHNIQUES[key];
+        done++; given++;
+      }
+    });
+    return given;
+  }
+  // Does this block already run techniques? Read rather than remembered, so a block edited by hand
+  // answers honestly.
+  function hasTechniques(block) {
+    return ((block && block.sessions) || []).some(function (s) {
+      return (s.exercises || []).some(function (e) { return !!e.technique; });
+    });
+  }
+
   /* ---- movements the programme leaves up to you ------------------------------------------------
    * A written programme often prescribes a SLOT rather than a movement: "Squat (Your Choice)", with
    * a note listing the back squat, front squat, pendulum, hack, belt and Smith versions. That is not
@@ -2899,6 +2985,7 @@
             sourceName: e.sourceName || null,
             choice: e.choice || null, alts: e.alts || null,
             technique: e.technique || null, planNote: e.planNote || null,
+            warmups: e.warmups == null ? null : clamp(Math.round(+e.warmups), 0, 6),
             supersetGroup: e.supersetGroup || null,
             target: {
               sets: clamp(+t.sets || 2, SETS_MIN, SETS_MAX),
@@ -2949,16 +3036,42 @@
             .map(function (e, ei) {
               return {
                 id: e.exerciseId + '_t' + i + '_' + ei, exerciseId: e.exerciseId, order: ei,
+                // The parts of a movement that belong to its AUTHOR rather than to the week it sat
+                // in: a slot they left open, the substitutions they wrote, the technique they asked
+                // for on the last set. Dropping these was how a shared min-max block arrived as a
+                // volume-model block wearing its movements.
+                choice: e.choice || null, alts: e.alts || null, technique: e.technique || null,
+                warmups: e.warmups || null,
                 target: {
                   sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
                   // Week 1's RIR is the author's starting effort. The receiving block walks it down
                   // again from there, so carrying week 3's RIR would start someone at 1 RIR.
-                  rir: e.target.rir, restSec: e.target.restSec, tempo: e.target.tempo || null,
+                  rir: e.target.rir, rirLast: e.target.rirLast == null ? null : e.target.rirLast,
+                  restSec: e.target.restSec, tempo: e.target.tempo || null,
                 },
               };
             }),
         };
       });
+  }
+
+  /* What gets published, and how it is read back.
+   *
+   * The shared library's template column has always been a bare array of days, and a block's STYLE
+   * has nowhere to live in that - so every block published from this app arrived at whoever adopted
+   * it as a volume-model block, however it had been written. Rather than a migration for one field,
+   * the payload is versioned in the column it already has: an array is the old shape and still
+   * reads, an object is the new one and carries the style with the days.
+   */
+  function templatePayload(block) {
+    return { v: 2, style: (block && block.style) || null, days: templateOf(block) };
+  }
+  function templateDays(payload) {
+    if (Array.isArray(payload)) return payload;                 // everything published before v2
+    return (payload && payload.days) || [];
+  }
+  function templateStyle(payload) {
+    return (payload && !Array.isArray(payload) && payload.style) || null;
   }
 
   // What kind of split a template is, so the library can be filtered by it. Read off what each day
@@ -3026,7 +3139,10 @@
         if (!alt) { swaps.push({ from: ex.name, to: null, day: day.name }); return; }
         used[alt.id] = 1;
         swaps.push({ from: ex.name, to: alt.name, day: day.name });
-        exercises.push(Object.assign({}, item, { id: alt.id + '_a' + di + '_' + ei, exerciseId: alt.id, order: exercises.length }));
+        // A swapped movement cannot keep the author's choice list - that list was about the movement
+        // they wrote, not the one your gym forced - but the technique and the substitutions still
+        // describe the SLOT, so they travel.
+        exercises.push(Object.assign({}, item, { id: alt.id + '_a' + di + '_' + ei, exerciseId: alt.id, order: exercises.length, choice: null }));
       });
       return Object.assign({}, day, { exercises: exercises });
     }).filter(function (d) { return d.exercises.length > 0; });
@@ -3066,7 +3182,7 @@
     // muscles in the plan: a muscle sitting at or past its productive band is the author saying this
     // is what the block is for, and it is the one thing about their volume worth carrying over.
     var vol = plannedVolume(template, opts.custom);
-    var targets = opts.targets || defaultTargets(opts.prefs);
+    var targets = targetsFor(opts);
     var emphasis = MUSCLES.filter(function (m) {
       return targets[m] && vol[m] && vol[m] >= targets[m].mav;
     }).sort(function (a, b) {
@@ -3110,8 +3226,8 @@
     // Theirs first: an explicit answer to a question on screen outranks something read off a PDF.
     var wants = uniq((opts.emphasis || []).concat(insp ? insp.emphasis : []));
     var targets = wants.length
-      ? emphasise(opts.targets || defaultTargets(opts.prefs), wants)
-      : (opts.targets || defaultTargets(opts.prefs));
+      ? emphasise(targetsFor(opts), wants)
+      : targetsFor(opts);
     // The split, and where in the week it falls. Min-max carries its own weekdays because the rest
     // days are part of the prescription; everything else runs on consecutive days as it always has.
     var split = (style.toFailure && MINMAX_SPLITS[days]) || SPLITS[days];
@@ -3538,6 +3654,22 @@
   // "build my next block" from the review screen.
   function nextBlock(block, review, targets, opts) {
     opts = opts || {};
+    // On min-max the next block is not a fresh answer to the same question - it is THIS block again
+    // with a technique on the last set of the accessories. The published programmes run the same
+    // twelve movements for twelve weeks and change nothing else, and regenerating would quietly
+    // reshuffle exercise selection on a style whose progression depends on running the same lift
+    // long enough to load it. A lift that actually stalled is a different matter, and rerunPlan is
+    // where that decision lives.
+    if (styleOf(block.style).toFailure && !hasTechniques(block)) {
+      var same = blockFromTemplate(templateOf(block), Object.assign({}, opts, {
+        weeks: block.weeks, shape: block.shape, style: block.style, intensity: block.intensity,
+        daysPerWeek: block.daysPerWeek, goal: block.goal, targets: targets, name: null,
+        source: block.source, sourceRef: block.sourceRef || null,
+      }));
+      applyTechniques(same, { custom: opts.custom });
+      same.previousBlockId = block.id;
+      return same;
+    }
     var next = generateBlock(Object.assign({}, opts, {
       daysPerWeek: block.daysPerWeek, weeks: block.weeks, shape: block.shape,
       goal: block.goal, targets: tuneTargets(targets, review, { style: block.style }),
@@ -3720,7 +3852,7 @@
       weeks: block.weeks || 4,
       // A rerun keeps the shape it was run under. An imported plan stays as written; the app's own
       // block keeps periodising.
-      shape: block.shape, targets: opts.targets || defaultTargets(), custom: opts.custom,
+      shape: block.shape, targets: targetsFor(Object.assign({ style: block.style }, opts)), custom: opts.custom,
       name: opts.name || nextRunName(block.name),
       goal: block.goal, source: block.source || 'generated',
       sourceRef: block.sourceRef || null, startISO: opts.startISO || null,
@@ -3928,7 +4060,7 @@
     byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve, cleanName: cleanName,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
-    templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
+    templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
@@ -3949,6 +4081,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    TECHNIQUES: TECHNIQUES, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,

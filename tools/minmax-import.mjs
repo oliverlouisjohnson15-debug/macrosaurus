@@ -156,6 +156,9 @@ function parse(rows, opts) {
     if (!day) { day = { name: 'Day ' + (week.days.length + 1), items: [] }; week.days.push(day); }
     const reps = RANGE(cellAt(r, 6));
     const sets = +cellAt(r, 5) || 1;
+    // "0-1", "1-2", "2-4": how many warm-up sets the author wants before the working ones. Their
+    // number is better than anything computed from the load, and it is right there in the column.
+    const warm = RANGE(cellAt(r, 4));
     const rest = RANGE(String(cellAt(r, 13)).replace(/\s*min.*/i, ''));
     const rirRaw = (i) => { const v = cellAt(r, i); return /^\d+$/.test(v) ? +v : null; };
     const note = cellAt(r, 16);
@@ -170,6 +173,7 @@ function parse(rows, opts) {
       rir: rirRaw(11), rirLast: rirRaw(12),
       restSec: rest ? Math.round(((rest.low + rest.high) / 2) * 60) : null,
       technique: (cellAt(r, 3) && !/^n\/a$/i.test(cellAt(r, 3))) ? cellAt(r, 3) : null,
+      warmups: warm ? Math.round((warm.low + warm.high) / 2) : null,
       choice, alts: alts.length ? alts : null, note: note || null,
     });
   }
@@ -203,6 +207,7 @@ function toBlock(weeks, opts) {
           exerciseId: it.exerciseId, order: ei, sourceName: it.sourceName,
           choice: it.choice || undefined, alts: it.alts || undefined,
           technique: it.technique || undefined, planNote: it.note || undefined,
+          warmups: it.warmups == null ? undefined : it.warmups,
           target: {
             sets: it.sets,
             repLow: it.repLow || 6, repHigh: it.repHigh || 10,

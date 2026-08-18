@@ -719,6 +719,114 @@ test('the two styles read their landmarks from their own table', () => {
   assert.ok(lm.ch.mrv > 15, 'the volume model keeps its own ceiling, untouched by the other');
 });
 
+// ---- what a second block adds ---------------------------------------------------------------------
+// On a style with no sets left to give, the progression between blocks is a technique on the last
+// set of about four movements in ten. The rules below are about what is safe to fail twice on.
+
+test('a second min-max block is the first one plus techniques, and nothing else', () => {
+  const first = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5, sessionMinutes: 60 });
+  assert.equal(T.hasTechniques(first), false, 'the first block runs plain');
+  const review = { adherence: 90, coverage: { rows: [] }, stalled: [] };
+  const second = T.nextBlock(first, review, T.defaultTargets({ style: 'minmax' }), {});
+  assert.ok(T.hasTechniques(second), 'the second earns them');
+  const setsIn = (b) => b.sessions.filter(s => s.week === 1).reduce((a, s) => a + s.exercises.reduce((x, e) => x + e.target.sets, 0), 0);
+  const movesIn = (b) => b.sessions.filter(s => s.week === 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []);
+  assert.equal(setsIn(second), setsIn(first), 'and adds nothing else: not a set, not a week, not a rep');
+  assert.deepEqual(movesIn(second), movesIn(first), 'the same movements, in the same order');
+  assert.equal(second.weeks, first.weeks);
+  // A third block is plain again: twelve weeks is two blocks, not an endless ramp.
+  const third = T.nextBlock(second, review, T.defaultTargets({ style: 'minmax' }), {});
+  assert.equal(T.hasTechniques(third), false);
+});
+
+test('techniques land on about four movements in ten, never on the opener', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5, sessionMinutes: 60 });
+  T.applyTechniques(block, {});
+  for (const s of T.weekSessions(block, 1)) {
+    const items = s.exercises.slice().sort((a, b) => a.order - b.order);
+    assert.ok(!items[0].technique, `${s.name} put one on the movement the session is built around`);
+    const n = items.filter(e => e.technique).length;
+    assert.ok(n <= Math.floor(items.length * 0.45), `${s.name}: ${n} of ${items.length}`);
+  }
+  const all = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises), []);
+  const share = all.filter(e => e.technique).length / all.length;
+  assert.ok(share > 0.25 && share < 0.5, `${Math.round(share * 100)}% carried one`);
+});
+
+test('nothing you could be pinned under gets a technique', () => {
+  for (const id of ['back_squat', 'bb_bench', 'rdl', 'bb_ohp', 'db_bench']) {
+    assert.equal(T.techniqueFor(T.byId(id)), null, `${T.byId(id).name} must not carry one`);
+  }
+  // A bodyweight compound is fine - the published programmes put partials on the pull-up.
+  assert.ok(T.techniqueFor(T.byId('pullup')));
+  // Guided kit takes drop sets, grip work takes a hold, and core work takes nothing at all: there
+  // is no rep to extend on a plank and no weight to drop.
+  assert.equal(T.techniqueFor(T.byId('machine_press')), 'drop');
+  assert.equal(T.techniqueFor(T.byId('wrist_curl')), 'hold');
+  assert.equal(T.techniqueFor(T.byId('plank')), null);
+  assert.equal(T.techniqueFor(T.byId('cable_crunch')), null);
+});
+
+// ---- sharing a block that stays the block ----------------------------------------------------------
+
+test('a published block carries its style, its open slots and its techniques', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 });
+  T.applyTechniques(block, {});
+  block.sessions.forEach(s => { if (s.exercises[1]) s.exercises[1].choice = { key: 'squat', label: 'Squat', options: ['back_squat', 'hack_squat'] }; });
+  const payload = T.templatePayload(block);
+  assert.equal(T.templateStyle(payload), 'minmax');
+  const days = T.templateDays(payload);
+  assert.equal(days.length, 5);
+  assert.ok(days.some(d => d.exercises.some(e => e.technique)), 'techniques travel');
+  assert.ok(days.some(d => d.exercises.some(e => e.choice)), 'so does a slot the author left open');
+  assert.ok(days.some(d => d.exercises.some(e => e.target.rirLast != null)), 'and the effort pair');
+});
+
+test('a block published before styles existed still reads', () => {
+  const legacy = T.templateOf(T.generateBlock({ daysPerWeek: 4, weeks: 4 }));
+  assert.ok(Array.isArray(legacy));
+  assert.deepEqual(T.templateDays(legacy), legacy, 'a bare array is the old shape and must keep working');
+  assert.equal(T.templateStyle(legacy), null);
+});
+
+test('adopting a min-max block builds it as one', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 });
+  const payload = T.templatePayload(block);
+  const { block: mine } = T.adoptTemplate(T.templateDays(payload), {
+    style: T.templateStyle(payload), weeks: 6, shape: 'minmax6',
+    targets: T.defaultTargets({ style: 'minmax' }),
+  });
+  assert.equal(mine.style, 'minmax');
+  const sets = mine.sessions.reduce((a, s) => a.concat(s.exercises.map(e => e.target.sets)), []);
+  assert.ok(sets.every(n => n <= 2), 'and stays inside the method it was written for');
+});
+
+// ---- the warm-ups the author asked for --------------------------------------------------------------
+
+test('a stated warm-up count wins, and takes the sets nearest the working weight', () => {
+  const squat = T.byId('back_squat');
+  const full = T.warmupSets(100, squat);
+  assert.equal(full.length, 4);
+  const two = T.warmupSets(100, squat, { count: 2 });
+  assert.equal(two.length, 2);
+  assert.deepEqual(two.map(x => x.weightKg), full.slice(-2).map(x => x.weightKg), 'the heavy end, not the light end');
+  assert.deepEqual(T.warmupSets(30, T.byId('cable_curl'), { count: 0 }), [], 'nought means nought');
+  assert.equal(T.warmupSets(100, squat, { count: 9 }).length, 4, 'and it cannot ask for more rungs than exist');
+});
+
+test('a block file keeps the warm-up counts it was written with', () => {
+  const doc = {
+    macrosaurus: 'blocks', version: 1,
+    blocks: [{ name: 'P', weeks: 1, daysPerWeek: 1, style: 'minmax', sessions: [{ week: 1, dayOfWeek: 0, name: 'Lower', kind: 'lower', exercises: [
+      { exerciseId: 'back_squat', order: 0, warmups: 3, target: { sets: 2, repLow: 6, repHigh: 8, rir: 1, rirLast: 0 } },
+      { exerciseId: 'leg_extension', order: 1, warmups: 0, target: { sets: 2, repLow: 8, repHigh: 10, rir: 0, rirLast: 0 } },
+    ] }] }],
+  };
+  const b = T.blocksFromFile(doc, {}).blocks[0];
+  assert.equal(b.sessions[0].exercises[0].warmups, 3);
+  assert.equal(b.sessions[0].exercises[1].warmups, 0);
+});
+
 // ---- a plan you already own, as a file ------------------------------------------------------------
 // The other way in: a programme somebody bought, converted once by tools/minmax-import.mjs and
 // loaded straight into their own blocks. No model, no guessing, nothing published.

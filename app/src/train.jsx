@@ -144,7 +144,15 @@ function fmtRest(secs) {
 // forty seconds of work. Written out inline in three places before this, which meant the block
 // preview and the session list could quietly disagree about the same session.
 function sessionMins(exercises) {
-  return Math.round((exercises || []).reduce((a, e) => a + (((e.target && e.target.sets) || 0) * ((((e.target && e.target.restSec) || 120) + 40) / 60)), 0));
+  return Math.round((exercises || []).reduce((a, e) => {
+    const sets = (e.target && e.target.sets) || 0;
+    const rest = (e.target && e.target.restSec) || 120;
+    // A last-set technique is another two or three minutes of work and recovery on that movement -
+    // two drop sets and their rests, or a set extended past failure. Counting it keeps "about 50
+    // minutes" honest on the block that adds them, which is the block people are most likely to run
+    // out of time on.
+    return a + sets * ((rest + 40) / 60) + (e.technique ? 2.5 : 0);
+  }, 0));
 }
 
 function weekPlan(block, week, logs) {
@@ -846,7 +854,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
       return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
         choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
-        superset: e.supersetGroup || null };
+        warmups: e.warmups == null ? null : e.warmups, superset: e.supersetGroup || null };
     });
   });
   const [focus, setFocus] = useState(0);
@@ -1055,7 +1063,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     mutate(n => {
       const it = n[ii];
       const work = it.sets.filter(s => (s.type || 'work') === 'work')[0];
-      const ups = Training.warmupSets((work && work.weightKg) || 0, Training.byId(it.exerciseId, t.custom));
+      const ups = Training.warmupSets((work && work.weightKg) || 0, Training.byId(it.exerciseId, t.custom), { count: it.warmups });
       const rows = ups.map((u, i) => ({ setIndex: i, exerciseId: it.exerciseId, type: 'warmup', weightKg: u.weightKg, reps: null, targetReps: String(u.reps), rir: null, done: false, lastTime: null }));
       it.sets = rows.concat(it.sets.filter(s => (s.type || 'work') !== 'warmup'));
     });
@@ -1464,10 +1472,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 {/* Warm-up, only until you have started. Once the first working set is in, telling
                     you what to warm up with is stale advice taking up a third of the card. */}
                 {warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
-                  && Training.warmupSets(work[0].weightKg, ex).length > 0 && (
+                  && Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).length > 0 && (
                   <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Warm up: </span>
-                    {Training.warmupSets(work[0].weightKg, ex).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')}
+                    {Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')}
+                    {/* Said once, quietly: this is the author's count, not ours, and somebody who
+                        knows the plan will notice it matches. */}
+                    {it.warmups != null && <span style={{ color: 'var(--muted2)' }}> · the plan asks for {it.warmups}</span>}
                   </div>
                 )}
 
@@ -3137,6 +3148,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   // Movements the plan left open, e.g. "Squat (Your Choice)". Empty for anything the app generated,
   // which never leaves a slot open: it has already made the pick.
   const choices = Training.blockChoices(block, t.custom);
+  const techniques = Training.weekSessions(block, 1).reduce((a, s) => a + (s.exercises || []).filter(e => e.technique).length, 0);
 
   function edit(fn) { setBlock(b => { const n = JSON.parse(JSON.stringify(b)); fn(n); return n; }); }
   function setSets(sessionId, itemId, delta) {
@@ -3265,6 +3277,15 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         </div>
         <CoverageBars coverage={cov} />
       </Card>
+
+      {/* What a second min-max block adds, since it adds nothing else: no extra sets, no extra
+          weeks, no harder RIR. Worth saying plainly on the screen where you accept the block. */}
+      {techniques > 0 && (
+        <div className="text-[12px] mb-4 leading-snug px-3 py-3"
+          style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))', color: 'var(--text2)' }}>
+          {techniques} {techniques === 1 ? 'movement finishes' : 'movements finish'} with an intensity technique on the last set - drop sets, myo-reps, partials past the point the set would have ended. That is what this block adds over the last one: the volume and the weeks are the same.
+        </div>
+      )}
 
       {/* Slots the programme deliberately left open. A written plan that says "Squat (Your Choice)"
           and lists six of them is not being vague: it is saying this slot is about the pattern, and
@@ -4970,7 +4991,8 @@ const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
 async function submitPublicBlock(block, prefs, custom) {
   try {
     if (!supa || !block) return;
-    const template = Training.templateOf(block);
+    const payload = Training.templatePayload(block);
+    const template = Training.templateDays(payload);
     if (!template.length) return;
     const sess = (await supa.auth.getSession()).data.session; if (!sess) return;
     const muscles = Training.plannedVolume(template, custom);
@@ -4984,7 +5006,7 @@ async function submitPublicBlock(block, prefs, custom) {
       p_shape: block.shape || 'build3-deload1',
       p_experience: (prefs && prefs.experience) || 'intermediate',
       p_equipment: (prefs && prefs.equipment) || [],
-      p_template: template,
+      p_template: payload,
       p_muscles: muscles,
       p_total_sets: Training.round(Object.keys(muscles).reduce((a, m) => a + muscles[m], 0), 1),
       p_source_url: (block.sourceRef && block.sourceRef.url) || null,
@@ -5117,9 +5139,14 @@ function topMuscles(muscles, n) {
 function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
   useBackClose(onBack);
   const t = tdb(db);
-  const targets = trainTargets(db);
-  const [result] = useState(() => Training.adoptTemplate(pub.template, {
-    weeks: pub.weeks || 4, shape: pub.shape || 'build3-deload1', targets: targets,
+  // The author's style, if they published one, judged against YOUR landmarks for that style. A block
+  // written to be run at failure on four to ten sets a muscle has to arrive as that block; adopting
+  // it into the volume model and re-periodising it produces something its author never wrote.
+  const style = Training.templateStyle(pub.template);
+  const days = Training.templateDays(pub.template);
+  const targets = trainTargets(db, style);
+  const [result] = useState(() => Training.adoptTemplate(days, {
+    weeks: pub.weeks || 4, shape: pub.shape || 'build3-deload1', targets: targets, style: style,
     equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom,
     goal: pub.goal, name: pub.title, daysPerWeek: pub.days_per_week,
     source: 'library', sourceRef: { kind: 'library', id: pub.id, author: pub.author_name || null },
