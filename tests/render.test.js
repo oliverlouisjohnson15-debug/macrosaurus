@@ -57,10 +57,16 @@ test('the tab offers the programmes the app ships with', () => {
   db.training.blocks = [];
   db.training.prefs = { units: 'kg' };
   const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(r.has('Macrosaurus Default 4 Day'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
+  assert.ok(r.has('Macrosaurus 4 Day'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
   assert.ok(r.has('Macrosaurus 5 Day'));
   // With their real shape on the card, not a claim that would need checking against the engine.
-  assert.ok(/5 days/.test(r.text) && /hard sets a week/.test(r.text));
+  assert.ok(/5 days a week/.test(r.text) && /hard sets/.test(r.text));
+  // And the split, in the same words the session runner will use.
+  assert.ok(r.has('Arms and delts'), 'the day names should be on it: ' + r.text.slice(0, 300));
+  // Named the same way as each other. "Default" on one and not the other is two schemes for two
+  // things sitting side by side.
+  const names = A.Training.PROGRAMMES.map(p => p.name);
+  assert.deepEqual(names.map(n => n.replace(/\d/, 'N')), names.map(() => 'Macrosaurus N Day'), names.join(' / '));
 });
 
 // ---- the session runner ------------------------------------------------------------------------

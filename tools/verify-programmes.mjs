@@ -131,7 +131,13 @@ Training.PROGRAMMES.forEach((prog, pi) => {
   days.forEach((d, di) => {
     const shipped = prog.template[di];
     if (!shipped) return;
-    if (d.name !== shipped.name) { console.log('  ! day ' + di + ' is "' + shipped.name + '", sheet says "' + d.name + '"'); problems++; }
+    // Day names are styled the same way movement names are: the sheet's words, the app's case, and
+    // a word where the sheet used punctuation ("Arms/Delts" is "Arms and delts" everywhere else the
+    // app names a session). Same rule, so the same allowance - and the same report.
+    const dayWords = (x) => String(x).toLowerCase().replace(/\s*\/\s*/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (dayWords(d.name) !== dayWords(shipped.name)) {
+      console.log('  ! day ' + di + ' is "' + shipped.name + '", sheet says "' + d.name + '"'); problems++;
+    } else if (d.name !== shipped.name) rewrites.set(d.name, shipped.name + '  (day name, house style)');
     if (d.items.length !== shipped.exercises.length) {
       console.log('  ! ' + d.name + ': sheet has ' + d.items.length + ' movements, the programme ships ' + shipped.exercises.length);
       problems++;

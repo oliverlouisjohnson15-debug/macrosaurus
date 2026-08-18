@@ -99,9 +99,19 @@ function templateFrom(path) {
 // Everything that is null, empty or rederivable is dropped: the template is read back by
 // blockFromTemplate, which fills those in itself, and thirty kilobytes of "technique": null in the
 // shipped bundle is thirty kilobytes every phone downloads to learn nothing.
+// A day's name, in the same house style as a movement's: sentence case, and words rather than
+// punctuation standing in for them. The sheets write "Full Body" and "Arms/Delts"; the app writes
+// "Full body" and "Arms and delts" everywhere else it names a session, including in MINMAX_SPLITS.
+// Same rule as the movement names - the words are the sheet's, the case is ours.
+function dayName(raw) {
+  const s = String(raw).replace(/\s*\/\s*/g, ' and ').replace(/\s+/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+    .replace(/\b(\d+)\b/g, (m) => m);
+}
+
 function compact(template) {
   return template.map(day => ({
-    name: day.name, kind: day.kind, dayOfWeek: day.dayOfWeek,
+    name: dayName(day.name), kind: day.kind, dayOfWeek: day.dayOfWeek,
     exercises: day.exercises.map(e => {
       const o = { exerciseId: e.exerciseId, target: e.target };
       if (e.target.tempo == null) delete e.target.tempo;
@@ -140,8 +150,12 @@ function tableRows(mints) {
 const [four, five] = process.argv.slice(2);
 if (!four || !five) { console.error('usage: node tools/gen-programmes.mjs <4day.xlsx> <5day.xlsx>'); process.exit(1); }
 const a = templateFrom(four), b = templateFrom(five);
+// The card these sit on already says "Macrosaurus programmes", so a name only has to say which one.
+// They were "Macrosaurus Default 4 Day" and "Macrosaurus 5 Day", which is two naming schemes for two
+// things that sit next to each other - and "Default" says nothing on a block once it is on your
+// shelf, where the name has to work on its own.
 const out = [
-  { key: 'mac4', name: 'Macrosaurus Default 4 Day', daysPerWeek: a.days, template: compact(a.template) },
+  { key: 'mac4', name: 'Macrosaurus 4 Day', daysPerWeek: a.days, template: compact(a.template) },
   { key: 'mac5', name: 'Macrosaurus 5 Day', daysPerWeek: b.days, template: compact(b.template) },
 ];
 // One day per line: readable enough to diff when a sheet changes, compact enough not to add a

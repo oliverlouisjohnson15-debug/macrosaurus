@@ -180,18 +180,29 @@ function ProgrammeCards({ db, onPick, className }) {
     <Card className={'p-0 overflow-hidden ' + (className || '')}>
       <CardHead title="Macrosaurus programmes" right="Written, not generated" />
       <div className="p-3.5">
+        {/* One sentence. The card is the shortcut for somebody who does not want to be asked seven
+            questions, and three lines of prose above the two things you came to tap is the screen
+            asking anyway. What the block IS gets read off the rows below it. */}
         <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-          Four weeks, every last set taken to where the weight stops moving. Nothing is added week to
-          week - the weight is what moves. Where a programme leaves a movement open, you pick it.
+          Four weeks, written rather than generated, every last set taken to where the weight stops moving.
         </div>
         {list.map(p => (
           <button key={p.key} onClick={() => onPick(p.key)}
-            className="w-full text-left p-3 mb-2 last:mb-0" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
-            <span className="block text-[14px] font-semibold leading-tight">{p.name}</span>
-            <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-              {p.daysPerWeek} days &middot; {p.movements} movements &middot; {p.sets} hard sets a week
+            className="w-full text-left p-3 mb-2 last:mb-0 flex items-center gap-2.5"
+            style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold leading-tight">{p.name}</span>
+              {/* Numbers first, split second - the same order and the same two tiers the blocks
+                  screen uses on a block, because these become one. The split can truncate on a
+                  narrow phone and the line that must not truncate is above it. */}
+              <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+                {p.daysPerWeek} days a week &middot; {p.sets} hard sets
+              </span>
+              <span className="block text-[12px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>{p.dayNames.join(' \u00b7 ')}</span>
             </span>
-            <span className="block text-[12px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>{p.dayNames.join(' \u00b7 ')}</span>
+            {/* Every other row in this module that opens something carries one. Without it this reads
+                as a panel of facts rather than as two things you can tap. */}
+            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
           </button>
         ))}
       </div>
