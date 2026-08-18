@@ -249,7 +249,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           {/* A rest day is prescribed, not a day you failed to train. Saying so is the difference
               between a week that is going to plan and a week that looks like it is slipping. */}
           {restToday && !trainingToday.length && (
-            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--text2)' }}>
               <b>Today is a rest day.</b> That is the plan, not a gap in it - the week is built around
               {restDays.length === 1 ? ' it' : ' these two'}. Next up is {next ? next.session.name.split(' - ')[0] : 'the next session'}.
             </div>
@@ -379,18 +379,24 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               </div>
               <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {(() => {
-                  // What the block would actually be, rather than what blocks used to be. The two
-                  // styles are different promises and the empty state is where the promise is made.
-                  const mm = plannedShape(t.prefs) === 'minmax6';
+                  // What the block would actually be. The promise has to come off the STYLE, because
+                  // that is what decides whether volume climbs: reading it off the shape meant a
+                  // min-max block set to four weeks was described as one that "builds on each other
+                  // and then backs off", which is the one thing min-max never does - it adds no sets
+                  // at all, and neither of its shapes has a back-off week. The length is a separate
+                  // question and the intro week belongs to the shape, so both are asked separately.
+                  const shape = plannedShape(t.prefs);
                   const n = plannedWeeks(t.prefs);
-                  if (mm) {
-                    return t.logs.length
-                      ? n + ' weeks: an easier first one, then five hard ones. One or two sets a movement, taken to where the weight stops moving. I will keep the numbers.'
-                      : n + ' weeks: an easier first one, then five hard ones. Bring a plan you already follow, take one off the shelf, or I will write you one.';
+                  const intro = !!(Training.SHAPES[shape] || {}).intro;
+                  const tail = t.logs.length
+                    ? ' I will keep the numbers.'
+                    : ' Bring one you already follow, take one off the shelf, or I will write you one.';
+                  if (Training.styleOf(t.prefs.style).toFailure) {
+                    return n + ' weeks' + (intro ? ', an easier first one and ' + (n - 1) + ' hard ones' : '')
+                      + '. One or two sets a movement, taken to where the weight stops moving, and nothing added week to week: the weight does the moving.' + tail;
                   }
-                  return t.logs.length
-                    ? n + ' weeks that build on each other and then back off, so you start the next one fresher than you finished this one. I will keep the numbers.'
-                    : n + ' weeks that build on each other and then back off. Bring one you already follow, take one off the shelf, or I will write you one.';
+                  return n + ' weeks that build on each other and then back off'
+                    + (t.logs.length ? ', so you start the next one fresher than you finished this one.' : '.') + tail;
                 })()}
               </div>
             </div>

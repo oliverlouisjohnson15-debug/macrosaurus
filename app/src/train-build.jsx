@@ -1298,7 +1298,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       {/* One movement's options. Same sheet, same order, same words as the session player's, because
           it is the same job asked in a different room. */}
       {item && (
-        <ActionSheet title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
+        <ActionSheet kicker="Movement" title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
           actions={[
             { label: 'Swap it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
             { label: 'Sets and reps', sub: item.target.sets + ' x ' + item.target.repLow + '-' + item.target.repHigh + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
@@ -1355,7 +1355,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         const to = Training.byId(swapScope.exId, t.custom);
         const sc = swapScope;
         return (
-          <ActionSheet title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+          <ActionSheet kicker="Swap" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
               { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),
@@ -1368,7 +1368,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       })()}
 
       {dayPick && (
-        <ActionSheet title={'Which day is ' + live.name + '?'} onClose={() => setDayPick(false)}
+        <ActionSheet kicker="Move to" title={'Which day is ' + live.name + '?'} onClose={() => setDayPick(false)}
           actions={WEEKDAYS_FULL.map((label, d) => {
             const also = block && prog ? Training.sessionsOnDay(block, prog.week, d, live.id) : [];
             return {

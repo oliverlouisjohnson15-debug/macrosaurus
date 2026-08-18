@@ -944,7 +944,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         return s ? <PlateSheet weightKg={s.weightKg} units={units} onClose={() => setPlateFor(null)} /> : null;
       })()}
       {menuOpen != null && items[menuOpen] && (
-        <ActionSheet title={(Training.byId(items[menuOpen].exerciseId, t.custom) || {}).name || 'This movement'}
+        <ActionSheet kicker="Movement" title={(Training.byId(items[menuOpen].exerciseId, t.custom) || {}).name || 'This movement'}
           onClose={() => setMenuOpen(null)}
           actions={[
             { label: 'Swap for something else', sub: 'Keeps your sets and reps', onClick: () => setSwapping(menuOpen) },
@@ -994,7 +994,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           rather than one movement, which is why it was homeless before: adding a movement was a
           button at the bottom of the list and the rest had nowhere to live at all. */}
       {sessionMenu && (
-        <ActionSheet title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
+        <ActionSheet kicker="Session" title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
           actions={[
             { label: 'Add a movement', sub: 'Something you did that is not in the plan', onClick: () => setPicking(true) },
             {
@@ -1042,7 +1042,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {swapScope && (() => {
         const from = Training.byId(swapScope.from, t.custom), to = Training.byId(swapScope.to, t.custom);
         return (
-          <ActionSheet title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+          <ActionSheet kicker="Swap" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
               { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
@@ -1154,7 +1154,7 @@ function MetaBit({ label, onHelp, muted, hideHelp }) {
 function TrainHelp({ topic, db, onClose, onHideForGood }) {
   useBackClose(onClose);
   const t = tdb(db);
-  let title = '', body = '';
+  let title = '', body = '', subject = null;
   if (topic === 'failure') {
     title = 'To failure';
     body = 'The LAST set of a movement ends when the weight stops moving, not when it gets hard. Where a movement has two sets, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. The first week of a block sits a rep or two further back on everything, and it is not a formality: it is what lets the next five weeks be this hard. Stop if your form breaks rather than grinding a rep that has already gone wrong, and take the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
@@ -1170,13 +1170,20 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
     body = (parts ? parts.text + ' ' : '') + 'Four numbers: lowering, pause at the stretch, lifting, pause at the top. The lowering is the half that matters most, and it is the half people rush. Slowing it down is usually worth more than adding weight.';
   } else if (String(topic).indexOf('why:') === 0) {
     const ex = Training.byId(String(topic).slice(4), t.custom);
-    title = ex ? ex.name : 'This movement';
+    // The heading stays a fixed label and the movement's NAME goes underneath in the body face. The
+    // pixel font runs about a full em per character and has no narrow forms, so a name the library
+    // holds - "Smith machine bench press (close grip)" is thirty-eight characters - wraps a 12px
+    // heading to three lines. Labels and short fixed strings only: the rule that fixed six other
+    // places in this module, and this was the seventh.
+    title = 'Why this movement';
+    subject = ex ? ex.name : null;
     body = [Training.cueFor(ex), Training.whyFor(ex)].filter(Boolean).join('\n\n');
   }
   return (
     <div role="dialog" aria-modal="true" aria-label="Explainer" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-5 fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[12px] mb-4">{title}</h2>
+        <h2 className={'pf text-[12px] ' + (subject ? 'mb-1' : 'mb-4')}>{title}</h2>
+        {subject && <div className="text-[15px] font-bold leading-tight mb-4">{subject}</div>}
         <div className="text-[13px] leading-relaxed mb-4 whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{body}</div>
         <Btn kind="ghost" className="w-full" onClick={onClose}>Got it</Btn>
         {!t.prefs.hideHelp && onHideForGood && (
@@ -1214,7 +1221,10 @@ function PastSets({ db, exerciseId, onClose }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Recent sets" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-5 fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[11px] mb-4">{ex ? ex.name : 'History'}</h2>
+        {/* Same rule as everywhere else: the pixel face carries the label, the body face carries the
+            name. This heading was setting whatever the library calls a movement in Press Start 2P. */}
+        <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recent sets</div>
+        <h2 className="text-[15px] font-bold leading-tight mb-4">{ex ? ex.name : 'This movement'}</h2>
         {rows.length === 0 && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>You have not logged this one yet.</div>}
         {rows.map((r, i) => (
           <div key={i} className="py-2 border-t" style={{ borderColor: 'var(--border)' }}>

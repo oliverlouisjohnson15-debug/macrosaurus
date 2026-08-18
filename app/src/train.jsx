@@ -187,7 +187,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
             onClick: () => applyKinds(list.map(f => f.kind), 'Block brought up to date.'),
           });
         }
-        return <ActionSheet title={'Bring "' + fixing.name + '" up to date'} actions={actions} onClose={() => setFixing(null)} />;
+        return <ActionSheet kicker="Repairs" title={'Bring "' + fixing.name + '" up to date'} actions={actions} onClose={() => setFixing(null)} />;
       })()}
       {confirm && (
         <ConfirmDialog title={'Delete "' + confirm.name + '"?'}
@@ -2282,7 +2282,7 @@ function StatSheet({ db, onBack }) {
 // A list of things you can do, as a sheet. The grid of chunky boxes this replaced was crammed two
 // across in the middle of the card you were working in, so it read as part of the layout rather than
 // as a menu, and there was no room for any of the options to say what they actually did.
-function ActionSheet({ title, actions, onClose }) {
+function ActionSheet({ title, kicker, actions, onClose }) {
   useBackClose(onClose);
   return (
     <div role="dialog" aria-modal="true" aria-label="Options" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
@@ -2291,8 +2291,13 @@ function ActionSheet({ title, actions, onClose }) {
             A 13px label that would be one comfortable line in a normal typeface wraps to two here
             and turns a six-item menu into a full-screen scroll, so the sizes are a step down from
             what they would otherwise be. */}
+        {/* The kicker is the pixel-font part and it is always a fixed string; the title underneath is
+            whatever the movement or session happens to be called, in the body face. Six sheets here
+            were passing a name the library holds - two of them passing two, joined by "instead of" -
+            into a face that runs a full em per character and has no narrow forms. */}
         <div className="px-4 pt-4 pb-2">
-          <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{title}</div>
+          <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{kicker || 'Options'}</div>
+          {title && <div className="text-[13.5px] font-semibold leading-tight mt-1">{title}</div>}
         </div>
         {/* Two things this list has to get right, both of them from the same finding: a consequential
             option sitting flush against a benign one gets picked by accident (NN/g, "Dangerous UX:

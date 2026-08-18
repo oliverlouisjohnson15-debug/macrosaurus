@@ -51993,7 +51993,7 @@ function TrainHome({
   }, "Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the five after it."), restToday && !trainingToday.length && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-4 px-3 py-2 leading-snug",
     style: {
-      background: 'var(--surface2)',
+      background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))',
       color: 'var(--text2)'
     }
   }, /*#__PURE__*/React.createElement("b", null, "Today is a rest day."), " That is the plan, not a gap in it - the week is built around", restDays.length === 1 ? ' it' : ' these two', ". Next up is ", next ? next.session.name.split(' - ')[0] : 'the next session', "."), /*#__PURE__*/React.createElement("div", {
@@ -52155,14 +52155,20 @@ function TrainHome({
       color: 'var(--muted)'
     }
   }, (() => {
-    // What the block would actually be, rather than what blocks used to be. The two
-    // styles are different promises and the empty state is where the promise is made.
-    const mm = plannedShape(t.prefs) === 'minmax6';
+    // What the block would actually be. The promise has to come off the STYLE, because
+    // that is what decides whether volume climbs: reading it off the shape meant a
+    // min-max block set to four weeks was described as one that "builds on each other
+    // and then backs off", which is the one thing min-max never does - it adds no sets
+    // at all, and neither of its shapes has a back-off week. The length is a separate
+    // question and the intro week belongs to the shape, so both are asked separately.
+    const shape = plannedShape(t.prefs);
     const n = plannedWeeks(t.prefs);
-    if (mm) {
-      return t.logs.length ? n + ' weeks: an easier first one, then five hard ones. One or two sets a movement, taken to where the weight stops moving. I will keep the numbers.' : n + ' weeks: an easier first one, then five hard ones. Bring a plan you already follow, take one off the shelf, or I will write you one.';
+    const intro = !!(Training.SHAPES[shape] || {}).intro;
+    const tail = t.logs.length ? ' I will keep the numbers.' : ' Bring one you already follow, take one off the shelf, or I will write you one.';
+    if (Training.styleOf(t.prefs.style).toFailure) {
+      return n + ' weeks' + (intro ? ', an easier first one and ' + (n - 1) + ' hard ones' : '') + '. One or two sets a movement, taken to where the weight stops moving, and nothing added week to week: the weight does the moving.' + tail;
     }
-    return t.logs.length ? n + ' weeks that build on each other and then back off, so you start the next one fresher than you finished this one. I will keep the numbers.' : n + ' weeks that build on each other and then back off. Bring one you already follow, take one off the shelf, or I will write you one.';
+    return n + ' weeks that build on each other and then back off' + (t.logs.length ? ', so you start the next one fresher than you finished this one.' : '.') + tail;
   })()))), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('wizard'),
     className: "pixel-btn w-full h-14 font-bold mb-2",
@@ -53656,6 +53662,7 @@ function SessionPlayer({
         onClose: () => setPlateFor(null)
       }) : null;
     })(), menuOpen != null && items[menuOpen] && /*#__PURE__*/React.createElement(ActionSheet, {
+      kicker: "Movement",
       title: (Training.byId(items[menuOpen].exerciseId, t.custom) || {}).name || 'This movement',
       onClose: () => setMenuOpen(null),
       actions: [{
@@ -53726,6 +53733,7 @@ function SessionPlayer({
         }
       })
     }), sessionMenu && /*#__PURE__*/React.createElement(ActionSheet, {
+      kicker: "Session",
       title: session ? session.name : 'Empty session',
       onClose: () => setSessionMenu(false),
       actions: [{
@@ -53813,6 +53821,7 @@ function SessionPlayer({
       const from = Training.byId(swapScope.from, t.custom),
         to = Training.byId(swapScope.to, t.custom);
       return /*#__PURE__*/React.createElement(ActionSheet, {
+        kicker: "Swap",
         title: (to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it'),
         onClose: () => setSwapScope(null),
         actions: [{
@@ -53967,7 +53976,8 @@ function TrainHelp({
   useBackClose(onClose);
   const t = tdb(db);
   let title = '',
-    body = '';
+    body = '',
+    subject = null;
   if (topic === 'failure') {
     title = 'To failure';
     body = 'The LAST set of a movement ends when the weight stops moving, not when it gets hard. Where a movement has two sets, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. The first week of a block sits a rep or two further back on everything, and it is not a formality: it is what lets the next five weeks be this hard. Stop if your form breaks rather than grinding a rep that has already gone wrong, and take the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
@@ -53983,7 +53993,13 @@ function TrainHelp({
     body = (parts ? parts.text + ' ' : '') + 'Four numbers: lowering, pause at the stretch, lifting, pause at the top. The lowering is the half that matters most, and it is the half people rush. Slowing it down is usually worth more than adding weight.';
   } else if (String(topic).indexOf('why:') === 0) {
     const ex = Training.byId(String(topic).slice(4), t.custom);
-    title = ex ? ex.name : 'This movement';
+    // The heading stays a fixed label and the movement's NAME goes underneath in the body face. The
+    // pixel font runs about a full em per character and has no narrow forms, so a name the library
+    // holds - "Smith machine bench press (close grip)" is thirty-eight characters - wraps a 12px
+    // heading to three lines. Labels and short fixed strings only: the rule that fixed six other
+    // places in this module, and this was the seventh.
+    title = 'Why this movement';
+    subject = ex ? ex.name : null;
     body = [Training.cueFor(ex), Training.whyFor(ex)].filter(Boolean).join('\n\n');
   }
   return /*#__PURE__*/React.createElement("div", {
@@ -53999,8 +54015,10 @@ function TrainHelp({
     },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "pf text-[12px] mb-4"
-  }, title), /*#__PURE__*/React.createElement("div", {
+    className: 'pf text-[12px] ' + (subject ? 'mb-1' : 'mb-4')
+  }, title), subject && /*#__PURE__*/React.createElement("div", {
+    className: "text-[15px] font-bold leading-tight mb-4"
+  }, subject), /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] leading-relaxed mb-4 whitespace-pre-wrap",
     style: {
       color: 'var(--text2)'
@@ -54062,9 +54080,14 @@ function PastSets({
       background: 'var(--card)'
     },
     onClick: e => e.stopPropagation()
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "pf text-[11px] mb-4"
-  }, ex ? ex.name : 'History'), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Recent sets"), /*#__PURE__*/React.createElement("h2", {
+    className: "text-[15px] font-bold leading-tight mb-4"
+  }, ex ? ex.name : 'This movement'), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[13px]",
     style: {
       color: 'var(--muted)'
@@ -56479,6 +56502,7 @@ function SessionPreview({
       color: 'var(--on-accent)'
     }
   }, log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0])), item && /*#__PURE__*/React.createElement(ActionSheet, {
+    kicker: "Movement",
     title: itemEx ? itemEx.name : 'This movement',
     onClose: () => setMenuFor(null),
     actions: [{
@@ -56557,6 +56581,7 @@ function SessionPreview({
     const to = Training.byId(swapScope.exId, t.custom);
     const sc = swapScope;
     return /*#__PURE__*/React.createElement(ActionSheet, {
+      kicker: "Swap",
       title: (to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it'),
       onClose: () => setSwapScope(null),
       actions: [{
@@ -56570,6 +56595,7 @@ function SessionPreview({
       }]
     });
   })(), dayPick && /*#__PURE__*/React.createElement(ActionSheet, {
+    kicker: "Move to",
     title: 'Which day is ' + live.name + '?',
     onClose: () => setDayPick(false),
     actions: WEEKDAYS_FULL.map((label, d) => {
@@ -57012,6 +57038,7 @@ function BlockList({
       });
     }
     return /*#__PURE__*/React.createElement(ActionSheet, {
+      kicker: "Repairs",
       title: 'Bring "' + fixing.name + '" up to date',
       actions: actions,
       onClose: () => setFixing(null)
@@ -60173,6 +60200,7 @@ function StatSheet({
 // as a menu, and there was no room for any of the options to say what they actually did.
 function ActionSheet({
   title,
+  kicker,
   actions,
   onClose
 }) {
@@ -60196,6 +60224,8 @@ function ActionSheet({
     style: {
       color: 'var(--muted)'
     }
+  }, kicker || 'Options'), title && /*#__PURE__*/React.createElement("div", {
+    className: "text-[13.5px] font-semibold leading-tight mt-1"
   }, title)), (actions || []).filter(Boolean).map((a, i) => {
     const prev = (actions || []).filter(Boolean)[i - 1];
     const opensGap = a.danger && prev && !prev.danger;

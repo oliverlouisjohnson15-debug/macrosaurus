@@ -129,3 +129,61 @@ test('the wizard previews the style it is set to', () => {
   assert.ok(/Min-max/.test(r.text));
   assert.ok(/deficit/.test(r.text), 'and a cutting account should be told which one suits it');
 });
+
+// ---- the Game Boy face carries labels, never names -------------------------------------------------
+// TRAINING_UI_REVIEW.md §1.2, and its ship record: "Press Start 2P now carries labels and fixed
+// strings only", because the face runs about a full em per character and has no narrow forms. Six
+// places were converted then; three dialogs were still doing it.
+
+const pfStrings = (html) => [...html.matchAll(/class="[^"]*\bpf\b[^"]*"[^>]*>([^<]+)</g)].map(m => m[1].trim());
+const LIBRARY_NAMES = new Set(T.EXERCISES.map(e => e.name));
+
+test('no dialog sets a movement name in the pixel font', () => {
+  const db = accountWith();
+  const longest = T.EXERCISES.map(e => e.name).sort((a, b) => b.length - a.length).slice(0, 2);
+  const sheets = {
+    'the swap sheet': render(A.ActionSheet, { kicker: 'Swap', title: longest[0] + ' instead of ' + longest[1], actions: [{ label: 'Just today' }], onClose() {} }),
+    'recent sets': render(A.PastSets, { db, exerciseId: 'back_squat', onClose() {} }),
+    'why this movement': render(A.TrainHelp, { topic: 'why:hack_squat', db, onClose() {}, onHideForGood() {} }),
+  };
+  for (const label of Object.keys(sheets)) {
+    const inPixelFont = pfStrings(sheets[label].html);
+    const names = inPixelFont.filter(x => LIBRARY_NAMES.has(x) || / instead of /.test(x));
+    assert.deepEqual(names, [], label + ' sets a movement name in Press Start 2P: ' + JSON.stringify(names));
+    assert.ok(inPixelFont.length > 0, label + ' should still have a pixel-font label');
+  }
+  // And the name is still on screen, in the body face.
+  assert.ok(sheets['recent sets'].has('Back squat'));
+  assert.ok(sheets['why this movement'].has('Hack squat'));
+  assert.ok(sheets['the swap sheet'].has(longest[0] + ' instead of ' + longest[1]));
+});
+
+test('a session screen puts no movement name in the pixel font', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5, sessionMinutes: 60 });
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 2)[0];
+  const r = render(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {}, onFocusMode() {}, gym: null,
+  });
+  const names = pfStrings(r.html).filter(x => LIBRARY_NAMES.has(x));
+  assert.deepEqual(names, [], 'movement names in the pixel font: ' + JSON.stringify(names));
+});
+
+test('the empty state promises what the STYLE does, not what the length implies', () => {
+  // A min-max block set to four weeks was being described as one that "builds on each other and then
+  // backs off" - the one thing min-max never does, since it adds no sets and neither shape has a
+  // back-off week.
+  const cases = [
+    ['minmax', 'minmax6', /nothing added week to week/, /build on each other/],
+    ['minmax', 'build4', /nothing added week to week/, /build on each other/],
+    ['landmarks', 'build4', /build on each other and then back off/, /nothing added week to week/],
+  ];
+  for (const [style, shape, expected, forbidden] of cases) {
+    const db = accountWith();
+    db.training.blocks = [];
+    db.training.prefs = { units: 'kg', style, shape };
+    const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
+    assert.ok(expected.test(r.text), style + '/' + shape + ' should say ' + expected + ': ' + r.text.slice(0, 200));
+    assert.ok(!forbidden.test(r.text), style + '/' + shape + ' must not claim ' + forbidden);
+  }
+});
