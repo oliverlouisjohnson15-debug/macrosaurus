@@ -2440,7 +2440,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         });
       const read = readBlock(blk);
       if (!read) return null;
-      return Object.assign({ cov: Training.coverage(Training.blockWeekVolume(blk, 1, t.custom), targets) }, read);
+      return Object.assign({
+        cov: Training.coverage(Training.blockWeekVolume(blk, 1, t.custom), targets),
+        // How much of what they brought is actually in there, and the names of anything that is not.
+        // A block built from somebody's own plan has to be able to answer "where did my movement go".
+        brought: (blk.brought || []).length,
+        spare: (blk.broughtSpare || []).map(id => (Training.byId(id, t.custom) || {}).name).filter(Boolean),
+      }, read);
     } catch (_) { return null; }
   }, [days, minutes, experience, goal, shape, intensity, emphasis, equipment, gym, draftDays, t.draft, t.custom, t.volumeTargets]);
 
@@ -2473,9 +2479,16 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // source becomes part of the draft rather than two slightly different ones.
   function mergeIntoDraft(tr, parts) {
     const d = tr.draft || { name: (parts[0].parsed && parts[0].parsed.name) || 'My block', days: [] };
-    d.days = mergedDraftDays(d.days, parts);
+    // Movements the library had nothing for, folded in BEFORE the days are, so a day never lands
+    // pointing at an entry that got collapsed into another. Idempotent, so it does not matter that
+    // the reader has usually done this already to get an honest count out.
     const newCustom = parts.reduce((a, p) => a.concat((p.res && p.res.newCustom) || []), []);
-    if (newCustom.length) tr.custom = (tr.custom || []).concat(newCustom);
+    if (newCustom.length) {
+      const merged = Training.mergeCustom(tr.custom || [], newCustom);
+      tr.custom = merged.custom;
+      parts.forEach(p => Training.remapDays(p.res.template, merged.map));
+    }
+    d.days = mergedDraftDays(d.days, parts);
     const gather = (k) => parts.reduce((a, p) => a.concat((p.res && p.res[k]) || []), []);
     d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
     d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
@@ -2544,6 +2557,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     // `read` is what came back, `added` is what the basket actually grew by - the two differ when
     // two shots caught the same session and the merge kept the fuller reading.
     const read = got.reduce((a, r) => a + r.res.template.length, 0);
+    // Two files that each invented the coach's own name for a machine invented it twice, under two
+    // spellings, because neither parse could see the other. Collapsed here, before anything is
+    // counted or merged, so the day comparison below is working on the ids that will actually be
+    // stored - and so the person's library does not fill up with five spellings of one movement.
+    Training.remapDays(
+      got.reduce((a, r) => a.concat(r.res.template), []),
+      Training.mergeCustom(t.custom || [], got.reduce((a, r) => a.concat((r.res && r.res.newCustom) || []), [])).map);
     const basket = ((t.draft && t.draft.days) || []);
     const added = mergedDraftDays(basket, got).length - basket.length;
     const repeats = Math.max(0, read - added);
@@ -2773,7 +2793,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </TrainField>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
-        hint="Decides how many movements fit.">
+        hint={draftDays > 0 && !asBrought
+          ? 'Decides how many movements I choose for myself. Movements you brought are kept on top of that, so a long plan makes a longer session rather than a shorter plan.'
+          : 'Decides how many movements fit.'}>
         <Seg value={minutes} onChange={setMinutes} options={[{ v: 40, l: '40 min' }, { v: 60, l: '60 min' }, { v: 80, l: '80 min' }, { v: 100, l: '100 min' }]} />
       </TrainField>
       <TrainField label="Where you are" effect={preview ? preview.weekSets + ' sets' : ''}
@@ -2855,6 +2877,16 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             ? 'Building the ' + draftDays + ' ' + (draftDays === 1 ? 'day' : 'days') + ' you brought exactly as written, for four weeks.'
             : 'Building you ' + days + ' sessions a week from what you brought: their movements, rep ranges and tempos, laid out '
               + 'across ' + days + ' days and built up against your own volume landmarks.'}
+          {/* Every movement they brought is kept if it possibly can be, so the one thing worth saying
+              here is whether any of them could not be - named, because "2 did not fit" is the kind of
+              sentence that makes somebody go back and count. */}
+          {!asBrought && preview && preview.brought > 0 && (
+            preview.spare.length
+              ? ' All ' + (preview.brought - preview.spare.length) + ' of your ' + preview.brought + ' movements are in it, except '
+                + preview.spare.slice(0, 3).join(', ') + (preview.spare.length > 3 ? ' and ' + (preview.spare.length - 3) + ' more' : '')
+                + ' - no room, or kit this gym has not got.'
+              : ' All ' + preview.brought + ' of the movements you brought are in it.'
+          )}
         </div>
       )}
       <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>

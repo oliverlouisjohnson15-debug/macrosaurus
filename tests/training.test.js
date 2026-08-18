@@ -788,6 +788,95 @@ test('kit you do not have is not chosen just because the plan you brought used i
   }
 });
 
+// ---- lenient with movements, strict about duplicates ---------------------------------------------
+// The two halves of the same wish: keep everything somebody brought, however long the list, and never
+// let one movement appear twice because two screenshots spelled it differently.
+
+test('a plan with more movements than a split would pick keeps all of them', () => {
+  const big = [
+    { name: 'Push', kind: 'full', exercises: [
+      { exerciseId: 'bb_bench', order: 0, target: { sets: 4, repLow: 6, repHigh: 8 } },
+      { exerciseId: 'db_incline', order: 1, target: { sets: 3, repLow: 8, repHigh: 12 } },
+      { exerciseId: 'cable_fly', order: 2, target: { sets: 3, repLow: 12, repHigh: 15 } },
+      { exerciseId: 'db_lateral', order: 3, target: { sets: 4, repLow: 12, repHigh: 15 } },
+      { exerciseId: 'rope_pushdown', order: 4, target: { sets: 3, repLow: 10, repHigh: 12 } },
+    ] },
+    { name: 'Pull', kind: 'full', exercises: [
+      { exerciseId: 'lat_pulldown', order: 0, target: { sets: 4, repLow: 8, repHigh: 12 } },
+      { exerciseId: 'seated_cable_row', order: 1, target: { sets: 3, repLow: 10, repHigh: 12 } },
+      { exerciseId: 'face_pull', order: 2, target: { sets: 3, repLow: 12, repHigh: 15 } },
+      { exerciseId: 'ez_curl', order: 3, target: { sets: 3, repLow: 10, repHigh: 12 } },
+      { exerciseId: 'hammer_curl', order: 4, target: { sets: 3, repLow: 10, repHigh: 12 } },
+    ] },
+    { name: 'Legs', kind: 'full', exercises: [
+      { exerciseId: 'back_squat', order: 0, target: { sets: 4, repLow: 5, repHigh: 8 } },
+      { exerciseId: 'rdl', order: 1, target: { sets: 3, repLow: 8, repHigh: 10 } },
+      { exerciseId: 'leg_press', order: 2, target: { sets: 3, repLow: 10, repHigh: 15 } },
+      { exerciseId: 'leg_extension', order: 3, target: { sets: 3, repLow: 12, repHigh: 15 } },
+      { exerciseId: 'standing_calf', order: 4, target: { sets: 4, repLow: 10, repHigh: 15 } },
+    ] },
+  ];
+  for (const d of big) for (const e of d.exercises) assert.ok(T.byId(e.exerciseId), `unknown id ${e.exerciseId}`);
+  // Three days, sixty minutes: a split of its own would pick about six movements a session and the
+  // other half of their plan would quietly not exist.
+  const block = T.blockFromSource(big, { daysPerWeek: 3, weeks: 4, sessionMinutes: 60 });
+  const inBlock = new Set(T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []));
+  const missing = block.brought.filter(id => !inBlock.has(id));
+  assert.equal(block.brought.length, 15);
+  assert.deepEqual(missing, [], `brought movements left out: ${missing.join(', ')}`);
+  assert.deepEqual(block.broughtSpare, []);
+});
+
+test('being lenient never means doing a movement twice', () => {
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4 });
+  const ids = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []);
+  assert.equal(new Set(ids).size, ids.length, `the same movement twice in one week: ${ids.join(', ')}`);
+  // And not under two names either: the library holds one entry per movement, so a name collision
+  // here would mean two entries the app thinks are different lifts.
+  const names = ids.map(id => T.byId(id).name);
+  assert.equal(new Set(names).size, names.length);
+});
+
+test('a movement needing kit the gym has not got is set aside, not forced in', () => {
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4, equipment: ['dumbbell', 'cable', 'machine', 'bodyweight'] });
+  assert.ok(block.broughtSpare.includes('bb_bench'), 'a barbell bench in a gym with no barbell cannot go in');
+  const ids = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []);
+  assert.ok(!ids.includes('bb_bench'), 'and it must not sneak in anyway');
+});
+
+test('the same movement spelled two ways is one movement in the library', () => {
+  // What five screenshots of one programme actually do: each parse is blind to the others, so the
+  // coach's own name for a machine arrives in a different word order every time.
+  const a = T.importTemplate({ days: [{ name: 'Day 1', exercises: [
+    { name: 'Zercher Yoke Carry Sled XR7', sets: 3, muscle: ['qu'], equipment: 'machine', pattern: 'compound' },
+  ] }] });
+  const b = T.importTemplate({ days: [{ name: 'Day 2', exercises: [
+    { name: 'Yoke Zercher Sled Carry XR7', sets: 3, muscle: ['qu'], equipment: 'machine', pattern: 'compound' },
+  ] }] });
+  assert.equal(a.newCustom.length, 1);
+  assert.equal(b.newCustom.length, 1);
+  const merged = T.mergeCustom([], a.newCustom.concat(b.newCustom));
+  assert.equal(merged.custom.length, 1, 'one movement, one entry');
+  T.remapDays(b.template, merged.map);
+  assert.equal(b.template[0].exercises[0].exerciseId, merged.custom[0].id, 'and the day points at the one that survived');
+});
+
+test('a minted guess that turns out to be a real library movement defers to it', () => {
+  const minted = [{ id: 'cu_auto_press_bench_barbell', name: 'Press bench barbell', equipment: 'barbell', pattern: 'compound', primary: ['ch'], custom: true, auto: true }];
+  const merged = T.mergeCustom([], minted);
+  assert.equal(merged.custom.length, 0, 'the library already describes it properly');
+  assert.equal(merged.map.cu_auto_press_bench_barbell, 'bb_bench');
+});
+
+test('one parse that names a movement twice mints it once', () => {
+  const res = T.importTemplate({ days: [
+    { name: 'Day 1', exercises: [{ name: 'Zercher Yoke Carry Sled XR7', sets: 3, muscle: ['qu'], equipment: 'machine', pattern: 'compound' }] },
+    { name: 'Day 2', exercises: [{ name: 'Yoke Zercher Sled Carry XR7', sets: 3, muscle: ['qu'], equipment: 'machine', pattern: 'compound' }] },
+  ] });
+  assert.equal(res.newCustom.length, 1);
+  assert.equal(res.template[0].exercises[0].exerciseId, res.template[1].exercises[0].exerciseId);
+});
+
 // ---- overlapping screenshots -------------------------------------------------------------------
 // The other half of the same bug, from the other direction: five screenshots going in and EIGHT days
 // coming out. Phone shots of a coaching app overlap, so the tail of Tuesday rides along under the top

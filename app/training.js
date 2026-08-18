@@ -1858,6 +1858,15 @@
       if (mintedById[id]) return mintedById[id];
       var already = byId(id, opts.custom);
       if (already) { mintedById[id] = already; return already; }
+      // The same movement written two ways is one movement. A slug off the name alone makes "Incline
+      // DB press" and "DB incline press" two entries in the library, two rows in the plan and two
+      // separate lots of logged history for one lift - and screenshots of one programme are exactly
+      // where both spellings turn up. sameMovement compares the words rather than the string, so the
+      // second spelling reuses the first entry instead of minting beside it.
+      var twin = newCustom.concat(opts.custom || []).filter(function (x) {
+        return sameMovement(x.name, tidyName(raw.name) || raw.name);
+      })[0];
+      if (twin) { mintedById[id] = twin; return twin; }
       var guess = MUSCLES.filter(function (m) { return (raw.muscle || []).indexOf(m) !== -1; });
       // No usable guess at all (an old caller, or the model skipped the field): still cannot fail to
       // mint one, so fall back to a plausible default rather than leaving the exercise out.
@@ -2363,6 +2372,42 @@
     return norm(a.name) === norm(b.name) ? (shared >= 2 && ratio >= 0.75) : (shared >= 3 && ratio >= 0.85);
   }
 
+  // Fold custom movements minted by separate parses into one library.
+  //
+  // Every file in a batch is parsed on its own, against the same snapshot of the library, so none of
+  // them can see what the others have just invented. Five screenshots of one programme therefore mint
+  // five separate entries for the coach's own name for a machine, and the person ends up with a
+  // library full of near-identical movements and their logged history split across them. This is the
+  // one place that can see all five at once, so this is where they collapse: an entry that is the
+  // same movement as one already there (or as a movement the real library has under a different word
+  // order) is dropped, and the days that pointed at it are re-pointed at the survivor.
+  function mergeCustom(existing, minted) {
+    var out = (existing || []).slice();
+    var map = {};
+    (minted || []).forEach(function (m) {
+      if (!m || !m.id) return;
+      // The real library first: if a minted guess turns out to be a movement we already describe
+      // properly, that entry is better than the guess in every way.
+      var twin = EXERCISES.concat(out).filter(function (x) {
+        return x.id === m.id || sameMovement(x.name, m.name);
+      })[0];
+      if (twin) { if (twin.id !== m.id) map[m.id] = twin.id; return; }
+      out.push(m);
+    });
+    return { custom: out, map: map };
+  }
+  // Re-point days at the ids that survived a mergeCustom, in place. A day pointing at an id nothing
+  // holds any more is a movement that vanishes off the screen, which is worse than the duplicate.
+  function remapDays(days, map) {
+    if (!map || !Object.keys(map).length) return days;
+    (days || []).forEach(function (d) {
+      (d.exercises || []).forEach(function (e) {
+        if (map[e.exerciseId]) e.exerciseId = map[e.exerciseId];
+      });
+    });
+    return days;
+  }
+
   // Merge imported days into the draft basket, in place, and renumber.
   //
   // The rule that matters is the one about collisions. Keying purely on the day's NAME meant five
@@ -2693,6 +2738,68 @@
       });
     }
 
+    // Everything they brought that has not found a slot yet, placed rather than dropped.
+    //
+    // Somebody who uploads a coach's programme has handed over a list of choices. Keeping only the
+    // ones that happen to fall out of a split's own shape - one movement per muscle per day, capped
+    // by how long they said a session runs - throws most of that away silently, and the movements it
+    // throws away are the interesting ones: the second chest movement, the machine their gym has, the
+    // variation somebody wrote in for a reason. So each unused one is put on the day it belongs to.
+    //
+    // This runs BEFORE the MEV pass below on purpose, so the volume that pass hands out lands on
+    // THEIR movements rather than on ones we picked to fill a gap they had already filled. And it
+    // does not need a volume opinion of its own: everything goes in at the same starting sets as
+    // anything else, and trimToMRV shaves back anything that pushes a muscle past its ceiling.
+    //
+    // The one thing it will not do is put the same movement in twice under two spellings, which is
+    // the actual cost of being lenient here - "Incline DB press" and "DB incline press" are one
+    // movement, and a plan carrying both is a plan that looks like it was assembled by a machine.
+    var spare = [];
+    if (insp && opts.keepBrought !== false) {
+      var roomCap = maxEx + 4;
+      // Lenient about which of their movements to keep, never about what they can actually do. A
+      // movement needing kit this gym has not got, or one they have said no to, is not made an
+      // exception of because a PDF used it - the same rule the picking above works to.
+      var haveKit = opts.equipment && opts.equipment.length ? opts.equipment : null;
+      var noKit = {};
+      (opts.dislikes || []).concat(opts.excluded || []).forEach(function (d) { noKit[d] = 1; });
+      insp.pool.forEach(function (id) {
+        if (used[id]) return;
+        var exb = byId(id, opts.custom);
+        if (!exb) return;
+        if (noKit[exb.id] || (haveKit && haveKit.indexOf(exb.equipment) === -1)) { spare.push(id); return; }
+        var have = template.some(function (d) {
+          return d.exercises.some(function (item) {
+            var x = byId(item.exerciseId, opts.custom);
+            return x && (x.id === exb.id || sameMovement(x.name, exb.name));
+          });
+        });
+        if (have) { used[id] = 1; return; }
+        var prim = (exb.primary || []);
+        // The days this movement actually belongs on: the ones whose kind owns one of its muscles,
+        // or that DAY_KIND_HOME says are a sane home for a muscle no split seeds directly. Core work
+        // (home null) belongs anywhere, which is true of it.
+        var homes = template.filter(function (d) {
+          return prim.some(function (m) {
+            var home = DAY_KIND_HOME[m];
+            return (DAY_MUSCLES[d.kind] || []).indexOf(m) !== -1 || (home === null) || (home && home[d.kind]);
+          });
+        });
+        var dest2 = (homes.length ? homes : template)
+          .filter(function (d) { return d.exercises.length < roomCap; })
+          .sort(function (a, b) { return a.exercises.length - b.exercises.length; })[0];
+        // Nowhere left with room. Kept as a note ON the block rather than forgotten, so the screen
+        // can say which of their movements did not make it instead of quietly being a shorter plan.
+        if (!dest2) { spare.push(id); return; }
+        used[id] = 1;
+        var rsb = schemeFor(exb, prim[0]);
+        dest2.exercises.push({
+          id: exb.id + '_brought_' + dest2.exercises.length, exerciseId: exb.id, order: dest2.exercises.length,
+          target: { sets: iv.startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
+        });
+      });
+    }
+
     // Nudge week 1 to MEV: while a muscle is short, add a set to the exercise that serves it best.
     // Starting at 2 sets a movement instead of 3 means more muscles start further from MEV, so this
     // needs more passes than it used to - and a muscle the library has genuinely run out of
@@ -2728,7 +2835,14 @@
       }
     }
 
-    return blockFromTemplate(template, Object.assign({}, opts, { weeks: weeks, shape: shape, targets: targets, daysPerWeek: days }));
+    var built = blockFromTemplate(template, Object.assign({}, opts, { weeks: weeks, shape: shape, targets: targets, daysPerWeek: days }));
+    // What they brought, and what of it could not be fitted. Stored on the block because it is the
+    // honest answer to "where did my movement go", and because the picker can offer them back.
+    if (insp) {
+      built.brought = insp.pool.slice();
+      built.broughtSpare = spare;
+    }
+    return built;
   }
 
   // The one way a plan somebody brought becomes a block, so the preview, the wizard and the draft
@@ -3302,6 +3416,7 @@
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
+    mergeCustom: mergeCustom, remapDays: remapDays,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
