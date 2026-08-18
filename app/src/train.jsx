@@ -8,7 +8,7 @@
  * freely; module-level `const` does not, so anything declared with one has to appear before
  * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
  * ------------------------------------------------------------------------------------- */
-function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart }) {
+function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart, onProgramme }) {
   useBackClose(onBack);
   const t = tdb(db);
   const today = Store.todayISO();
@@ -99,6 +99,11 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       {loadBusy && loadBusy !== 'Reading it...' && (
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--warn)' }}>{loadBusy}</div>
       )}
+
+      {/* The shipped programmes, here as well as on the tab: once you have a block the tab's empty
+          state is gone, and this is where somebody comes looking for another one. */}
+      <ProgrammeCards db={db} className="mb-4"
+        onPick={(key) => onProgramme && onProgramme(key)} />
 
       {blocks.map(block => {
         const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id));

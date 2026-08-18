@@ -43,13 +43,24 @@ test('a volume-model block is described in its own terms', () => {
 });
 
 test('the build button offers the block it would actually build', () => {
-  for (const [style, weeks] of [['minmax', '6-week'], ['landmarks', '4-week']]) {
+  for (const [style, weeks] of [['minmax', '4-week'], ['landmarks', '4-week']]) {
     const db = accountWith(minmax());
     db.training.blocks = [];
     db.training.prefs = { units: 'kg', style: style };
     const r = home(db, null);
     assert.ok(r.has('Build a ' + weeks + ' block'), style + ' should offer a ' + weeks + ' block: ' + r.text.slice(0, 160));
   }
+});
+
+test('the tab offers the programmes the app ships with', () => {
+  const db = accountWith();
+  db.training.blocks = [];
+  db.training.prefs = { units: 'kg' };
+  const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
+  assert.ok(r.has('Macrosaurus Default 4 Day'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
+  assert.ok(r.has('Macrosaurus 5 Day'));
+  // With their real shape on the card, not a claim that would need checking against the engine.
+  assert.ok(/5 days/.test(r.text) && /hard sets a week/.test(r.text));
 });
 
 // ---- the session runner ------------------------------------------------------------------------
@@ -206,8 +217,8 @@ test('a returning user gets the block the wizard would actually build', () => {
   db.training.blocks = [];
   db.training.prefs = { units: 'kg', shape: 'build4', daysPerWeek: 4, sessionMinutes: 60 };
   const tab = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(tab.has('Build a 6-week block'), 'the tab should offer the house method: ' + tab.text.slice(0, 120));
+  assert.ok(tab.has('Build a 4-week block'), 'the tab should offer the house method: ' + tab.text.slice(0, 120));
   // And the wizard it opens has to agree, or the tab was writing a cheque the next screen bounces.
   const wiz = render(A.BlockWizard, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} });
-  assert.ok(/6 weeks/.test(wiz.text), 'the wizard should open on the six-week shape: ' + (wiz.text.match(/[^.]*weeks[^.]*/) || [''])[0]);
+  assert.ok(/4 weeks/.test(wiz.text), 'the wizard should open on the four-week shape: ' + (wiz.text.match(/[^.]*weeks[^.]*/) || [''])[0]);
 });

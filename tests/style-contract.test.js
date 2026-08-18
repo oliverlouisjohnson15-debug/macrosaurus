@@ -144,5 +144,13 @@ test('a style never borrows the other style\'s landmarks, however it is asked', 
   // And the tables themselves stay apart.
   const mm = T.defaultTargets({ style: 'minmax' }), lm = T.defaultTargets({});
   assert.ok(mm.ch.mrv < lm.ch.mrv / 2, 'the two ceilings should not be in the same range');
-  for (const m of T.MUSCLES) assert.ok(mm[m].mrv <= 10, `min-max ${m} ceiling is ${mm[m].mrv}`);
+  // Ten sets is the ceiling on work the method PRESCRIBES. Forearms are the one muscle nothing in
+  // either written programme is chosen for - they are paid by every pull and every thing you hold on
+  // to, and the five-day programme lands at 10.5 of them without a single movement picked for grip.
+  // Holding that to eight would mean flagging our own flagship programme as over the top on the one
+  // muscle nobody trained on purpose, so the ceiling that governs them is a wider one.
+  for (const m of T.MUSCLES) {
+    if (m === 'fa') { assert.ok(mm[m].mev === 0, 'forearms are incidental, so nothing is programmed for them'); continue; }
+    assert.ok(mm[m].mrv <= 10, `min-max ${m} ceiling is ${mm[m].mrv}`);
+  }
 });

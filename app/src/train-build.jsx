@@ -173,8 +173,9 @@ function TrainField({ label, effect, hint, children }) {
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
-// How many weeks a block shape runs for. The six-week min-max block is not a four-week block with
-// two more stapled on: its first week is an intro week, and the five after it are the block.
+// How many weeks a block shape runs for. Four is the house block and the thing the app is for; the
+// six-week shape is the twelve-week programmes' own, and it is not a four-week block with two more
+// stapled on - its first week is an intro week and the five after it are the block.
 function blockWeeks(shape) {
   const sh = Training.SHAPES[shape];
   return (sh && (sh.build + (sh.deload ? 1 : 0))) || 4;
@@ -195,14 +196,14 @@ function blockWeeks(shape) {
  * The saved SHAPE needs the same care. Somebody who has been using this app has 'build4' saved from
  * before any of this existed, and that answer carries no opinion about min-max - it was the only
  * option. So it governs only once they have actually chosen a style; until then the style's own
- * shape wins, and a returning user gets the six-week block the wizard would really build rather
- * than a min-max block squeezed into the old default's length.
+ * shape wins, and a returning user gets the four-week block the wizard would really build rather
+ * than a min-max block squeezed into some other default's length.
  */
 function plannedStyle(prefs) { return (prefs && prefs.style) || 'minmax'; }
 function plannedShape(prefs) {
   const chosen = prefs && prefs.style;
   if (chosen && prefs.shape) return prefs.shape;
-  return plannedStyle(prefs) === 'landmarks' ? 'build4' : 'minmax6';
+  return plannedStyle(prefs) === 'landmarks' ? 'build4' : 'minmax4';
 }
 function plannedWeeks(prefs) { return blockWeeks(plannedShape(prefs)); }
 // Which saved override table a style's landmarks come from. Kept next to the other two so the three
@@ -706,7 +707,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           setStyle(v);
           // The block length belongs to the style: min-max runs six weeks off an intro week, the
           // volume model four. Only moved when the person has not chosen one for themselves.
-          if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax6' : 'build4');
+          if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax4' : 'build4');
           // Five days is the min-max week and four is the volume model's default shape. Only moved
           // when the person has not set a day count of their own, so a deliberate answer is never
           // overwritten by changing your mind about the style.
@@ -769,7 +770,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             : shapeDef.label + ' What you brought sets the movements; the sets, the climb and the day count are mine.')
           : shapeDef.label}>
         <Seg value={shape} onChange={setShape} options={(style === 'minmax'
-          ? [{ v: 'minmax6', l: '6 weeks' }, { v: 'build4', l: '4 weeks' }]
+          ? [{ v: 'minmax4', l: '4 weeks' }, { v: 'minmax6', l: '6 + intro week' }]
           : [{ v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' }]
         ).concat([{ v: 'as-written', l: 'As brought' }])} />
       </TrainField>

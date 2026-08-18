@@ -83,8 +83,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
         const gym = currentGym(db);
         const block = Training.blockFromSource(draft.days, {
           gym: gym, daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5),
-          weeks: blockWeeks(prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax6')),
-          shape: prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax6'),
+          weeks: blockWeeks(prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax4')),
+          shape: prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax4'),
           style: prefs.style || 'minmax',
           targets: trainTargets(db, prefs.style || 'minmax'), custom: tdb(db).custom,
           equipment: (prefs.equipment || []).length ? prefs.equipment : null, dislikes: prefs.dislikes,
@@ -104,6 +104,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
       onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard', { from: 'blocks' })}
+      onProgramme={(key) => go('builder', { from: 'blocks', draft: Training.programmeBlock(key, { custom: tdb(db).custom, startISO: Store.todayISO() }) })}
       onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
       onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
       onStart={(blk) => {
@@ -161,6 +162,43 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
 }
 
 // ---- home -------------------------------------------------------------------------------------
+/* The two programmes the app ships with, offered as one tap.
+ *
+ * Everything else on the Train tab asks you questions first, which is right when the answer changes
+ * what gets built - but somebody who just wants a good plan on a Monday morning should not have to
+ * answer seven of them. These are written plans, not generated ones: what the generator is aiming
+ * at, run exactly as they are, with the movements the programme deliberately leaves open still open.
+ *
+ * Tapping one opens the builder on it, which is where the choices get made and where it is saved or
+ * started - the same screen a generated block lands on, so nothing here is a second way to save a
+ * block that could drift from the first. */
+function ProgrammeCards({ db, onPick, className }) {
+  const t = tdb(db);
+  const list = Training.PROGRAMMES.map(p => Training.programmeSummary(p.key, t.custom));
+  if (!list.length) return null;
+  return (
+    <Card className={'p-0 overflow-hidden ' + (className || '')}>
+      <CardHead title="Macrosaurus programmes" right="Written, not generated" />
+      <div className="p-3.5">
+        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+          Four weeks, every last set taken to where the weight stops moving. Nothing is added week to
+          week - the weight is what moves. Where a programme leaves a movement open, you pick it.
+        </div>
+        {list.map(p => (
+          <button key={p.key} onClick={() => onPick(p.key)}
+            className="w-full text-left p-3 mb-2 last:mb-0" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            <span className="block text-[14px] font-semibold leading-tight">{p.name}</span>
+            <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+              {p.daysPerWeek} days &middot; {p.movements} movements &middot; {p.sets} hard sets a week
+            </span>
+            <span className="block text-[12px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>{p.dayNames.join(' \u00b7 ')}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, go }) {
   const t = tdb(db);
   const today = Store.todayISO();
@@ -416,6 +454,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           </button>
         </Card>
       )}
+
+      {/* Under the build card, not above it: building one against your own kit and days is still the
+          better answer, and this is the shortcut for anyone who would rather not be asked. */}
+      {!block && <ProgrammeCards db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />}
 
       {/* ---- the gap used to shout from here, and it has been moved to where it can be acted on ----
               A volume gap is a question about what to BUILD. Once a block is running it is not a

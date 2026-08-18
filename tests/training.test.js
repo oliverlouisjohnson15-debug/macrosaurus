@@ -1074,6 +1074,130 @@ test('a spreadsheet cannot smuggle in numbers the app would not accept', () => {
   assert.ok(e.target.sets <= T.SETS_MAX && e.target.repHigh <= T.REPS_MAX && e.target.rir <= T.RIR_MAX && e.target.restSec <= 600);
 });
 
+// ---- the programmes the app ships with ----------------------------------------------------------
+// Two written plans in the box, and the thing the generator is aiming at. They are the reference for
+// the method's style and its volume, so a landmark that flags one of them is a landmark that is
+// wrong - which is how the numbers in MINMAX_LANDMARKS were arrived at.
+
+test('both shipped programmes are four weeks, all-out from the first session', () => {
+  assert.ok(T.PROGRAMMES.length >= 2);
+  for (const p of T.PROGRAMMES) {
+    const b = T.programmeBlock(p.key);
+    assert.equal(b.weeks, 4, p.name);
+    assert.equal(b.style, 'minmax');
+    assert.equal(b.shape, 'as-written', 'a written plan is not ours to periodise');
+    assert.equal(b.startISO, null, 'having one is not starting it');
+    // No intro week: the last set of the first session is already an all-out set.
+    const first = T.weekSessions(b, 1)[0];
+    assert.equal(first.exercises[0].target.rirLast, 0, 'the opening movement should finish at failure');
+    // And nothing moves across the four weeks - the weight is what moves, not the prescription.
+    const sig = (w) => T.weekSessions(b, w).map(s => s.exercises.map(e =>
+      [e.exerciseId, e.target.sets, e.target.repLow, e.target.rir, e.target.rirLast].join('|')).join(',')).join('/');
+    assert.equal(sig(4), sig(1), p.name + ' week 4 should prescribe exactly what week 1 does');
+  }
+});
+
+test('a shipped programme sits inside the landmarks it is the reference for', () => {
+  const targets = T.defaultTargets({ style: 'minmax' });
+  for (const p of T.PROGRAMMES) {
+    const cov = T.coverage(T.blockWeekVolume(T.programmeBlock(p.key), 1), targets);
+    assert.deepEqual(cov.gaps.map(g => g.muscle), [], p.name + ' is short of our own floor');
+    assert.deepEqual(cov.overs.map(g => g.muscle), [], p.name + ' is over our own ceiling');
+  }
+});
+
+test('a shipped programme leaves the movements it left open, open', () => {
+  const four = T.programmeBlock('mac4');
+  const choices = T.blockChoices(four);
+  assert.ok(choices.length >= 1, 'the squat slot is the author\'s question, not ours to answer');
+  assert.ok(choices[0].options.length >= 4);
+  const moved = T.applyChoice(four, choices[0].key, choices[0].options[2]);
+  assert.ok(moved >= 4, 'and picking moves every week of it, not just the one in front of you: ' + moved);
+  // The author's own warm-up counts, substitutions and notes come with it.
+  const items = four.sessions.flatMap(s => s.exercises);
+  assert.ok(items.some(e => e.warmups > 0), 'warm-up counts');
+  assert.ok(items.some(e => e.alts && e.alts.length), 'substitutions');
+  assert.ok(items.some(e => e.planNote), 'and what the author said about the movement');
+});
+
+test('starting the same programme twice is two blocks, not one overwriting the other', () => {
+  const a = T.programmeBlock('mac5'), b = T.programmeBlock('mac5');
+  assert.notEqual(a.id, b.id);
+  const ids = [a, b].flatMap(x => x.sessions.flatMap(s => s.exercises.map(e => e.id)));
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(T.programmeBlock('nothing_by_this_name'), null);
+});
+
+test('a block built from a template keeps everything its author wrote', () => {
+  // The defect this was written after: templateOf carried the open choices, the substitutions and
+  // the warm-up counts, and blockFromTemplate then dropped every one of them - so carrying a
+  // programme forward to the next block silently answered all its questions for you.
+  const src = T.programmeBlock('mac5');
+  const built = T.blockFromTemplate(T.templateOf(src), { weeks: 4, shape: 'as-written', style: 'minmax', daysPerWeek: 5 });
+  const items = built.sessions.flatMap(s => s.exercises);
+  assert.ok(items.some(e => e.choice), 'the open slot');
+  assert.ok(items.some(e => e.alts && e.alts.length), 'the substitutions');
+  assert.ok(items.some(e => e.warmups > 0), 'the warm-up counts');
+  assert.ok(items.some(e => e.planNote), 'the notes');
+  assert.equal(T.blockChoices(built).length, T.blockChoices(src).length);
+});
+
+// ---- what a generated min-max block looks like ---------------------------------------------------
+
+test('a generated session opens with its heaviest movement, and warms up for it', () => {
+  for (const days of [4, 5]) {
+    const b = T.generateBlock({ style: 'minmax', daysPerWeek: days, weeks: 4, shape: 'minmax4', sessionMinutes: 60 });
+    for (const s of T.weekSessions(b, 1)) {
+      const patterns = s.exercises.map(e => (T.byId(e.exerciseId) || {}).pattern);
+      const firstIso = patterns.indexOf('isolation');
+      const lastComp = patterns.lastIndexOf('compound');
+      assert.ok(firstIso === -1 || lastComp === -1 || lastComp < firstIso,
+        `${s.name} runs isolation before compound: ${patterns.join(',')}`);
+      // Three warm-up sets on the opener, one on an isolation. Warming up is not free time.
+      assert.equal(s.exercises[0].warmups, 3, s.name + ' should warm up properly for its opener');
+      assert.ok(s.exercises[0].target.restSec >= 240, s.name + ' should rest properly after it');
+      const iso = s.exercises.filter(e => (T.byId(e.exerciseId) || {}).pattern === 'isolation')[0];
+      if (iso) assert.equal(iso.warmups, 1, 'an isolation does not need four rungs');
+    }
+  }
+});
+
+test('nothing the method treats as incidental gets a movement spent on it', () => {
+  // Obliques, adductors, lower back and forearms are paid by the squat, the hinge, the row and
+  // everything you hold on to. Neither written programme picks a movement for any of them, and a
+  // generator that spends one of six on a Pallof press is spending it on the least of the work.
+  const incidental = ['ob', 'ad', 'lb', 'fa'];
+  const targets = T.defaultTargets({ style: 'minmax' });
+  for (const m of incidental) assert.equal(targets[m].mev, 0, T.MUSCLE_LABEL[m] + ' should not be programmed directly');
+  for (const days of [4, 5]) {
+    const b = T.generateBlock({ style: 'minmax', daysPerWeek: days, weeks: 4, shape: 'minmax4', sessionMinutes: 60 });
+    for (const s of T.weekSessions(b, 1)) {
+      for (const e of s.exercises) {
+        const ex = T.byId(e.exerciseId);
+        const only = (ex.primary || []).every(m => incidental.indexOf(m) !== -1);
+        assert.ok(!only, `${s.name} spends a movement on ${ex.name}, which trains nothing the method programmes`);
+      }
+    }
+  }
+});
+
+test('a generated block reaches the volume the written programmes run, not the least that works', () => {
+  // The method adds nothing across a block, so whatever week one says is what all four weeks are.
+  // Aiming at the floor would mean running every one of them at the least that grows a muscle.
+  const targets = T.defaultTargets({ style: 'minmax' });
+  const vol = T.blockWeekVolume(T.generateBlock({ style: 'minmax', daysPerWeek: 5, weeks: 4, shape: 'minmax4', sessionMinutes: 60 }), 1);
+  for (const m of ['ch', 'lt', 'qu', 'ha', 'gl', 'sd', 'bi', 'tr']) {
+    assert.ok(vol[m] >= targets[m].mav - 1, `${T.MUSCLE_LABEL[m]} got ${vol[m]}, aiming at ${targets[m].mav}`);
+  }
+});
+
+test('the block the app offers is four weeks with no week given away to a ramp-in', () => {
+  assert.equal(T.STYLES.minmax.shape, 'minmax4');
+  assert.equal(T.SHAPES.minmax4.build, 4);
+  assert.ok(!T.SHAPES.minmax4.intro, 'four weeks has no week to spare for an easier one');
+  assert.ok(T.SHAPES.minmax6.intro, 'the twelve-week programmes\' own shape still has one');
+});
+
 // ---- min-max ------------------------------------------------------------------------------------
 // The house method: four to ten hard sets a muscle a week, one or two per movement, every one of them
 // to failure, on kit that makes failing safe. Everything below is a rule of the method rather than a

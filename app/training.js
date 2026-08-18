@@ -91,24 +91,40 @@
    * advanced lifter on this style does not get more sets, they get harder ones - though a person can
    * still override any individual muscle, exactly as they can with the landmarks above.
    */
+  /* These are not a guess at what the method ought to prescribe. They are read off what it DOES
+   * prescribe: the two written programmes the app ships (see PROGRAMMES) at four and five days,
+   * which are the style and the volume everything generated here is aiming at. Every number below
+   * contains both of them, because landmarks that flag our own flagship programme as short on abs
+   * and over on forearms are landmarks that are wrong - the plan was not the thing in error.
+   *
+   * A MEV of ZERO is a real answer and it means "this one is not programmed directly". Obliques,
+   * adductors, lower back and forearms get no slot of their own in either programme: they are paid
+   * by the squat, the RDL, the row and everything you have to brace or hold on to. Spending one of
+   * six movements on a Pallof press to satisfy a floor is spending it on the least of the work, and
+   * that is exactly what the generator used to do - a lower day with a side plank in it and only
+   * four sets of quads. The frequency guarantee skips them for the same reason.
+   */
   var MINMAX_LANDMARKS = {
     ch: { mev: 4, mav: 6, mrv: 8 },
-    fd: { mev: 3, mav: 4, mrv: 6 },     // every press already pays it
-    sd: { mev: 6, mav: 8, mrv: 10 },    // small, fast to recover, and it gets its own day
-    rd: { mev: 4, mav: 6, mrv: 8 },
+    fd: { mev: 2, mav: 3, mrv: 6 },     // every press already pays it
+    sd: { mev: 4, mav: 6, mrv: 10 },    // small, fast to recover, and it gets its own day
+    rd: { mev: 2, mav: 3, mrv: 8 },
     lt: { mev: 4, mav: 6, mrv: 8 },
-    ub: { mev: 4, mav: 6, mrv: 8 },
-    lb: { mev: 3, mav: 4, mrv: 6 },
+    ub: { mev: 4, mav: 8, mrv: 10 },    // rows and pulls both feed it, so it runs high on five days
+    lb: { mev: 0, mav: 2, mrv: 6 },     // paid by the hinge; nothing programmes it directly
     bi: { mev: 6, mav: 8, mrv: 10 },
     tr: { mev: 6, mav: 8, mrv: 10 },
-    fa: { mev: 2, mav: 4, mrv: 6 },   // every pull already pays it, and grip is the limit long before volume is
-    ab: { mev: 4, mav: 6, mrv: 8 },
-    ob: { mev: 3, mav: 4, mrv: 6 },
-    qu: { mev: 4, mav: 6, mrv: 8 },
-    ha: { mev: 4, mav: 6, mrv: 8 },
+    // Every pull pays it and grip fails long before volume does, so this is almost entirely
+    // incidental credit rather than sets anybody prescribed - the five-day programme lands at 10.5
+    // without a single movement chosen for forearms beyond a wrist curl.
+    fa: { mev: 0, mav: 4, mrv: 12 },
+    ab: { mev: 2, mav: 4, mrv: 8 },
+    ob: { mev: 0, mav: 2, mrv: 6 },     // braced for on everything; not programmed
+    qu: { mev: 4, mav: 7, mrv: 10 },
+    ha: { mev: 4, mav: 5, mrv: 8 },
     gl: { mev: 4, mav: 6, mrv: 8 },
-    ad: { mev: 3, mav: 4, mrv: 6 },
-    ca: { mev: 4, mav: 8, mrv: 10 },
+    ad: { mev: 0, mav: 2, mrv: 6 },     // the squat pays it
+    ca: { mev: 3, mav: 4, mrv: 10 },
   };
 
   /* ---- training styles -------------------------------------------------------------------------
@@ -138,7 +154,13 @@
     },
     minmax: {
       key: 'minmax', label: 'Min-max',
-      startSets: 2, maxSets: 2, growSets: false, toFailure: true, shape: 'minmax6', weeks: 6,
+      startSets: 2, maxSets: 2, growSets: false, toFailure: true, shape: 'minmax4', weeks: 4,
+      // Build to the MIDDLE of the band, not its floor. On the volume model a block starts near the
+      // least that grows a muscle and climbs from there, so MEV is the right thing to aim at. This
+      // one adds nothing across the block, so whatever week one prescribes is what all four weeks
+      // are - and aiming at the floor means running the whole block at the least that works. The
+      // written programmes land at MAV and that is the volume they are for.
+      aim: 'mav',
       landmarks: MINMAX_LANDMARKS, stableKit: true, minEx: 5, maxExCap: 9,
       blurb: 'Four to ten hard sets a muscle a week, one or two per movement, every one of them to failure. Progress comes from the weight and the reps, never from more sets.',
     },
@@ -1082,7 +1104,11 @@
     MUSCLES.forEach(function (m) {
       var L = table[m];
       out[m] = {
-        mev: Math.max(scale === 1 ? 1 : 3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
+        // A landmark of nought means "this one is not programmed directly" and has to survive the
+        // floor below, or the method cannot say it. Under min-max that is obliques, adductors,
+        // lower back and forearms: paid by the squat, the hinge and everything you hold on to, and
+        // a floor of one set is enough to make the generator spend a movement on each of them.
+        mev: L.mev === 0 ? 0 : Math.max(scale === 1 ? 1 : 3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
         mav: Math.round(L.mav * scale),
         mrv: Math.round(L.mrv * scale),
       };
@@ -1144,8 +1170,14 @@
         excess: sets > L.mrv ? round(sets - L.mrv, 1) : 0,
       };
     });
-    var gaps = rows.filter(function (r) { return r.band === 'none' || r.band === 'under' || r.band === 'maintaining'; })
-      .sort(function (a, b) { return b.deficit - a.deficit; });
+    var gaps = rows.filter(function (r) {
+      // A floor of nought means the style does not programme this muscle at all - obliques and
+      // adductors under min-max, paid by the brace and the squat. Nought sets of it is the plan
+      // working, not a hole in it, and reporting it as a gap is the app telling somebody their own
+      // flagship programme is broken.
+      if (!r.mev) return false;
+      return r.band === 'none' || r.band === 'under' || r.band === 'maintaining';
+    }).sort(function (a, b) { return b.deficit - a.deficit; });
     var overs = rows.filter(function (r) { return r.band === 'over'; })
       .sort(function (a, b) { return b.excess - a.excess; });
     var inBand = rows.filter(function (r) { return r.band === 'productive' || r.band === 'high'; }).length;
@@ -1710,6 +1742,26 @@
     // either side of it the room to be short.
     arms: ['sd', 'bi', 'tr', 'rd', 'fa'],
   };
+  /* The same question answered by the method's own programmes, muscle for muscle.
+   *
+   * DAY_MUSCLES above is the volume model's answer and it is a fine one for a style where movements
+   * are cheap and sets are what is being rationed. Min-max rations movements: five or six a session,
+   * one or two sets each, so every slot spent is a slot not spent on something else. Read straight
+   * off the two written programmes (see PROGRAMMES) - which is why there are no adductors, obliques
+   * or lower back anywhere in it, and why forearms appear on the arms day and nowhere else. Four of
+   * the nine movements on their arms and delts day are forearm work; nothing else in either
+   * programme picks a movement for grip.
+   */
+  var MINMAX_DAY_MUSCLES = {
+    full: ['qu', 'ch', 'lt', 'ha', 'sd', 'ca'],
+    upper: ['ch', 'lt', 'ub', 'sd', 'tr', 'bi', 'rd', 'ab'],
+    lower: ['qu', 'ha', 'gl', 'ca', 'ab'],
+    push: ['ch', 'fd', 'sd', 'tr'],
+    pull: ['lt', 'ub', 'rd', 'bi', 'fa'],
+    legs: ['qu', 'ha', 'gl', 'ca'],
+    arms: ['sd', 'bi', 'tr', 'fa', 'rd'],
+  };
+
   // Which day kinds are a sane home for a muscle DAY_MUSCLES does not seed anywhere (front delts,
   // lower back, forearms, and on a push/pull/legs split, abs and obliques too). Read by
   // generateBlock's frequency guarantee, so that filling a muscle in to reach twice a week does not
@@ -1977,10 +2029,18 @@
   // So: build for four, then let deloadAdvice() read what actually happened and say whether a lighter
   // week is earned. Anyone who prefers the fixed rhythm can still choose it.
   var SHAPES = {
-    // The min-max block, and the shape the published programmes run: six weeks, the first of them an
-    // intro week a rep or two further from failure on everything. The intro week is not a formality
-    // or a courtesy to beginners - it is what buys weeks two to six the right to be as hard as they
-    // are, and both blocks of the twelve-week programmes open with one.
+    // The house block, and the shape the app is built around: FOUR weeks, every one of them run at
+    // the intensity a longer block would only reach at its end. No intro week - the ramp-in is what
+    // a twelve-week programme spends its first week on because it has eleven more to come, and a
+    // four-week block does not have a week to give away. So the last set of every movement is an
+    // all-out set from session one.
+    //
+    // Four weeks is the shape on purpose. It is short enough to finish, short enough to hold a hard
+    // prescription all the way through, and it puts a review and a fresh set of decisions in front
+    // of somebody once a month rather than once a quarter.
+    'minmax4': { build: 4, deload: false, label: '4 weeks, every one of them all-out' },
+    // The twelve-week programmes' own shape, kept for anyone running one as its author wrote it:
+    // six weeks, the first an intro week a rep or two further from failure on everything.
     'minmax6': { build: 6, deload: false, intro: true, label: '6 weeks: an easier first week, then five hard ones' },
     'build4': { build: 4, deload: false, label: '4 building weeks, then we check whether you need a lighter one' },
     'build3-deload1': { build: 3, deload: true, label: '3 building weeks and a lighter fourth, every block' },
@@ -2102,6 +2162,11 @@
 
     var asWritten = !!SHAPES[shape].asWritten;
     var style = styleOf(opts.style);
+    // Minted before the sessions, not after, so every session and every line hangs off it. Ids used
+    // to be derived from the template alone, which made two blocks built from one template share
+    // every session id they had - fine while everything that reads a log filters by block first, and
+    // a trap set for the first thing that does not.
+    var blockId = 'blk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
@@ -2116,7 +2181,7 @@
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
-          id: 'w' + w + 'd' + di,
+          id: blockId + '_w' + w + 'd' + di,
           // Clamped for the same reason the draft basket clamps: a template holding more days than a
           // week has cannot hand a session a weekday that does not exist. It doubles up on Sunday
           // and can be moved from there, rather than landing somewhere nothing can draw or schedule.
@@ -2150,8 +2215,19 @@
             // rep or two behind both.
             var pair = (style.toFailure && !asWritten) ? minmaxEffort(exx, sets, isIntro || isDeload) : null;
             return {
-              id: (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
+              id: blockId + '_' + (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
+              // Everything on a line that belongs to whoever WROTE it rather than to the week it
+              // landed in: the slot they left open, the substitutions they offered, the technique
+              // they asked for on the last set, their warm-up count, their note, their own name for
+              // the movement. templateOf has carried these for a while; this did not, so a block
+              // built from a template arrived with every choice already made for you, no
+              // substitutions, and the notes gone. Carrying a programme forward to the next block
+              // went through here, which is where they were being lost.
+              choice: item.choice || null, alts: item.alts || null,
+              technique: item.technique || null, planNote: item.planNote || null,
+              warmups: item.warmups == null ? null : item.warmups,
+              sourceName: item.sourceName || null,
               target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
                 { sets: sets, rir: pair ? pair.rir : effort },
                 pair ? { rirLast: pair.rirLast } : {}),
@@ -2166,7 +2242,7 @@
       sessions = sessions.concat(weekSess);
     }
     return {
-      id: 'blk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      id: blockId,
       // An imported plan keeps the name its author gave it; anything built here gets named for what
       // it is rather than "4-week growth block", which every generated block used to be called.
       name: opts.name || blockName(template, opts),
@@ -3203,6 +3279,82 @@
     return { blocks: blocks, unknown: uniq(unknown), custom: minted, weeks: weeks.length, daysPerWeek: dayCount };
   }
 
+  /* ---- the programmes the app ships with --------------------------------------------------------
+   * Two written programmes, in the app, ready to run: a four-day and a five-day. They are the house
+   * method as an actual plan rather than as a set of rules - what the generator is aiming at when it
+   * builds somebody a block, and what somebody who does not want to answer questions can just start.
+   *
+   * WHAT THEY ARE. One week each, exactly as written: the movements in their order, the working
+   * sets, the rep range, the reps in reserve on the first set and on the last, the rest, the
+   * author's own warm-up count, their note, and the substitutions they offered. Where the programme
+   * leaves a slot open - the squat - it stays open and the person picks (see blockChoices).
+   *
+   * WHY ONE WEEK AND NOT TWELVE. The sheets they came from run twelve weeks, and the movements,
+   * sets, rep ranges and rests are identical in every one of them. What changes is effort: week one
+   * is an intro week a rep or two off failure, weeks two to six are the working prescription, and
+   * weeks eight to twelve are that again with intensity techniques over the top. The block this app
+   * runs is FOUR weeks and has no week to give away to a ramp-in, so what ships is the working week
+   * and every last set is an all-out set from the first session. The techniques are the block after
+   * this one (applyTechniques), not a thing to open with.
+   *
+   * Generated by tools/gen-programmes.mjs from the source spreadsheets. Edit the sheet and re-run
+   * it; do not hand-edit what is below, because a plan re-typed by hand is a plan with a typo in it.
+   */
+  var PROGRAMMES = [
+  { key: "mac4", name: "Macrosaurus Default 4 Day", daysPerWeek: 4, template: [
+    {"name":"Full Body","kind":"full","dayOfWeek":0,"exercises":[{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["seated_leg_curl","nordic_curl"],"warmups":2,"planNote":"Set the machine so that you get the biggest stretch possible at the bottom. Prevent your butt from popping up as you curl.","sourceName":"Lying Leg Curl"},{"exerciseId":"back_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"choice":{"key":"squat","label":"Squat - your choice","options":["back_squat","front_squat","pendulum_squat","hack_squat","belt_squat","smith_squat"]},"warmups":3,"planNote":"This can be a Barbell Back Squat, Barbell Front Squat, Pendulum Squat, Hack Squat, Belt Squat, or Smith Machine Squat.","sourceName":"Squat (Your Choice)"},{"exerciseId":"bb_incline","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["machine_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench will work here. Pause for 1 second at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Barbell Incline Press"},{"exerciseId":"db_y_raise_incline","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_y_raise","machine_lateral"],"warmups":1,"planNote":"Use a 30° incline bench (back against the bench) and lift the weight up and out in a Y shape.","sourceName":"Incline DB Y-Raise"},{"exerciseId":"pullup__wide","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["lat_pulldown_wide","pulldown_single"],"warmups":2,"planNote":"Control the negative and feel your lats pulling apart. Full ROM!","sourceName":"Pull-Up (Wide Grip)"},{"exerciseId":"standing_calf","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
+    {"name":"Upper","kind":"upper","dayOfWeek":3,"exercises":[{"exerciseId":"pulldown_neutral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["neutral_pullup","pulldown_single"],"warmups":3,"planNote":"Lean back by ~15° and drive your elbows down as you squeeze your shoulder blades together. This should feel like a mix of lats and mid-traps.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"tbar_row_supported","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","chest_supported_row"],"warmups":3,"planNote":"Flare elbows out at roughly 45° and squeeze your shoulder blades together hard at the top of each rep.","sourceName":"Chest-Supported T-Bar Row"},{"exerciseId":"shrug_machine","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["shrug_bb","shrug_in_cable"],"warmups":2,"planNote":"Think about shrugging \"up to your ears\". Use straps, if possible.","sourceName":"Machine Shrug"},{"exerciseId":"machine_press","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":240},"alts":["smith_bench","db_bench"],"warmups":3,"planNote":"1 second pause at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Machine Chest Press"},{"exerciseId":"cable_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["db_lateral","machine_lateral"],"warmups":1,"planNote":"Set the cable at roughly hip height. Let your hand go slightly past your midline at the bottom of each rep to get a deep stretch on the side delt.","sourceName":"High-Cable Lateral Raise"},{"exerciseId":"reverse_pec_deck_single","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["rear_delt_fly","cable_rear_fly"],"warmups":1,"planNote":"Sweep the weight out to create the largest semi-circle possible with your arm.","sourceName":"1-Arm Reverse Pec Deck"},{"exerciseId":"cable_crunch","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["weighted_crunch","machine_crunch"],"warmups":1,"planNote":"Round your lower back as you crunch. Maintain a mind-muscle connection with your 6-pack.","sourceName":"Cable Crunch"}]},
+    {"name":"Lower","kind":"lower","dayOfWeek":4,"exercises":[{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic","sissy_squat"],"warmups":2,"planNote":"Set the seat back as far as it will go while still feeling comfortable. Grab the handles as hard as you can to pull your butt down into the seat (using straps can help here).","sourceName":"Leg Extension"},{"exerciseId":"rdl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":2,"rirLast":1,"restSec":150},"alts":["db_rdl","seated_cable_row"],"warmups":3,"planNote":"Stick your glutes straight back as you lower the bar straight down, centered over the middle of your foot. Get a nice deep stretch at the bottom, but keep your spine neutral (don't round forward).","sourceName":"Barbell RDL"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["hip_thrust","45_hyper"],"warmups":3,"planNote":"Squeeze your glutes hard at the top and control the weight on the way down.","sourceName":"Machine Hip Thrust"},{"exerciseId":"leg_press","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":150},"alts":["smith_squat","back_squat"],"warmups":3,"planNote":"Feet lower on the platform for more quad focus. Get as deep as you can without excessive back rounding.","sourceName":"Leg Press"},{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
+    {"name":"Arms/Delts","kind":"arms","dayOfWeek":5,"exercises":[{"exerciseId":"bayesian_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["incline_curl","db_curl"],"warmups":1,"planNote":"As you curl, optionally lean forward to prevent the cable from hitting your wrist at the top. Control the negative and feel a deep stretch at the bottom of each rep.","sourceName":"Bayesian Cable Curl"},{"exerciseId":"overhead_ext_cable","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_ext_db","skullcrusher"],"warmups":1,"planNote":"Feel a deep stretch on the triceps throughout the entire negative.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"zottman_curl_modified","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["hammer_curl","preacher_curl"],"warmups":1,"planNote":"Hammer curl on the way up and supinated curl (palms up) on the way down.","sourceName":"Modified Zottman Curl"},{"exerciseId":"cable_kickback_tri","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["dip_machine","dip_triceps"],"warmups":1,"planNote":"Keep your upper arm behind your torso throughout the ROM.","sourceName":"Cable Triceps Kickback"},{"exerciseId":"wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_curl"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Curl"},{"exerciseId":"reverse_wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Extension"},{"exerciseId":"db_curl","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["bb_curl","ez_curl"],"warmups":1,"planNote":"Slow, controlled reps!","sourceName":"Alternating DB Curl"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","db_lateral"],"warmups":1,"planNote":"Focus on squeezing your side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"dead_hang","target":{"sets":2,"repLow":6,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Try to add a few more seconds each week!","sourceName":"Dead Hang (optional)"}]}
+  ] },
+  { key: "mac5", name: "Macrosaurus 5 Day", daysPerWeek: 5, template: [
+    {"name":"Upper 1","kind":"upper","dayOfWeek":0,"exercises":[{"exerciseId":"bb_incline","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["machine_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench will work here. Pause for 1 second at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Barbell Incline Press"},{"exerciseId":"pec_deck","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["db_fly","cable_fly"],"warmups":2,"planNote":"Pause for 1 second at the bottom of each rep while maintaining tension on the pecs","sourceName":"Pec Deck"},{"exerciseId":"db_y_raise_incline","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_y_raise","machine_lateral"],"warmups":1,"planNote":"Use a 30° incline bench (back against the bench) and lift the weight up and out in a Y shape.","sourceName":"Incline DB Y-Raise"},{"exerciseId":"pullup__wide","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["lat_pulldown_wide","pulldown_single"],"warmups":2,"planNote":"Control the negative and feel your lats pulling apart. Full ROM!","sourceName":"Pull-Up (Wide Grip)"},{"exerciseId":"kelso_shrug","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["kelso_shrug_db"],"warmups":2,"planNote":"Pause for about 1 second at the top and then allow your shoulder blades to peel apart on the way back down, under control.","sourceName":"Kelso Shrug"},{"exerciseId":"preacher_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["machine_preacher"],"warmups":1,"planNote":"Keep your triceps firmly pinned against the pad as you curl. Smooth controlled reps.","sourceName":"EZ-Bar Preacher Curl"},{"exerciseId":"rope_pushdown","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["close_grip_bench","jm_press_smith"],"warmups":1,"planNote":"You can use a rope or bar attachment for these, whichever you find more comfortable.","sourceName":"Triceps Pressdown"},{"exerciseId":"dragon_flag","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_crunch"],"warmups":1,"planNote":"Keep your body as rigid as possible throughout the ROM.","sourceName":"Dragon Flag"}]},
+    {"name":"Lower 1","kind":"lower","dayOfWeek":1,"exercises":[{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["seated_leg_curl","nordic_curl"],"warmups":2,"planNote":"Set the machine so that you get the biggest stretch possible at the bottom. Prevent your butt from popping up as you curl.","sourceName":"Lying Leg Curl"},{"exerciseId":"back_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"choice":{"key":"squat","label":"Squat - your choice","options":["back_squat","front_squat","pendulum_squat","hack_squat","belt_squat","smith_squat"]},"warmups":3,"planNote":"This can be a Barbell Back Squat, Barbell Front Squat, Pendulum Squat, Hack Squat, Belt Squat, or Smith Machine Squat.","sourceName":"Squat (Your Choice)"},{"exerciseId":"split_squat","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":180},"alts":["walking_lunge","walking_lunge"],"warmups":3,"planNote":"Minimize contribution from your back leg!","sourceName":"Smith Machine Lunge"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic","sissy_squat"],"warmups":2,"planNote":"Set the seat back as far as it will go while still feeling comfortable. Grab the handles as hard as you can to pull your butt down into the seat (using straps can help here).","sourceName":"Leg Extension"},{"exerciseId":"hip_abduction","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_abduction","cable_abduction"],"warmups":1,"planNote":"If possible, place foam pads in between the outside of your knees and the pads on the machine. This will increase your range of motion on the machine.","sourceName":"Machine Hip Abduction"},{"exerciseId":"standing_calf","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
+    {"name":"Upper 2","kind":"upper","dayOfWeek":3,"exercises":[{"exerciseId":"pulldown_neutral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["neutral_pullup","pulldown_single"],"warmups":3,"planNote":"Lean back by ~15° and drive your elbows down as you squeeze your shoulder blades together. This should feel like a mix of lats and mid-traps.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"tbar_row_supported","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","chest_supported_row"],"warmups":3,"planNote":"Flare elbows out at roughly 45° and squeeze your shoulder blades together hard at the top of each rep.","sourceName":"Chest-Supported T-Bar Row"},{"exerciseId":"shrug_machine","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["shrug_bb","shrug_in_cable"],"warmups":2,"planNote":"Think about shrugging \"up to your ears\". Use straps, if possible.","sourceName":"Machine Shrug"},{"exerciseId":"machine_press","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":240},"alts":["smith_bench","db_bench"],"warmups":3,"planNote":"1 second pause at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Machine Chest Press"},{"exerciseId":"cable_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["db_lateral","machine_lateral"],"warmups":1,"planNote":"Set the cable at roughly hip height. Let your hand go slightly past your midline at the bottom of each rep to get a deep stretch on the side delt.","sourceName":"High-Cable Lateral Raise"},{"exerciseId":"reverse_pec_deck_single","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["rear_delt_fly","cable_rear_fly"],"warmups":1,"planNote":"Sweep the weight out to create the largest semi-circle possible with your arm.","sourceName":"1-Arm Reverse Pec Deck"},{"exerciseId":"cable_crunch","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["weighted_crunch","machine_crunch"],"warmups":1,"planNote":"Round your lower back as you crunch. Maintain a mind-muscle connection with your 6-pack.","sourceName":"Cable Crunch"}]},
+    {"name":"Lower 2","kind":"lower","dayOfWeek":4,"exercises":[{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic","sissy_squat"],"warmups":2,"planNote":"Set the seat back as far as it will go while still feeling comfortable. Grab the handles as hard as you can to pull your butt down into the seat (using straps can help here).","sourceName":"Leg Extension"},{"exerciseId":"rdl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":2,"rirLast":1,"restSec":150},"alts":["db_rdl","seated_cable_row"],"warmups":3,"planNote":"Stick your glutes straight back as you lower the bar straight down, centered over the middle of your foot. Get a nice deep stretch at the bottom, but keep your spine neutral (don't round forward).","sourceName":"Barbell RDL"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["hip_thrust","45_hyper"],"warmups":3,"planNote":"Squeeze your glutes hard at the top and control the weight on the way down.","sourceName":"Machine Hip Thrust"},{"exerciseId":"leg_press","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":150},"alts":["smith_squat","back_squat"],"warmups":3,"planNote":"Feet lower on the platform for more quad focus. Get as deep as you can without excessive back rounding.","sourceName":"Leg Press"},{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
+    {"name":"Arms/Delts","kind":"arms","dayOfWeek":5,"exercises":[{"exerciseId":"bayesian_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["incline_curl","db_curl"],"warmups":1,"planNote":"As you curl, optionally lean forward to prevent the cable from hitting your wrist at the top. Control the negative and feel a deep stretch at the bottom of each rep.","sourceName":"Bayesian Cable Curl"},{"exerciseId":"overhead_ext_cable","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_ext_db","skullcrusher"],"warmups":1,"planNote":"Feel a deep stretch on the triceps throughout the entire negative.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"zottman_curl_modified","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["hammer_curl","preacher_curl"],"warmups":1,"planNote":"Hammer curl on the way up and supinated curl (palms up) on the way down.","sourceName":"Modified Zottman Curl"},{"exerciseId":"cable_kickback_tri","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["dip_machine","dip_triceps"],"warmups":1,"planNote":"Keep your upper arm behind your torso throughout the ROM.","sourceName":"Cable Triceps Kickback"},{"exerciseId":"wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_curl"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Curl"},{"exerciseId":"reverse_wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Extension"},{"exerciseId":"db_curl","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["bb_curl","ez_curl"],"warmups":1,"planNote":"Slow, controlled reps!","sourceName":"Alternating DB Curl"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","db_lateral"],"warmups":1,"planNote":"Focus on squeezing your side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"dead_hang","target":{"sets":2,"repLow":6,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Try to add a few more seconds each week!","sourceName":"Dead Hang (optional)"}]}
+  ] }
+];
+
+  function programmeOf(key) {
+    var found = PROGRAMMES.filter(function (p) { return p.key === key; });
+    return found.length ? found[0] : null;
+  }
+  // A fresh block off one of them. Fresh every call - new block id, new session ids - so starting the
+  // same programme twice is two blocks rather than one overwriting the other.
+  function programmeBlock(key, opts) {
+    opts = opts || {};
+    var p = programmeOf(key);
+    if (!p) return null;
+    var block = blockFromTemplate(p.template, {
+      // as-written, because this IS the plan: no set added per week, no trimming to our own
+      // ceilings, and the effort target on every line is the one the programme states.
+      weeks: opts.weeks || 4, shape: 'as-written', style: 'minmax',
+      daysPerWeek: p.daysPerWeek, intensity: 'high', goal: 'hypertrophy',
+      name: opts.name || p.name, custom: opts.custom, startISO: opts.startISO || null,
+      source: 'programme', sourceRef: { kind: 'programme', name: p.key },
+    });
+    block.archived = false;
+    block.shared = false;
+    return block;
+  }
+  // What to say about one on a card, without hard-coding numbers that would rot the moment a sheet
+  // changes: read them off the programme itself.
+  function programmeSummary(key, custom) {
+    var p = programmeOf(key);
+    if (!p) return null;
+    var sets = p.template.reduce(function (a, d) {
+      return a + d.exercises.reduce(function (b, e) { return b + (e.target.sets || 0); }, 0);
+    }, 0);
+    var moves = p.template.reduce(function (a, d) { return a + d.exercises.length; }, 0);
+    return {
+      key: p.key, name: p.name, daysPerWeek: p.daysPerWeek, weeks: 4,
+      sets: sets, movements: moves,
+      dayNames: p.template.map(function (d) { return d.name; }),
+      volume: plannedVolume(p.template, custom),
+    };
+  }
+
   /* ---- loading a block somebody already owns ----------------------------------------------------
    * A plan bought as a spreadsheet, converted once (see tools/minmax-import.mjs) and loaded straight
    * in. No model, no guessing, and nothing published: the file lands in the person's own blocks and
@@ -3417,7 +3569,7 @@
                 // for on the last set. Dropping these was how a shared min-max block arrived as a
                 // volume-model block wearing its movements.
                 choice: e.choice || null, alts: e.alts || null, technique: e.technique || null,
-                warmups: e.warmups || null,
+                warmups: e.warmups || null, planNote: e.planNote || null, sourceName: e.sourceName || null,
                 target: {
                   sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
                   // Week 1's RIR is the author's starting effort. The receiving block walks it down
@@ -3644,7 +3796,10 @@
     var used = {};
     var template = split.map(function (d, i) {
       var kind = d[0], name = d[1], window = d[3] || null;
-      var muscles = DAY_MUSCLES[kind];
+      // Each style seeds a day from its own list. They genuinely differ: adductors have a slot on a
+      // lower day under the volume model and none at all under min-max, where the squat pays them,
+      // and forearms have one on the arms day under min-max and nowhere under the other.
+      var muscles = (style.toFailure && MINMAX_DAY_MUSCLES[kind]) || DAY_MUSCLES[kind];
       var exercises = [];
       for (var m = 0; m < muscles.length && exercises.length < maxEx; m++) {
         var ex = pickFor(muscles[m], Object.assign({ used: used }, pickOpts));
@@ -3679,6 +3834,11 @@
     }
     if (days >= 2) {
       MUSCLES.forEach(function (m) {
+        // A muscle the style does not programme directly (MEV of nought - obliques, adductors,
+        // lower back, forearms under min-max) gets no frequency guarantee either. Guaranteeing one
+        // is how a five-movement lower day ended up spending two of those movements on a side plank
+        // and a Copenhagen plank while quads took four sets for the week.
+        if (!(targets[m] && targets[m].mev > 0)) return;
         // Keep adding, not just once: a muscle no DAY_MUSCLES list seeds at all (front delts,
         // forearms) starts from zero sessions, and a single top-up only gets it to one.
         for (var guard = 0; guard < 2; guard++) {
@@ -3690,7 +3850,11 @@
           // (still correct, just a less tidy label) when the split has nowhere else free.
           var home = DAY_KIND_HOME[m];
           var onKind = home ? spare.filter(function (d) { return home[d.kind]; }) : spare;
-          var dest = (onKind.length ? onKind : spare)[0];
+          // Falling back to any day with room is fine on the volume model, where a movement is the
+          // cheap thing and a slightly untidy label is the whole cost. On a style with five or six
+          // movements in a session it is not: a glute bridge on the arms and delts day spends one
+          // of five on work that day is not for. There, a muscle with nowhere sensible to go waits.
+          var dest = (onKind.length ? onKind : (style.toFailure ? [] : spare))[0];
           if (!dest) break;
           var exf = pickFor(m, Object.assign({ used: used }, pickOpts));
           if (!exf) break;
@@ -3775,10 +3939,25 @@
     // needs more passes than it used to - and a muscle the library has genuinely run out of
     // candidates for must be set aside, not allowed to abort the pass for every OTHER muscle still
     // waiting its turn.
+    // Which line of the landmarks this style builds to. See STYLES.minmax.aim: a model that climbs
+    // across the block aims at the floor and grows into the rest; one that prescribes the same four
+    // weeks throughout has to aim where it means to end up.
+    var aimAt = style.aim === 'mav' ? 'mav' : 'mev';
+    function shortfalls() {
+      var vol = plannedVolume(template, opts.custom);
+      return MUSCLES.filter(function (m) {
+        var L = targets[m];
+        // MEV of nought means the style does not programme this one directly (see MINMAX_LANDMARKS),
+        // so it is never short: it takes what the squat, the hinge and the row pay it and no
+        // movement is ever spent on it.
+        return L && L.mev > 0 && L[aimAt] > 0 && (vol[m] || 0) < L[aimAt] && !stuck[m];
+      }).map(function (m) {
+        return { muscle: m, short: targets[m][aimAt] - (plannedVolume(template, opts.custom)[m] || 0) };
+      }).sort(function (a, b) { return b.short - a.short; });
+    }
     var stuck = {};
     for (var pass = 0; pass < 40; pass++) {
-      var cov = coverage(plannedVolume(template, opts.custom), targets);
-      var gaps = cov.gaps.filter(function (g) { return !stuck[g.muscle]; });
+      var gaps = shortfalls();
       if (!gaps.length) break;
       var gap = gaps[0];
       var addedThisPass = false;
@@ -3796,8 +3975,18 @@
         var ex2 = pickFor(gap.muscle, Object.assign({ used: used }, pickOpts));
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
-        var shortest = template.filter(function (d) { return d.exercises.length < hardCap; })
-          .sort(function (a, b) { return a.exercises.length - b.exercises.length; })[0];
+        // The shortest day this muscle actually BELONGS on. Taking the shortest day outright is how
+        // a pendulum squat landed on an upper day and a trap bar deadlift on arms and delts: the day
+        // with room is not the same question as the day the work goes on, and a split whose "Upper"
+        // session opens with a squat is not an upper/lower split any more.
+        var roomy = template.filter(function (d) { return d.exercises.length < hardCap; })
+          .sort(function (a, b) { return a.exercises.length - b.exercises.length; });
+        var home2 = DAY_KIND_HOME[gap.muscle];
+        var onKind2 = home2 ? roomy.filter(function (d) { return home2[d.kind] || (DAY_MUSCLES[d.kind] || []).indexOf(gap.muscle) !== -1; }) : roomy;
+        // No day this belongs on has room. Leave it short rather than put it somewhere it does not
+        // belong: a glute bridge on the arms and delts day is not four sets of glutes, it is a
+        // session that no longer means what its name says.
+        var shortest = onKind2[0];
         if (!shortest) { stuck[gap.muscle] = true; continue; }
         var rs2 = schemeFor(ex2, gap.muscle, shortest.window);
         var ef2 = minmaxEffort(ex2, startSets, false);
@@ -3808,6 +3997,38 @@
         });
       }
     }
+
+    /* Order, warm-ups and the opener's rest - stamped once every pass has finished adding.
+     *
+     * DAY_MUSCLES puts the big compound first and says so in its own comment, but that only held
+     * until a filler appended something: a day could open with a cable fly and finish with a leg
+     * press, which is the fatiguing work done last and the freshest work spent on the smallest
+     * movement. The written programmes are unambiguous about this - every session opens with its
+     * heaviest compound, three warm-up sets and four minutes' rest, and descends from there to
+     * isolation at ninety seconds and one warm-up. So does this now.
+     */
+    template.forEach(function (day) {
+      var rank = function (item) {
+        var x = byId(item.exerciseId, opts.custom);
+        if (!x) return 1;
+        return x.pattern === 'core' ? 2 : x.pattern === 'isolation' ? 1 : 0;
+      };
+      day.exercises = day.exercises
+        .map(function (item, i) { return { item: item, i: i, r: rank(item) }; })
+        .sort(function (a, b) { return a.r - b.r || a.i - b.i; })     // stable: ties keep their order
+        .map(function (x, i) { x.item.order = i; return x.item; });
+      day.exercises.forEach(function (item, i) {
+        var x = byId(item.exerciseId, opts.custom);
+        var compound = x && x.pattern !== 'isolation' && x.pattern !== 'core';
+        // The author's own counts, in the programmes' own pattern: three on the opener, two on the
+        // other compounds, one on an isolation. Warming up is not free time, and a cable curl does
+        // not need the four rungs a heavy press does.
+        item.warmups = (i === 0 && compound) ? 3 : compound ? 2 : 1;
+        // Four minutes on the movement the session is built around. Everything downstream of it is
+        // already at the rest its own size earns.
+        if (i === 0 && compound) item.target.restSec = Math.max(item.target.restSec || 0, 240);
+      });
+    });
 
     var built = blockFromTemplate(template, Object.assign({}, opts, { weeks: weeks, shape: shape, targets: targets, daysPerWeek: days }));
     // What they brought, and what of it could not be fitted. Stored on the block because it is the
@@ -4028,6 +4249,13 @@
 
   // Carry a finished block forward: same skeleton, loads and gaps updated. This is the one-tap
   // "build my next block" from the review screen.
+  // "Macrosaurus 5 Day" then "Macrosaurus 5 Day - Block 2", then 3. Counting rather than stacking
+  // suffixes, so a fourth block is not called "Block 2 - Block 2 - Block 2".
+  function nextBlockName(name) {
+    var m = String(name).match(/^(.*) - Block (\d+)$/);
+    return m ? m[1] + ' - Block ' + (+m[2] + 1) : name + ' - Block 2';
+  }
+
   function nextBlock(block, review, targets, opts) {
     opts = opts || {};
     // On min-max the next block is not a fresh answer to the same question - it is THIS block again
@@ -4039,7 +4267,11 @@
     if (styleOf(block.style).toFailure && !hasTechniques(block)) {
       var same = blockFromTemplate(templateOf(block), Object.assign({}, opts, {
         weeks: block.weeks, shape: block.shape, style: block.style, intensity: block.intensity,
-        daysPerWeek: block.daysPerWeek, goal: block.goal, targets: targets, name: null,
+        daysPerWeek: block.daysPerWeek, goal: block.goal, targets: targets,
+        // The same plan, so the same name. Regenerating a name from the split turned "Macrosaurus
+        // 5 Day" into "Upper/lower, 5 days" between block one and block two of a programme somebody
+        // deliberately chose, which reads as having been moved onto something else.
+        name: block.name ? nextBlockName(block.name) : null,
         source: block.source, sourceRef: block.sourceRef || null,
       }));
       applyTechniques(same, { custom: opts.custom });
@@ -4470,6 +4702,7 @@
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
+    PROGRAMMES: PROGRAMMES, programmeOf: programmeOf, programmeBlock: programmeBlock, programmeSummary: programmeSummary,
     TECHNIQUES: TECHNIQUES, newItemFor: newItemFor, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
