@@ -671,6 +671,123 @@ test('days collected from separate screenshots do not share exercise ids', () =>
   assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
 });
 
+// ---- a brought plan as inspiration ---------------------------------------------------------------
+// What somebody brings is a set of choices worth keeping (the movements, the rep ranges, what the
+// plan was built around) wrapped around a set that is not (how many days it was photographed across,
+// how many sets its author needed, whether it trains everything twice a week). The day count belongs
+// to the person answering the wizard, not to the source.
+
+// A plan as a coach might write it: five sessions, chest-led, with movements the library knows.
+const broughtFive = () => [
+  { name: 'Day 1 - Push', kind: 'full', exercises: [
+    { exerciseId: 'bb_bench', order: 0, target: { sets: 4, repLow: 5, repHigh: 8, rir: 2, restSec: 180, tempo: '3110' } },
+    { exerciseId: 'db_incline', order: 1, target: { sets: 4, repLow: 8, repHigh: 12, rir: 2, restSec: 120, tempo: '3110' } },
+  ] },
+  { name: 'Day 2 - Pull', kind: 'full', exercises: [
+    { exerciseId: 'lat_pulldown', order: 0, target: { sets: 4, repLow: 8, repHigh: 12, rir: 2, restSec: 120, tempo: null } },
+  ] },
+  { name: 'Day 3 - Legs', kind: 'full', exercises: [
+    { exerciseId: 'back_squat', order: 0, target: { sets: 4, repLow: 5, repHigh: 8, rir: 2, restSec: 180, tempo: null } },
+  ] },
+  { name: 'Day 4 - Push', kind: 'full', exercises: [
+    { exerciseId: 'cable_fly', order: 0, target: { sets: 3, repLow: 12, repHigh: 15, rir: 1, restSec: 90, tempo: null } },
+  ] },
+  { name: 'Day 5 - Arms', kind: 'full', exercises: [
+    { exerciseId: 'ez_curl', order: 0, target: { sets: 3, repLow: 10, repHigh: 12, rir: 1, restSec: 90, tempo: null } },
+  ] },
+];
+
+test('every movement a test plan names is one the library actually has', () => {
+  // Guards the fixture below: an id the library dropped would make these tests pass for the wrong
+  // reason, since a brought movement nothing resolves is simply not in the pool.
+  for (const d of broughtFive()) {
+    for (const e of d.exercises) assert.ok(T.byId(e.exerciseId), `unknown exercise id ${e.exerciseId}`);
+  }
+});
+
+test('a plan brought across five days builds at the day count the person asked for', () => {
+  for (const days of [3, 4, 6]) {
+    const block = T.blockFromSource(broughtFive(), { daysPerWeek: days, weeks: 4 });
+    assert.equal(T.weekSessions(block, 1).length, days, `asked for ${days} days`);
+    assert.equal(block.daysPerWeek, days);
+  }
+});
+
+test('the movements somebody brought are the ones the block reaches for', () => {
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4 });
+  const ids = new Set(T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []));
+  const brought = ['bb_bench', 'db_incline', 'lat_pulldown', 'back_squat', 'cable_fly', 'ez_curl'];
+  const kept = brought.filter(id => ids.has(id));
+  assert.ok(kept.length >= 5, `only ${kept.length} of the brought movements survived: ${[...ids].join(', ')}`);
+});
+
+test('a brought movement keeps the rep range and tempo its author wrote', () => {
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4 });
+  const bench = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises), []).filter(e => e.exerciseId === 'bb_bench')[0];
+  assert.ok(bench, 'the plan opened on a bench press, so the block should too');
+  assert.equal(bench.target.repLow, 5);
+  assert.equal(bench.target.repHigh, 8);
+  assert.equal(bench.target.tempo, '3110', 'the tempo is part of the prescription, not decoration');
+});
+
+test('the sets and the effort are ours, not the plan we read them from', () => {
+  // The author wrote 4 sets at 2 RIR. Ours starts on intensity and walks proximity to failure down
+  // week by week, which is the whole reason this is a build rather than a photocopy.
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4, intensity: 'high' });
+  const setsIn = (w) => T.weekSessions(block, w).reduce((a, s) => a + s.exercises.reduce((x, e) => x + e.target.sets, 0), 0);
+  const w1 = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises), []);
+  const w3 = T.weekSessions(block, 3).reduce((a, s) => a.concat(s.exercises), []);
+  assert.ok(setsIn(3) > setsIn(1), 'volume has to climb across the block, which the author never wrote');
+  assert.ok(w1[0].target.rir > w3[0].target.rir, 'and so does effort');
+});
+
+test('as brought means as brought: the day count and the numbers stay the author"s', () => {
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 3, weeks: 4, shape: 'as-written' });
+  assert.equal(T.weekSessions(block, 1).length, 5, 'their five days survive a day count that disagrees');
+  const bench = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises), []).filter(e => e.exerciseId === 'bb_bench')[0];
+  assert.equal(bench.target.sets, 4, 'and their set counts survive with them');
+  const last = T.weekSessions(block, 4).reduce((a, s) => a.concat(s.exercises), []).filter(e => e.exerciseId === 'bb_bench')[0];
+  assert.equal(last.target.sets, 4, 'all four weeks, unprogressed, because that is what was asked for');
+});
+
+test('an inspired block still answers to the volume landmarks', () => {
+  // The point of building rather than copying: no muscle may sit past what the person can recover
+  // from, however hard the plan that inspired it went at one of them.
+  const targets = T.defaultTargets({ experience: 'intermediate' });
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4, targets: targets });
+  for (let w = 1; w <= 4; w++) {
+    const cov = T.coverage(T.blockWeekVolume(block, w), targets);
+    assert.equal(cov.overs.length, 0, `week ${w} ran past MRV for ${cov.overs.map(r => r.muscle).join(', ')}`);
+  }
+});
+
+test('a plan built around one muscle carries that priority into the block', () => {
+  // Chest is the only thing this plan does at volume, so a block inspired by it should not quietly
+  // hand chest the same share as everything else.
+  const chestPlan = [{ name: 'Chest', kind: 'full', exercises: [
+    { exerciseId: 'bb_bench', order: 0, target: { sets: 6, repLow: 6, repHigh: 10 } },
+    { exerciseId: 'db_incline', order: 1, target: { sets: 6, repLow: 8, repHigh: 12 } },
+    { exerciseId: 'cable_fly', order: 2, target: { sets: 6, repLow: 12, repHigh: 15 } },
+  ] }];
+  const insp = T.inspirationFrom(chestPlan, {});
+  assert.ok(insp.emphasis.includes('ch'), `chest should read as the priority, got ${insp.emphasis.join(', ')}`);
+  const targets = T.defaultTargets({ experience: 'intermediate' });
+  const plain = T.blockWeekVolume(T.generateBlock({ daysPerWeek: 4, weeks: 4, targets: targets }), 1);
+  const inspired = T.blockWeekVolume(T.blockFromSource(chestPlan, { daysPerWeek: 4, weeks: 4, targets: targets }), 1);
+  assert.ok(inspired.ch >= plain.ch, `chest got ${inspired.ch} sets against ${plain.ch} for a block built from nothing`);
+});
+
+test('kit you do not have is not chosen just because the plan you brought used it', () => {
+  // A brought movement is a preference, never an override: a barbell plan read into a dumbbell-only
+  // gym has to come back doing something the person can actually do.
+  const block = T.blockFromSource(broughtFive(), { daysPerWeek: 4, weeks: 4, equipment: ['dumbbell', 'cable', 'machine', 'bodyweight'] });
+  const ids = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []);
+  for (const id of ids) {
+    const ex = T.byId(id);
+    assert.ok(['dumbbell', 'cable', 'machine', 'bodyweight'].includes(ex.equipment), `${ex.name} needs kit that is not there`);
+  }
+});
+
 // ---- overlapping screenshots -------------------------------------------------------------------
 // The other half of the same bug, from the other direction: five screenshots going in and EIGHT days
 // coming out. Phone shots of a coaching app overlap, so the tail of Tuesday rides along under the top
@@ -685,8 +802,8 @@ test('a session caught in two overlapping screenshots lands as one day, not two'
   const days = [];
   // Shot two catches the whole of Tuesday. Shot three catches its last two movements above the whole
   // of Wednesday, so Tuesday comes back a second time with only part of itself.
-  T.mergeDraftDays(days, [session('Day 2', ['bb_bench', 'db_incline_press', 'cable_fly', 'lateral_raise'])], { kind: 'file', name: 'shot2.png' });
-  T.mergeDraftDays(days, [session('Day 2', ['cable_fly', 'lateral_raise']), session('Day 3', ['bb_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'shot3.png' });
+  T.mergeDraftDays(days, [session('Day 2', ['bb_bench', 'db_incline', 'cable_fly', 'lateral_raise'])], { kind: 'file', name: 'shot2.png' });
+  T.mergeDraftDays(days, [session('Day 2', ['cable_fly', 'lateral_raise']), session('Day 3', ['back_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'shot3.png' });
   assert.equal(days.length, 2, 'the repeated session must merge rather than become "Day 2 (2)"');
   assert.equal(days[0].exercises.length, 4, 'and the fuller reading of it is the one kept');
   assert.deepEqual(days.map(d => d.name), ['Day 2', 'Day 3']);
@@ -712,8 +829,8 @@ test('two different days that share their staples are still two days', () => {
 
 test('two sessions that happen to be named the same are not merged on the name alone', () => {
   const days = [];
-  T.mergeDraftDays(days, [session('Day 1', ['bb_bench', 'db_incline_press', 'cable_fly'])], { kind: 'file', name: 'a.png' });
-  T.mergeDraftDays(days, [session('Day 1', ['bb_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'b.png' });
+  T.mergeDraftDays(days, [session('Day 1', ['bb_bench', 'db_incline', 'cable_fly'])], { kind: 'file', name: 'a.png' });
+  T.mergeDraftDays(days, [session('Day 1', ['back_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'b.png' });
   assert.equal(days.length, 2, 'nothing in common means nothing to merge');
 });
 

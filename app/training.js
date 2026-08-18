@@ -1527,6 +1527,13 @@
     (opts.excluded || []).forEach(function (d) { dislikes[d] = 1; });
     var used = opts.used || {};
     var prefer = opts.prefer || [];
+    // Movements the person brought, in the order their own plan listed them. A brought plan is a
+    // list of choices somebody made on purpose - the machine their gym has, the variation their
+    // shoulder tolerates, the movement their coach built the session around - and none of that is
+    // recoverable from a muscle name. So when one of them trains the muscle being picked for, it
+    // wins outright, and their own compound-first sequencing survives with it.
+    var preferIds = {};
+    (opts.preferIds || []).forEach(function (id, i) { if (preferIds[id] === undefined) preferIds[id] = i; });
     var anchors = ANCHORS[muscle] || [];
     var pool = anchors.concat(
       all(opts.custom).filter(function (e) { return (e.primary || []).indexOf(muscle) !== -1; }).map(function (e) { return e.id; })
@@ -1542,6 +1549,7 @@
       var anchorRank = anchors.indexOf(e.id);
       var score = anchorRank >= 0 ? (100 - anchorRank * 10) : 0;
       if (prefer.indexOf(e.equipment) !== -1) score += 6;
+      if (preferIds[e.id] !== undefined) score += 1000 - Math.min(preferIds[e.id], 500);
       if (score > bestScore) { bestScore = score; best = e; }
     }
     return best;
@@ -2529,6 +2537,46 @@
     return { block: block, swaps: swaps };
   }
 
+  // ---- a brought plan, read as inspiration ------------------------------------------------------
+  // What is worth keeping out of somebody else's programme, and what is not.
+  //
+  // Worth keeping: the MOVEMENTS they chose, in the order they chose them, and the rep range and
+  // tempo they wrote against each one. That is the character of a plan and the part no engine can
+  // derive - it encodes the kit in their gym, the variations their joints tolerate, and what their
+  // coach built the session around. Worth keeping too: which muscles the plan clearly prioritised,
+  // read off its own weekly volume against the person's landmarks rather than guessed at.
+  //
+  // Not worth keeping: how many days it happened to be photographed across, how many sets its author
+  // wrote for somebody else's recovery, and whether it trains every muscle twice a week. Those are
+  // the parts this engine is for, and they are what the person asked for when they picked a day count
+  // and an intensity. So the day count comes from the wizard, the volume comes from the landmarks,
+  // the progression and the walk to failure come from the block shape - and the movements come from
+  // them. "As brought" is how somebody says they want the photocopy instead.
+  function inspirationFrom(template, opts) {
+    opts = opts || {};
+    var pool = [], seen = {}, prescriptions = {};
+    (template || []).forEach(function (day) {
+      (day.exercises || []).forEach(function (item) {
+        var ex = byId(item.exerciseId, opts.custom);
+        if (!ex || seen[ex.id]) return;
+        seen[ex.id] = 1;
+        pool.push(ex.id);
+        prescriptions[ex.id] = item.target || null;
+      });
+    });
+    // What the plan pushed. Measured against the person's OWN landmarks, not against the other
+    // muscles in the plan: a muscle sitting at or past its productive band is the author saying this
+    // is what the block is for, and it is the one thing about their volume worth carrying over.
+    var vol = plannedVolume(template, opts.custom);
+    var targets = opts.targets || defaultTargets(opts.prefs);
+    var emphasis = MUSCLES.filter(function (m) {
+      return targets[m] && vol[m] && vol[m] >= targets[m].mav;
+    }).sort(function (a, b) {
+      return (vol[b] / targets[b].mav) - (vol[a] / targets[a].mav);
+    }).slice(0, 4);
+    return { pool: pool, prescriptions: prescriptions, emphasis: emphasis, days: (template || []).length };
+  }
+
   // Build a 4-week block from scratch. Week 1 sits near MEV on 2 working sets a movement, not 3:
   // start on intensity, not volume. Weeks 2 and 3 add a set to the muscles that most need it, week 4
   // is the deload (or not, depending on shape). RIR walks 3-2-1-0, reaching true failure by the last
@@ -2552,11 +2600,35 @@
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
     var iv = intensityOf(opts.intensity);
-    var targets = opts.emphasis && opts.emphasis.length
-      ? emphasise(opts.targets || defaultTargets(opts.prefs), opts.emphasis)
+    // Anything brought in is read for its movements and its priorities, and for nothing else. The
+    // split below is still ours and still sized to the day count the person asked for.
+    var insp = (opts.inspiration && opts.inspiration.length)
+      ? inspirationFrom(opts.inspiration, opts) : null;
+    // What they said they want brought up, plus what the plan they brought was plainly built around.
+    // Theirs first: an explicit answer to a question on screen outranks something read off a PDF.
+    var wants = uniq((opts.emphasis || []).concat(insp ? insp.emphasis : []));
+    var targets = wants.length
+      ? emphasise(opts.targets || defaultTargets(opts.prefs), wants)
       : (opts.targets || defaultTargets(opts.prefs));
     var split = SPLITS[days];
     var maxEx = opts.sessionMinutes ? clamp(Math.floor(opts.sessionMinutes / 9), 4, 9) : 6;
+    var pickOpts = {
+      equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded,
+      prefer: opts.prefer, custom: opts.custom, preferIds: insp ? insp.pool : null,
+    };
+    // Reps, rest and tempo for a movement once it has been chosen. A movement they brought keeps the
+    // prescription their plan wrote against it - the rep range and the tempo ARE the plan's character,
+    // and re-deriving them from a muscle name throws that away for nothing. Sets and proximity to
+    // failure are never theirs to set: those are the two things that have to answer to the person's
+    // own landmarks and to the week of the block they are standing in.
+    function schemeFor(ex, muscle) {
+      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity);
+      var src = insp && insp.prescriptions[ex.id];
+      if (!src) return rs;
+      var lo = clamp(+src.repLow || rs.repLow, 1, 40);
+      var hi = clamp(Math.max(+src.repHigh || rs.repHigh, lo + 1), 2, 50);
+      return { repLow: lo, repHigh: hi, restSec: +src.restSec || rs.restSec, tempo: src.tempo || null };
+    }
 
     // Week 1 template: for each day, pick movements for the muscles it owns until the session is
     // full, then set the sets so the WEEKLY total for each muscle lands at or just above MEV.
@@ -2566,14 +2638,14 @@
       var muscles = DAY_MUSCLES[kind];
       var exercises = [];
       for (var m = 0; m < muscles.length && exercises.length < maxEx; m++) {
-        var ex = pickFor(muscles[m], { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
+        var ex = pickFor(muscles[m], Object.assign({ used: used }, pickOpts));
         if (!ex) continue;
         used[ex.id] = 1;
-        var rs = repScheme(ex, muscles[m], opts.repBias, opts.intensity);
+        var rs = schemeFor(ex, muscles[m]);
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
+          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
         });
       }
       return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
@@ -2609,13 +2681,13 @@
           var onKind = home ? spare.filter(function (d) { return home[d.kind]; }) : spare;
           var dest = (onKind.length ? onKind : spare)[0];
           if (!dest) break;
-          var exf = pickFor(m, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
+          var exf = pickFor(m, Object.assign({ used: used }, pickOpts));
           if (!exf) break;
           used[exf.id] = 1;
-          var rsf = repScheme(exf, m, opts.repBias, opts.intensity);
+          var rsf = schemeFor(exf, m);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
+            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
           });
         }
       });
@@ -2644,19 +2716,37 @@
       }
       // Nothing in the plan trains it, so add a movement to the shortest session.
       if (!addedThisPass) {
-        var ex2 = pickFor(gap.muscle, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
+        var ex2 = pickFor(gap.muscle, Object.assign({ used: used }, pickOpts));
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
         var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
-        var rs2 = repScheme(ex2, gap.muscle, opts.repBias, opts.intensity);
+        var rs2 = schemeFor(ex2, gap.muscle);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
+          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
         });
       }
     }
 
     return blockFromTemplate(template, Object.assign({}, opts, { weeks: weeks, shape: shape, targets: targets, daysPerWeek: days }));
+  }
+
+  // The one way a plan somebody brought becomes a block, so the preview, the wizard and the draft
+  // screen cannot drift into three different answers to the same question.
+  //
+  // "As brought" is the photocopy: their days, their sets, their numbers, run for four weeks with
+  // nothing of ours added. Every other shape reads what they brought as INSPIRATION - their
+  // movements, their rep ranges and tempos, and whatever their plan was plainly built around, laid
+  // out across the day count the person actually asked for and progressed against their own
+  // landmarks. That is the difference between importing somebody else's block and being handed a
+  // block of your own that was informed by it, and it is what the shape control has always been
+  // asking about; it just used to have no teeth once a source was involved.
+  function blockFromSource(template, opts) {
+    opts = opts || {};
+    if (SHAPES[opts.shape] && SHAPES[opts.shape].asWritten) {
+      return blockFromTemplate(template, Object.assign({}, opts, { source: opts.source || 'import' }));
+    }
+    return generateBlock(Object.assign({}, opts, { inspiration: template, source: opts.source || 'inspired' }));
   }
 
   // Weekly sets for one week of a block, so the coverage panel can show week 1 vs week 3.
@@ -3211,6 +3301,7 @@
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
+    blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,

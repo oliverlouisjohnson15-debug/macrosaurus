@@ -345,18 +345,22 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<BlockDraft db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       onBack={() => go('home')} onImport={() => go('wizard', { from: 'draft' })}
       onBuild={(draft) => {
-        // The draft's days become week 1 and the block is written on top, exactly as a single
-        // build would be - nothing about a multi-source block is a different code path. It takes
-        // the source as INSPIRATION, same as a single import now does: our progression and the
-        // house intensity apply on top, at whatever shape and style the wizard was last set to,
-        // rather than freezing the numbers a screenshot happened to show.
+        // Same one call the wizard makes, on the same answers it last saved - nothing about building
+        // straight from the draft screen is a different code path. The source is INSPIRATION unless
+        // the shape says "as brought": the movements and rep ranges are theirs, the day count is the
+        // one the person chose, and the volume, the climb and the walk to failure are ours.
         const prefs = tdb(db).prefs || {};
-        const block = Training.blockFromTemplate(draft.days, {
-          weeks: 4, shape: prefs.shape || 'build4', intensity: prefs.intensity || 'high',
+        const gym = currentGym(db);
+        const block = Training.blockFromSource(draft.days, {
+          gym: gym, daysPerWeek: prefs.daysPerWeek || 4, weeks: 4,
+          shape: prefs.shape || 'build4', intensity: prefs.intensity || 'high',
           targets: trainTargets(db), custom: tdb(db).custom,
-          name: draft.name || 'My block', source: 'import', startISO: Store.todayISO(),
+          equipment: (prefs.equipment || []).length ? prefs.equipment : null, dislikes: prefs.dislikes,
+          sessionMinutes: prefs.sessionMinutes || 60,
+          name: draft.name || 'My block', startISO: Store.todayISO(),
           sourceRef: { kind: 'draft', days: draft.days.length, importedISO: Store.todayISO() },
         });
+        block.gymId = gym ? gym.id : null;
         go('builder', { draft: block, clearDraft: true });
       }} />);
   }
@@ -2384,6 +2388,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [days, setDays] = useState(t.prefs.daysPerWeek || 4);
   const [goal, setGoal] = useState('hypertrophy');
   const [shape, setShape] = useState(t.prefs.shape || 'build4');
+  // The one answer on this screen that changes what a brought plan IS: their block run as written, or
+  // their choices read as inspiration for one of ours. Everything else on the screen is a setting.
+  const shapeDef = Training.SHAPES[shape] || Training.SHAPES.build4;
+  const asBrought = !!shapeDef.asWritten;
   const [intensity, setIntensity] = useState(t.prefs.intensity || 'high');
   const [minutes, setMinutes] = useState(t.prefs.sessionMinutes || 60);
   const [experience, setExperience] = useState(t.prefs.experience || 'intermediate');
@@ -2415,10 +2423,15 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const preview = useMemo(() => {
     try {
       const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
+      // One call whether or not anything was brought, because the answer to "what will I get" has to
+      // be the same function that later gives it to you. blockFromSource reads a brought plan as
+      // inspiration at the day count set below, or photocopies it when the shape says "as brought".
       const blk = draftDays > 0
-        ? Training.blockFromTemplate(t.draft.days, {
-          weeks: 4, shape: shape, intensity: intensity, targets: targets, custom: t.custom,
-          name: t.draft.name || 'My block', source: 'import', startISO: null,
+        ? Training.blockFromSource(t.draft.days, {
+          daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+          gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
+          custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
+          name: t.draft.name || 'My block', startISO: null,
         })
         : Training.generateBlock({
           daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
@@ -2635,9 +2648,11 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
     let block;
     if (draftDays > 0) {
-      block = Training.blockFromTemplate(t.draft.days, {
-        weeks: 4, shape: shape, intensity: intensity, targets: targets, custom: t.custom,
-        name: t.draft.name || 'My block', source: 'import', startISO: null,
+      block = Training.blockFromSource(t.draft.days, {
+        daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+        gym: gym, equipment: equipment.length ? equipment : null,
+        dislikes: t.prefs.dislikes, custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
+        name: t.draft.name || 'My block', startISO: null,
         sourceRef: { kind: 'draft', days: t.draft.days.length, importedISO: Store.todayISO() },
       });
     } else {
@@ -2678,7 +2693,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          A PDF, a spreadsheet, a coach's message, a reel, or just the text. Set the day count below first if the source offers more than one version, so I pull the right one. Skip this entirely and I will write you one from nothing.
+          A PDF, a spreadsheet, a coach's message, a reel, or just the text. However many days it is written across, I build it at the day count you set below: what I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing.
         </div>
 
         <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'file', l: 'File' }, { v: 'link', l: 'Link' }, { v: 'paste', l: 'Paste' }]} /></div>
@@ -2752,9 +2767,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       </Card>
 
       <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
-        hint={draftDays > 0
-          ? 'Which track I pull from a source that offers more than one. What you have already brought sets the day count on its own.'
-          : 'Also which track I pull from a source that offers more than one.'}>
+        hint={draftDays > 0 && asBrought
+          ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.'
+          : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'}>
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </TrainField>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
@@ -2777,7 +2792,15 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         : 'More volume, moderate effort: more sets, always a rep or two in reserve.'}>
         <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity' }, { v: 'moderate', l: 'More volume' }]} />
       </TrainField>
-      <TrainField label="Block shape" hint={Training.SHAPES[shape].label}>
+      {/* With something in the basket this is no longer only about deloads: it is the choice between
+          somebody else's block and one of yours informed by it, which is the question anybody who has
+          just uploaded a coach's programme is actually asking. */}
+      <TrainField label="Block shape"
+        hint={draftDays > 0
+          ? (asBrought
+            ? 'Their plan, their sets, their numbers, run for four weeks. Nothing of mine added.'
+            : shapeDef.label + ' What you brought sets the movements; the sets, the climb and the day count are mine.')
+          : shapeDef.label}>
         <Seg value={shape} onChange={setShape} options={[
           { v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' },
           { v: 'as-written', l: 'As brought' },
@@ -2822,31 +2845,20 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </TrainField>
 
-      {/* A brought plan sets its own day count: the basket holds whole sessions somebody uploaded, and
-          throwing two of them away to hit a number is not ours to do silently. But neither is
-          building eight sessions a week under a control that says five, which is exactly what this
-          screen used to do - the chip sat there looking answered while the draft quietly won. So the
-          disagreement is said out loud, next to the button that acts on it, with the way to settle it
-          one tap away. */}
+      {/* What is about to happen to what they brought, in one line, next to the button that does it.
+          The day count is the person's answer, not the source's: a plan that arrived across eight
+          screenshots is eight photographs, not an eight-day week, and picking five used to be
+          quietly overruled by however many days happened to be in the basket. */}
       {draftDays > 0 && (
-        draftDays === days ? (
-          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-            Building from the {draftDays} {draftDays === 1 ? 'day' : 'days'} you have brought, at the shape and intensity above.
-          </div>
-        ) : (
-          <div className="text-[12px] mb-3 leading-snug px-3 py-3" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))', color: 'var(--text2)' }}>
-            You have picked {days} days a week, but I read {draftDays} {draftDays === 1 ? 'day' : 'days'} out of what you brought, so this builds <strong>{draftDays} sessions a week</strong>.{' '}
-            <button onClick={onShots} className="underline" style={{ color: 'var(--accent-ink)' }}>
-              {draftDays > days ? 'Review them' : 'Review it'}
-            </button>{' '}
-            {draftDays > days
-              ? 'to take ' + (draftDays - days === 1 ? 'one out' : (draftDays - days) + ' out') + ', or build all ' + draftDays + '.'
-              : 'to add the rest, or build the ' + draftDays + '.'}
-          </div>
-        )
+        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+          {asBrought
+            ? 'Building the ' + draftDays + ' ' + (draftDays === 1 ? 'day' : 'days') + ' you brought exactly as written, for four weeks.'
+            : 'Building you ' + days + ' sessions a week from what you brought: their movements, rep ranges and tempos, laid out '
+              + 'across ' + days + ' days and built up against your own volume landmarks.'}
+        </div>
       )}
       <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        {busy ? 'Building...' : draftDays > 0 ? 'Build it from what I brought' : 'Build it'}
+        {busy ? 'Building...' : draftDays > 0 ? (asBrought ? 'Build it exactly as brought' : 'Build my ' + days + '-day version') : 'Build it'}
       </button>
 
       {gymPick && <GymPicker db={db} update={update} onClose={() => setGymPick(false)}
@@ -4947,7 +4959,13 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           the app's reading of somebody else's plan before four weeks get built on top of it. */}
       <h1 className="pf text-lg mb-1">What I read</h1>
       <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan. Sets, reps and the four-week climb come from the builder.
+        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan.{' '}
+        {/* What the button at the bottom is going to do with them, said where they are being checked
+            rather than left as a surprise. The day count is the person's last answer, not the number
+            of days their plan happened to be photographed across. */}
+        {(Training.SHAPES[t.prefs.shape] || Training.SHAPES.build4).asWritten
+          ? 'They will be built exactly as written, for four weeks.'
+          : 'The movements and rep ranges are theirs; the ' + (t.prefs.daysPerWeek || 4) + ' sessions a week, the sets and the four-week climb come from the builder.'}
       </div>
 
       {/* ---- the count bar, per `Build a block v3.dc.html` ----
@@ -5355,6 +5373,10 @@ function HowItWorks({ onBack }) {
       'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'],
     ['Volume, in hard sets',
       'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'],
+    ['Every muscle, twice a week',
+      'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'],
+    ['A plan you bring is a starting point, not a stencil',
+      'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'],
     ['Half a set for helping',
       'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'],
     ['Effort in reps left, not "to failure"',
