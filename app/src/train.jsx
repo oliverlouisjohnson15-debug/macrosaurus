@@ -23,9 +23,16 @@ function tdb(db) {
     prefs: Object.assign({ units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true }, t.prefs || {}),
   };
 }
-function trainTargets(db) {
+// The volume landmarks every screen judges a week against. Which set of them depends on how the
+// block in front of you is meant to be run: six sets of chest is a thin week on the volume model and
+// a complete one on min-max, and a coverage bar that does not know which is being looked at is a bar
+// that tells somebody their programme is broken when it is working exactly as designed.
+function trainTargets(db, style) {
   const t = tdb(db);
-  return Training.defaultTargets({ experience: t.prefs.experience, volumeTargets: t.volumeTargets });
+  return Training.defaultTargets({
+    experience: t.prefs.experience, volumeTargets: t.volumeTargets,
+    style: style === undefined ? t.prefs.style : style,
+  });
 }
 function activeBlock(db) {
   const t = tdb(db);
@@ -76,7 +83,11 @@ function unitLabel(units) { return units === 'lb' ? 'lb' : 'kg'; }
 // or a warning to hold, is worth a line. Steady state is not.
 function coachNote(pre) {
   if (!pre || !pre.note) return null;
-  return (pre.action === 'load' || pre.action === 'hold') ? pre.note : null;
+  // On the volume model most of these notes say what you already know from the prescription, so only
+  // the two that change something are shown. The min-max ones ARE the prescription: the plan says
+  // nothing about weight, and "one more rep than last time" is the entire instruction for the day.
+  const loud = { load: 1, hold: 1, reps: 1, lighter: 1, swap: 1 };
+  return loud[pre.action] ? pre.note : null;
 }
 // Day names arrive with wildly inconsistent punctuation across posts ("Upper A", "upper-a", "UPPER A:"),
 // and matching them is what stops a re-import leaving you with two of the same day.
@@ -352,9 +363,10 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
         const prefs = tdb(db).prefs || {};
         const gym = currentGym(db);
         const block = Training.blockFromSource(draft.days, {
-          gym: gym, daysPerWeek: prefs.daysPerWeek || 4, weeks: 4,
+          gym: gym, daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5), weeks: 4,
           shape: prefs.shape || 'build4', intensity: prefs.intensity || 'high',
-          targets: trainTargets(db), custom: tdb(db).custom,
+          style: prefs.style || 'minmax',
+          targets: trainTargets(db, prefs.style || 'minmax'), custom: tdb(db).custom,
           equipment: (prefs.equipment || []).length ? prefs.equipment : null, dislikes: prefs.dislikes,
           sessionMinutes: prefs.sessionMinutes || 60,
           name: draft.name || 'My block', startISO: Store.todayISO(),
@@ -756,6 +768,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const units = t.prefs.units;
   const block = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const session = block && sessionId ? (block.sessions || []).filter(s => s.id === sessionId)[0] : null;
+  // How this block is meant to be run. On the min-max style there is nothing to leave in the tank,
+  // so the screen stops asking for it and starts saying the opposite; and next week's numbers come
+  // off the top set rather than off a reps-in-reserve estimate nobody can give at failure anyway.
+  const style = Training.styleOf(block && block.style);
+  const preOpts = { style: block && block.style };
 
   const existing = t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId))[0];
   const [logId] = useState(() => (existing ? existing.id : trainUid()));
@@ -804,8 +821,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     }
     if (!session) return [];
     return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
-      const pre = Training.prefillSets(e, t.logs, t.custom);
-      return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), superset: e.supersetGroup || null };
+      const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
+      return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null, superset: e.supersetGroup || null };
     });
   });
   const [focus, setFocus] = useState(0);
@@ -1022,7 +1039,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   function addExercise(exId) {
     setPicking(false);
     mutate(n => {
-      const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
+      const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
       // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
       // its sets still group as one movement when the session is reopened.
       n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
@@ -1037,7 +1054,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     const wasId = items[ii] && items[ii].exerciseId;
     mutate(n => {
       const old = n[ii];
-      const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: old.sets.length, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
+      const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: old.sets.length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
       n[ii] = { id: old.id || ('swap_' + trainUid()), exerciseId: exId, target: old.target, sets: pre.sets, note: coachNote(pre), superset: old.superset };
     });
     // Today is changed. Whether the BLOCK should change is a different question, and only the person
@@ -1260,7 +1277,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   if (!u.alt) return;
                   const old2 = n[u.index];
                   if (!old2) return;
-                  const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
+                  const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
                   n[u.index] = { id: old2.id || ('swap_' + trainUid()), exerciseId: u.alt, target: old2.target, sets: pre.sets, note: coachNote(pre), superset: old2.superset };
                 });
               });
@@ -1327,7 +1344,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                     ? 'Set ' + Math.min(work.length, (work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
-                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? ' at ' + tgt.rir + ' RIR' : ' reps')}
+                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? (style.toFailure ? ' to failure' : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
               {open
@@ -1343,7 +1360,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                      The design sets the cues as framed chips on the left and what you owe as plain
                      text on the right, so the whole prescription is one line instead of three. ---- */}
                 <div className="flex items-center gap-2 mb-4">
-                  {tgt && <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />}
+                  {tgt && (style.toFailure
+                    ? <MetaBit label="To failure" onHelp={() => setHelp('failure')} hideHelp={t.prefs.hideHelp} />
+                    : <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />)}
                   {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
                   {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
                   {/* The buddy used to stand at the end of this row, where three cues plus the
@@ -1398,12 +1417,26 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   </div>
                 )}
 
+                {/* One shot. This is the whole psychological mechanism the style runs on: somebody
+                    who knows a movement gets three or four cracks treats the first two as rehearsal,
+                    and somebody who knows there is one set does not. It is said on the movement you
+                    are about to do, once, and only while it is still ahead of you - a line telling
+                    you to lock in, above a set you have already finished, is noise. */}
+                {style.toFailure && !work.some(x => x.done) && (
+                  <div className="text-[11.5px] mb-3 px-2.5 py-2 leading-snug"
+                    style={{ borderLeft: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)' }}>
+                    {work.length === 1
+                      ? 'One set here. Make it count: take it to the rep where the weight stops moving.'
+                      : 'Two sets here, and the first one is the one that counts. Take it until the weight stops moving.'}
+                  </div>
+                )}
+
                 {/* ---- set table ---- */}
                 <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[7px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
                   <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
                   <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
-                  <div className="w-11 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>
+                  {!style.toFailure && <div className="w-11 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
                   <div className="w-12 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
                 </div>
 
@@ -1447,11 +1480,17 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                           onFocus={e => { try { e.target.select(); } catch (_) {} }}
                           onChange={e => setField(ii, si, 'reps', e.target.value === '' ? null : +e.target.value)}
                           placeholder={tgt ? String(tgt.repHigh) : (s.targetReps ? String(s.targetReps).split('-').pop() : '')} />
-                        <input type="number" inputMode="numeric" className={'w-11 ' + cell} style={cellStyle}
-                          value={s.rir == null ? '' : s.rir}
-                          onFocus={e => { try { e.target.select(); } catch (_) {} }}
-                          onChange={e => setField(ii, si, 'rir', e.target.value === '' ? null : +e.target.value)}
-                          placeholder={tgt ? String(tgt.rir) : ''} />
+                        {/* Nothing to ask for on a style where every set ends when the weight stops
+                            moving: "how many did you leave" has one answer, and a column asking it
+                            anyway is a column that makes people think they were allowed to leave
+                            some. The space goes back to the two numbers that matter. */}
+                        {!style.toFailure && (
+                          <input type="number" inputMode="numeric" className={'w-11 ' + cell} style={cellStyle}
+                            value={s.rir == null ? '' : s.rir}
+                            onFocus={e => { try { e.target.select(); } catch (_) {} }}
+                            onChange={e => setField(ii, si, 'rir', e.target.value === '' ? null : +e.target.value)}
+                            placeholder={tgt ? String(tgt.rir) : ''} />
+                        )}
                         {/* A ghost tick, visible before you press it, so the control announces what
                             it does. An empty box announced nothing. */}
                         <button onClick={() => toggleDone(ii, si)}
@@ -1469,6 +1508,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                           <Tick size={12} />
                         </button>
                       </div>
+                      {/* A second working set at the same weight as an all-out first one lands three
+                          reps under the window and teaches nobody anything, so the app has already
+                          taken 15% off. Said out loud, because a weight the app quietly lowered
+                          reads as a bug rather than as the protocol it is. */}
+                      {s.backOff && !s.done && (
+                        <div className="text-[10.5px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
+                          Back-off set: 15% lighter, taken to failure again.
+                        </div>
+                      )}
                       {setMenu === ii + ':' + si && (
                         <div className="flex gap-1 flex-wrap mt-1 mb-2 pl-1">
                           {SET_TYPES.map(st => (
@@ -1792,7 +1840,10 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
   useBackClose(onClose);
   const t = tdb(db);
   let title = '', body = '';
-  if (topic === 'rir') {
+  if (topic === 'failure') {
+    title = 'To failure';
+    body = 'The set ends when the weight stops moving, not when it gets hard. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. On that volume the last rep is what makes the session worth doing, and there is no next set to save anything for. Stop if your form breaks rather than grinding out a rep that has already gone wrong, and use the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
+  } else if (topic === 'rir') {
     title = 'Reps in reserve';
     body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the block goes on so the hard weeks land when you are ready for them.';
   } else if (topic === 'rest') {
@@ -2385,7 +2436,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const t = tdb(db);
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
-  const [days, setDays] = useState(t.prefs.daysPerWeek || 4);
+  // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
+  // and five days is the shape it is written for, so that is the day count it arrives on.
+  const [style, setStyle] = useState(t.prefs.style || 'minmax');
+  const [days, setDays] = useState(t.prefs.daysPerWeek || (t.prefs.style === 'landmarks' ? 4 : 5));
+  // Recovery is lower in a deficit and low volume holds muscle perfectly well, so somebody who has
+  // told the food side of the app they are cutting has already answered this question.
+  const cutting = ((db.profile || {}).goalType === 'cut');
   const [goal, setGoal] = useState('hypertrophy');
   const [shape, setShape] = useState(t.prefs.shape || 'build4');
   // The one answer on this screen that changes what a brought plan IS: their block run as written, or
@@ -2422,20 +2479,20 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
      falls back to no preview and the questions still work. */
   const preview = useMemo(() => {
     try {
-      const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
+      const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets, style: style });
       // One call whether or not anything was brought, because the answer to "what will I get" has to
       // be the same function that later gives it to you. blockFromSource reads a brought plan as
       // inspiration at the day count set below, or photocopies it when the shape says "as brought".
       const blk = draftDays > 0
         ? Training.blockFromSource(t.draft.days, {
           daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
-          gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
+          style: style, gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
           custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
           name: t.draft.name || 'My block', startISO: null,
         })
         : Training.generateBlock({
           daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
-          gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
+          style: style, gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
           custom: t.custom, sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
         });
       const read = readBlock(blk);
@@ -2665,12 +2722,12 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // whatever shape and intensity are set below, not a frozen photocopy of someone else's numbers.
   function build() {
     setBusy(true);
-    const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
+    const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets, style: style });
     let block;
     if (draftDays > 0) {
       block = Training.blockFromSource(t.draft.days, {
         daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
-        gym: gym, equipment: equipment.length ? equipment : null,
+        style: style, gym: gym, equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes, custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
         name: t.draft.name || 'My block', startISO: null,
         sourceRef: { kind: 'draft', days: t.draft.days.length, importedISO: Store.todayISO() },
@@ -2678,7 +2735,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     } else {
       block = Training.generateBlock({
         daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
-        gym: gym, equipment: equipment.length ? equipment : null,
+        style: style, gym: gym, equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes, custom: t.custom,
         sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
       });
@@ -2688,7 +2745,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     trainUpdate(update, (tr) => {
       tr.prefs = Object.assign({}, tr.prefs, {
         daysPerWeek: days, sessionMinutes: minutes, experience: experience, equipment: equipment,
-        shape: shape, intensity: intensity,
+        shape: shape, intensity: intensity, style: style,
       });
     });
     setBusy(false);
@@ -2786,10 +2843,37 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {wishNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{wishNote}</div>}
       </Card>
 
+      {/* The first question, because it is the only one that changes what every answer below MEANS.
+          Four sets on one style is a warm-up and on the other it is most of a muscle's week. */}
+      <TrainField label="How you want to train"
+        effect={style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short'}
+        hint={Training.STYLES[style].blurb}>
+        <Seg value={style} onChange={v => {
+          setStyle(v);
+          // Five days is the min-max week and four is the volume model's default shape. Only moved
+          // when the person has not set a day count of their own, so a deliberate answer is never
+          // overwritten by changing your mind about the style.
+          if (!t.prefs.daysPerWeek) setDays(v === 'minmax' ? 5 : 4);
+        }} options={[{ v: 'minmax', l: 'Min-max' }, { v: 'landmarks', l: 'Volume' }]} />
+      </TrainField>
+      {/* The one place the food side of the app gets to answer a training question. Recovery is
+          lower in a deficit, and low volume holds muscle perfectly well, so somebody cutting has
+          already told us which of the two they should be on. */}
+      {cutting && (
+        <div className="text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5"
+          style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))', color: 'var(--text2)' }}>
+          {style === 'minmax'
+            ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.'
+            : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'}
+        </div>
+      )}
+
       <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
         hint={draftDays > 0 && asBrought
           ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.'
-          : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'}>
+          : (style === 'minmax'
+            ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.'
+            : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.')}>
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </TrainField>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
@@ -2809,11 +2893,15 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           research on proximity to failure and the reference programmes this app is built from both
           point at. A real choice, not a hidden constant: pick moderate for more sets and effort that
           stops a few reps short every week instead. */}
+      {/* Nothing to choose once every working set ends when the weight stops moving. The control
+          stays for the volume model, where the trade between sets and effort is still open. */}
+      {style !== 'minmax' && (
       <TrainField label="Training intensity" hint={intensity === 'high'
         ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.'
         : 'More volume, moderate effort: more sets, always a rep or two in reserve.'}>
         <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity' }, { v: 'moderate', l: 'More volume' }]} />
       </TrainField>
+      )}
       {/* With something in the basket this is no longer only about deloads: it is the choice between
           somebody else's block and one of yours informed by it, which is the question anybody who has
           just uploaded a coach's programme is actually asking. */}
@@ -2921,7 +3009,8 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
   const logBySession = Training.completion(block, tdb(db).logs).logBySession;
-  const targets = trainTargets(db);
+  // The block being edited decides which landmarks it is judged against, not the wizard's last answer.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const isNew = !saved;
 
   const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -3788,7 +3877,9 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   useBackClose(onBack);
   const t = tdb(db);
   const block = t.blocks.filter(b => b.id === blockId)[0];
-  const targets = trainTargets(db);
+  // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
+  // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const units = t.prefs.units;
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -3956,7 +4047,9 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
 function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   useBackClose(onBack);
   const t = tdb(db);
-  const targets = trainTargets(db);
+  // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
+  // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const block = t.blocks.filter(b => b.id === blockId)[0];
   const plan = useMemo(() => (block ? Training.rerunPlan(block, t.logs, targets, t.custom) : null), [blockId]);
   const [off, setOff] = useState({});          // proposals turned down, by index
@@ -5405,6 +5498,12 @@ function HowItWorks({ onBack }) {
       'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'],
     ['Volume, in hard sets',
       'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'],
+    ['Two ways to train, and one of them is the default',
+      'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and every working set taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'],
+    ['On min-max, the weight is the progression',
+      'There are no sets to add, so week four looks exactly like week one on paper and everything that changed is on the bar. Each movement has a rep window: 6 to 9 on the heavy compounds, 10 to 15 on everything else. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where a movement has a second set, the app takes 15 percent off it: an all-out first set means a second at the same weight would miss the window by three reps.'],
+    ['Stalling is a movement problem, not a volume problem',
+      'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'],
     ['Every muscle, twice a week',
       'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'],
     ['A plan you bring is a starting point, not a stencil',

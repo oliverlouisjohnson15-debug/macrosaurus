@@ -79,6 +79,74 @@
   // Beginners grow on less and recover from less; advanced lifters need more to move the needle.
   var EXPERIENCE_SCALE = { beginner: 0.7, intermediate: 1, advanced: 1.15 };
 
+  /* ---- the min-max landmarks -------------------------------------------------------------------
+   * A second, deliberately small volume model, for the style that trades every extra set for effort.
+   * The premise is not that the numbers above are wrong; it is that they describe volume taken to a
+   * few reps short of failure, and that a set taken to genuine failure is not the same set. Run that
+   * way, "most muscles get six sets a week, some get four, and a few sit in the 8 to 10 range".
+   *
+   * So this is the whole method's volume in one table: nothing sits under 3 or over 10, the muscles
+   * that get a session to themselves (delts, arms, calves) sit at the top of the range, and the big
+   * movers that also take the systemic load sit at the bottom. It is NOT experience-scaled - an
+   * advanced lifter on this style does not get more sets, they get harder ones - though a person can
+   * still override any individual muscle, exactly as they can with the landmarks above.
+   */
+  var MINMAX_LANDMARKS = {
+    ch: { mev: 4, mav: 6, mrv: 8 },
+    fd: { mev: 3, mav: 4, mrv: 6 },     // every press already pays it
+    sd: { mev: 6, mav: 8, mrv: 10 },    // small, fast to recover, and it gets its own day
+    rd: { mev: 4, mav: 6, mrv: 8 },
+    lt: { mev: 4, mav: 6, mrv: 8 },
+    ub: { mev: 4, mav: 6, mrv: 8 },
+    lb: { mev: 3, mav: 4, mrv: 6 },
+    bi: { mev: 6, mav: 8, mrv: 10 },
+    tr: { mev: 6, mav: 8, mrv: 10 },
+    fa: { mev: 2, mav: 4, mrv: 6 },   // every pull already pays it, and grip is the limit long before volume is
+    ab: { mev: 4, mav: 6, mrv: 8 },
+    ob: { mev: 3, mav: 4, mrv: 6 },
+    qu: { mev: 4, mav: 6, mrv: 8 },
+    ha: { mev: 4, mav: 6, mrv: 8 },
+    gl: { mev: 4, mav: 6, mrv: 8 },
+    ad: { mev: 3, mav: 4, mrv: 6 },
+    ca: { mev: 4, mav: 8, mrv: 10 },
+  };
+
+  /* ---- training styles -------------------------------------------------------------------------
+   * Everything that changes when somebody trains a different way, in one table, so the difference
+   * between the two is a thing you can read rather than a set of conditionals scattered through the
+   * generator.
+   *
+   * 'landmarks' is the volume-first model this app was built on: start near MEV, add a set a week to
+   * whichever muscle has the most room, walk proximity to failure down from 3 reps in reserve to 0
+   * by the last building week, and never breach MRV.
+   *
+   * 'minmax' is the other trade. Volume is capped hard and low, every working set is taken to
+   * genuine failure, and progression comes from load and reps rather than from sets - there are no
+   * sets to add. It leans on stable kit because a set taken past the point where form can hold is
+   * not a harder set, it is an injury, and a machine is what makes the last rep safe to attempt.
+   *
+   * `sets` is the whole prescription for a movement: everything starts at 2 working sets and nothing
+   * may ever exceed 2, so the generator's volume passes trade in movements rather than in sets.
+   */
+  var STYLES = {
+    landmarks: {
+      key: 'landmarks', label: 'Volume landmarks',
+      startSets: null,          // taken from the intensity setting, as it always was
+      maxSets: 5, growSets: true, toFailure: false,
+      landmarks: null, stableKit: false, minEx: 4, maxExCap: 9,
+      blurb: 'Start near the least volume that grows a muscle, add a set a week where there is room, and finish the block close to failure.',
+    },
+    minmax: {
+      key: 'minmax', label: 'Min-max',
+      startSets: 2, maxSets: 2, growSets: false, toFailure: true,
+      landmarks: MINMAX_LANDMARKS, stableKit: true, minEx: 5, maxExCap: 7,
+      blurb: 'Four to ten hard sets a muscle a week, one or two per movement, every one of them to failure. Progress comes from the weight and the reps, never from more sets.',
+    },
+  };
+  // Absent means the model this app started with: a block saved before styles existed was built that
+  // way and must keep behaving that way, whatever the wizard now defaults to.
+  function styleOf(key) { return STYLES[key] || STYLES.landmarks; }
+
   var PRIMARY_WEIGHT = 1;
   var SECONDARY_WEIGHT = 0.5;
 
@@ -949,12 +1017,17 @@
   // Per-user landmarks. Experience scales the productive band; a user who has completed blocks
   // gets their own tuned numbers layered on top (see tuneTargets).
   function defaultTargets(prefs) {
-    var scale = EXPERIENCE_SCALE[(prefs && prefs.experience) || 'intermediate'] || 1;
+    var style = styleOf(prefs && prefs.style);
+    // Min-max's numbers are the method, not a starting point to be scaled: an advanced lifter on it
+    // does not get more sets, they get harder ones. Anything a person has set for themselves still
+    // wins below, exactly as it does on the other model.
+    var scale = style.landmarks ? 1 : (EXPERIENCE_SCALE[(prefs && prefs.experience) || 'intermediate'] || 1);
+    var table = style.landmarks || LANDMARKS;
     var out = {};
     MUSCLES.forEach(function (m) {
-      var L = LANDMARKS[m];
+      var L = table[m];
       out[m] = {
-        mev: Math.max(3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
+        mev: Math.max(scale === 1 ? 1 : 3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
         mav: Math.round(L.mav * scale),
         mrv: Math.round(L.mrv * scale),
       };
@@ -1279,22 +1352,122 @@
   // Double progression, as the priority order in the plan: reps inside the range, then load with a
   // reset to the bottom of the range, then a set. The load jump is relative because +2.5kg means
   // something different on a leg press and a lateral raise.
-  function loadStep(ex, weightKg) {
+  var LOWER_BODY = ['qu', 'ha', 'gl', 'ad', 'ca'];
+  // The smallest jump this movement can actually be loaded by. Dumbbells come in pairs and jump in
+  // twos; everything else moves in 2.5s.
+  function loadUnit(ex) { return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5; }
+  function isLowerBody(ex) {
+    return !!(ex && (ex.primary || []).filter(function (m) { return LOWER_BODY.indexOf(m) !== -1; }).length);
+  }
+  function loadStep(ex, weightKg, style) {
     var w = +weightKg || 0;
     if (!w) return 0;
+    var inc = loadUnit(ex);
+    // On a style where every set is already all-out, a percentage jump is the wrong tool: there is
+    // no reserve to absorb it. The step is the smallest the kit allows - one notch upstairs, two on
+    // the big lower-body movements, which is the 1.25-2.5kg / 2.5-5kg the method is written around.
+    if (styleOf(style).toFailure) return isLowerBody(ex) ? inc * 2 : inc;
     var pct = (ex && (ex.pattern === 'isolation' || ex.pattern === 'core')) ? 0.04 : 0.025;
     var raw = w * pct;
-    var inc = (ex && (ex.equipment === 'dumbbell')) ? 2 : (ex && ex.equipment === 'machine' ? 2.5 : 2.5);
     return Math.max(inc, Math.round(raw / inc) * inc);
+  }
+
+  // The second set, when a movement has one. The first set was taken to genuine failure, so asking
+  // for the same weight again is asking for a set that lands three reps under the window and teaches
+  // nobody anything. Fifteen percent off puts the second set back inside the window it is being
+  // judged against, which is the only way it counts as a second working set at all.
+  function backOffLoad(topKg, ex) {
+    var w = +topKg || 0;
+    if (!w) return 0;
+    var inc = loadUnit(ex);
+    return Math.max(inc, Math.round((w * 0.85) / inc) * inc);
+  }
+
+  // Three sessions on identical weight AND identical reps is a plateau, and on this style it is not
+  // a volume problem: there is no volume to take away. The answer is a different movement - the same
+  // job done by a slightly different pattern, which resets the progression cycle without resetting
+  // the person's training. Deliberately stricter than detectStall's e1RM test: a rep either side is
+  // somebody still moving, and only a dead-flat repeat is worth interrupting for.
+  function minmaxPlateau(history) {
+    var h = (history || []).slice(-3);
+    if (h.length < 3) return null;
+    var w = h[0].topWeight, r = h[0].topReps;
+    if (!w || !r) return null;
+    var flat = h.every(function (x) { return x.topWeight === w && x.topReps === r; });
+    if (!flat) return null;
+    return { stalled: true, sessions: h.length, weightKg: w, reps: r };
+  }
+
+  // What to swap a stalled movement for: the same job, a different pattern. Same primary muscle
+  // first, then whatever the shortlist would offer anybody training that muscle, minus the movement
+  // that stalled and anything already in the session.
+  function substituteFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom);
+    if (!ex) return [];
+    var muscle = (ex.primary || [])[0];
+    if (!muscle) return [];
+    var out = suggestFor(muscle, {
+      equipment: opts.equipment, dislikes: (opts.dislikes || []).concat([exerciseId]),
+      custom: opts.custom, currentExerciseIds: (opts.currentExerciseIds || []).concat([exerciseId]),
+      limit: (opts.limit || 3) + 2,
+    }).filter(function (c) { return c.id !== exerciseId; });
+    // Same shape of movement first: swapping a chest press for a fly is a different exercise, not
+    // the same exercise done another way.
+    var wantStable = styleOf(opts.style).stableKit;
+    out.sort(function (a, b) {
+      var score = function (c) {
+        return (c.pattern === ex.pattern ? 2 : 0) + (wantStable && STABLE_KIT[c.equipment] ? 1 : 0);
+      };
+      return score(b) - score(a);
+    });
+    return out.slice(0, opts.limit || 3);
   }
 
   // Given last week's prescription and what was actually done, what should next week say?
   // Returns { sets, repLow, repHigh, rir, weightKg, reason, action }.
-  function progressExercise(prescription, performedSets, ex) {
+  function progressExercise(prescription, performedSets, ex, opts) {
+    opts = opts || {};
     var t = Object.assign({ sets: 3, repLow: 8, repHigh: 12, rir: 2 }, prescription || {});
     var done = (performedSets || []).filter(function (s) { return s.done && (!s.type || s.type === 'work'); });
     var next = Object.assign({}, t);
     if (!done.length) return Object.assign(next, { action: 'hold', reason: 'Nothing logged last time, so this repeats.' });
+
+    /* ---- min-max: dynamic double progression off the top set --------------------------------
+     * A set taken to genuine failure has already told you everything a percentage table was
+     * guessing at, so there is nothing to calculate against a one-rep max: the reps you got at the
+     * weight you used ARE the reading. Three outcomes, and only three.
+     *
+     * The set being read is the FIRST working set, because that is the all-out one. The second, if
+     * there is one, was taken at a deliberately lighter weight (see backOffLoad) and judging next
+     * week on it would walk the load down a notch every week.
+     */
+    if (styleOf(opts.style).toFailure) {
+      var plateau = minmaxPlateau(opts.history);
+      var lead = done[0];
+      var w = +lead.weightKg || 0;
+      var reps = +lead.reps || 0;
+      next.weightKg = w;
+      if (plateau) {
+        return Object.assign(next, {
+          action: 'swap', stalled: plateau,
+          reason: 'Three sessions at the same weight for the same ' + plateau.reps + ' reps. That is not a volume problem and there is no volume here to take away, so change the movement rather than grind at this one.',
+        });
+      }
+      if (!w) return Object.assign(next, { action: 'hold', reason: 'No weight logged last time, so this repeats.' });
+      // Ceiling hit: the top of the window, in form, at failure. Smallest jump the kit allows.
+      if (reps >= t.repHigh) {
+        next.weightKg = w + loadStep(ex, w, 'minmax');
+        return Object.assign(next, { action: 'load', reason: 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
+      }
+      // Inside the window: the weight is right, so the job is one more rep than last time.
+      if (reps >= t.repLow) {
+        return Object.assign(next, { action: 'reps', reason: 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
+      }
+      // Under the floor: too heavy to be a stimulus rather than a test. Ten percent off.
+      next.weightKg = Math.max(loadUnit(ex), Math.round((w * 0.9) / loadUnit(ex)) * loadUnit(ex));
+      return Object.assign(next, { action: 'lighter', reason: 'Only ' + reps + ' last time, under the ' + t.repLow + ' this window needs. Ten percent off, so the set does some work rather than just being heavy.' });
+    }
 
     var topWeight = Math.max.apply(null, done.map(function (s) { return +s.weightKg || 0; }));
     var atTop = done.filter(function (s) { return (+s.weightKg || 0) >= topWeight; });
@@ -1419,6 +1592,29 @@
     5: [['push', 'Push A'], ['pull', 'Pull A'], ['legs', 'Legs A'], ['upper', 'Upper B'], ['lower', 'Lower B']],
     6: [['push', 'Push A'], ['pull', 'Pull A'], ['legs', 'Legs A'], ['push', 'Push B'], ['pull', 'Pull B'], ['legs', 'Legs B']],
   };
+  /* The min-max week. Five sessions inside a seven-day microcycle, and the two rest days are part of
+   * the prescription rather than what is left over: upper, lower, rest, upper, lower, arms, rest.
+   * Every muscle still gets trained twice (the arms day is the second exposure for delts and arms),
+   * and the systemic load of training everything to failure gets a day off in the middle of the week
+   * and a day off at the end of it.
+   *
+   * Other day counts are allowed, because somebody who can only train three days should still be
+   * able to train this way, but five is the shape the method is written for and the wizard says so.
+   * The weekday numbers are part of the split, not an afterthought: the rest days only do their job
+   * where they actually fall.
+   */
+  var MINMAX_SPLITS = {
+    // Two and three days go full body, for the same reason they do on the other model: an upper /
+    // lower week run twice gives the legs one session, and one session of two-set movements is not
+    // four sets of quads however hard they are taken. Spaced out, because the rest days are the
+    // half of this method that does the recovering.
+    2: [['full', 'Full body A', 0], ['full', 'Full body B', 3]],
+    3: [['full', 'Full body A', 0], ['full', 'Full body B', 2], ['full', 'Full body C', 4]],
+    4: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4]],
+    5: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['arms', 'Arms and delts', 5]],
+    6: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['arms', 'Arms and delts', 2], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['full', 'Whatever is behind', 5]],
+  };
+
   // Which muscles each day type is responsible for, in the order they should be trained: the
   // biggest compound first, isolation after, so the fatiguing work happens fresh.
   var DAY_MUSCLES = {
@@ -1428,6 +1624,10 @@
     push: ['ch', 'fd', 'sd', 'tr'],
     pull: ['lt', 'ub', 'rd', 'bi', 'fa'],
     legs: ['qu', 'ha', 'gl', 'ca', 'ad'],
+    // The day the min-max week ends on. Delts and arms recover fastest and carry the most weekly
+    // sets under that model, and giving them a session of their own is what buys the two big days
+    // either side of it the room to be short.
+    arms: ['sd', 'bi', 'tr', 'rd', 'fa'],
   };
   // Which day kinds are a sane home for a muscle DAY_MUSCLES does not seed anywhere (front delts,
   // lower back, forearms, and on a push/pull/legs split, abs and obliques too). Read by
@@ -1437,9 +1637,9 @@
   // day kind is fine, which is true of core work: splitKind never weighs abs or obliques either way.
   var DAY_KIND_HOME = {
     ch: { push: 1, upper: 1, full: 1 }, fd: { push: 1, upper: 1, full: 1 },
-    sd: { push: 1, upper: 1, full: 1 }, tr: { push: 1, upper: 1, full: 1 },
+    sd: { push: 1, upper: 1, full: 1, arms: 1 }, tr: { push: 1, upper: 1, full: 1, arms: 1 },
     lt: { pull: 1, upper: 1, full: 1 }, ub: { pull: 1, upper: 1, full: 1 },
-    rd: { pull: 1, upper: 1, full: 1 }, bi: { pull: 1, upper: 1, full: 1 }, fa: { pull: 1, upper: 1, full: 1 },
+    rd: { pull: 1, upper: 1, full: 1, arms: 1 }, bi: { pull: 1, upper: 1, full: 1, arms: 1 }, fa: { pull: 1, upper: 1, full: 1, arms: 1 },
     qu: { legs: 1, lower: 1, full: 1 }, ha: { legs: 1, lower: 1, full: 1 }, gl: { legs: 1, lower: 1, full: 1 },
     ca: { legs: 1, lower: 1, full: 1 }, ad: { legs: 1, lower: 1, full: 1 }, lb: { legs: 1, lower: 1, full: 1 },
     ab: null, ob: null,
@@ -1521,6 +1721,11 @@
     return { equipment: equipment, prefer: base.prefer || [], excluded: excluded, repBias: base.repBias || 0 };
   }
 
+  // Kit that holds the path of the bar for you, so the last rep of a set to failure is a rep that
+  // stops rather than a rep that goes wrong. Trap bar counts: it is the one loaded free-weight
+  // pattern where failing is a matter of setting it down.
+  var STABLE_KIT = { machine: 1, cable: 1, smith: 1, trapbar: 1 };
+
   function pickFor(muscle, opts) {
     var have = opts.equipment && opts.equipment.length ? opts.equipment : null;
     var dislikes = {}; (opts.dislikes || []).forEach(function (d) { dislikes[d] = 1; });
@@ -1549,6 +1754,16 @@
       var anchorRank = anchors.indexOf(e.id);
       var score = anchorRank >= 0 ? (100 - anchorRank * 10) : 0;
       if (prefer.indexOf(e.equipment) !== -1) score += 6;
+      // Training to failure changes what a good exercise is. The last rep of an all-out set is the
+      // one where form goes, and on a barbell that is where the injury lives; on a machine or a
+      // cable the worst case is that the weight stops moving. So a stable movement is worth a big
+      // swing here - enough to take a machine press over a barbell one, which is exactly the trade
+      // the method asks for, and not enough to reach for something that does not train the muscle.
+      // Big enough to outrank the anchor order entirely, because that is what the method asks for:
+      // a guided movement is not a tiebreak here, it is the requirement. Anchor rank still decides
+      // between two machines. Bodyweight sits in the middle - nothing to drop on yourself, but not
+      // loadable in the small steps the progression model runs on either.
+      if (opts.stableKit) score += STABLE_KIT[e.equipment] ? 120 : (e.equipment === 'bodyweight' ? 40 : 0);
       if (preferIds[e.id] !== undefined) score += 1000 - Math.min(preferIds[e.id], 500);
       if (score > bestScore) { bestScore = score; best = e; }
     }
@@ -1618,10 +1833,20 @@
   };
   function intensityOf(key) { return INTENSITY[key] || INTENSITY.high; }
 
-  function repScheme(ex, muscle, bias, intensity) {
+  function repScheme(ex, muscle, bias, intensity, style) {
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
     var iv = intensityOf(intensity);
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+    // Min-max runs two windows and nothing else, because the window IS the progression model: reach
+    // the top of it in good form and the weight goes up, fall out of the bottom and it comes down.
+    // Heavy compounds get 6 to 9, everything else 10 to 15. Rest is long, because one set decides
+    // the movement and a set taken to failure on a half-recovered system is a wasted one.
+    if (styleOf(style && style.key ? style.key : style).toFailure) {
+      if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 90 };
+      return compound
+        ? { repLow: 6 + b, repHigh: 9 + b, restSec: 180 }
+        : { repLow: 10 + b, repHigh: 15 + b, restSec: 120 };
+    }
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
     // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
     // (5-10 majority, "3/4 of your training" per the RIR-based programme's own rep-range chapter)
@@ -1764,13 +1989,17 @@
     }
 
     var asWritten = !!SHAPES[shape].asWritten;
+    var style = styleOf(opts.style);
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
       // Walks 3-2-1-0 on the default 'high' intensity: the final building week lands at true failure
       // (0 RIR), not a floor of 1. Stopping short of failure every week is the thing "high intensity"
       // is supposed to rule out. 'moderate' keeps the old floor of 1 for anyone who wants it.
-      var rir = isDeload ? 4 : Math.max(iv.rirFloor, 4 - w);
+      // On min-max there is nothing to walk down: the first set of week one is already an all-out
+      // set, and that is the point of it. A lighter week, if the shape asks for one, is the only
+      // week that stops short.
+      var rir = style.toFailure ? (isDeload ? 2 : 0) : (isDeload ? 4 : Math.max(iv.rirFloor, 4 - w));
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -1789,9 +2018,15 @@
               var L = targets[m]; return Math.max(a, L ? L.mav - L.mev : 0);
             }, 0);
             var base = Math.max(1, (item.target && item.target.sets) || 3);
-            var sets = asWritten ? base : (isDeload
-              ? Math.max(1, Math.round(base / 2))
-              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            // A style that does not grow sets does not grow them here either. Min-max progresses on
+            // the weight and the reps, which is a thing that happens in the log rather than in the
+            // plan: week four's prescription is week one's, and what changed is what is on the bar.
+            var sets = (asWritten || !style.growSets)
+              ? (isDeload ? Math.max(1, Math.round(base / 2)) : base)
+              : (isDeload
+                ? Math.max(1, Math.round(base / 2))
+                : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            if (style.maxSets) sets = Math.min(sets, style.maxSets);
             // As written means as written: the effort target comes from the plan too, and where the
             // plan does not state one we hold it steady rather than walking it in a week at a time.
             var effort = asWritten
@@ -1818,6 +2053,10 @@
       name: opts.name || blockName(template, opts),
       goal: opts.goal || 'hypertrophy',
       weeks: weeks, shape: shape, daysPerWeek: opts.daysPerWeek || template.length,
+      // How this block is meant to be run, stored on it, because everything downstream - the session
+      // runner's copy, what it asks you to log, how next week's numbers are worked out - has to know
+      // and cannot be asked to guess from the set counts.
+      style: opts.style || null,
       // Stored on the block, not just used to build it, so a later "add a movement mid-block" or
       // "build my next block" carries the same style forward instead of silently reverting to the
       // default the moment nobody is explicitly passing it any more.
@@ -2645,6 +2884,10 @@
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
     var iv = intensityOf(opts.intensity);
+    var style = styleOf(opts.style);
+    // One or two working sets, and never a third, is not a starting point on this style - it is the
+    // prescription. Everything below that would otherwise add a set adds a movement or nothing.
+    var startSets = style.startSets || iv.startSets;
     // Anything brought in is read for its movements and its priorities, and for nothing else. The
     // split below is still ours and still sized to the day count the person asked for.
     var insp = (opts.inspiration && opts.inspiration.length)
@@ -2655,19 +2898,34 @@
     var targets = wants.length
       ? emphasise(opts.targets || defaultTargets(opts.prefs), wants)
       : (opts.targets || defaultTargets(opts.prefs));
-    var split = SPLITS[days];
-    var maxEx = opts.sessionMinutes ? clamp(Math.floor(opts.sessionMinutes / 9), 4, 9) : 6;
+    // The split, and where in the week it falls. Min-max carries its own weekdays because the rest
+    // days are part of the prescription; everything else runs on consecutive days as it always has.
+    var split = (style.toFailure && MINMAX_SPLITS[days]) || SPLITS[days];
+    // 45 to 60 minutes and about six movements. Sets are the thing being spent sparingly on this
+    // style, so a session that runs long is a session with filler in it.
+    var maxEx = opts.sessionMinutes
+      ? clamp(Math.floor(opts.sessionMinutes / 9), style.minEx, style.maxExCap)
+      : (style.toFailure ? 6 : 6);
     var pickOpts = {
       equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded,
       prefer: opts.prefer, custom: opts.custom, preferIds: insp ? insp.pool : null,
+      stableKit: !!style.stableKit,
     };
+    // On a style where a session is meant to be six movements and 45 minutes, maxEx is a ceiling
+    // rather than a first pass: the frequency and MEV fillers below must not quietly add a ninth
+    // movement to a day. On the volume model they still may, which is the behaviour it has always
+    // had - there the movements are the cheap thing and the sets are what is being rationed.
+    // The fillers may go one past the session's own target when a muscle is genuinely short, which
+    // is where "5 to 7 movements" comes from: six is the shape, seven is what covering everything
+    // occasionally costs.
+    var hardCap = style.toFailure ? Math.max(maxEx, style.maxExCap) : Infinity;
     // Reps, rest and tempo for a movement once it has been chosen. A movement they brought keeps the
     // prescription their plan wrote against it - the rep range and the tempo ARE the plan's character,
     // and re-deriving them from a muscle name throws that away for nothing. Sets and proximity to
     // failure are never theirs to set: those are the two things that have to answer to the person's
     // own landmarks and to the week of the block they are standing in.
     function schemeFor(ex, muscle) {
-      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity);
+      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity, style);
       var src = insp && insp.prescriptions[ex.id];
       if (!src) return rs;
       var lo = clamp(+src.repLow || rs.repLow, 1, 40);
@@ -2690,10 +2948,10 @@
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
+          target: { sets: startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
         });
       }
-      return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
+      return { kind: kind, name: name, dayOfWeek: d[2] == null ? i : d[2], exercises: exercises };
     });
 
     // Frequency floor: every muscle at least twice a week, before volume gets topped up at all.
@@ -2718,7 +2976,7 @@
         for (var guard = 0; guard < 2; guard++) {
           var trainedIn = sessionsTraining(m);
           if (trainedIn.length >= 2) break;
-          var spare = template.filter(function (d) { return trainedIn.indexOf(d) === -1; })
+          var spare = template.filter(function (d) { return trainedIn.indexOf(d) === -1 && d.exercises.length < hardCap; })
             .sort(function (a, b) { return a.exercises.length - b.exercises.length; });
           // Prefer a day whose kind this muscle actually belongs on. Only fall back to any spare day
           // (still correct, just a less tidy label) when the split has nowhere else free.
@@ -2732,7 +2990,7 @@
           var rsf = schemeFor(exf, m);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
+            target: { sets: startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
           });
         }
       });
@@ -2756,7 +3014,7 @@
     // movement, and a plan carrying both is a plan that looks like it was assembled by a machine.
     var spare = [];
     if (insp && opts.keepBrought !== false) {
-      var roomCap = maxEx + 4;
+      var roomCap = style.toFailure ? maxEx + 2 : maxEx + 4;
       // Lenient about which of their movements to keep, never about what they can actually do. A
       // movement needing kit this gym has not got, or one they have said no to, is not made an
       // exception of because a PDF used it - the same rule the picking above works to.
@@ -2795,7 +3053,7 @@
         var rsb = schemeFor(exb, prim[0]);
         dest2.exercises.push({
           id: exb.id + '_brought_' + dest2.exercises.length, exerciseId: exb.id, order: dest2.exercises.length,
-          target: { sets: iv.startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
+          target: { sets: startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
         });
       });
     }
@@ -2816,7 +3074,7 @@
         for (var e = 0; e < template[s].exercises.length; e++) {
           var item = template[s].exercises[e];
           var exx = byId(item.exerciseId, opts.custom);
-          if (exx && (exx.primary || []).indexOf(gap.muscle) !== -1 && item.target.sets < 5) {
+          if (exx && (exx.primary || []).indexOf(gap.muscle) !== -1 && item.target.sets < style.maxSets) {
             item.target.sets++; addedThisPass = true; break;
           }
         }
@@ -2826,11 +3084,13 @@
         var ex2 = pickFor(gap.muscle, Object.assign({ used: used }, pickOpts));
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
-        var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
+        var shortest = template.filter(function (d) { return d.exercises.length < hardCap; })
+          .sort(function (a, b) { return a.exercises.length - b.exercises.length; })[0];
+        if (!shortest) { stuck[gap.muscle] = true; continue; }
         var rs2 = schemeFor(ex2, gap.muscle);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
+          target: { sets: startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
         });
       }
     }
@@ -3036,6 +3296,7 @@
       // The style carries forward by default, same as the shape and the days do - it is a standing
       // choice, not a one-off, unless the caller explicitly asks for something else this time.
       intensity: opts.intensity || block.intensity,
+      style: opts.style || block.style,
       name: null,
     }));
     next.previousBlockId = block.id;
@@ -3356,22 +3617,36 @@
   // So the target is reps at an RIR, last time's numbers sit underneath as the reference, and the
   // person picks the weight that hits it. `suggested` is still computed and still explains itself,
   // but it is a note, not a number typed into the box on their behalf.
-  function prefillSets(sessionExercise, logs, custom) {
+  function prefillSets(sessionExercise, logs, custom, opts) {
+    opts = opts || {};
     var t = sessionExercise.target || {};
+    var ex = byId(sessionExercise.exerciseId, custom);
+    var style = styleOf(opts.style);
     var hist = exerciseHistory(logs, sessionExercise.exerciseId);
     var last = hist.length ? hist[hist.length - 1] : null;
     var prevSets = last ? (logs.filter(function (l) { return l.dateISO === last.dateISO; })[0].sets || [])
       .filter(function (s) { return s.exerciseId === sessionExercise.exerciseId && s.done && (!s.type || s.type === 'work'); }) : [];
-    var progressed = prevSets.length ? progressExercise(t, prevSets, byId(sessionExercise.exerciseId, custom)) : null;
+    var progressed = prevSets.length
+      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist })
+      : null;
     var n = (progressed && progressed.sets) || t.sets || 3;
     var out = [];
     for (var i = 0; i < n; i++) {
       var prev = prevSets[i] || prevSets[prevSets.length - 1];
+      // The weight for the top set is what the progression said; the second set is that, backed off,
+      // because a second all-out set at the same load is a set that misses the window by three reps.
+      var lead = progressed ? +progressed.weightKg || 0 : 0;
+      var planned = style.toFailure && lead
+        ? (i === 0 ? lead : backOffLoad(lead, ex))
+        : 0;
       out.push({
         setIndex: i, exerciseId: sessionExercise.exerciseId, type: 'work',
-        weightKg: 0,
+        weightKg: planned,
         reps: null, targetReps: (t.repLow || 8) + '-' + (t.repHigh || 12), rir: null, done: false,
         lastTime: prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null,
+        // What this row is FOR, so the runner can label a backed-off second set as the deliberate
+        // thing it is rather than leaving somebody to wonder why the app dropped their weight.
+        backOff: !!(style.toFailure && lead && i > 0),
       });
     }
     return {
@@ -3379,6 +3654,7 @@
       note: progressed ? progressed.reason : null,
       action: progressed ? progressed.action : null,
       suggested: progressed ? progressed.weightKg : null,
+      stalled: progressed ? progressed.stalled || null : null,
     };
   }
 
@@ -3416,6 +3692,8 @@
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
+    STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
+    backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,

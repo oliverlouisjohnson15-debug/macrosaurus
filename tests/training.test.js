@@ -671,6 +671,172 @@ test('days collected from separate screenshots do not share exercise ids', () =>
   assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
 });
 
+// ---- min-max ------------------------------------------------------------------------------------
+// The house method: four to ten hard sets a muscle a week, one or two per movement, every one of them
+// to failure, on kit that makes failing safe. Everything below is a rule of the method rather than a
+// preference, so each of these is a thing that must not drift.
+
+const minmax = (opts) => T.generateBlock(Object.assign({
+  style: 'minmax', daysPerWeek: 5, weeks: 4, sessionMinutes: 60,
+  targets: T.defaultTargets({ style: 'minmax' }),
+}, opts || {}));
+
+test('no muscle is programmed more than ten hard sets a week', () => {
+  for (const days of [2, 3, 4, 5, 6]) {
+    const block = minmax({ daysPerWeek: days });
+    for (let w = 1; w <= 4; w++) {
+      const vol = T.blockWeekVolume(block, w);
+      // The ceiling is the whole method and applies to everything.
+      for (const m of T.MUSCLES) {
+        assert.ok(vol[m] <= 10, `${T.MUSCLE_LABEL[m]} got ${vol[m]} sets in week ${w} on ${days} days`);
+      }
+      // The floor is about the muscle GROUPS somebody trains on purpose, and it is only claimable
+      // from four days up: seven movements at two sets, twice a week, cannot reach seventeen
+      // muscles, and pretending otherwise would mean breaking one of the caps to do it. Forearms,
+      // lower back and the adductors take what falls out of everything else, as they always have.
+      if (days >= 4) {
+        for (const m of ['ch', 'lt', 'ub', 'sd', 'bi', 'tr', 'qu', 'ha', 'gl']) {
+          assert.ok(vol[m] >= 4, `${T.MUSCLE_LABEL[m]} got ${vol[m]} sets in week ${w} on ${days} days`);
+        }
+      }
+    }
+  }
+});
+
+test('no movement is ever prescribed more than two working sets', () => {
+  const block = minmax();
+  for (const s of block.sessions) {
+    for (const e of s.exercises) {
+      assert.ok(e.target.sets >= 1 && e.target.sets <= 2, `${T.byId(e.exerciseId).name} got ${e.target.sets} sets`);
+    }
+  }
+});
+
+test('every working set is prescribed to failure', () => {
+  const block = minmax({ shape: 'build4' });
+  for (const s of block.sessions) {
+    for (const e of s.exercises) assert.equal(e.target.rir, 0, `${s.name} week ${s.week} asks for ${e.target.rir} RIR`);
+  }
+});
+
+test('week four is week one: the progression is not in the plan', () => {
+  const block = minmax();
+  const setsIn = (w) => T.weekSessions(block, w).reduce((a, s) => a + s.exercises.reduce((x, e) => x + e.target.sets, 0), 0);
+  assert.equal(setsIn(4), setsIn(1), 'sets must not climb on a style with nothing to add');
+});
+
+test('the week is five sessions inside seven days, with the rest days where they belong', () => {
+  const block = minmax({ daysPerWeek: 5 });
+  const week = T.weekSessions(block, 1).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  assert.deepEqual(week.map(s => s.dayOfWeek), [0, 1, 3, 4, 5], 'upper, lower, rest, upper, lower, arms, rest');
+  assert.deepEqual(week.map(s => s.kind), ['upper', 'lower', 'upper', 'lower', 'arms']);
+});
+
+test('a session is five to seven movements', () => {
+  for (const mins of [40, 60, 80]) {
+    const block = minmax({ sessionMinutes: mins });
+    for (const s of T.weekSessions(block, 1)) {
+      assert.ok(s.exercises.length >= 5 && s.exercises.length <= 7, `${s.name} has ${s.exercises.length} movements at ${mins} minutes`);
+    }
+  }
+});
+
+test('the rep windows are the two the method runs on', () => {
+  const block = minmax();
+  for (const s of T.weekSessions(block, 1)) {
+    for (const e of s.exercises) {
+      const ex = T.byId(e.exerciseId);
+      if (ex.pattern === 'core') continue;
+      const window = e.target.repLow + '-' + e.target.repHigh;
+      assert.ok(window === '6-9' || window === '10-15', `${ex.name} got ${window}`);
+    }
+  }
+});
+
+test('most of the plan is kit you can fail on safely', () => {
+  const block = minmax();
+  const all = T.weekSessions(block, 1).reduce((a, s) => a.concat(s.exercises.map(e => T.byId(e.exerciseId))), []);
+  const guided = all.filter(x => ['machine', 'cable', 'smith', 'trapbar'].includes(x.equipment));
+  assert.ok(guided.length / all.length >= 0.7, `only ${guided.length} of ${all.length} movements are guided`);
+  // And the volume model must be untouched by any of this.
+  const plain = T.generateBlock({ daysPerWeek: 4, weeks: 4 });
+  const plainAll = T.weekSessions(plain, 1).reduce((a, s) => a.concat(s.exercises.map(e => T.byId(e.exerciseId))), []);
+  assert.ok(plainAll.some(x => x.equipment === 'barbell'), 'the volume model still reaches for a barbell');
+});
+
+test('a block built before styles existed still behaves the way it was built', () => {
+  const legacy = T.generateBlock({ daysPerWeek: 4, weeks: 4, intensity: 'high' });
+  assert.equal(legacy.style, null);
+  const setsIn = (w) => T.weekSessions(legacy, w).reduce((a, s) => a + s.exercises.reduce((x, e) => x + e.target.sets, 0), 0);
+  assert.ok(setsIn(3) > setsIn(1), 'the volume model still adds a set a week');
+  const w1 = T.weekSessions(legacy, 1)[0].exercises[0];
+  assert.ok(w1.target.rir > 0, 'and still starts short of failure');
+});
+
+// ---- min-max progression -------------------------------------------------------------------------
+// Dynamic double progression off the top set. A set taken to genuine failure has already told you
+// what a percentage table was guessing at, so there are three outcomes and no arithmetic.
+
+const hack = () => T.byId('hack_squat');
+const window69 = { sets: 2, repLow: 6, repHigh: 9, rir: 0 };
+const didSet = (w, r) => [{ done: true, type: 'work', weightKg: w, reps: r }];
+
+test('hitting the top of the window puts the weight up by the smallest jump the kit allows', () => {
+  const p = T.progressExercise(window69, didSet(100, 9), hack(), { style: 'minmax' });
+  assert.equal(p.action, 'load');
+  assert.equal(p.weightKg, 105, 'lower body moves in fives');
+  const upper = T.progressExercise(window69, didSet(100, 9), T.byId('bb_bench'), { style: 'minmax' });
+  assert.equal(upper.weightKg, 102.5, 'upper body in 2.5s');
+});
+
+test('landing inside the window holds the weight and asks for one more rep', () => {
+  const p = T.progressExercise(window69, didSet(100, 7), hack(), { style: 'minmax' });
+  assert.equal(p.action, 'reps');
+  assert.equal(p.weightKg, 100);
+  assert.ok(/\b8\b/.test(p.reason), `should name the rep to beat: ${p.reason}`);
+});
+
+test('missing the floor takes ten percent off', () => {
+  const p = T.progressExercise(window69, didSet(100, 4), hack(), { style: 'minmax' });
+  assert.equal(p.action, 'lighter');
+  assert.equal(p.weightKg, 90);
+});
+
+test('three identical sessions is a plateau, and the answer is a different movement', () => {
+  const flat = [{ topWeight: 100, topReps: 7 }, { topWeight: 100, topReps: 7 }, { topWeight: 100, topReps: 7 }];
+  const p = T.progressExercise(window69, didSet(100, 7), hack(), { style: 'minmax', history: flat });
+  assert.equal(p.action, 'swap');
+  assert.ok(p.stalled);
+  // A rep either side is somebody still moving, and not worth interrupting for.
+  const moving = [{ topWeight: 100, topReps: 7 }, { topWeight: 100, topReps: 8 }, { topWeight: 100, topReps: 8 }];
+  assert.equal(T.minmaxPlateau(moving), null);
+  const subs = T.substituteFor('hack_squat', { style: 'minmax' });
+  assert.ok(subs.length > 0 && subs.every(x => x.id !== 'hack_squat'), 'and something to swap it for');
+});
+
+test('the second set is backed off, because the first one was to failure', () => {
+  assert.equal(T.backOffLoad(100, hack()), 85);
+  const pre = T.prefillSets(
+    { exerciseId: 'hack_squat', target: window69 },
+    [{ dateISO: '2026-08-01', sets: [{ exerciseId: 'hack_squat', done: true, type: 'work', weightKg: 100, reps: 7 }] }],
+    [], { style: 'minmax' });
+  assert.equal(pre.sets.length, 2);
+  assert.equal(pre.sets[0].weightKg, 100, 'the top set holds at the weight that is still being beaten');
+  assert.equal(pre.sets[1].weightKg, 85, 'and the second comes down 15%');
+  assert.equal(pre.sets[1].backOff, true);
+});
+
+test('the volume model keeps the progression it always had', () => {
+  const p = T.progressExercise({ sets: 3, repLow: 8, repHigh: 12, rir: 2 },
+    [{ done: true, type: 'work', weightKg: 100, reps: 12, rir: 2 }], T.byId('bb_bench'));
+  assert.equal(p.action, 'load');
+  assert.ok(p.weightKg > 100);
+  const held = T.prefillSets({ exerciseId: 'bb_bench', target: { sets: 3, repLow: 8, repHigh: 12, rir: 2 } },
+    [{ dateISO: '2026-08-01', sets: [{ exerciseId: 'bb_bench', done: true, type: 'work', weightKg: 100, reps: 10, rir: 2 }] }], []);
+  assert.equal(held.sets[0].weightKg, 0, 'it has never put a number in the weight box, and still does not');
+  assert.ok(!held.sets[0].backOff);
+});
+
 // ---- a brought plan as inspiration ---------------------------------------------------------------
 // What somebody brings is a set of choices worth keeping (the movements, the rep ranges, what the
 // plan was built around) wrapped around a set that is not (how many days it was photographed across,

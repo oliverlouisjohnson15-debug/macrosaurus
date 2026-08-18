@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.left-2\.5{left:.625rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.-my-2{margin-top:-.5rem;margin-bottom:-.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[5px\]{gap:5px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-2{row-gap:.5rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0{padding-top:0;padding-bottom:0}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.pt-\[13px\]{padding-top:13px}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[20px\]{font-size:20px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7\.5px\]{font-size:7.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.left-2\.5{left:.625rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.-my-2{margin-top:-.5rem;margin-bottom:-.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[5px\]{gap:5px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-2{row-gap:.5rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0{padding-top:0;padding-bottom:0}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-11{padding-left:2.75rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.pt-\[13px\]{padding-top:13px}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[20px\]{font-size:20px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7\.5px\]{font-size:7.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ============ MACROSAURUS · PAPER TERRARIUM DESIGN SYSTEM ============ */
@@ -6018,6 +6018,74 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Beginners grow on less and recover from less; advanced lifters need more to move the needle.
   var EXPERIENCE_SCALE = { beginner: 0.7, intermediate: 1, advanced: 1.15 };
 
+  /* ---- the min-max landmarks -------------------------------------------------------------------
+   * A second, deliberately small volume model, for the style that trades every extra set for effort.
+   * The premise is not that the numbers above are wrong; it is that they describe volume taken to a
+   * few reps short of failure, and that a set taken to genuine failure is not the same set. Run that
+   * way, "most muscles get six sets a week, some get four, and a few sit in the 8 to 10 range".
+   *
+   * So this is the whole method's volume in one table: nothing sits under 3 or over 10, the muscles
+   * that get a session to themselves (delts, arms, calves) sit at the top of the range, and the big
+   * movers that also take the systemic load sit at the bottom. It is NOT experience-scaled - an
+   * advanced lifter on this style does not get more sets, they get harder ones - though a person can
+   * still override any individual muscle, exactly as they can with the landmarks above.
+   */
+  var MINMAX_LANDMARKS = {
+    ch: { mev: 4, mav: 6, mrv: 8 },
+    fd: { mev: 3, mav: 4, mrv: 6 },     // every press already pays it
+    sd: { mev: 6, mav: 8, mrv: 10 },    // small, fast to recover, and it gets its own day
+    rd: { mev: 4, mav: 6, mrv: 8 },
+    lt: { mev: 4, mav: 6, mrv: 8 },
+    ub: { mev: 4, mav: 6, mrv: 8 },
+    lb: { mev: 3, mav: 4, mrv: 6 },
+    bi: { mev: 6, mav: 8, mrv: 10 },
+    tr: { mev: 6, mav: 8, mrv: 10 },
+    fa: { mev: 2, mav: 4, mrv: 6 },   // every pull already pays it, and grip is the limit long before volume is
+    ab: { mev: 4, mav: 6, mrv: 8 },
+    ob: { mev: 3, mav: 4, mrv: 6 },
+    qu: { mev: 4, mav: 6, mrv: 8 },
+    ha: { mev: 4, mav: 6, mrv: 8 },
+    gl: { mev: 4, mav: 6, mrv: 8 },
+    ad: { mev: 3, mav: 4, mrv: 6 },
+    ca: { mev: 4, mav: 8, mrv: 10 },
+  };
+
+  /* ---- training styles -------------------------------------------------------------------------
+   * Everything that changes when somebody trains a different way, in one table, so the difference
+   * between the two is a thing you can read rather than a set of conditionals scattered through the
+   * generator.
+   *
+   * 'landmarks' is the volume-first model this app was built on: start near MEV, add a set a week to
+   * whichever muscle has the most room, walk proximity to failure down from 3 reps in reserve to 0
+   * by the last building week, and never breach MRV.
+   *
+   * 'minmax' is the other trade. Volume is capped hard and low, every working set is taken to
+   * genuine failure, and progression comes from load and reps rather than from sets - there are no
+   * sets to add. It leans on stable kit because a set taken past the point where form can hold is
+   * not a harder set, it is an injury, and a machine is what makes the last rep safe to attempt.
+   *
+   * `sets` is the whole prescription for a movement: everything starts at 2 working sets and nothing
+   * may ever exceed 2, so the generator's volume passes trade in movements rather than in sets.
+   */
+  var STYLES = {
+    landmarks: {
+      key: 'landmarks', label: 'Volume landmarks',
+      startSets: null,          // taken from the intensity setting, as it always was
+      maxSets: 5, growSets: true, toFailure: false,
+      landmarks: null, stableKit: false, minEx: 4, maxExCap: 9,
+      blurb: 'Start near the least volume that grows a muscle, add a set a week where there is room, and finish the block close to failure.',
+    },
+    minmax: {
+      key: 'minmax', label: 'Min-max',
+      startSets: 2, maxSets: 2, growSets: false, toFailure: true,
+      landmarks: MINMAX_LANDMARKS, stableKit: true, minEx: 5, maxExCap: 7,
+      blurb: 'Four to ten hard sets a muscle a week, one or two per movement, every one of them to failure. Progress comes from the weight and the reps, never from more sets.',
+    },
+  };
+  // Absent means the model this app started with: a block saved before styles existed was built that
+  // way and must keep behaving that way, whatever the wizard now defaults to.
+  function styleOf(key) { return STYLES[key] || STYLES.landmarks; }
+
   var PRIMARY_WEIGHT = 1;
   var SECONDARY_WEIGHT = 0.5;
 
@@ -6888,12 +6956,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Per-user landmarks. Experience scales the productive band; a user who has completed blocks
   // gets their own tuned numbers layered on top (see tuneTargets).
   function defaultTargets(prefs) {
-    var scale = EXPERIENCE_SCALE[(prefs && prefs.experience) || 'intermediate'] || 1;
+    var style = styleOf(prefs && prefs.style);
+    // Min-max's numbers are the method, not a starting point to be scaled: an advanced lifter on it
+    // does not get more sets, they get harder ones. Anything a person has set for themselves still
+    // wins below, exactly as it does on the other model.
+    var scale = style.landmarks ? 1 : (EXPERIENCE_SCALE[(prefs && prefs.experience) || 'intermediate'] || 1);
+    var table = style.landmarks || LANDMARKS;
     var out = {};
     MUSCLES.forEach(function (m) {
-      var L = LANDMARKS[m];
+      var L = table[m];
       out[m] = {
-        mev: Math.max(3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
+        mev: Math.max(scale === 1 ? 1 : 3, Math.round(L.mev * (scale < 1 ? scale + 0.15 : 1))),
         mav: Math.round(L.mav * scale),
         mrv: Math.round(L.mrv * scale),
       };
@@ -7218,22 +7291,122 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Double progression, as the priority order in the plan: reps inside the range, then load with a
   // reset to the bottom of the range, then a set. The load jump is relative because +2.5kg means
   // something different on a leg press and a lateral raise.
-  function loadStep(ex, weightKg) {
+  var LOWER_BODY = ['qu', 'ha', 'gl', 'ad', 'ca'];
+  // The smallest jump this movement can actually be loaded by. Dumbbells come in pairs and jump in
+  // twos; everything else moves in 2.5s.
+  function loadUnit(ex) { return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5; }
+  function isLowerBody(ex) {
+    return !!(ex && (ex.primary || []).filter(function (m) { return LOWER_BODY.indexOf(m) !== -1; }).length);
+  }
+  function loadStep(ex, weightKg, style) {
     var w = +weightKg || 0;
     if (!w) return 0;
+    var inc = loadUnit(ex);
+    // On a style where every set is already all-out, a percentage jump is the wrong tool: there is
+    // no reserve to absorb it. The step is the smallest the kit allows - one notch upstairs, two on
+    // the big lower-body movements, which is the 1.25-2.5kg / 2.5-5kg the method is written around.
+    if (styleOf(style).toFailure) return isLowerBody(ex) ? inc * 2 : inc;
     var pct = (ex && (ex.pattern === 'isolation' || ex.pattern === 'core')) ? 0.04 : 0.025;
     var raw = w * pct;
-    var inc = (ex && (ex.equipment === 'dumbbell')) ? 2 : (ex && ex.equipment === 'machine' ? 2.5 : 2.5);
     return Math.max(inc, Math.round(raw / inc) * inc);
+  }
+
+  // The second set, when a movement has one. The first set was taken to genuine failure, so asking
+  // for the same weight again is asking for a set that lands three reps under the window and teaches
+  // nobody anything. Fifteen percent off puts the second set back inside the window it is being
+  // judged against, which is the only way it counts as a second working set at all.
+  function backOffLoad(topKg, ex) {
+    var w = +topKg || 0;
+    if (!w) return 0;
+    var inc = loadUnit(ex);
+    return Math.max(inc, Math.round((w * 0.85) / inc) * inc);
+  }
+
+  // Three sessions on identical weight AND identical reps is a plateau, and on this style it is not
+  // a volume problem: there is no volume to take away. The answer is a different movement - the same
+  // job done by a slightly different pattern, which resets the progression cycle without resetting
+  // the person's training. Deliberately stricter than detectStall's e1RM test: a rep either side is
+  // somebody still moving, and only a dead-flat repeat is worth interrupting for.
+  function minmaxPlateau(history) {
+    var h = (history || []).slice(-3);
+    if (h.length < 3) return null;
+    var w = h[0].topWeight, r = h[0].topReps;
+    if (!w || !r) return null;
+    var flat = h.every(function (x) { return x.topWeight === w && x.topReps === r; });
+    if (!flat) return null;
+    return { stalled: true, sessions: h.length, weightKg: w, reps: r };
+  }
+
+  // What to swap a stalled movement for: the same job, a different pattern. Same primary muscle
+  // first, then whatever the shortlist would offer anybody training that muscle, minus the movement
+  // that stalled and anything already in the session.
+  function substituteFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom);
+    if (!ex) return [];
+    var muscle = (ex.primary || [])[0];
+    if (!muscle) return [];
+    var out = suggestFor(muscle, {
+      equipment: opts.equipment, dislikes: (opts.dislikes || []).concat([exerciseId]),
+      custom: opts.custom, currentExerciseIds: (opts.currentExerciseIds || []).concat([exerciseId]),
+      limit: (opts.limit || 3) + 2,
+    }).filter(function (c) { return c.id !== exerciseId; });
+    // Same shape of movement first: swapping a chest press for a fly is a different exercise, not
+    // the same exercise done another way.
+    var wantStable = styleOf(opts.style).stableKit;
+    out.sort(function (a, b) {
+      var score = function (c) {
+        return (c.pattern === ex.pattern ? 2 : 0) + (wantStable && STABLE_KIT[c.equipment] ? 1 : 0);
+      };
+      return score(b) - score(a);
+    });
+    return out.slice(0, opts.limit || 3);
   }
 
   // Given last week's prescription and what was actually done, what should next week say?
   // Returns { sets, repLow, repHigh, rir, weightKg, reason, action }.
-  function progressExercise(prescription, performedSets, ex) {
+  function progressExercise(prescription, performedSets, ex, opts) {
+    opts = opts || {};
     var t = Object.assign({ sets: 3, repLow: 8, repHigh: 12, rir: 2 }, prescription || {});
     var done = (performedSets || []).filter(function (s) { return s.done && (!s.type || s.type === 'work'); });
     var next = Object.assign({}, t);
     if (!done.length) return Object.assign(next, { action: 'hold', reason: 'Nothing logged last time, so this repeats.' });
+
+    /* ---- min-max: dynamic double progression off the top set --------------------------------
+     * A set taken to genuine failure has already told you everything a percentage table was
+     * guessing at, so there is nothing to calculate against a one-rep max: the reps you got at the
+     * weight you used ARE the reading. Three outcomes, and only three.
+     *
+     * The set being read is the FIRST working set, because that is the all-out one. The second, if
+     * there is one, was taken at a deliberately lighter weight (see backOffLoad) and judging next
+     * week on it would walk the load down a notch every week.
+     */
+    if (styleOf(opts.style).toFailure) {
+      var plateau = minmaxPlateau(opts.history);
+      var lead = done[0];
+      var w = +lead.weightKg || 0;
+      var reps = +lead.reps || 0;
+      next.weightKg = w;
+      if (plateau) {
+        return Object.assign(next, {
+          action: 'swap', stalled: plateau,
+          reason: 'Three sessions at the same weight for the same ' + plateau.reps + ' reps. That is not a volume problem and there is no volume here to take away, so change the movement rather than grind at this one.',
+        });
+      }
+      if (!w) return Object.assign(next, { action: 'hold', reason: 'No weight logged last time, so this repeats.' });
+      // Ceiling hit: the top of the window, in form, at failure. Smallest jump the kit allows.
+      if (reps >= t.repHigh) {
+        next.weightKg = w + loadStep(ex, w, 'minmax');
+        return Object.assign(next, { action: 'load', reason: 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
+      }
+      // Inside the window: the weight is right, so the job is one more rep than last time.
+      if (reps >= t.repLow) {
+        return Object.assign(next, { action: 'reps', reason: 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
+      }
+      // Under the floor: too heavy to be a stimulus rather than a test. Ten percent off.
+      next.weightKg = Math.max(loadUnit(ex), Math.round((w * 0.9) / loadUnit(ex)) * loadUnit(ex));
+      return Object.assign(next, { action: 'lighter', reason: 'Only ' + reps + ' last time, under the ' + t.repLow + ' this window needs. Ten percent off, so the set does some work rather than just being heavy.' });
+    }
 
     var topWeight = Math.max.apply(null, done.map(function (s) { return +s.weightKg || 0; }));
     var atTop = done.filter(function (s) { return (+s.weightKg || 0) >= topWeight; });
@@ -7358,6 +7531,29 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     5: [['push', 'Push A'], ['pull', 'Pull A'], ['legs', 'Legs A'], ['upper', 'Upper B'], ['lower', 'Lower B']],
     6: [['push', 'Push A'], ['pull', 'Pull A'], ['legs', 'Legs A'], ['push', 'Push B'], ['pull', 'Pull B'], ['legs', 'Legs B']],
   };
+  /* The min-max week. Five sessions inside a seven-day microcycle, and the two rest days are part of
+   * the prescription rather than what is left over: upper, lower, rest, upper, lower, arms, rest.
+   * Every muscle still gets trained twice (the arms day is the second exposure for delts and arms),
+   * and the systemic load of training everything to failure gets a day off in the middle of the week
+   * and a day off at the end of it.
+   *
+   * Other day counts are allowed, because somebody who can only train three days should still be
+   * able to train this way, but five is the shape the method is written for and the wizard says so.
+   * The weekday numbers are part of the split, not an afterthought: the rest days only do their job
+   * where they actually fall.
+   */
+  var MINMAX_SPLITS = {
+    // Two and three days go full body, for the same reason they do on the other model: an upper /
+    // lower week run twice gives the legs one session, and one session of two-set movements is not
+    // four sets of quads however hard they are taken. Spaced out, because the rest days are the
+    // half of this method that does the recovering.
+    2: [['full', 'Full body A', 0], ['full', 'Full body B', 3]],
+    3: [['full', 'Full body A', 0], ['full', 'Full body B', 2], ['full', 'Full body C', 4]],
+    4: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4]],
+    5: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['arms', 'Arms and delts', 5]],
+    6: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['arms', 'Arms and delts', 2], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['full', 'Whatever is behind', 5]],
+  };
+
   // Which muscles each day type is responsible for, in the order they should be trained: the
   // biggest compound first, isolation after, so the fatiguing work happens fresh.
   var DAY_MUSCLES = {
@@ -7367,6 +7563,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     push: ['ch', 'fd', 'sd', 'tr'],
     pull: ['lt', 'ub', 'rd', 'bi', 'fa'],
     legs: ['qu', 'ha', 'gl', 'ca', 'ad'],
+    // The day the min-max week ends on. Delts and arms recover fastest and carry the most weekly
+    // sets under that model, and giving them a session of their own is what buys the two big days
+    // either side of it the room to be short.
+    arms: ['sd', 'bi', 'tr', 'rd', 'fa'],
   };
   // Which day kinds are a sane home for a muscle DAY_MUSCLES does not seed anywhere (front delts,
   // lower back, forearms, and on a push/pull/legs split, abs and obliques too). Read by
@@ -7376,9 +7576,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // day kind is fine, which is true of core work: splitKind never weighs abs or obliques either way.
   var DAY_KIND_HOME = {
     ch: { push: 1, upper: 1, full: 1 }, fd: { push: 1, upper: 1, full: 1 },
-    sd: { push: 1, upper: 1, full: 1 }, tr: { push: 1, upper: 1, full: 1 },
+    sd: { push: 1, upper: 1, full: 1, arms: 1 }, tr: { push: 1, upper: 1, full: 1, arms: 1 },
     lt: { pull: 1, upper: 1, full: 1 }, ub: { pull: 1, upper: 1, full: 1 },
-    rd: { pull: 1, upper: 1, full: 1 }, bi: { pull: 1, upper: 1, full: 1 }, fa: { pull: 1, upper: 1, full: 1 },
+    rd: { pull: 1, upper: 1, full: 1, arms: 1 }, bi: { pull: 1, upper: 1, full: 1, arms: 1 }, fa: { pull: 1, upper: 1, full: 1, arms: 1 },
     qu: { legs: 1, lower: 1, full: 1 }, ha: { legs: 1, lower: 1, full: 1 }, gl: { legs: 1, lower: 1, full: 1 },
     ca: { legs: 1, lower: 1, full: 1 }, ad: { legs: 1, lower: 1, full: 1 }, lb: { legs: 1, lower: 1, full: 1 },
     ab: null, ob: null,
@@ -7460,6 +7660,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { equipment: equipment, prefer: base.prefer || [], excluded: excluded, repBias: base.repBias || 0 };
   }
 
+  // Kit that holds the path of the bar for you, so the last rep of a set to failure is a rep that
+  // stops rather than a rep that goes wrong. Trap bar counts: it is the one loaded free-weight
+  // pattern where failing is a matter of setting it down.
+  var STABLE_KIT = { machine: 1, cable: 1, smith: 1, trapbar: 1 };
+
   function pickFor(muscle, opts) {
     var have = opts.equipment && opts.equipment.length ? opts.equipment : null;
     var dislikes = {}; (opts.dislikes || []).forEach(function (d) { dislikes[d] = 1; });
@@ -7488,6 +7693,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       var anchorRank = anchors.indexOf(e.id);
       var score = anchorRank >= 0 ? (100 - anchorRank * 10) : 0;
       if (prefer.indexOf(e.equipment) !== -1) score += 6;
+      // Training to failure changes what a good exercise is. The last rep of an all-out set is the
+      // one where form goes, and on a barbell that is where the injury lives; on a machine or a
+      // cable the worst case is that the weight stops moving. So a stable movement is worth a big
+      // swing here - enough to take a machine press over a barbell one, which is exactly the trade
+      // the method asks for, and not enough to reach for something that does not train the muscle.
+      // Big enough to outrank the anchor order entirely, because that is what the method asks for:
+      // a guided movement is not a tiebreak here, it is the requirement. Anchor rank still decides
+      // between two machines. Bodyweight sits in the middle - nothing to drop on yourself, but not
+      // loadable in the small steps the progression model runs on either.
+      if (opts.stableKit) score += STABLE_KIT[e.equipment] ? 120 : (e.equipment === 'bodyweight' ? 40 : 0);
       if (preferIds[e.id] !== undefined) score += 1000 - Math.min(preferIds[e.id], 500);
       if (score > bestScore) { bestScore = score; best = e; }
     }
@@ -7557,10 +7772,20 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   };
   function intensityOf(key) { return INTENSITY[key] || INTENSITY.high; }
 
-  function repScheme(ex, muscle, bias, intensity) {
+  function repScheme(ex, muscle, bias, intensity, style) {
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
     var iv = intensityOf(intensity);
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+    // Min-max runs two windows and nothing else, because the window IS the progression model: reach
+    // the top of it in good form and the weight goes up, fall out of the bottom and it comes down.
+    // Heavy compounds get 6 to 9, everything else 10 to 15. Rest is long, because one set decides
+    // the movement and a set taken to failure on a half-recovered system is a wasted one.
+    if (styleOf(style && style.key ? style.key : style).toFailure) {
+      if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 90 };
+      return compound
+        ? { repLow: 6 + b, repHigh: 9 + b, restSec: 180 }
+        : { repLow: 10 + b, repHigh: 15 + b, restSec: 120 };
+    }
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
     // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
     // (5-10 majority, "3/4 of your training" per the RIR-based programme's own rep-range chapter)
@@ -7703,13 +7928,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
 
     var asWritten = !!SHAPES[shape].asWritten;
+    var style = styleOf(opts.style);
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
       // Walks 3-2-1-0 on the default 'high' intensity: the final building week lands at true failure
       // (0 RIR), not a floor of 1. Stopping short of failure every week is the thing "high intensity"
       // is supposed to rule out. 'moderate' keeps the old floor of 1 for anyone who wants it.
-      var rir = isDeload ? 4 : Math.max(iv.rirFloor, 4 - w);
+      // On min-max there is nothing to walk down: the first set of week one is already an all-out
+      // set, and that is the point of it. A lighter week, if the shape asks for one, is the only
+      // week that stops short.
+      var rir = style.toFailure ? (isDeload ? 2 : 0) : (isDeload ? 4 : Math.max(iv.rirFloor, 4 - w));
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -7728,9 +7957,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
               var L = targets[m]; return Math.max(a, L ? L.mav - L.mev : 0);
             }, 0);
             var base = Math.max(1, (item.target && item.target.sets) || 3);
-            var sets = asWritten ? base : (isDeload
-              ? Math.max(1, Math.round(base / 2))
-              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            // A style that does not grow sets does not grow them here either. Min-max progresses on
+            // the weight and the reps, which is a thing that happens in the log rather than in the
+            // plan: week four's prescription is week one's, and what changed is what is on the bar.
+            var sets = (asWritten || !style.growSets)
+              ? (isDeload ? Math.max(1, Math.round(base / 2)) : base)
+              : (isDeload
+                ? Math.max(1, Math.round(base / 2))
+                : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            if (style.maxSets) sets = Math.min(sets, style.maxSets);
             // As written means as written: the effort target comes from the plan too, and where the
             // plan does not state one we hold it steady rather than walking it in a week at a time.
             var effort = asWritten
@@ -7757,6 +7992,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       name: opts.name || blockName(template, opts),
       goal: opts.goal || 'hypertrophy',
       weeks: weeks, shape: shape, daysPerWeek: opts.daysPerWeek || template.length,
+      // How this block is meant to be run, stored on it, because everything downstream - the session
+      // runner's copy, what it asks you to log, how next week's numbers are worked out - has to know
+      // and cannot be asked to guess from the set counts.
+      style: opts.style || null,
       // Stored on the block, not just used to build it, so a later "add a movement mid-block" or
       // "build my next block" carries the same style forward instead of silently reverting to the
       // default the moment nobody is explicitly passing it any more.
@@ -8584,6 +8823,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
     var iv = intensityOf(opts.intensity);
+    var style = styleOf(opts.style);
+    // One or two working sets, and never a third, is not a starting point on this style - it is the
+    // prescription. Everything below that would otherwise add a set adds a movement or nothing.
+    var startSets = style.startSets || iv.startSets;
     // Anything brought in is read for its movements and its priorities, and for nothing else. The
     // split below is still ours and still sized to the day count the person asked for.
     var insp = (opts.inspiration && opts.inspiration.length)
@@ -8594,19 +8837,34 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var targets = wants.length
       ? emphasise(opts.targets || defaultTargets(opts.prefs), wants)
       : (opts.targets || defaultTargets(opts.prefs));
-    var split = SPLITS[days];
-    var maxEx = opts.sessionMinutes ? clamp(Math.floor(opts.sessionMinutes / 9), 4, 9) : 6;
+    // The split, and where in the week it falls. Min-max carries its own weekdays because the rest
+    // days are part of the prescription; everything else runs on consecutive days as it always has.
+    var split = (style.toFailure && MINMAX_SPLITS[days]) || SPLITS[days];
+    // 45 to 60 minutes and about six movements. Sets are the thing being spent sparingly on this
+    // style, so a session that runs long is a session with filler in it.
+    var maxEx = opts.sessionMinutes
+      ? clamp(Math.floor(opts.sessionMinutes / 9), style.minEx, style.maxExCap)
+      : (style.toFailure ? 6 : 6);
     var pickOpts = {
       equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded,
       prefer: opts.prefer, custom: opts.custom, preferIds: insp ? insp.pool : null,
+      stableKit: !!style.stableKit,
     };
+    // On a style where a session is meant to be six movements and 45 minutes, maxEx is a ceiling
+    // rather than a first pass: the frequency and MEV fillers below must not quietly add a ninth
+    // movement to a day. On the volume model they still may, which is the behaviour it has always
+    // had - there the movements are the cheap thing and the sets are what is being rationed.
+    // The fillers may go one past the session's own target when a muscle is genuinely short, which
+    // is where "5 to 7 movements" comes from: six is the shape, seven is what covering everything
+    // occasionally costs.
+    var hardCap = style.toFailure ? Math.max(maxEx, style.maxExCap) : Infinity;
     // Reps, rest and tempo for a movement once it has been chosen. A movement they brought keeps the
     // prescription their plan wrote against it - the rep range and the tempo ARE the plan's character,
     // and re-deriving them from a muscle name throws that away for nothing. Sets and proximity to
     // failure are never theirs to set: those are the two things that have to answer to the person's
     // own landmarks and to the week of the block they are standing in.
     function schemeFor(ex, muscle) {
-      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity);
+      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity, style);
       var src = insp && insp.prescriptions[ex.id];
       if (!src) return rs;
       var lo = clamp(+src.repLow || rs.repLow, 1, 40);
@@ -8629,10 +8887,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
+          target: { sets: startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
         });
       }
-      return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
+      return { kind: kind, name: name, dayOfWeek: d[2] == null ? i : d[2], exercises: exercises };
     });
 
     // Frequency floor: every muscle at least twice a week, before volume gets topped up at all.
@@ -8657,7 +8915,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         for (var guard = 0; guard < 2; guard++) {
           var trainedIn = sessionsTraining(m);
           if (trainedIn.length >= 2) break;
-          var spare = template.filter(function (d) { return trainedIn.indexOf(d) === -1; })
+          var spare = template.filter(function (d) { return trainedIn.indexOf(d) === -1 && d.exercises.length < hardCap; })
             .sort(function (a, b) { return a.exercises.length - b.exercises.length; });
           // Prefer a day whose kind this muscle actually belongs on. Only fall back to any spare day
           // (still correct, just a less tidy label) when the split has nowhere else free.
@@ -8671,7 +8929,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
           var rsf = schemeFor(exf, m);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
+            target: { sets: startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
           });
         }
       });
@@ -8695,7 +8953,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // movement, and a plan carrying both is a plan that looks like it was assembled by a machine.
     var spare = [];
     if (insp && opts.keepBrought !== false) {
-      var roomCap = maxEx + 4;
+      var roomCap = style.toFailure ? maxEx + 2 : maxEx + 4;
       // Lenient about which of their movements to keep, never about what they can actually do. A
       // movement needing kit this gym has not got, or one they have said no to, is not made an
       // exception of because a PDF used it - the same rule the picking above works to.
@@ -8734,7 +8992,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         var rsb = schemeFor(exb, prim[0]);
         dest2.exercises.push({
           id: exb.id + '_brought_' + dest2.exercises.length, exerciseId: exb.id, order: dest2.exercises.length,
-          target: { sets: iv.startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
+          target: { sets: startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
         });
       });
     }
@@ -8755,7 +9013,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         for (var e = 0; e < template[s].exercises.length; e++) {
           var item = template[s].exercises[e];
           var exx = byId(item.exerciseId, opts.custom);
-          if (exx && (exx.primary || []).indexOf(gap.muscle) !== -1 && item.target.sets < 5) {
+          if (exx && (exx.primary || []).indexOf(gap.muscle) !== -1 && item.target.sets < style.maxSets) {
             item.target.sets++; addedThisPass = true; break;
           }
         }
@@ -8765,11 +9023,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         var ex2 = pickFor(gap.muscle, Object.assign({ used: used }, pickOpts));
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
-        var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
+        var shortest = template.filter(function (d) { return d.exercises.length < hardCap; })
+          .sort(function (a, b) { return a.exercises.length - b.exercises.length; })[0];
+        if (!shortest) { stuck[gap.muscle] = true; continue; }
         var rs2 = schemeFor(ex2, gap.muscle);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
+          target: { sets: startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
         });
       }
     }
@@ -8975,6 +9235,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       // The style carries forward by default, same as the shape and the days do - it is a standing
       // choice, not a one-off, unless the caller explicitly asks for something else this time.
       intensity: opts.intensity || block.intensity,
+      style: opts.style || block.style,
       name: null,
     }));
     next.previousBlockId = block.id;
@@ -9295,22 +9556,36 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // So the target is reps at an RIR, last time's numbers sit underneath as the reference, and the
   // person picks the weight that hits it. `suggested` is still computed and still explains itself,
   // but it is a note, not a number typed into the box on their behalf.
-  function prefillSets(sessionExercise, logs, custom) {
+  function prefillSets(sessionExercise, logs, custom, opts) {
+    opts = opts || {};
     var t = sessionExercise.target || {};
+    var ex = byId(sessionExercise.exerciseId, custom);
+    var style = styleOf(opts.style);
     var hist = exerciseHistory(logs, sessionExercise.exerciseId);
     var last = hist.length ? hist[hist.length - 1] : null;
     var prevSets = last ? (logs.filter(function (l) { return l.dateISO === last.dateISO; })[0].sets || [])
       .filter(function (s) { return s.exerciseId === sessionExercise.exerciseId && s.done && (!s.type || s.type === 'work'); }) : [];
-    var progressed = prevSets.length ? progressExercise(t, prevSets, byId(sessionExercise.exerciseId, custom)) : null;
+    var progressed = prevSets.length
+      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist })
+      : null;
     var n = (progressed && progressed.sets) || t.sets || 3;
     var out = [];
     for (var i = 0; i < n; i++) {
       var prev = prevSets[i] || prevSets[prevSets.length - 1];
+      // The weight for the top set is what the progression said; the second set is that, backed off,
+      // because a second all-out set at the same load is a set that misses the window by three reps.
+      var lead = progressed ? +progressed.weightKg || 0 : 0;
+      var planned = style.toFailure && lead
+        ? (i === 0 ? lead : backOffLoad(lead, ex))
+        : 0;
       out.push({
         setIndex: i, exerciseId: sessionExercise.exerciseId, type: 'work',
-        weightKg: 0,
+        weightKg: planned,
         reps: null, targetReps: (t.repLow || 8) + '-' + (t.repHigh || 12), rir: null, done: false,
         lastTime: prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null,
+        // What this row is FOR, so the runner can label a backed-off second set as the deliberate
+        // thing it is rather than leaving somebody to wonder why the app dropped their weight.
+        backOff: !!(style.toFailure && lead && i > 0),
       });
     }
     return {
@@ -9318,6 +9593,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       note: progressed ? progressed.reason : null,
       action: progressed ? progressed.action : null,
       suggested: progressed ? progressed.weightKg : null,
+      stalled: progressed ? progressed.stalled || null : null,
     };
   }
 
@@ -9355,6 +9631,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
+    STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
+    backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
@@ -50254,11 +50532,16 @@ function tdb(db) {
     }, t.prefs || {})
   };
 }
-function trainTargets(db) {
+// The volume landmarks every screen judges a week against. Which set of them depends on how the
+// block in front of you is meant to be run: six sets of chest is a thin week on the volume model and
+// a complete one on min-max, and a coverage bar that does not know which is being looked at is a bar
+// that tells somebody their programme is broken when it is working exactly as designed.
+function trainTargets(db, style) {
   const t = tdb(db);
   return Training.defaultTargets({
     experience: t.prefs.experience,
-    volumeTargets: t.volumeTargets
+    volumeTargets: t.volumeTargets,
+    style: style === undefined ? t.prefs.style : style
   });
 }
 function activeBlock(db) {
@@ -50324,7 +50607,17 @@ function unitLabel(units) {
 // or a warning to hold, is worth a line. Steady state is not.
 function coachNote(pre) {
   if (!pre || !pre.note) return null;
-  return pre.action === 'load' || pre.action === 'hold' ? pre.note : null;
+  // On the volume model most of these notes say what you already know from the prescription, so only
+  // the two that change something are shown. The min-max ones ARE the prescription: the plan says
+  // nothing about weight, and "one more rep than last time" is the entire instruction for the day.
+  const loud = {
+    load: 1,
+    hold: 1,
+    reps: 1,
+    lighter: 1,
+    swap: 1
+  };
+  return loud[pre.action] ? pre.note : null;
 }
 // Day names arrive with wildly inconsistent punctuation across posts ("Upper A", "upper-a", "UPPER A:"),
 // and matching them is what stops a re-import leaving you with two of the same day.
@@ -50777,11 +51070,12 @@ function TrainTab({
         const gym = currentGym(db);
         const block = Training.blockFromSource(draft.days, {
           gym: gym,
-          daysPerWeek: prefs.daysPerWeek || 4,
+          daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5),
           weeks: 4,
           shape: prefs.shape || 'build4',
           intensity: prefs.intensity || 'high',
-          targets: trainTargets(db),
+          style: prefs.style || 'minmax',
+          targets: trainTargets(db, prefs.style || 'minmax'),
           custom: tdb(db).custom,
           equipment: (prefs.equipment || []).length ? prefs.equipment : null,
           dislikes: prefs.dislikes,
@@ -51419,6 +51713,13 @@ function SessionPlayer({
   const units = t.prefs.units;
   const block = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const session = block && sessionId ? (block.sessions || []).filter(s => s.id === sessionId)[0] : null;
+  // How this block is meant to be run. On the min-max style there is nothing to leave in the tank,
+  // so the screen stops asking for it and starts saying the opposite; and next week's numbers come
+  // off the top set rather than off a reps-in-reserve estimate nobody can give at failure anyway.
+  const style = Training.styleOf(block && block.style);
+  const preOpts = {
+    style: block && block.style
+  };
   const existing = t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId))[0];
   const [logId] = useState(() => existing ? existing.id : trainUid());
   const [items, setItems] = useState(() => {
@@ -51475,13 +51776,14 @@ function SessionPlayer({
     }
     if (!session) return [];
     return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
-      const pre = Training.prefillSets(e, t.logs, t.custom);
+      const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
       return {
         id: e.id || null,
         exerciseId: e.exerciseId,
         target: e.target,
         sets: pre.sets,
         note: coachNote(pre),
+        swap: pre.stalled ? e.exerciseId : null,
         superset: e.supersetGroup || null
       };
     });
@@ -51781,7 +52083,7 @@ function SessionPlayer({
           repLow: 8,
           repHigh: 12
         }
-      }, t.logs, t.custom);
+      }, t.logs, t.custom, preOpts);
       // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
       // its sets still group as one movement when the session is reopened.
       n.push({
@@ -51818,7 +52120,7 @@ function SessionPlayer({
           repLow: 8,
           repHigh: 12
         }
-      }, t.logs, t.custom);
+      }, t.logs, t.custom, preOpts);
       n[ii] = {
         id: old.id || 'swap_' + trainUid(),
         exerciseId: exId,
@@ -52138,7 +52440,7 @@ function SessionPlayer({
                 repLow: 8,
                 repHigh: 12
               }
-            }, t.logs, t.custom);
+            }, t.logs, t.custom, preOpts);
             n[u.index] = {
               id: old2.id || 'swap_' + trainUid(),
               exerciseId: u.alt,
@@ -52221,7 +52523,7 @@ function SessionPlayer({
           color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)',
           letterSpacing: '0.1em'
         }
-      }, open ? 'Set ' + Math.min(work.length, work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
+      }, open ? 'Set ' + Math.min(work.length, work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? style.toFailure ? ' to failure' : ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
         className: "shrink-0",
         style: {
           color: 'var(--cardhead-text)'
@@ -52252,11 +52554,15 @@ function SessionPlayer({
         className: "px-3 pb-3 pt-3"
       }, /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-2 mb-4"
-      }, tgt && /*#__PURE__*/React.createElement(MetaBit, {
+      }, tgt && (style.toFailure ? /*#__PURE__*/React.createElement(MetaBit, {
+        label: "To failure",
+        onHelp: () => setHelp('failure'),
+        hideHelp: t.prefs.hideHelp
+      }) : /*#__PURE__*/React.createElement(MetaBit, {
         label: tgt.rir + ' RIR',
         onHelp: () => setHelp('rir'),
         hideHelp: t.prefs.hideHelp
-      }), tgt && tgt.tempo && /*#__PURE__*/React.createElement(MetaBit, {
+      })), tgt && tgt.tempo && /*#__PURE__*/React.createElement(MetaBit, {
         label: tgt.tempo,
         onHelp: () => setHelp('tempo:' + tgt.tempo),
         hideHelp: t.prefs.hideHelp
@@ -52311,7 +52617,14 @@ function SessionPlayer({
         style: {
           color: 'var(--muted2)'
         }
-      }, "Warm up: "), Training.warmupSets(work[0].weightKg, ex).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')), /*#__PURE__*/React.createElement("div", {
+      }, "Warm up: "), Training.warmupSets(work[0].weightKg, ex).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')), style.toFailure && !work.some(x => x.done) && /*#__PURE__*/React.createElement("div", {
+        className: "text-[11.5px] mb-3 px-2.5 py-2 leading-snug",
+        style: {
+          borderLeft: '3px solid var(--accent)',
+          background: 'var(--surface2)',
+          color: 'var(--text2)'
+        }
+      }, work.length === 1 ? 'One set here. Make it count: take it to the rep where the weight stops moving.' : 'Two sets here, and the first one is the one that counts. Take it until the weight stops moving.'), /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-2 pb-2"
       }, /*#__PURE__*/React.createElement("div", {
         className: "w-8 pf text-[7px] uppercase",
@@ -52328,7 +52641,7 @@ function SessionPlayer({
         style: {
           color: 'var(--muted2)'
         }
-      }, "Reps"), /*#__PURE__*/React.createElement("div", {
+      }, "Reps"), !style.toFailure && /*#__PURE__*/React.createElement("div", {
         className: "w-11 pf text-[7px] uppercase text-center",
         style: {
           color: 'var(--muted2)'
@@ -52396,7 +52709,7 @@ function SessionPlayer({
           },
           onChange: e => setField(ii, si, 'reps', e.target.value === '' ? null : +e.target.value),
           placeholder: tgt ? String(tgt.repHigh) : s.targetReps ? String(s.targetReps).split('-').pop() : ''
-        }), /*#__PURE__*/React.createElement("input", {
+        }), !style.toFailure && /*#__PURE__*/React.createElement("input", {
           type: "number",
           inputMode: "numeric",
           className: 'w-11 ' + cell,
@@ -52424,7 +52737,12 @@ function SessionPlayer({
           }
         }, /*#__PURE__*/React.createElement(Tick, {
           size: 12
-        }))), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
+        }))), s.backOff && !s.done && /*#__PURE__*/React.createElement("div", {
+          className: "text-[10.5px] mt-0.5 pl-11 leading-snug",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "Back-off set: 15% lighter, taken to failure again."), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
           className: "flex gap-1 flex-wrap mt-1 mb-2 pl-1"
         }, SET_TYPES.map(st => /*#__PURE__*/React.createElement("button", {
           key: st.v,
@@ -52901,7 +53219,10 @@ function TrainHelp({
   const t = tdb(db);
   let title = '',
     body = '';
-  if (topic === 'rir') {
+  if (topic === 'failure') {
+    title = 'To failure';
+    body = 'The set ends when the weight stops moving, not when it gets hard. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. On that volume the last rep is what makes the session worth doing, and there is no next set to save anything for. Stop if your form breaks rather than grinding out a rep that has already gone wrong, and use the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
+  } else if (topic === 'rir') {
     title = 'Reps in reserve';
     body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the block goes on so the hard weeks land when you are ready for them.';
   } else if (topic === 'rest') {
@@ -53855,7 +54176,13 @@ function BlockWizard({
   const t = tdb(db);
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
-  const [days, setDays] = useState(t.prefs.daysPerWeek || 4);
+  // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
+  // and five days is the shape it is written for, so that is the day count it arrives on.
+  const [style, setStyle] = useState(t.prefs.style || 'minmax');
+  const [days, setDays] = useState(t.prefs.daysPerWeek || (t.prefs.style === 'landmarks' ? 4 : 5));
+  // Recovery is lower in a deficit and low volume holds muscle perfectly well, so somebody who has
+  // told the food side of the app they are cutting has already answered this question.
+  const cutting = (db.profile || {}).goalType === 'cut';
   const [goal, setGoal] = useState('hypertrophy');
   const [shape, setShape] = useState(t.prefs.shape || 'build4');
   // The one answer on this screen that changes what a brought plan IS: their block run as written, or
@@ -53894,7 +54221,8 @@ function BlockWizard({
     try {
       const targets = Training.defaultTargets({
         experience: experience,
-        volumeTargets: t.volumeTargets
+        volumeTargets: t.volumeTargets,
+        style: style
       });
       // One call whether or not anything was brought, because the answer to "what will I get" has to
       // be the same function that later gives it to you. blockFromSource reads a brought plan as
@@ -53906,6 +54234,7 @@ function BlockWizard({
         intensity: intensity,
         goal: goal,
         targets: targets,
+        style: style,
         gym: gym,
         equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes,
@@ -53921,6 +54250,7 @@ function BlockWizard({
         intensity: intensity,
         goal: goal,
         targets: targets,
+        style: style,
         gym: gym,
         equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes,
@@ -54213,7 +54543,8 @@ function BlockWizard({
     setBusy(true);
     const targets = Training.defaultTargets({
       experience: experience,
-      volumeTargets: t.volumeTargets
+      volumeTargets: t.volumeTargets,
+      style: style
     });
     let block;
     if (draftDays > 0) {
@@ -54224,6 +54555,7 @@ function BlockWizard({
         intensity: intensity,
         goal: goal,
         targets: targets,
+        style: style,
         gym: gym,
         equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes,
@@ -54246,6 +54578,7 @@ function BlockWizard({
         intensity: intensity,
         goal: goal,
         targets: targets,
+        style: style,
         gym: gym,
         equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes,
@@ -54264,7 +54597,8 @@ function BlockWizard({
         experience: experience,
         equipment: equipment,
         shape: shape,
-        intensity: intensity
+        intensity: intensity,
+        style: style
       });
     });
     setBusy(false);
@@ -54437,9 +54771,35 @@ function BlockWizard({
       color: 'var(--accent-ink)'
     }
   }, wishNote)), /*#__PURE__*/React.createElement(TrainField, {
+    label: "How you want to train",
+    effect: style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short',
+    hint: Training.STYLES[style].blurb
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: style,
+    onChange: v => {
+      setStyle(v);
+      // Five days is the min-max week and four is the volume model's default shape. Only moved
+      // when the person has not set a day count of their own, so a deliberate answer is never
+      // overwritten by changing your mind about the style.
+      if (!t.prefs.daysPerWeek) setDays(v === 'minmax' ? 5 : 4);
+    },
+    options: [{
+      v: 'minmax',
+      l: 'Min-max'
+    }, {
+      v: 'landmarks',
+      l: 'Volume'
+    }]
+  })), cutting && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5",
+    style: {
+      background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))',
+      color: 'var(--text2)'
+    }
+  }, style === 'minmax' ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.' : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'), /*#__PURE__*/React.createElement(TrainField, {
     label: "Days a week",
     effect: preview ? preview.sessions.length + ' sessions' : '',
-    hint: draftDays > 0 && asBrought ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.' : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'
+    hint: draftDays > 0 && asBrought ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.' : style === 'minmax' ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.' : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'
   }, /*#__PURE__*/React.createElement(Seg, {
     value: days,
     onChange: setDays,
@@ -54500,7 +54860,7 @@ function BlockWizard({
       v: 'general',
       l: 'General'
     }]
-  })), /*#__PURE__*/React.createElement(TrainField, {
+  })), style !== 'minmax' && /*#__PURE__*/React.createElement(TrainField, {
     label: "Training intensity",
     hint: intensity === 'high' ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.' : 'More volume, moderate effort: more sets, always a rep or two in reserve.'
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -54630,7 +54990,8 @@ function BlockBuilder({
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
   const logBySession = Training.completion(block, tdb(db).logs).logBySession;
-  const targets = trainTargets(db);
+  // The block being edited decides which landmarks it is judged against, not the wizard's last answer.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const isNew = !saved;
   const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
   const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
@@ -55894,7 +56255,9 @@ function BlockReviewScreen({
   useBackClose(onBack);
   const t = tdb(db);
   const block = t.blocks.filter(b => b.id === blockId)[0];
-  const targets = trainTargets(db);
+  // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
+  // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const units = t.prefs.units;
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -56141,7 +56504,9 @@ function RerunScreen({
 }) {
   useBackClose(onBack);
   const t = tdb(db);
-  const targets = trainTargets(db);
+  // Judged against the landmarks of the style THIS block is written for, not whatever the wizard
+  // was last set to: six sets of chest is a thin week on one model and a complete one on the other.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const block = t.blocks.filter(b => b.id === blockId)[0];
   const plan = useMemo(() => block ? Training.rerunPlan(block, t.logs, targets, t.custom) : null, [blockId]);
   const [off, setOff] = useState({}); // proposals turned down, by index
@@ -58363,7 +58728,7 @@ function HowItWorks({
   onBack
 }) {
   useBackClose(onBack);
-  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
+  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and every working set taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so week four looks exactly like week one on paper and everything that changed is on the bar. Each movement has a rep window: 6 to 9 on the heavy compounds, 10 to 15 on everything else. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where a movement has a second set, the app takes 15 percent off it: an all-out first set means a second at the same weight would miss the window by three reps.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
