@@ -671,6 +671,72 @@ test('days collected from separate screenshots do not share exercise ids', () =>
   assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
 });
 
+// ---- overlapping screenshots -------------------------------------------------------------------
+// The other half of the same bug, from the other direction: five screenshots going in and EIGHT days
+// coming out. Phone shots of a coaching app overlap, so the tail of Tuesday rides along under the top
+// of Wednesday and Tuesday arrives twice from two files that have never been read before. Name
+// disambiguation turned the second reading into "Push (2)" and the week grew past seven days, which
+// is not a week any more: nothing in the app can put a session on the eighth day.
+
+const ex = (id, n) => ({ exerciseId: id, id: id + '_' + n, target: { sets: 3 } });
+const session = (name, ids) => ({ name: name, kind: 'full', exercises: ids.map((id, i) => ex(id, i)) });
+
+test('a session caught in two overlapping screenshots lands as one day, not two', () => {
+  const days = [];
+  // Shot two catches the whole of Tuesday. Shot three catches its last two movements above the whole
+  // of Wednesday, so Tuesday comes back a second time with only part of itself.
+  T.mergeDraftDays(days, [session('Day 2', ['bb_bench', 'db_incline_press', 'cable_fly', 'lateral_raise'])], { kind: 'file', name: 'shot2.png' });
+  T.mergeDraftDays(days, [session('Day 2', ['cable_fly', 'lateral_raise']), session('Day 3', ['bb_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'shot3.png' });
+  assert.equal(days.length, 2, 'the repeated session must merge rather than become "Day 2 (2)"');
+  assert.equal(days[0].exercises.length, 4, 'and the fuller reading of it is the one kept');
+  assert.deepEqual(days.map(d => d.name), ['Day 2', 'Day 3']);
+});
+
+test('the fuller reading wins even when it arrives second', () => {
+  const days = [];
+  T.mergeDraftDays(days, [session('Push', ['bb_bench', 'lateral_raise'])], { kind: 'file', name: 'a.png' });
+  T.mergeDraftDays(days, [session('Push', ['bb_bench', 'lateral_raise', 'cable_fly', 'triceps_pushdown'])], { kind: 'file', name: 'b.png' });
+  assert.equal(days.length, 1);
+  assert.equal(days[0].exercises.length, 4);
+  assert.equal(days[0].sourceRef.name, 'b.png', 'the day now belongs to the shot that saw all of it');
+});
+
+test('two different days that share their staples are still two days', () => {
+  // Upper A and Upper B share a bench and a row and are not the same session. Collapsing them would
+  // lose a session nobody would notice was missing, which is worse than an extra day to delete.
+  const days = [];
+  T.mergeDraftDays(days, [session('Upper A', ['bb_bench', 'bb_row', 'lateral_raise', 'ez_curl'])], { kind: 'file', name: 'a.png' });
+  T.mergeDraftDays(days, [session('Upper B', ['bb_bench', 'bb_row', 'rear_delt_fly', 'triceps_pushdown'])], { kind: 'file', name: 'b.png' });
+  assert.equal(days.length, 2);
+});
+
+test('two sessions that happen to be named the same are not merged on the name alone', () => {
+  const days = [];
+  T.mergeDraftDays(days, [session('Day 1', ['bb_bench', 'db_incline_press', 'cable_fly'])], { kind: 'file', name: 'a.png' });
+  T.mergeDraftDays(days, [session('Day 1', ['bb_squat', 'leg_curl', 'leg_press'])], { kind: 'file', name: 'b.png' });
+  assert.equal(days.length, 2, 'nothing in common means nothing to merge');
+});
+
+test('a basket bigger than a week never puts a session on an eighth day', () => {
+  // Eight distinct sessions is a lot, but the app must still be able to schedule every one of them:
+  // dayOfWeek 7 is off the end of the weekday labels and off the end of the schedule.
+  const days = [];
+  for (let i = 0; i < 8; i++) {
+    T.mergeDraftDays(days, [session('Day ' + (i + 1), ['ex_' + i + '_a', 'ex_' + i + '_b'])], { kind: 'file', name: i + '.png' });
+  }
+  assert.equal(days.length, 8);
+  assert.ok(days.every(d => d.dayOfWeek >= 0 && d.dayOfWeek <= 6), 'every day has to fall inside the week');
+});
+
+test('a block built from more days than a week holds keeps every session inside the week', () => {
+  const template = [];
+  for (let i = 0; i < 8; i++) template.push(session('Day ' + (i + 1), ['ex_' + i + '_a', 'ex_' + i + '_b']));
+  const block = T.blockFromTemplate(template, { weeks: 1 });
+  const dows = T.weekSessions(block, 1).map(s => s.dayOfWeek);
+  assert.equal(dows.length, 8, 'nothing is dropped');
+  assert.ok(dows.every(d => d >= 0 && d <= 6), `a session landed off the week: ${dows}`);
+});
+
 test('a day that programmes one movement twice keeps both lines apart', () => {
   // A heavy T-bar row and a back-off T-bar row is an ordinary way to write a session, and the two
   // carry different prescriptions. They must not collapse into each other anywhere.

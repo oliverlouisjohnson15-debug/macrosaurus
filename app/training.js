@@ -1767,7 +1767,10 @@
       template.forEach(function (day, di) {
         weekSess.push({
           id: 'w' + w + 'd' + di,
-          week: w, dayOfWeek: day.dayOfWeek == null ? di : day.dayOfWeek,
+          // Clamped for the same reason the draft basket clamps: a template holding more days than a
+          // week has cannot hand a session a weekday that does not exist. It doubles up on Sunday
+          // and can be moved from there, rather than landing somewhere nothing can draw or schedule.
+          week: w, dayOfWeek: day.dayOfWeek == null ? Math.min(di, 6) : clamp(+day.dayOfWeek, 0, 6),
           name: day.name || ('Day ' + (di + 1)), kind: day.kind || 'full',
           deload: isDeload,
           exercises: (day.exercises || []).map(function (item, ei) {
@@ -2328,6 +2331,30 @@
     if (a.kind === 'link') return String(a.url || '') === String(b.url || '');
     return true;
   }
+  // Are these two days the same session read twice? Judged on the movements, because that is the
+  // only evidence a screenshot reliably carries: the name comes from whatever heading happened to be
+  // in shot, so one session can arrive as "Day 2" and as "Tuesday - Pull", and two genuinely
+  // different days can both arrive as "Day 1". The bar is deliberately high, because keeping a
+  // duplicate day costs one tap on the draft screen and losing a real one costs a session nobody
+  // notices is missing: at least two movements in common and nearly all of the shorter reading
+  // inside the longer one, and more of both when the names do not agree either.
+  function sameSession(a, b) {
+    var ax = (a && a.exercises) || [], bx = (b && b.exercises) || [];
+    if (ax.length < 2 || bx.length < 2) return false;
+    // A multiset, not a set: a day that programmes a heavy T-bar row and a back-off T-bar row needs
+    // two of them on the other side before both count as shared.
+    var pool = bx.map(function (e) { return e.exerciseId || e.id; });
+    var shared = 0;
+    ax.forEach(function (e) {
+      var at = pool.indexOf(e.exerciseId || e.id);
+      if (at >= 0) { shared++; pool.splice(at, 1); }
+    });
+    var ratio = shared / Math.min(ax.length, bx.length);
+    // Same name is corroboration, so a lower bar clears. Without it the movements carry it alone,
+    // and an Upper A / Upper B pair sharing its presses and rows must not collapse into one day.
+    return norm(a.name) === norm(b.name) ? (shared >= 2 && ratio >= 0.75) : (shared >= 3 && ratio >= 0.85);
+  }
+
   // Merge imported days into the draft basket, in place, and renumber.
   //
   // The rule that matters is the one about collisions. Keying purely on the day's NAME meant five
@@ -2339,6 +2366,13 @@
   //
   // The asymmetry is deliberate. Deleting a duplicate day on the draft screen is one tap; a day that
   // was silently overwritten is gone with nothing on screen to say so.
+  //
+  // The one thing a DIFFERENT source can be is the same session photographed twice. Screenshots of a
+  // coaching app overlap: shot three catches the last two movements of Tuesday above the whole of
+  // Wednesday, so Tuesday arrives again from a file that has never been read before. Same-source
+  // matching cannot see that, and the name rule above turns it into "Push (2)" - which is how five
+  // screenshots become an eight-day week. So a day that is plainly a second reading of one already in
+  // the basket collapses into it, and the fuller of the two readings is the one kept.
   function mergeDraftDays(days, incoming, sourceRef) {
     days = days || [];
     // Days written by THIS call are off limits as replacement targets. One screenshot the model reads
@@ -2353,6 +2387,21 @@
         if (norm(days[i].name) === norm(row.name) && sameSource(days[i].sourceRef, sourceRef)) { same = i; break; }
       }
       if (same >= 0) { days[same] = row; fresh[same] = 1; return; }
+      // A second reading of a day already in the basket, from a source that overlapped the last one.
+      // Days written by this call are exempt for the same reason they are above: one screenshot read
+      // as two sessions is two sessions.
+      var dupe = -1;
+      for (var j = 0; j < days.length; j++) {
+        if (fresh[j]) continue;
+        if (sameSession(days[j], row)) { dupe = j; break; }
+      }
+      if (dupe >= 0) {
+        // Whichever reading saw more of the session wins outright, name included: the fuller one is
+        // the shot that had the whole thing on screen, heading and all.
+        if ((row.exercises || []).length > (days[dupe].exercises || []).length) days[dupe] = row;
+        fresh[dupe] = 1;
+        return;
+      }
       var clash = days.some(function (x) { return norm(x.name) === norm(row.name); });
       if (clash) {
         var base = row.name, n = 2;
@@ -2362,7 +2411,11 @@
       fresh[days.length] = 1;
       days.push(row);
     });
-    days.forEach(function (x, i) { x.dayOfWeek = i; });
+    // A week has seven days, so the eighth thing in the basket cannot have a weekday of its own:
+    // dayOfWeek 7 is off the end of every weekday label in the app and off the end of the schedule.
+    // It doubles up on Sunday instead, which the block builder already supports (two sessions on one
+    // day is an ordinary thing to programme), and which the person can move wherever they like.
+    days.forEach(function (x, i) { x.dayOfWeek = Math.min(i, 6); });
     // Re-mint the exercise ids against the day's position in the BASKET. importTemplate numbers them
     // by the day's index within its own parse, and a batch of screenshots is one parse each, so every
     // one of them thinks it is day zero: five screenshots produce five sets of identical ids. Those

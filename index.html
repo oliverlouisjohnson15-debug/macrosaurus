@@ -7706,7 +7706,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       template.forEach(function (day, di) {
         weekSess.push({
           id: 'w' + w + 'd' + di,
-          week: w, dayOfWeek: day.dayOfWeek == null ? di : day.dayOfWeek,
+          // Clamped for the same reason the draft basket clamps: a template holding more days than a
+          // week has cannot hand a session a weekday that does not exist. It doubles up on Sunday
+          // and can be moved from there, rather than landing somewhere nothing can draw or schedule.
+          week: w, dayOfWeek: day.dayOfWeek == null ? Math.min(di, 6) : clamp(+day.dayOfWeek, 0, 6),
           name: day.name || ('Day ' + (di + 1)), kind: day.kind || 'full',
           deload: isDeload,
           exercises: (day.exercises || []).map(function (item, ei) {
@@ -8267,6 +8270,30 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     if (a.kind === 'link') return String(a.url || '') === String(b.url || '');
     return true;
   }
+  // Are these two days the same session read twice? Judged on the movements, because that is the
+  // only evidence a screenshot reliably carries: the name comes from whatever heading happened to be
+  // in shot, so one session can arrive as "Day 2" and as "Tuesday - Pull", and two genuinely
+  // different days can both arrive as "Day 1". The bar is deliberately high, because keeping a
+  // duplicate day costs one tap on the draft screen and losing a real one costs a session nobody
+  // notices is missing: at least two movements in common and nearly all of the shorter reading
+  // inside the longer one, and more of both when the names do not agree either.
+  function sameSession(a, b) {
+    var ax = (a && a.exercises) || [], bx = (b && b.exercises) || [];
+    if (ax.length < 2 || bx.length < 2) return false;
+    // A multiset, not a set: a day that programmes a heavy T-bar row and a back-off T-bar row needs
+    // two of them on the other side before both count as shared.
+    var pool = bx.map(function (e) { return e.exerciseId || e.id; });
+    var shared = 0;
+    ax.forEach(function (e) {
+      var at = pool.indexOf(e.exerciseId || e.id);
+      if (at >= 0) { shared++; pool.splice(at, 1); }
+    });
+    var ratio = shared / Math.min(ax.length, bx.length);
+    // Same name is corroboration, so a lower bar clears. Without it the movements carry it alone,
+    // and an Upper A / Upper B pair sharing its presses and rows must not collapse into one day.
+    return norm(a.name) === norm(b.name) ? (shared >= 2 && ratio >= 0.75) : (shared >= 3 && ratio >= 0.85);
+  }
+
   // Merge imported days into the draft basket, in place, and renumber.
   //
   // The rule that matters is the one about collisions. Keying purely on the day's NAME meant five
@@ -8278,6 +8305,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   //
   // The asymmetry is deliberate. Deleting a duplicate day on the draft screen is one tap; a day that
   // was silently overwritten is gone with nothing on screen to say so.
+  //
+  // The one thing a DIFFERENT source can be is the same session photographed twice. Screenshots of a
+  // coaching app overlap: shot three catches the last two movements of Tuesday above the whole of
+  // Wednesday, so Tuesday arrives again from a file that has never been read before. Same-source
+  // matching cannot see that, and the name rule above turns it into "Push (2)" - which is how five
+  // screenshots become an eight-day week. So a day that is plainly a second reading of one already in
+  // the basket collapses into it, and the fuller of the two readings is the one kept.
   function mergeDraftDays(days, incoming, sourceRef) {
     days = days || [];
     // Days written by THIS call are off limits as replacement targets. One screenshot the model reads
@@ -8292,6 +8326,21 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         if (norm(days[i].name) === norm(row.name) && sameSource(days[i].sourceRef, sourceRef)) { same = i; break; }
       }
       if (same >= 0) { days[same] = row; fresh[same] = 1; return; }
+      // A second reading of a day already in the basket, from a source that overlapped the last one.
+      // Days written by this call are exempt for the same reason they are above: one screenshot read
+      // as two sessions is two sessions.
+      var dupe = -1;
+      for (var j = 0; j < days.length; j++) {
+        if (fresh[j]) continue;
+        if (sameSession(days[j], row)) { dupe = j; break; }
+      }
+      if (dupe >= 0) {
+        // Whichever reading saw more of the session wins outright, name included: the fuller one is
+        // the shot that had the whole thing on screen, heading and all.
+        if ((row.exercises || []).length > (days[dupe].exercises || []).length) days[dupe] = row;
+        fresh[dupe] = 1;
+        return;
+      }
       var clash = days.some(function (x) { return norm(x.name) === norm(row.name); });
       if (clash) {
         var base = row.name, n = 2;
@@ -8301,7 +8350,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       fresh[days.length] = 1;
       days.push(row);
     });
-    days.forEach(function (x, i) { x.dayOfWeek = i; });
+    // A week has seven days, so the eighth thing in the basket cannot have a weekday of its own:
+    // dayOfWeek 7 is off the end of every weekday label in the app and off the end of the schedule.
+    // It doubles up on Sunday instead, which the block builder already supports (two sessions on one
+    // day is an ordinary thing to programme), and which the person can move wherever they like.
+    days.forEach(function (x, i) { x.dayOfWeek = Math.min(i, 6); });
     // Re-mint the exercise ids against the day's position in the BASKET. importTemplate numbers them
     // by the day's index within its own parse, and a batch of screenshots is one parse each, so every
     // one of them thinks it is day zero: five screenshots produce five sets of identical ids. Those
@@ -10144,6 +10197,15 @@ const AI_PROMPT = 'You are a UK nutrition estimator helping someone log a meal. 
 // the premium workout_import feature, so keep it in step with featureOf() in ai-proxy/index.ts.
 // {{DAYS}} is replaced at the call site with the day count the person chose in the wizard.
 const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s training plan and writing down exactly what it says. The source may be a social video caption or transcript, a PDF from a coach, a spreadsheet exported to text, a screenshot, or a pasted message. Extract the TRAINING WEEK it describes, built for a {{DAYS}}-day training week. Rules: copy the movement names as written, do not translate them into your own vocabulary and do not correct spelling. Record only sets, reps and rest that the source actually states, and leave a field out when it does not state it. NEVER invent exercises, sets or reps that are not in the source. NEVER add your own advice, warm-ups or extra movements.\n\nDAY COUNT: some sources offer several explicitly labelled versions of the same programme at different day counts ("4 Day Option", "5 Day Option", "6 Day Option", and similar). When the source does this, extract ONLY the track matching {{DAYS}} days and ignore the others completely - never blend two tracks together. When the source offers no such choice and is a single programme (a straight week, or a rotation that repeats on its own schedule, such as a 6-day push/pull/legs cycle run three-on-one-off), adapt it to {{DAYS}} days yourself: keep every exercise choice and each day\'s muscle grouping as close to the source as you can, condensing or extending the rotation rather than inventing a different structure. Say so plainly in "note" whenever you had to adapt rather than found an exact match. If the source shows several WEEKS of the same track, return only the FIRST week, because the app builds the remaining weeks itself.\n\nIf a line is a note, a heading, a warm-up instruction or a cardio finisher rather than a resistance movement, leave it out. The person importing the plan may have added a note of their own, marked as WHAT THE PERSON SAID ABOUT THIS. Treat it as context they know and the source does not show: it can tell you which day of the week this is, what to call the session, which parts of the image to read and which to ignore, that a number is in pounds rather than kilos, or which day-count track they want if the source is ambiguous about it. Trust it over your own reading of the source where the two disagree, and use it to name the day when the source does not name one. It is still not a source of exercises: never add a movement, a set or a rep that appears in neither the source nor that note.\n\nEVERY EXERCISE NEEDS A MUSCLE GUESS. Give your best-guess classification for every movement, even ones you are confident are a normal gym staple, because the app checks your name against its own exercise library first and a small number will not match it (an unusual variant, a coach\'s own name for something, a piece of branded kit) - your guess is what lets the app add it anyway instead of quietly dropping it. muscle = the primary muscle code(s) it trains, from: ch=chest, fd=front delts, sd=side delts, rd=rear delts, lt=lats, ub=upper back, lb=lower back, bi=biceps, tr=triceps, fa=forearms, ab=abs, ob=obliques, qu=quads, ha=hamstrings, gl=glutes, ad=adductors, ca=calves. equipment = one of: barbell, dumbbell, machine, cable, smith, ez, kettlebell, trapbar, bodyweight, band - read off what the source shows or names, your best guess if it does not say. pattern = "compound" for a multi-joint movement, "isolation" for a single-joint one, "core" for direct ab/oblique work.\n\nRespond ONLY with compact JSON: {"name": string, "confidence": "low"|"medium"|"high", "note": string, "week_label": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null, "muscle": [string], "equipment": string, "pattern": "compound"|"isolation"|"core"}]}]}. tempo = the four-character tempo the source prints against a movement, copied exactly ("2110", "3110", "30X0"), and null when it does not state one. Coaching apps put it in a column of its own next to sets and reps, and it is part of the prescription: leave it out and the plan is not the plan any more. week_label = copy the week the source is SHOWING, exactly as printed, when it says so anywhere: a selector reading "Week 4", a heading, a date range against a week number. Coaching apps put the current week in a dropdown at the top and a screenshot captures whichever one happened to be open, so this is often the difference between importing the start of a programme and importing its fourth week. "" when the source names no week. name = what the plan calls itself, or a short plain description if it is unnamed. dayOfWeek = 0 for Monday through 6 for Sunday when the source names actual weekdays, otherwise null. repLow/repHigh = the rep range; if a single number is given put it in repLow and leave repHigh null. note = one short sentence on anything you could not read, had to adapt, or had to leave out, or "" if the source was complete and matched exactly. confidence reflects how much of the plan was actually legible. British English in all text fields, keeping the JSON keys exactly as specified.';
+
+// Sent alongside the prompt above when several files are being read in one go. Each file is its own
+// call, so without this every one of them is told to produce a whole {{DAYS}}-day week and does its
+// best to oblige: five screenshots of five sessions come back as five weeks' worth of days, the
+// basket fills with sessions nobody uploaded, and a person who asked for five days gets eight. The
+// day count still decides which TRACK a source offers ("5 Day Option"), which is why the prompt keeps
+// it; this says only that one file is not the whole week.
+// {{DAYS}} and {{N}} are replaced at the call site.
+const WORKOUT_BATCH_NOTE = 'THIS SOURCE IS ONE OF {{N}}. The person has uploaded {{N}} files that together make up one training week, and each one is being read on its own. Write down ONLY the sessions this file actually shows. Do NOT condense, extend or adapt anything to reach {{DAYS}} days, and do NOT add a day this file does not show: the other files hold the rest of the week, and the app puts them together afterwards. If this file shows only part of a session, or a session another file also shows, write down what is here anyway - the app spots the repeat and keeps the fuller reading.';
 
 // The tweak pass. An import is never right first time: a screenshot cannot say which day is the
 // Friday, the coach's own shorthand resolves to the wrong machine, and half a plan's character lives
@@ -53548,6 +53610,17 @@ function TrainField({
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
+// What the draft basket will hold once these reads are folded into it. Pure, on a copy, because the
+// count has to be known BEFORE the write: trainUpdate hands React a function it runs when it pleases,
+// and the message telling somebody what landed is written on the line after. It is also the only way
+// to say anything true about repeats - Training.mergeDraftDays collapses a session photographed twice
+// into one day, so "five files, five days" is a subtraction, not a tally of what came back.
+function mergedDraftDays(days, parts) {
+  const out = JSON.parse(JSON.stringify(days || []));
+  parts.forEach(p => Training.mergeDraftDays(out, p.res.template, p.sourceRef));
+  return out;
+}
+
 // ---- the one way in: bring something or don't, answer a few questions, build ------------------
 // Used to be two screens competing for the same job: "Import a plan" read a source and froze its
 // numbers exactly as written; "Build with AI" started from nothing. But nobody who has a PDF wants
@@ -53674,7 +53747,7 @@ function BlockWizard({
       name: parts[0].parsed && parts[0].parsed.name || 'My block',
       days: []
     };
-    parts.forEach(p => Training.mergeDraftDays(d.days, p.res.template, p.sourceRef));
+    d.days = mergedDraftDays(d.days, parts);
     const newCustom = parts.reduce((a, p) => a.concat(p.res && p.res.newCustom || []), []);
     if (newCustom.length) tr.custom = (tr.custom || []).concat(newCustom);
     const gather = k => parts.reduce((a, p) => a.concat(p.res && p.res[k] || []), []);
@@ -53719,13 +53792,15 @@ function BlockWizard({
       try {
         parsed = await aiParseWorkout(content, {
           timeoutMs: 90000,
-          days
+          days,
+          batch: list.length
         });
       } catch (e) {
         if (e && e.aiError) throw e; // a paywall or a quota is not worth asking twice
         parsed = await aiParseWorkout(content, {
           timeoutMs: 90000,
-          days
+          days,
+          batch: list.length
         });
       }
       const res = Training.importTemplate(parsed, {
@@ -53767,17 +53842,26 @@ function BlockWizard({
     const got = results.filter(Boolean);
     // Counted out here, not inside the updater: trainUpdate hands React a function it runs when it
     // pleases, so anything tallied in there is still zero by the time the message below reads it.
-    const added = got.reduce((a, r) => a + r.res.template.length, 0);
+    // `read` is what came back, `added` is what the basket actually grew by - the two differ when
+    // two shots caught the same session and the merge kept the fuller reading.
+    const read = got.reduce((a, r) => a + r.res.template.length, 0);
+    const basket = t.draft && t.draft.days || [];
+    const added = mergedDraftDays(basket, got).length - basket.length;
+    const repeats = Math.max(0, read - added);
     if (got.length) trainUpdate(update, tr => mergeIntoDraft(tr, got));
     setReadBusy('');
     setFails(fails2);
-    if (!added) {
+    if (!read) {
       setReadErr(true);
       setReadNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A file or screenshot showing the exercise names, sets and reps works best.');
       return;
     }
     setReadErr(false);
-    setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft' + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.') + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
+    setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft'
+    // Said out loud, because a screen that reads "5 days added" for 5 files and then shows 3 is
+    // the app quietly disagreeing with itself. Overlapping screenshots are the normal case, not
+    // an error, so this is a note on what happened rather than a warning.
+    + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '') + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.') + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
   }
 
   // Link and paste are single sources, read the same way but without the batching a pile of files
@@ -53807,13 +53891,18 @@ function BlockWizard({
         setReadBusy('');
         return;
       }
-      trainUpdate(update, tr => mergeIntoDraft(tr, [{
+      const part = {
         parsed: parsed,
         res: res,
         sourceRef: sourceRef
-      }]));
+      };
+      const basket = t.draft && t.draft.days || [];
+      const added = mergedDraftDays(basket, [part]).length - basket.length;
+      trainUpdate(update, tr => mergeIntoDraft(tr, [part]));
       setReadBusy('');
-      setReadNote(res.template.length + (res.template.length === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.');
+      // Same subtraction as the file reader does: a post that covers a day already in the basket
+      // merges into it, so what landed is the growth, not what came back.
+      setReadNote(added ? added + (added === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.' : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.');
     } catch (e) {
       setReadErr(true);
       setReadNote(e && e.message || 'That did not work. Try another way in.');
@@ -54104,7 +54193,7 @@ function BlockWizard({
   }, wishNote)), /*#__PURE__*/React.createElement(TrainField, {
     label: "Days a week",
     effect: preview ? preview.sessions.length + ' sessions' : '',
-    hint: "Also which track I pull from a source that offers more than one."
+    hint: draftDays > 0 ? 'Which track I pull from a source that offers more than one. What you have already brought sets the day count on its own.' : 'Also which track I pull from a source that offers more than one.'
   }, /*#__PURE__*/React.createElement(Seg, {
     value: days,
     onChange: setDays,
@@ -54234,12 +54323,24 @@ function BlockWizard({
       background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)',
       color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)'
     }
-  }, Training.MUSCLE_LABEL[m])))), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+  }, Training.MUSCLE_LABEL[m])))), draftDays > 0 && (draftDays === days ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3 leading-snug",
     style: {
       color: 'var(--muted)'
     }
-  }, "Building from the ", draftDays, " ", draftDays === 1 ? 'day' : 'days', " you have brought, at the shape and intensity above."), /*#__PURE__*/React.createElement("button", {
+  }, "Building from the ", draftDays, " ", draftDays === 1 ? 'day' : 'days', " you have brought, at the shape and intensity above.") : /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 leading-snug px-3 py-3",
+    style: {
+      background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))',
+      color: 'var(--text2)'
+    }
+  }, "You have picked ", days, " days a week, but I read ", draftDays, " ", draftDays === 1 ? 'day' : 'days', " out of what you brought, so this builds ", /*#__PURE__*/React.createElement("strong", null, draftDays, " sessions a week"), ".", ' ', /*#__PURE__*/React.createElement("button", {
+    onClick: onShots,
+    className: "underline",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, draftDays > days ? 'Review them' : 'Review it'), ' ', draftDays > days ? 'to take ' + (draftDays - days === 1 ? 'one out' : draftDays - days + ' out') + ', or build all ' + draftDays + '.' : 'to add the rest, or build the ' + draftDays + '.')), /*#__PURE__*/React.createElement("button", {
     onClick: build,
     disabled: busy,
     className: "pixel-btn w-full h-14 font-bold mt-2",
@@ -56544,19 +56645,26 @@ function TrainSettings({
 // this needs a global replace, unlike the single {{NAME}} swap in buddyVoice().
 async function aiParseWorkout(content, opts) {
   const days = opts && opts.days || 4;
+  const batch = opts && opts.batch || 0;
   const prompt = WORKOUT_PROMPT.replace(/\{\{DAYS\}\}/g, String(days));
+  // A file in a batch is one PART of the week, not the week. Sent as a separate block after the
+  // prompt rather than folded into it, so the big prompt above stays byte-identical and cacheable.
+  const head = [{
+    type: 'text',
+    text: prompt,
+    cache_control: {
+      type: 'ephemeral'
+    }
+  }].concat(batch > 1 ? [{
+    type: 'text',
+    text: WORKOUT_BATCH_NOTE.replace(/\{\{DAYS\}\}/g, String(days)).replace(/\{\{N\}\}/g, String(batch))
+  }] : []);
   const j = await aiRequest({
     model: AI_MODEL,
     max_tokens: 3000,
     messages: [{
       role: 'user',
-      content: [{
-        type: 'text',
-        text: prompt,
-        cache_control: {
-          type: 'ephemeral'
-        }
-      }].concat(content)
+      content: head.concat(content)
     }]
   }, opts);
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';

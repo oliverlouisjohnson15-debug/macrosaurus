@@ -2357,6 +2357,17 @@ function TrainField({ label, effect, hint, children }) {
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
+// What the draft basket will hold once these reads are folded into it. Pure, on a copy, because the
+// count has to be known BEFORE the write: trainUpdate hands React a function it runs when it pleases,
+// and the message telling somebody what landed is written on the line after. It is also the only way
+// to say anything true about repeats - Training.mergeDraftDays collapses a session photographed twice
+// into one day, so "five files, five days" is a subtraction, not a tally of what came back.
+function mergedDraftDays(days, parts) {
+  const out = JSON.parse(JSON.stringify(days || []));
+  parts.forEach(p => Training.mergeDraftDays(out, p.res.template, p.sourceRef));
+  return out;
+}
+
 // ---- the one way in: bring something or don't, answer a few questions, build ------------------
 // Used to be two screens competing for the same job: "Import a plan" read a source and froze its
 // numbers exactly as written; "Build with AI" started from nothing. But nobody who has a PDF wants
@@ -2449,7 +2460,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // source becomes part of the draft rather than two slightly different ones.
   function mergeIntoDraft(tr, parts) {
     const d = tr.draft || { name: (parts[0].parsed && parts[0].parsed.name) || 'My block', days: [] };
-    parts.forEach(p => Training.mergeDraftDays(d.days, p.res.template, p.sourceRef));
+    d.days = mergedDraftDays(d.days, parts);
     const newCustom = parts.reduce((a, p) => a.concat((p.res && p.res.newCustom) || []), []);
     if (newCustom.length) tr.custom = (tr.custom || []).concat(newCustom);
     const gather = (k) => parts.reduce((a, p) => a.concat((p.res && p.res[k]) || []), []);
@@ -2488,10 +2499,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       // file, and re-uploading five of them to fix one is a miserable ask.
       let parsed;
       try {
-        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days });
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days, batch: list.length });
       } catch (e) {
         if (e && e.aiError) throw e;              // a paywall or a quota is not worth asking twice
-        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days });
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days, batch: list.length });
       }
       const res = Training.importTemplate(parsed, { custom: t.custom });
       if (!res.template.length) throw new Error('nothing readable in it');
@@ -2517,17 +2528,26 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     const got = results.filter(Boolean);
     // Counted out here, not inside the updater: trainUpdate hands React a function it runs when it
     // pleases, so anything tallied in there is still zero by the time the message below reads it.
-    const added = got.reduce((a, r) => a + r.res.template.length, 0);
+    // `read` is what came back, `added` is what the basket actually grew by - the two differ when
+    // two shots caught the same session and the merge kept the fuller reading.
+    const read = got.reduce((a, r) => a + r.res.template.length, 0);
+    const basket = ((t.draft && t.draft.days) || []);
+    const added = mergedDraftDays(basket, got).length - basket.length;
+    const repeats = Math.max(0, read - added);
     if (got.length) trainUpdate(update, (tr) => mergeIntoDraft(tr, got));
     setReadBusy('');
     setFails(fails2);
-    if (!added) {
+    if (!read) {
       setReadErr(true);
       setReadNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A file or screenshot showing the exercise names, sets and reps works best.');
       return;
     }
     setReadErr(false);
     setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft'
+      // Said out loud, because a screen that reads "5 days added" for 5 files and then shows 3 is
+      // the app quietly disagreeing with itself. Overlapping screenshots are the normal case, not
+      // an error, so this is a note on what happened rather than a warning.
+      + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '')
       + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.')
       + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
   }
@@ -2548,9 +2568,16 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         setReadNote('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
         setReadBusy(''); return;
       }
-      trainUpdate(update, (tr) => mergeIntoDraft(tr, [{ parsed: parsed, res: res, sourceRef: sourceRef }]));
+      const part = { parsed: parsed, res: res, sourceRef: sourceRef };
+      const basket = ((t.draft && t.draft.days) || []);
+      const added = mergedDraftDays(basket, [part]).length - basket.length;
+      trainUpdate(update, (tr) => mergeIntoDraft(tr, [part]));
       setReadBusy('');
-      setReadNote(res.template.length + (res.template.length === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.');
+      // Same subtraction as the file reader does: a post that covers a day already in the basket
+      // merges into it, so what landed is the growth, not what came back.
+      setReadNote(added
+        ? added + (added === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.'
+        : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.');
     } catch (e) {
       setReadErr(true);
       setReadNote((e && e.message) || 'That did not work. Try another way in.');
@@ -2725,7 +2752,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       </Card>
 
       <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
-        hint="Also which track I pull from a source that offers more than one.">
+        hint={draftDays > 0
+          ? 'Which track I pull from a source that offers more than one. What you have already brought sets the day count on its own.'
+          : 'Also which track I pull from a source that offers more than one.'}>
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </TrainField>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
@@ -2793,10 +2822,28 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </TrainField>
 
+      {/* A brought plan sets its own day count: the basket holds whole sessions somebody uploaded, and
+          throwing two of them away to hit a number is not ours to do silently. But neither is
+          building eight sessions a week under a control that says five, which is exactly what this
+          screen used to do - the chip sat there looking answered while the draft quietly won. So the
+          disagreement is said out loud, next to the button that acts on it, with the way to settle it
+          one tap away. */}
       {draftDays > 0 && (
-        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-          Building from the {draftDays} {draftDays === 1 ? 'day' : 'days'} you have brought, at the shape and intensity above.
-        </div>
+        draftDays === days ? (
+          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+            Building from the {draftDays} {draftDays === 1 ? 'day' : 'days'} you have brought, at the shape and intensity above.
+          </div>
+        ) : (
+          <div className="text-[12px] mb-3 leading-snug px-3 py-3" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))', color: 'var(--text2)' }}>
+            You have picked {days} days a week, but I read {draftDays} {draftDays === 1 ? 'day' : 'days'} out of what you brought, so this builds <strong>{draftDays} sessions a week</strong>.{' '}
+            <button onClick={onShots} className="underline" style={{ color: 'var(--accent-ink)' }}>
+              {draftDays > days ? 'Review them' : 'Review it'}
+            </button>{' '}
+            {draftDays > days
+              ? 'to take ' + (draftDays - days === 1 ? 'one out' : (draftDays - days) + ' out') + ', or build all ' + draftDays + '.'
+              : 'to add the rest, or build the ' + draftDays + '.'}
+          </div>
+        )
       )}
       <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
         {busy ? 'Building...' : draftDays > 0 ? 'Build it from what I brought' : 'Build it'}
@@ -4322,10 +4369,15 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 // this needs a global replace, unlike the single {{NAME}} swap in buddyVoice().
 async function aiParseWorkout(content, opts) {
   const days = (opts && opts.days) || 4;
+  const batch = (opts && opts.batch) || 0;
   const prompt = WORKOUT_PROMPT.replace(/\{\{DAYS\}\}/g, String(days));
+  // A file in a batch is one PART of the week, not the week. Sent as a separate block after the
+  // prompt rather than folded into it, so the big prompt above stays byte-identical and cacheable.
+  const head = [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }].concat(
+    batch > 1 ? [{ type: 'text', text: WORKOUT_BATCH_NOTE.replace(/\{\{DAYS\}\}/g, String(days)).replace(/\{\{N\}\}/g, String(batch)) }] : []);
   const j = await aiRequest({
     model: AI_MODEL, max_tokens: 3000,
-    messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }].concat(content) }],
+    messages: [{ role: 'user', content: head.concat(content) }],
   }, opts);
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('Nothing came back. Try a clearer source.');
