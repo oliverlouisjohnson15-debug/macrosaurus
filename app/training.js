@@ -2613,6 +2613,13 @@
     if (patch.repLow != null) t.repLow = clamp(Math.round(+patch.repLow || 0), REPS_MIN, REPS_MAX);
     if (patch.repHigh != null) t.repHigh = clamp(Math.round(+patch.repHigh || 0), REPS_MIN, REPS_MAX);
     if (patch.rir != null) t.rir = clamp(Math.round(+patch.rir || 0), 0, RIR_MAX);
+    if (patch.rirLast != null) t.rirLast = clamp(Math.round(+patch.rirLast || 0), 0, RIR_MAX);
+    // The last set can be harder than the ones before it but never easier: that is what makes it the
+    // last set. A movement edited into an impossible pair drags the earlier sets down with it rather
+    // than refusing the edit, because the person is plainly telling us where they want to end up.
+    if (t.rirLast != null && t.rirLast > t.rir) {
+      if (patch.rirLast != null) t.rir = t.rirLast; else t.rirLast = t.rir;
+    }
     if (patch.restSec != null) t.restSec = clamp(Math.round(+patch.restSec || 0), 15, 600);
     if (t.repLow != null && t.repHigh != null && t.repLow > t.repHigh) {
       if (patch.repLow != null) t.repHigh = t.repLow; else t.repLow = t.repHigh;
@@ -2840,6 +2847,28 @@
     return days;
   }
 
+  // One movement, prescribed the way a given block prescribes them. Used wherever somebody adds a
+  // movement by hand - the block editor, and mid-session - so a line added to a block always speaks
+  // that block's language rather than the defaults of whichever model the app was written around
+  // first. A movement dropped into a min-max block used to arrive with the volume model's ramp,
+  // three reps in reserve walking down, in the middle of a block that takes its last set to failure.
+  function newItemFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom);
+    var style = styleOf(opts.style);
+    var week = opts.week || 1;
+    var rs = repScheme(ex, (ex && ex.primary && ex.primary[0]) || null, 0, opts.intensity, style, opts.window);
+    var sets = style.startSets || 2;
+    var pair = minmaxEffort(ex, sets, false);
+    var target = {
+      sets: sets, repLow: rs.repLow, repHigh: rs.repHigh,
+      rir: style.toFailure ? pair.rir : Math.max(0, 4 - week),
+      restSec: rs.restSec, tempo: defaultTempo(ex),
+    };
+    if (style.toFailure) target.rirLast = pair.rirLast;
+    return { exerciseId: exerciseId, target: target };
+  }
+
   /* ---- what a second block adds, when there are no sets to add ----------------------------------
    * The published min-max programmes run twelve weeks as two six-week blocks, and the difference
    * between the blocks is not volume - it is identical - and not effort, which is already at failure.
@@ -3021,6 +3050,130 @@
     if (!out.length) throw new Error('Nothing in that file could be read as a block.');
     return { blocks: out, problems: uniq(problems) };
   }
+
+  /* ---- a block, stored small ---------------------------------------------------------------------
+   * A block holds every week in full: twelve weeks of a five-day programme is sixty sessions, and
+   * eighty-three percent of what gets written to disk is weeks two to six repeating week one. The
+   * whole state blob is rewritten on every save - Postgres cannot update a TOASTed value in place,
+   * so each save costs its full size in dead rows - and that churn is already the biggest thing in
+   * this database. Two imported programmes were 269KB of it.
+   *
+   * So a block is packed for storage and expanded on read. What varies between weeks is tiny and, as
+   * it turns out, always the same handful of things: the ids, the week number, and one or two target
+   * fields. Everything else is week one repeated. Rather than name those fields - a list that would
+   * rot the first time a new one is added - the pack diffs generically: any key whose value differs
+   * from the template's is carried, and everything else is inherited.
+   *
+   * The safety property that makes this worth doing at all: nothing is ever stored in a form we
+   * cannot reproduce. packBlock unpacks its own output and compares it to what it was given, and
+   * hands back the original block untouched if they differ by so much as a key. A block that cannot
+   * be packed losslessly is simply stored as it always was.
+   */
+  function canonOf(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(canonOf).join(',') + ']';
+    var keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
+    return '{' + keys.map(function (k) { return JSON.stringify(k) + ':' + canonOf(v[k]); }).join(',') + '}';
+  }
+  // Keys whose value differs between a template entry and a later one, plus the keys the later one
+  // has dropped. `skip` is for the sub-objects handled separately (a session's exercises, an
+  // exercise's target), which are diffed on their own terms rather than as opaque blobs.
+  function diffKeys(base, other, skip) {
+    var out = null, dropped = null;
+    Object.keys(other).forEach(function (k) {
+      if (skip && skip[k]) return;
+      if (canonOf(other[k]) === canonOf(base[k])) return;
+      (out = out || {})[k] = other[k];
+    });
+    Object.keys(base).forEach(function (k) {
+      if ((skip && skip[k]) || k in other) return;
+      (dropped = dropped || []).push(k);
+    });
+    if (dropped) (out = out || {}).__drop = dropped;
+    return out;
+  }
+  function applyDiff(base, diff) {
+    var out = JSON.parse(JSON.stringify(base));
+    if (!diff) return out;
+    ((diff.__drop) || []).forEach(function (k) { delete out[k]; });
+    Object.keys(diff).forEach(function (k) { if (k !== '__drop') out[k] = diff[k]; });
+    return out;
+  }
+
+  function packBlock(block) {
+    if (!block || block.packed || !block.sessions || block.sessions.length < 2) return block;
+    var byWeek = {}, weeks = [];
+    block.sessions.forEach(function (s) {
+      var w = s.week || 1;
+      if (!byWeek[w]) { byWeek[w] = []; weeks.push(w); }
+      byWeek[w].push(s);
+    });
+    weeks.sort(function (a, b) { return a - b; });
+    if (weeks.length < 2) return block;
+    var template = byWeek[weeks[0]];
+    var rest = [];
+    for (var i = 1; i < weeks.length; i++) {
+      var list = byWeek[weeks[i]];
+      if (list.length !== template.length) return block;         // not the same week twice: leave it
+      var sessions = [];
+      for (var si = 0; si < list.length; si++) {
+        var t = template[si], s2 = list[si];
+        if ((t.exercises || []).length !== (s2.exercises || []).length) return block;
+        var d = diffKeys(t, s2, { exercises: 1 }) || {};
+        var ex = (s2.exercises || []).map(function (e, ei) {
+          var te = t.exercises[ei];
+          var ed = diffKeys(te, e, { target: 1 });
+          var td = diffKeys(te.target || {}, e.target || {}, null);
+          if (td) (ed = ed || {}).target = td;
+          return ed;
+        });
+        if (ex.some(Boolean)) d.ex = ex;
+        sessions.push(Object.keys(d).length ? d : null);
+      }
+      rest.push({ week: weeks[i], sessions: sessions });
+    }
+    var packed = Object.assign({}, block, { packed: 1, template: template, weekDiffs: rest });
+    delete packed.sessions;
+    // The whole bet, checked rather than assumed.
+    if (canonOf(unpackBlock(packed)) !== canonOf(block)) return block;
+    return packed;
+  }
+
+  function unpackBlock(block) {
+    if (!block || !block.packed) return block;
+    var sessions = (block.template || []).slice();
+    // The sub-objects are rebuilt on their own terms, so they are lifted OUT of the diff rather than
+    // set to undefined on it: a key holding undefined is still a key, and a block that comes back
+    // carrying `ex: undefined` is not the block that went in however identical it looks printed.
+    var without = function (obj, key) {
+      if (!obj) return null;
+      var out = null;
+      Object.keys(obj).forEach(function (k) { if (k !== key) (out = out || {})[k] = obj[k]; });
+      return out;
+    };
+    (block.weekDiffs || []).forEach(function (wk) {
+      (block.template || []).forEach(function (t, si) {
+        var d = (wk.sessions || [])[si];
+        var s = applyDiff(t, without(d, 'ex'));
+        s.week = (d && d.week) || wk.week;
+        s.exercises = (t.exercises || []).map(function (te, ei) {
+          var ed = d && d.ex ? d.ex[ei] : null;
+          var e = applyDiff(te, without(ed, 'target'));
+          var td = ed && ed.target;
+          if (td || te.target) e.target = applyDiff(te.target || {}, td);
+          return e;
+        });
+        sessions.push(s);
+      });
+    });
+    var out = Object.assign({}, block, { sessions: sessions });
+    delete out.packed; delete out.template; delete out.weekDiffs;
+    return out;
+  }
+
+  // The two above, over a whole account's blocks. This is what the storage layer calls.
+  function packBlocks(blocks) { return (blocks || []).map(packBlock); }
+  function unpackBlocks(blocks) { return (blocks || []).map(unpackBlock); }
 
   // ---- sharing -------------------------------------------------------------------------------
   // Pull the week-1 template back out of a built block. This is what gets shared, NOT the expanded
@@ -4081,7 +4234,8 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
-    TECHNIQUES: TECHNIQUES, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
+    packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
+    TECHNIQUES: TECHNIQUES, newItemFor: newItemFor, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,

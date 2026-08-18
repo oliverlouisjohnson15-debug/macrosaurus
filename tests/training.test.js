@@ -719,6 +719,75 @@ test('the two styles read their landmarks from their own table', () => {
   assert.ok(lm.ch.mrv > 15, 'the volume model keeps its own ceiling, untouched by the other');
 });
 
+// ---- a block, stored small --------------------------------------------------------------------
+// Weeks two onward are week one repeated, so a block is packed for storage and expanded on read.
+// The property that matters more than the ratio: nothing is ever stored in a form we cannot
+// reproduce exactly, because a block that comes back subtly different is somebody's training history
+// pointing at lines that no longer exist.
+
+const roundTrips = (block, label) => {
+  const packed = T.packBlock(block);
+  assert.deepEqual(T.unpackBlock(packed), block, label + ': did not come back identical');
+  return packed;
+};
+
+test('every kind of block packs losslessly', () => {
+  const blocks = {
+    'generated min-max': T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 }),
+    'generated volume model': T.generateBlock({ daysPerWeek: 4, weeks: 4 }),
+    'as written': T.generateBlock({ daysPerWeek: 3, weeks: 4, shape: 'as-written' }),
+    'one week only': T.generateBlock({ daysPerWeek: 2, weeks: 1 }),
+  };
+  for (const label of Object.keys(blocks)) {
+    const packed = roundTrips(blocks[label], label);
+    if (blocks[label].weeks > 1) {
+      assert.ok(packed.packed, label + ': should have packed');
+      assert.ok(JSON.stringify(packed).length < JSON.stringify(blocks[label]).length * 0.75, label + ': not worth it');
+    }
+  }
+});
+
+test('a week somebody edited by hand survives the round trip', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 });
+  // Week three: a different movement, a different prescription, a session moved to another day, and
+  // a movement removed outright. None of that is week one any more.
+  const w3 = block.sessions.filter(s => s.week === 3);
+  w3[0].exercises[0].exerciseId = 'db_curl';
+  w3[0].exercises[1].target.sets = 1;
+  w3[0].dayOfWeek = 6;
+  w3[1].exercises.pop();
+  const packed = T.packBlock(block);
+  // The removed movement makes week three structurally different, so it declines to pack rather
+  // than guessing - and what it hands back is the block, untouched.
+  assert.deepEqual(T.unpackBlock(packed), block);
+});
+
+test('a week that differs only in its numbers still packs', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 });
+  const w3 = block.sessions.filter(s => s.week === 3);
+  w3[0].exercises[0].target.sets = 1;
+  w3[0].exercises[0].technique = 'Myo-reps';
+  w3[0].name = 'Upper A (heavy)';
+  const packed = roundTrips(block, 'edited numbers');
+  assert.ok(packed.packed);
+});
+
+test('packing is safe to run twice, and unpacking on an old block does nothing', () => {
+  const block = T.generateBlock({ daysPerWeek: 4, weeks: 4 });
+  const once = T.packBlock(block);
+  assert.deepEqual(T.packBlock(once), once, 'packing a packed block must not double-wrap it');
+  assert.deepEqual(T.unpackBlock(block), block, 'a block saved before any of this reads unchanged');
+  assert.deepEqual(T.unpackBlocks([block, once]).map(b => b.sessions.length), [block.sessions.length, block.sessions.length]);
+});
+
+test('the ids logs point at come back exactly', () => {
+  // The whole reason for the verification step. A logged set stores the session id and the line id
+  // it belongs to; a block that comes back with different ids is a history that points nowhere.
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5 });
+  const idsOf = (b) => b.sessions.map(s => s.id + ':' + s.exercises.map(e => e.id).join(','));
+  assert.deepEqual(idsOf(T.unpackBlock(T.packBlock(block))), idsOf(block));
+});
+
 // ---- what a second block adds ---------------------------------------------------------------------
 // On a style with no sets left to give, the progression between blocks is a technique on the last
 // set of about four movements in ten. The rules below are about what is safe to fail twice on.

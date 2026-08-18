@@ -17257,6 +17257,35 @@ function canonJSON(v) {
   var keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
   return '{' + keys.map(function (k) { return JSON.stringify(k) + ':' + canonJSON(v[k]); }).join(',') + '}';
 }
+/* ---- blocks are stored packed, and expanded the moment they are read -------------------------
+ * A training block holds every week in full, and weeks two to six of a six-week block are week one
+ * repeated: eighty-three percent of a stored block is duplication. The state blob is rewritten whole
+ * on every save and Postgres cannot update a TOASTed value in place, so that duplication is paid for
+ * again on every single write - which is the churn the comment in cloudSave is about.
+ *
+ * Packing happens at the storage boundary and nowhere else. Everything upstream of these four
+ * functions - every screen, the engine, the merge - goes on seeing blocks with all their weeks, so
+ * this is a change to what is written to disk rather than to how the app thinks. Training.packBlock
+ * refuses to pack anything it cannot reproduce exactly, so the worst case is a block stored the way
+ * it always was.
+ */
+function packState(data) {
+  try {
+    if (!data || !data.training || !data.training.blocks) return data;
+    return Object.assign({}, data, {
+      training: Object.assign({}, data.training, { blocks: Training.packBlocks(data.training.blocks) }),
+    });
+  } catch (e) { return data; }
+}
+function unpackState(data) {
+  try {
+    if (!data || !data.training || !data.training.blocks) return data;
+    return Object.assign({}, data, {
+      training: Object.assign({}, data.training, { blocks: Training.unpackBlocks(data.training.blocks) }),
+    });
+  } catch (e) { return data; }
+}
+
 function cloudSave(uid, data) {
   if (DEMO || !supa || !uid) return;
   clearTimeout(_saveTimer);
@@ -17271,20 +17300,20 @@ function cloudSave(uid, data) {
       // every UPDATE rewrites the whole chain and leaves the old one dead. A no-op save therefore
       // costs its full size in dead rows, and that churn is what grew the database to 1.4 GB.
       if (remote && canonJSON(merged) === canonJSON(remote)) return null;
-      return supa.from('user_state').upsert({ user_id: uid, data: merged, updated_at: new Date().toISOString() });
+      return supa.from('user_state').upsert({ user_id: uid, data: packState(merged), updated_at: new Date().toISOString() });
     }).then(function (r) { if (r && r.error) console.warn('cloud save failed:', r.error.message); },
       function (e) { console.warn('cloud save skipped (offline?):', e && e.message); });
   }, 700);
 }
-async function cloudLoad(uid) { const r = await supa.from('user_state').select('data').eq('user_id', uid).maybeSingle(); if (r.error) throw r.error; return r.data ? r.data.data : null; }
+async function cloudLoad(uid) { const r = await supa.from('user_state').select('data').eq('user_id', uid).maybeSingle(); if (r.error) throw r.error; return r.data ? unpackState(r.data.data) : null; }
 // ---- Local offline store (IndexedDB): a snapshot of your data so the app opens and logs with no
 // connection, then reconciles with the cloud (last-write-wins by _rev) when you're back online. ----
 const IDB_NAME = 'macrosaurus', IDB_STORE = 'kv';
 function _idbOpen() { return new Promise(function (res, rej) { try { const r = indexedDB.open(IDB_NAME, 1); r.onupgradeneeded = function () { r.result.createObjectStore(IDB_STORE); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; } catch (e) { rej(e); } }); }
 function idbGet(key) { return _idbOpen().then(function (dbc) { return new Promise(function (res) { const q = dbc.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }).catch(function () { return null; }); }
 function idbSet(key, val) { return _idbOpen().then(function (dbc) { return new Promise(function (res) { const q = dbc.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put(val, key); q.onsuccess = function () { res(true); }; q.onerror = function () { res(false); }; }); }).catch(function () { return false; }); }
-function localLoad(uid) { return idbGet('state:' + uid); }
-function localSave(uid, data) { if (uid) idbSet('state:' + uid, data); }
+function localLoad(uid) { return idbGet('state:' + uid).then(unpackState); }
+function localSave(uid, data) { if (uid) idbSet('state:' + uid, packState(data)); }
 // A representative sample account for ?demo mode: a mid-cut male with a part-logged day, a fortnight
 // of weigh-ins trending down, a week of steps, and a hatched buddy, enough to show every surface.
 function demoState() {

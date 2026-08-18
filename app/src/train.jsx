@@ -1071,10 +1071,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   function addExercise(exId) {
     setPicking(false);
     mutate(n => {
-      const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
+      const fresh = Training.newItemFor(exId, { style: block && block.style, week: (session && session.week) || 1, custom: t.custom });
+      const pre = Training.prefillSets({ exerciseId: exId, target: fresh.target }, t.logs, t.custom, preOpts);
       // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
       // its sets still group as one movement when the session is reopened.
-      n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: { sets: 2, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
+      n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: fresh.target, sets: pre.sets, note: coachNote(pre), superset: null });
     });
     setFocus(items.length);
   }
@@ -3166,12 +3167,11 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
     setPicking(null);
     edit(b => {
       const s = b.sessions.filter(x => x.id === sessionId)[0];
-      const ex = Training.byId(exId, t.custom);
-      const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
-      s.exercises.push({
-        id: exId + '_' + trainUid(), exerciseId: exId, order: s.exercises.length,
-        target: { sets: 2, repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12, rir: Math.max(0, 4 - s.week), restSec: compound ? 150 : 120 },
-      });
+      // Prescribed the way THIS block prescribes things. A movement dropped into a min-max block was
+      // arriving with the volume model's ramp - three reps in reserve in week one, walking down -
+      // in the middle of a block where every other movement takes its last set to failure.
+      s.exercises.push(Object.assign({ id: exId + '_' + trainUid(), order: s.exercises.length },
+        Training.newItemFor(exId, { style: b.style, week: s.week, window: s.window, custom: t.custom })));
     });
   }
   // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
@@ -3767,9 +3767,24 @@ function TargetSheet({ row, name, onChange, onClose }) {
         <Stepper label="Reps to" value={t.repHigh} sub="The top of the range"
           atMin={t.repHigh <= Training.REPS_MIN} atMax={t.repHigh >= Training.REPS_MAX}
           onMinus={() => onChange({ repHigh: t.repHigh - 1 })} onPlus={() => onChange({ repHigh: t.repHigh + 1 })} />
-        <Stepper label="RIR" value={t.rir} sub="Reps you leave in the tank"
-          atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
-          onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
+        {/* Two steppers where a movement runs a pair, one where it does not. A block written to take
+            its LAST set to failure and the ones before it a rep short cannot say so through a single
+            number, so a movement added by hand to such a block silently prescribed something else -
+            the one thing the editor could not express was the thing the block was built on. */}
+        {t.rirLast == null ? (
+          <Stepper label="RIR" value={t.rir} sub="Reps you leave in the tank"
+            atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
+            onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
+        ) : (
+          <React.Fragment>
+            <Stepper label="RIR, earlier sets" value={t.rir} sub={t.sets > 1 ? 'Reps left on the sets before the last one' : 'Not used: this movement is one set'}
+              atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
+              onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
+            <Stepper label="RIR, last set" value={t.rirLast} sub={t.rirLast === 0 ? 'To failure' : 'Reps left when it ends'}
+              atMin={t.rirLast <= 0} atMax={t.rirLast >= Training.RIR_MAX}
+              onMinus={() => onChange({ rirLast: t.rirLast - 1 })} onPlus={() => onChange({ rirLast: t.rirLast + 1 })} />
+          </React.Fragment>
+        )}
         {/* A sheet with a button at the bottom reads as a form with a Save on it, and this one is not:
             every tap above has already been written. Saying so is the difference between closing it
             confidently and closing it wondering. */}

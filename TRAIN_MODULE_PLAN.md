@@ -83,20 +83,38 @@ takes an optional count and slices from the TOP of the ramp, because somebody as
 sets wants the two nearest their working weight, not the two lightest. All 210 movements in the 5x
 programme now carry the count their author wrote. The session line says whose number it is.
 
-### 8. Let somebody write "last set to failure" by hand — an hour
-The block editor's RIR stepper edits `target.rir` only. A movement added by hand to a min-max block
-cannot express the 1/0 pair the rest of the block uses, so it silently prescribes something else.
+### 8. Let somebody write "last set to failure" by hand ✔
+Done, and the stepper was the smaller half of it. `Training.newItemFor` now prescribes a movement the
+way the block it is being added to prescribes movements, so a line dropped into a min-max block
+arrives at 1/0 with that block's rep window instead of with the volume model's ramp - three reps in
+reserve in week one, walking down, in the middle of a block where everything else goes to failure.
+Both the block editor and the mid-session add use it. The prescription sheet shows two steppers where
+a movement runs a pair, and `setExerciseTarget` keeps the pair honest: the last set can be harder
+than the ones before it, never easier.
 
-### 9. Stop storing twelve copies of the same week — one to two days, needs care
-Both imported programmes are **269KB** in the state blob. That blob is rewritten whole on every
-save, and the comment at `app/src/app.jsx:17268` blames exactly this churn for growing the database
-to 1.4GB. A twelve-week block stores twelve near-identical weeks; weeks 2 to 6 of a min-max block
-differ from each other in nothing at all.
+### 9. Stop storing twelve copies of the same week ✔
+Done. Measured first: 83% of a stored block is weeks two onward repeating week one, and the only
+things that vary are the ids, the week number and one or two target fields.
 
-Shape of the fix: store the week-1 template plus the per-week rules (which week is the intro, which
-carries techniques), and expand on read. The editing model has to keep working - somebody can edit
-one week of a block today - so an edited week becomes an explicit override rather than the default.
-Needs a migration for blocks already saved, and it must be reversible.
+`packBlock` keeps week one as a template and stores every later week as a generic diff against it -
+generic on purpose, because a named list of "fields that vary" would rot the first time a new one is
+added. `unpackBlock` rebuilds. The safety property is the point: **packBlock unpacks its own output
+and compares it to what it was given, and hands back the original block untouched if they differ by
+so much as a key**. A block it cannot reproduce is simply stored the way it always was, which is why
+a week somebody edited into a different shape declines to pack rather than guessing.
+
+Packing happens at the storage boundary - `packState` / `unpackState` around cloudSave, cloudLoad,
+localSave and localLoad - and nowhere else. Every screen, the engine and the merge all go on seeing
+blocks with every week present, so this changed what is written to disk rather than how the app
+thinks.
+
+Both imported programmes: **317KB to 96KB, 70% smaller**, and that saving is paid back on every
+single write, because the blob is rewritten whole each time.
+
+One known consequence, worth remembering rather than fixing: a browser tab still running an older
+bundle would read a packed block as a block with no sessions - an empty Train tab until it refreshes.
+It cannot lose data (the merge unions by id and writes back what it read), and the service worker
+version bump ends it on the next load.
 
 ### 10. Split train.jsx — one day
 6,028 lines and about forty components. The session player alone is a thousand. Four files - player,
