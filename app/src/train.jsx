@@ -33,17 +33,24 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
     showToast && showToast('Block deleted.');   // ConfirmDialog closes itself once onConfirm returns
   }
 
-  // Load a block file: a plan somebody already owns, converted once and brought straight in. It goes
-  // into THEIR blocks and nowhere else - nothing here publishes, and a plan bought from a coach is
-  // not ours to put in front of anybody else.
+  // Load a block file: a plan somebody already owns, brought straight in. It goes into THEIR blocks
+  // and nowhere else - nothing here publishes, and a plan bought from a coach is not ours to put in
+  // front of anybody else.
+  //
+  // Two kinds land here. A block file (.json) has already been read exactly. A SPREADSHEET is read
+  // exactly right now: Training.blocksFromGrid takes the grid off the sheet - every set, rep range,
+  // RIR pair, rest, substitution and note, all twelve weeks of it - and no model sees it. That is
+  // the difference between this and the wizard's importer, which reads a photograph and therefore
+  // has to guess, and which can only fit about a quarter of a long sheet into a prompt anyway.
   const [loadBusy, setLoadBusy] = useState('');
   async function loadBlockFile(file) {
     if (!file) return;
     setLoadBusy('Reading it...');
     try {
-      const text = await file.text();
-      const res = Training.blocksFromFile(text, { custom: t.custom, fileName: file.name });
-      trainUpdate(update, (tr) => { tr.blocks = (tr.blocks || []).concat(res.blocks); });
+      const sheet = /\.xlsx$/i.test(file.name || '') || (file.type || '').indexOf('spreadsheetml') !== -1;
+      const res = sheet ? await blocksFromSpreadsheet(file, t.custom) : Training.blocksFromFile(await file.text(), { custom: t.custom, fileName: file.name });
+      if (!res || !res.blocks.length) throw new Error('I could not find a written programme in that. A block file, or a spreadsheet with a week marker, a day name and one movement a row.');
+      addOwnedBlocks(update, res);
       showToast && showToast(res.blocks.length === 1 ? 'Block added.' : res.blocks.length + ' blocks added.');
       setLoadBusy(res.problems.length ? res.problems.slice(0, 3).join('. ') + '.' : '');
     } catch (e) {
@@ -85,8 +92,8 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           nothing about it is published or shared. */}
       <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] mb-4 ' + (loadBusy === 'Reading it...' ? 'opacity-60' : 'cursor-pointer')}
         style={{ background: 'var(--surface2)' }}>
-        {loadBusy === 'Reading it...' ? loadBusy : 'Load a block file'}
-        <input type="file" className="hidden" accept=".json,application/json" disabled={loadBusy === 'Reading it...'}
+        {loadBusy === 'Reading it...' ? loadBusy : 'Load a block file or spreadsheet'}
+        <input type="file" className="hidden" accept=".json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={loadBusy === 'Reading it...'}
           onChange={e => { loadBlockFile(e.target.files && e.target.files[0]); e.target.value = ''; }} />
       </label>
       {loadBusy && loadBusy !== 'Reading it...' && (
@@ -1079,6 +1086,11 @@ function fileToB64(file) {
 // this needs no library: walk the zip's central directory, inflate the two parts we care about
 // (the shared string table and the first worksheet), then read the cells. Anything unexpected
 // throws and the caller falls back to asking for a CSV, which is a fair thing to ask.
+//
+// It hands back the GRID, rows of cells, rather than text. A written programme is a grid - column 5
+// is the working sets and column 13 is the rest - and Training.blocksFromGrid reads it as one,
+// exactly, without a model in the way. Flattening it to text is what you do for the model, and that
+// is readXlsxText below.
 async function readXlsx(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const dv = new DataView(buf.buffer);
@@ -1154,7 +1166,54 @@ async function readXlsx(file) {
     return '';
   });
   if (!rows.length) throw new Error('empty sheet');
-  return rows.map(r => r.join('\t')).join('\n');
+  return rows;
+}
+
+// The same read, flattened. A model gets tab-separated text; Training.blocksFromGrid gets the grid.
+async function readXlsxText(file) {
+  return (await readXlsx(file)).map(r => r.join('\t')).join('\n');
+}
+
+// A written programme, off a spreadsheet, exactly as written. Returns null when the sheet is not a
+// programme - a food diary, a set of body-weight readings, a plan laid out some way this cannot
+// read - so the caller can fall back to the importer that copes with anything.
+//
+// Shaped like Training.blocksFromFile's answer on purpose: the two are the same act from the
+// person's point of view, which is bringing in a plan they already own.
+async function blocksFromSpreadsheet(file, custom) {
+  const rows = await readXlsx(file);
+  const res = Training.blocksFromGrid(rows, { custom: custom, fileName: file.name, name: sheetTitle(file.name) });
+  if (!res) return null;
+  return {
+    blocks: res.blocks, custom: res.custom,
+    // Named, not silently accepted. These are in the plan - the library grew an entry for each -
+    // but a guessed classification is worth a look, and the person is the one who can look.
+    problems: res.unknown.length
+      ? [(res.unknown.length === 1 ? 'One movement was' : res.unknown.length + ' movements were') + ' not in the library, so I added ' + (res.unknown.length === 1 ? 'it' : 'them') + ': ' + res.unknown.slice(0, 6).join(', ')]
+      : [],
+  };
+}
+
+// Put an imported programme on the shelf: the library entries it needed first, then the blocks,
+// re-pointed at whatever those entries collapsed into. Both ways in - the block-file loader on the
+// blocks screen and the wizard's exact import - write through here, so a plan somebody owns lands
+// the same way whichever door it came in by.
+function addOwnedBlocks(update, res) {
+  trainUpdate(update, (tr) => {
+    if (res.custom && res.custom.length) {
+      const merged = Training.mergeCustom(tr.custom || [], res.custom);
+      tr.custom = merged.custom;
+      Training.remapBlocks(res.blocks, merged.map);
+    }
+    tr.blocks = (tr.blocks || []).concat(res.blocks);
+  });
+}
+
+// "The_MinMax_Program_5x.xlsx" is a name somebody chose; "The MinMax Program 5x" is the same name
+// with the file system's punctuation taken back out of it.
+function sheetTitle(fileName) {
+  const base = String(fileName || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
+  return base || 'Imported programme';
 }
 
 function readTextFile(file) {
@@ -1179,7 +1238,7 @@ async function workoutContentFromFile(file) {
     return { blocks: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: 'This PDF is a training plan from a coach. Read it.' }], kind: 'pdf' };
   }
   if (/\.xlsx$/.test(name) || type.indexOf('spreadsheetml') !== -1) {
-    const grid = await readXlsx(file);
+    const grid = await readXlsxText(file);
     return { blocks: [{ type: 'text', text: 'This is a training plan exported from a spreadsheet. Rows and columns are preserved as tab-separated text, so a column is very often a week and a row an exercise. Read the FIRST week only.\n\n' + grid.slice(0, 24000) }], kind: 'spreadsheet' };
   }
   if (/\.(csv|tsv|txt|md)$/.test(name) || type.indexOf('text/') === 0) {

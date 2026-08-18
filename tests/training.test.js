@@ -971,6 +971,109 @@ test('a block file cannot smuggle in numbers the app would not accept', () => {
   assert.ok(b.sessions[0].dayOfWeek >= 0 && b.sessions[0].dayOfWeek <= 6);
 });
 
+// ---- a plan you already own, as a SPREADSHEET ---------------------------------------------------
+// The same act as loading a block file, one step earlier: the sheet itself. A photograph of a plan
+// has to go through a model and costs a guess on every line, and a twelve-week programme is about
+// 93,000 characters of grid against a prompt that carries 24,000 of it. A spreadsheet has columns,
+// and the columns say what they mean, so this reads all of it and reads it the same way every time.
+
+// Column 1 is the week marker and the day label, 2 the movement, 3 the technique, 4 warm-ups,
+// 5 working sets, 6 the rep range, 11 and 12 the RIR pair, 13 rest, 14/15 substitutions, 16 notes.
+function sheetRow(cells) {
+  const r = new Array(17).fill('');
+  Object.keys(cells).forEach(k => { r[+k] = String(cells[k]); });
+  return r;
+}
+const gridWeek = (n, extra) => [
+  sheetRow({ 1: 'Week ' + n }),
+  sheetRow({ 1: 'Upper', 2: 'Barbell Incline Press', 4: '2-4', 5: '2', 6: '6-8', 11: '2', 12: '1', 13: '3-5 min',
+    14: 'Machine Incline Press', 15: 'Incline DB Press', 16: 'Pause for 1 second at the bottom.' }),
+  sheetRow({ 2: 'Pec Deck', 3: 'Two Drop Sets (~25% per)', 4: '1-2', 5: '1', 6: '8-10', 11: '0', 12: '0', 13: '1-2 min' }),
+  sheetRow({ 1: 'Lower', 2: 'Squat (Your Choice)', 4: '2-4', 5: '2', 6: '6-8', 11: '2', 12: '1', 13: '3-5 min',
+    16: 'This can be a Barbell Back Squat, Hack Squat, or Pendulum Squat.' }),
+].concat(extra || []);
+const gridOf = (weeks) => [].concat.apply([], Array.from({ length: weeks }, (_, i) => gridWeek(i + 1)));
+
+test('a written spreadsheet is read exactly, every column of it', () => {
+  const res = T.blocksFromGrid(gridOf(2), { name: 'A programme' });
+  assert.equal(res.weeks, 2);
+  assert.equal(res.daysPerWeek, 2);
+  assert.equal(res.blocks.length, 1);
+  const b = res.blocks[0];
+  assert.equal(b.style, 'minmax');
+  assert.equal(b.shape, 'as-written', 'a plan you own is not ours to periodise');
+  assert.equal(b.sessions.length, 4, 'two days a week, both weeks');
+  const press = b.sessions[0].exercises[0];
+  assert.equal(press.exerciseId, 'bb_incline');
+  assert.deepEqual([press.target.sets, press.target.repLow, press.target.repHigh, press.target.rir, press.target.rirLast],
+    [2, 6, 8, 2, 1], 'sets, rep range and BOTH reps-in-reserve come off the sheet');
+  assert.equal(press.target.restSec, 240, '"3-5 min" is four minutes');
+  assert.equal(press.warmups, 3, 'the author\'s own warm-up count, not one computed from the load');
+  assert.equal(press.planNote, 'Pause for 1 second at the bottom.');
+  assert.equal(press.alts.length, 2, 'and the substitutions the author offered');
+  assert.equal(b.sessions[0].exercises[1].technique, 'Two Drop Sets (~25% per)');
+  assert.equal(b.sessions[1].name, 'Lower');
+  assert.equal(b.sessions[1].kind, 'lower');
+});
+
+test('a slot the sheet left open arrives as a choice, not a pick made for you', () => {
+  const b = T.blocksFromGrid(gridOf(1), {}).blocks[0];
+  const choices = T.blockChoices(b);
+  assert.equal(choices.length, 1);
+  assert.deepEqual(choices[0].options, ['back_squat', 'hack_squat', 'pendulum_squat'], 'read out of the note beside it');
+  assert.equal(T.applyChoice(b, choices[0].key, 'pendulum_squat'), 1);
+});
+
+test('a twelve week programme is two blocks, because that is how the app runs one', () => {
+  const res = T.blocksFromGrid(gridOf(12), { name: 'Long' });
+  assert.equal(res.blocks.length, 2);
+  assert.deepEqual(res.blocks.map(b => b.weeks), [6, 6]);
+  assert.deepEqual(res.blocks.map(b => b.name), ['Long - Block 1', 'Long - Block 2']);
+  assert.ok(res.blocks[1].sessions.every(s => s.week >= 1 && s.week <= 6), 'the second block starts at its own week one');
+  const again = T.blocksFromGrid(gridOf(12), { name: 'Long' });
+  const ids = res.blocks.concat(again.blocks).map(b => b.id);
+  assert.equal(new Set(ids).size, 4, 'the same sheet loaded twice must not overwrite itself');
+});
+
+test('Excel turning "6-8" into the sixth of August does not become a rep range nobody can read', () => {
+  // A spreadsheet stores a date as days since 1899-12-30, so the rep range and the warm-up count
+  // come out as five-figure numbers. Left alone, the plan asks for 44,780 reps.
+  const rows = gridOf(1);
+  rows[1][6] = '45816';   // the 8th of June 2025, which is what "6-8" becomes
+  const e = T.blocksFromGrid(rows, {}).blocks[0].sessions[0].exercises[0];
+  assert.equal(e.target.repLow, 6);
+  assert.equal(e.target.repHigh, 8);
+});
+
+test('a movement the library has never seen gets an entry rather than a gap', () => {
+  const rows = gridOf(1);
+  rows[2][2] = 'Bulgarian Cable Hamstring Curl';
+  const res = T.blocksFromGrid(rows, {});
+  assert.deepEqual(res.unknown, ['Bulgarian Cable Hamstring Curl'], 'named, so it can be added properly');
+  assert.equal(res.custom.length, 1);
+  assert.deepEqual(res.custom[0].primary, ['ha'], 'classified off its own name, and flagged as a guess');
+  assert.equal(res.custom[0].auto, true);
+  assert.equal(res.custom[0].equipment, 'cable');
+  const line = res.blocks[0].sessions[0].exercises[1];
+  assert.equal(line.exerciseId, res.custom[0].id, 'and the line is still IN the plan');
+});
+
+test('a spreadsheet that is not a programme is handed back, not forced into one', () => {
+  assert.equal(T.blocksFromGrid([sheetRow({ 1: 'Date', 2: 'Weight' }), sheetRow({ 1: '2026-01-01', 2: '84.2' })], {}), null);
+  assert.equal(T.blocksFromGrid([], {}), null);
+  // Weeks that disagree about how many days they hold are not a week-per-week programme, whatever
+  // else they are, and the importer that copes with anything should have it instead.
+  const ragged = gridWeek(1).concat([sheetRow({ 1: 'Week 2' }), sheetRow({ 1: 'Upper', 2: 'Pec Deck', 5: '2', 6: '8-10' })]);
+  assert.equal(T.blocksFromGrid(ragged, {}), null);
+});
+
+test('a spreadsheet cannot smuggle in numbers the app would not accept', () => {
+  const rows = gridOf(1);
+  rows[1][5] = '99'; rows[1][6] = '1-900'; rows[1][11] = '12'; rows[1][13] = '400 min';
+  const e = T.blocksFromGrid(rows, {}).blocks[0].sessions[0].exercises[0];
+  assert.ok(e.target.sets <= T.SETS_MAX && e.target.repHigh <= T.REPS_MAX && e.target.rir <= T.RIR_MAX && e.target.restSec <= 600);
+});
+
 // ---- min-max ------------------------------------------------------------------------------------
 // The house method: four to ten hard sets a muscle a week, one or two per movement, every one of them
 // to failure, on kit that makes failing safe. Everything below is a rule of the method rather than a

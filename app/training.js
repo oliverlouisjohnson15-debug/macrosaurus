@@ -2773,6 +2773,24 @@
     return days;
   }
 
+  // The same re-pointing, for a block rather than a draft's days. An imported programme carries the
+  // id in three places - the line itself, its substitutions, and the options behind a "your choice"
+  // slot - and a merge that fixed only the first would leave a chooser offering a movement that no
+  // longer exists.
+  function remapBlocks(blocks, map) {
+    if (!map || !Object.keys(map).length) return blocks;
+    (blocks || []).forEach(function (b) {
+      (b.sessions || []).forEach(function (s) {
+        (s.exercises || []).forEach(function (e) {
+          if (map[e.exerciseId]) e.exerciseId = map[e.exerciseId];
+          if (e.alts) e.alts = e.alts.map(function (a) { return map[a] || a; });
+          if (e.choice && e.choice.options) e.choice.options = e.choice.options.map(function (a) { return map[a] || a; });
+        });
+      });
+    });
+    return blocks;
+  }
+
   // Merge imported days into the draft basket, in place, and renumber.
   //
   // The rule that matters is the one about collisions. Keying purely on the day's NAME meant five
@@ -2978,6 +2996,211 @@
       });
     });
     return n;
+  }
+
+  /* ---- a programme that arrives as a spreadsheet -------------------------------------------------
+   * A written programme in a spreadsheet does not need a model to read it. It has columns, and the
+   * columns say what they mean: the exercise, the working sets, the rep range, the reps in reserve,
+   * the rest, the substitutions, the notes. Handing that to a language model - which is what the
+   * photo importer does, because a photograph genuinely needs one - costs a guess on every line and
+   * cannot see more of a long sheet than fits in a prompt. A twelve-week programme is about 93,000
+   * characters of grid; the prompt carries 24,000 of it. Three quarters of the plan never arrives.
+   *
+   * So this reads the grid directly, and reads all of it. Every set, rep range, RIR pair, rest and
+   * note comes off the sheet, and the same sheet gives the same answer every time.
+   *
+   * The layout it knows is the one every coaching-app export shares: a week marker on its own row, a
+   * day label on the row its first movement sits on, then the movement and its columns. It returns
+   * null the moment the grid does not look like that, so an ordinary spreadsheet of numbers falls
+   * through to the importer that can cope with anything.
+   */
+  var SHEET = {
+    day: 1, name: 2, technique: 3, warmups: 4, sets: 5, reps: 6,
+    rir: 11, rirLast: 12, rest: 13, sub1: 14, sub2: 15, note: 16,
+  };
+  // Excel reads "6-8" as the sixth of August and stores a date serial: days since 1899-12-30. The
+  // rep range and the warm-up count are the two columns it does this to, and a plan whose rep ranges
+  // have silently become dates is a plan nobody can read.
+  function serialToRange(n) {
+    var d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000);
+    return (d.getUTCMonth() + 1) + '-' + d.getUTCDate();
+  }
+  function sheetCell(row, i) {
+    var v = (row && row[i] == null) ? '' : String(row[i]).trim();
+    if ((i === SHEET.warmups || i === SHEET.reps) && /^\d+(\.\d+)?$/.test(v) && +v > 20000) v = serialToRange(+v);
+    return v;
+  }
+  function sheetRange(v) {
+    var m = String(v).match(/^(\d+)\s*-\s*(\d+)$/);
+    return m ? { low: +m[1], high: +m[2] } : null;
+  }
+  // "This can be a Barbell Back Squat, Barbell Front Squat, Pendulum Squat, Hack Squat, Belt Squat,
+  // or Smith Machine Squat." A slot the author left open, and the note is the list of what fills it.
+  function sheetChoice(name, note, resolve) {
+    if (!/your choice/i.test(name) && !/^this can be/i.test(note || '')) return null;
+    var listed = String(note || '').replace(/^this can be (a|an)\s*/i, '').replace(/\.$/, '')
+      .split(/,| or /i).map(function (x) { return x.trim(); }).filter(Boolean);
+    var options = [];
+    listed.forEach(function (n) {
+      var id = resolve(n);
+      if (id && options.indexOf(id) === -1) options.push(id);
+    });
+    if (options.length < 2) return null;
+    var label = name.replace(/\s*\(your choice\)\s*/i, '').trim() || 'Your choice';
+    return { key: norm(label).replace(/[^a-z0-9]+/g, '_'), label: label + ' - your choice', options: options };
+  }
+  var SHEET_KIND = function (name) {
+    var n = norm(name);
+    if (n.indexOf('full') !== -1) return 'full';
+    if (n.indexOf('arm') !== -1 || n.indexOf('delt') !== -1) return 'arms';
+    if (n.indexOf('upper') !== -1) return 'upper';
+    if (n.indexOf('lower') !== -1 || n.indexOf('leg') !== -1) return 'lower';
+    return 'full';
+  };
+  // Where a week's sessions fall. These sheets write "1-2 Rest Days" between days rather than naming
+  // weekdays, so the gaps are kept where the programme puts them.
+  var SHEET_DOW = { 2: [0, 3], 3: [0, 2, 4], 4: [0, 3, 4, 5], 5: [0, 1, 3, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
+
+  // What a movement is, read off its own name. The photo importer gets this from the model that read
+  // the photograph; a sheet has no model, so a name the library has never seen is classified here.
+  // It is a guess and it is flagged as one (auto: true), but a guessed entry keeps the line IN the
+  // programme, and a dropped line is a set the person paid for and will never be asked to do.
+  var SHEET_KIT = [
+    [/\bsmith\b/, 'smith'], [/\b(barbell|bb)\b/, 'barbell'], [/\b(dumbbell|db)\b/, 'dumbbell'],
+    [/\bez\b/, 'ez'], [/\bcable\b/, 'cable'], [/\bkettlebell\b/, 'kettlebell'],
+    [/\btrap.?bar\b/, 'trapbar'], [/\bband\b/, 'band'], [/\bmachine|press|pulldown|pec deck|leg (press|curl|extension)\b/, 'machine'],
+  ];
+  var SHEET_MUSCLE = [
+    [/calf|calve/, ['ca']], [/quad|squat|leg extension|leg press|lunge|split squat|sissy/, ['qu']],
+    [/hamstring|leg curl|rdl|romanian|good ?morning|nordic/, ['ha']],
+    [/glute|hip thrust|kickback|abduction/, ['gl']], [/adduct/, ['ad']],
+    [/tricep|pushdown|skull ?crusher|overhead extension|dip/, ['tr']],
+    [/bicep|curl/, ['bi']], [/forearm|wrist|grip/, ['fa']],
+    [/oblique|side bend|woodchop/, ['ob']], [/ab |abs|crunch|leg raise|plank|rollout/, ['ab']],
+    [/rear delt|reverse (fly|pec)|face pull/, ['rd']], [/lateral raise|side raise|y.?raise/, ['sd']],
+    [/shoulder press|overhead press|front raise/, ['fd']],
+    [/row|shrug|pull.?over/, ['ub']], [/lat |lats|pulldown|pull.?up|chin.?up/, ['lt']],
+    [/chest|bench|pec|fly|push.?up/, ['ch']], [/deadlift/, ['lb']],
+  ];
+  var SHEET_ISOLATION = /curl|raise|extension|fly|pushdown|kickback|shrug|calf|crunch|pull.?over|face pull/;
+
+  function blocksFromGrid(rows, opts) {
+    opts = opts || {};
+    var custom = (opts.custom || []).slice();
+    var unknown = [], minted = [];
+    // A name the library has nothing for becomes a library entry rather than a gap. Same rule the
+    // photo importer follows: never drop a line. Reported in `unknown` all the same, so the ones
+    // worth naming properly can be.
+    function mint(name) {
+      var id = autoCustomId(name);
+      var twin = custom.filter(function (x) { return x.id === id || sameMovement(x.name, tidyName(name) || name); })[0];
+      if (twin) return twin.id;
+      var n = norm(name);
+      var kit = 'machine', muscle = ['ch'];
+      for (var i = 0; i < SHEET_KIT.length; i++) if (SHEET_KIT[i][0].test(n)) { kit = SHEET_KIT[i][1]; break; }
+      for (var j = 0; j < SHEET_MUSCLE.length; j++) if (SHEET_MUSCLE[j][0].test(n)) { muscle = SHEET_MUSCLE[j][1]; break; }
+      var ex = {
+        id: id, name: tidyName(name) || String(name), equipment: kit,
+        pattern: SHEET_ISOLATION.test(n) ? 'isolation' : 'compound', profile: 'mid',
+        primary: muscle, secondary: [], custom: true, auto: true,
+      };
+      custom.push(ex); minted.push(ex);
+      return id;
+    }
+    function resolve(name) {
+      if (!name) return null;
+      var d = resolveDetail(name, custom);
+      if (d) return d.id;
+      if (unknown.indexOf(name) === -1) unknown.push(name);
+      return mint(name);
+    }
+    var weeks = [], week = null, day = null;
+    (rows || []).forEach(function (r) {
+      var marker = sheetCell(r, SHEET.day);
+      if (/^week \d+$/i.test(marker)) { week = { n: +marker.split(/\s+/)[1], days: [] }; weeks.push(week); day = null; return; }
+      var name = sheetCell(r, SHEET.name);
+      if (!week || !name || name === 'Exercise') return;
+      if (marker && !/^week/i.test(marker)) { day = { name: marker, items: [] }; week.days.push(day); }
+      if (!day) { day = { name: 'Day ' + (week.days.length + 1), items: [] }; week.days.push(day); }
+      var reps = sheetRange(sheetCell(r, SHEET.reps));
+      var warm = sheetRange(sheetCell(r, SHEET.warmups));
+      var rest = sheetRange(String(sheetCell(r, SHEET.rest)).replace(/\s*min.*/i, ''));
+      var rirOf = function (i) { var v = sheetCell(r, i); return /^\d+$/.test(v) ? +v : null; };
+      var note = sheetCell(r, SHEET.note);
+      var choice = sheetChoice(name, note, resolve);
+      // "Squat (Your Choice)" with no list behind it is still a squat. Resolved without the
+      // parenthetical, so the library gets a movement rather than a piece of the author's phrasing.
+      var id = choice ? choice.options[0] : resolve(name.replace(/\s*\((your )?choice\)\s*/i, ' ').trim());
+      if (!id) return;
+      var alts = [sheetCell(r, SHEET.sub1), sheetCell(r, SHEET.sub2)]
+        .filter(function (x) { return x && !/^(n\/a|see notes)$/i.test(x); })
+        .map(resolve).filter(Boolean);
+      alts = alts.filter(function (a) { return a !== id; });
+      var tech = sheetCell(r, SHEET.technique);
+      day.items.push({
+        exerciseId: id, sourceName: name, sets: +sheetCell(r, SHEET.sets) || 1,
+        repLow: reps ? reps.low : null, repHigh: reps ? reps.high : null,
+        rir: rirOf(SHEET.rir), rirLast: rirOf(SHEET.rirLast),
+        restSec: rest ? Math.round(((rest.low + rest.high) / 2) * 60) : null,
+        technique: (tech && !/^n\/a$/i.test(tech)) ? tech : null,
+        warmups: warm ? Math.round((warm.low + warm.high) / 2) : null,
+        choice: choice, alts: alts.length ? alts : null, note: note || null,
+      });
+    });
+    // Does this actually look like a programme? A week with days, days with movements, and every
+    // week the same shape. Anything else is a spreadsheet, and the importer that copes with anything
+    // should have it instead.
+    weeks = weeks.filter(function (w) { return w.days.length && w.days.some(function (d) { return d.items.length; }); });
+    if (!weeks.length || !weeks[0].days.length) return null;
+    var dayCount = weeks[0].days.length;
+    if (weeks.some(function (w) { return w.days.length !== dayCount; })) return null;
+
+    var splitAt = opts.splitAt || 6;
+    var chunks = weeks.length > splitAt ? [weeks.slice(0, splitAt), weeks.slice(splitAt)] : [weeks];
+    var name = opts.name || 'Imported programme';
+    var stamp = Date.now().toString(36);
+    var blocks = chunks.map(function (chunk, ci) {
+      var dows = SHEET_DOW[dayCount] || chunk[0].days.map(function (_, i) { return Math.min(i, 6); });
+      // Fresh every time, so two imports of one sheet cannot collide on the shelf. A caller that
+      // wants a stable file on disk (tools/minmax-import.mjs) passes its own prefix instead.
+      var id = opts.idPrefix ? opts.idPrefix + (chunks.length > 1 ? '_b' + (ci + 1) : '') : 'blk_' + stamp + '_' + ci + Math.random().toString(36).slice(2, 5);
+      var sessions = [];
+      chunk.forEach(function (w, wi) {
+        w.days.forEach(function (d, di) {
+          sessions.push({
+            id: id + '_w' + (wi + 1) + 'd' + di, week: wi + 1,
+            dayOfWeek: dows[di] == null ? Math.min(di, 6) : dows[di],
+            name: d.name, kind: SHEET_KIND(d.name), deload: false,
+            exercises: d.items.map(function (it, ei) {
+              return {
+                id: id + '_w' + (wi + 1) + 'd' + di + '_e' + ei,
+                exerciseId: it.exerciseId, order: ei, sourceName: it.sourceName,
+                choice: it.choice || null, alts: it.alts || null,
+                technique: it.technique || null, planNote: it.note || null,
+                warmups: it.warmups == null ? null : it.warmups,
+                target: {
+                  sets: clamp(it.sets, SETS_MIN, SETS_MAX),
+                  repLow: clamp(it.repLow || 6, REPS_MIN, REPS_MAX),
+                  repHigh: clamp(it.repHigh || 10, REPS_MIN, REPS_MAX),
+                  rir: clamp(it.rir == null ? 1 : it.rir, 0, RIR_MAX),
+                  rirLast: clamp(it.rirLast == null ? (it.rir == null ? 0 : it.rir) : it.rirLast, 0, RIR_MAX),
+                  restSec: clamp(it.restSec || 120, 30, 600),
+                  tempo: null,
+                },
+              };
+            }),
+          });
+        });
+      });
+      return {
+        id: id, name: chunks.length > 1 ? name + ' - Block ' + (ci + 1) : name,
+        goal: 'hypertrophy', weeks: chunk.length, shape: 'as-written', style: 'minmax',
+        daysPerWeek: dayCount, intensity: 'high', startISO: null, archived: false, shared: false,
+        source: 'file', sourceRef: { kind: 'file', name: opts.fileName || 'a spreadsheet' },
+        sessions: sessions,
+      };
+    });
+    return { blocks: blocks, unknown: uniq(unknown), custom: minted, weeks: weeks.length, daysPerWeek: dayCount };
   }
 
   /* ---- loading a block somebody already owns ----------------------------------------------------
@@ -4246,6 +4469,7 @@
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
+    blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
     TECHNIQUES: TECHNIQUES, newItemFor: newItemFor, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,

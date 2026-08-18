@@ -7,7 +7,7 @@
    - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
    Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '330';
+const VERSION = '331';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [

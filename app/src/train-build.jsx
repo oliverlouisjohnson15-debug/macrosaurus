@@ -270,6 +270,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [readNote, setReadNote] = useState(null);
   const [readErr, setReadErr] = useState(false);
   const [fails, setFails] = useState([]);   // files that did not read, kept so they can be retried
+  // A spreadsheet that turned out to be a whole written programme, waiting on one question: is it
+  // the plan, or the inspiration for one? See readFiles.
+  const [exact, setExact] = useState(null);
 
   /* The live preview. Every answer runs the REAL engine and reads the real block back, so what is
      drawn above the questions is the block you will get rather than a sketch of one. Memoised on the
@@ -365,12 +368,27 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // row is minutes of staring at a button, so they run a few at a time and the label counts what has
   // FINISHED rather than what has started. And a file that fails is named and offered back, instead
   // of disappearing into an anonymous tally.
-  async function readFiles(files) {
+  async function readFiles(files, opts) {
     const list = Array.from(files || []);
     if (!list.length) return;
     if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
     const note = ctx;
-    setReadErr(false); setReadNote(null); setFails([]);
+    setReadErr(false); setReadNote(null); setFails([]); setExact(null);
+
+    // A spreadsheet is not a photograph. It has columns, and the columns say what they mean, so a
+    // written programme in one can be read EXACTLY - all twelve weeks, every set, rep range, RIR
+    // pair, rest and note - with no model in the way. The path below is the inspiration path by
+    // design and it can only fit about a quarter of a long sheet into a prompt, which is why
+    // uploading a programme here used to come back looking like a cousin of it rather than it.
+    // So: read it exactly first, and if it IS a programme, ask which of the two was meant.
+    if (!(opts && opts.force)) {
+      for (const file of list) {
+        if (!/\.xlsx$/i.test(file.name || '') && (file.type || '').indexOf('spreadsheetml') === -1) continue;
+        let res = null;
+        try { res = await blocksFromSpreadsheet(file, t.custom); } catch (e) { res = null; }
+        if (res && res.blocks.length) { setExact({ files: list, file: file, res: res }); return; }
+      }
+    }
     let done = 0;
     const label = () => setReadBusy('Read ' + done + ' of ' + list.length + '...');
     label();
@@ -439,6 +457,19 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '')
       + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.')
       + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
+  }
+
+  // The answer to that question. "Exactly" means exactly: the blocks go on the shelf as the sheet
+  // wrote them, and nothing here re-periodises them, re-picks a movement or lays the house intensity
+  // over the top. The questions below this card are about a block WE write; this is one somebody
+  // already wrote, and the honest thing to do with it is leave it alone.
+  function takeExactly() {
+    if (!exact) return;
+    const res = exact.res;
+    addOwnedBlocks(update, res);
+    setExact(null);
+    showToast && showToast(res.blocks.length === 1 ? 'Added to your blocks. Start it from the Train tab.' : res.blocks.length + ' blocks added. Start the first from the Train tab.');
+    onBack && onBack();
   }
 
   // Link and paste are single sources, read the same way but without the batching a pile of files
@@ -605,6 +636,30 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             <button onClick={readPaste} disabled={!!readBusy || !text.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
               {readBusy || 'Read it'}
             </button>
+          </div>
+        )}
+
+        {/* The fork. A spreadsheet that turned out to be a whole written programme is the one source
+            where "inspiration" is probably not what was meant - somebody who uploads twelve weeks of
+            a plan they own usually wants those twelve weeks - but it is still a question, because
+            reading it as inspiration is a real thing to want too. Asked once, plainly, with the size
+            of what was found on screen so the answer is an informed one. */}
+        {exact && (
+          <div className="p-3.5 mt-3" style={{ border: '2px solid var(--accent)', background: 'var(--surface2)' }}>
+            <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>That is a written programme</div>
+            <div className="text-[12.5px] leading-relaxed mb-3" style={{ color: 'var(--text2)' }}>
+              I can read {exact.file.name} exactly: <b className="tnum">{exact.res.blocks.reduce((a, b) => a + b.weeks, 0)} weeks</b>, {exact.res.blocks[0].daysPerWeek} days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count and intensity you set below.
+            </div>
+            <button onClick={takeExactly} className="pixel-box w-full h-11 text-[12.5px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+              Take it exactly as written
+            </button>
+            <button onClick={() => { const files = exact.files; setExact(null); readFiles(files, { force: true }); }}
+              className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface)' }}>
+              Use it as inspiration
+            </button>
+            {exact.res.problems.length > 0 && (
+              <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>{exact.res.problems[0]}</div>
+            )}
           </div>
         )}
 
