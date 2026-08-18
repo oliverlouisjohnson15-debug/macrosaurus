@@ -1475,10 +1475,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   && Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).length > 0 && (
                   <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Warm up: </span>
+                    {/* A suggestion and nothing more: no rows, no ticks, nothing logged. Where the
+                        plan states a count it decides how many rungs are on this line, and says
+                        nothing about it - a warm-up that announces itself is a warm-up being treated
+                        as a step you owe somebody. */}
                     {Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')}
-                    {/* Said once, quietly: this is the author's count, not ours, and somebody who
-                        knows the plan will notice it matches. */}
-                    {it.warmups != null && <span style={{ color: 'var(--muted2)' }}> · the plan asks for {it.warmups}</span>}
                   </div>
                 )}
 

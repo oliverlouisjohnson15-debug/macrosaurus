@@ -53066,11 +53066,7 @@ function SessionPlayer({
         }
       }, "Warm up: "), Training.warmupSets(work[0].weightKg, ex, {
         count: it.warmups
-      }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', '), it.warmups != null && /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, " · the plan asks for ", it.warmups)), style.toFailure && !work.some(x => x.done) && tgt && /*#__PURE__*/React.createElement("div", {
+      }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')), style.toFailure && !work.some(x => x.done) && tgt && /*#__PURE__*/React.createElement("div", {
         className: "text-[11.5px] mb-3 px-2.5 py-2 leading-snug",
         style: {
           borderLeft: '3px solid var(--accent)',
