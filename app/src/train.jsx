@@ -363,8 +363,9 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
         const prefs = tdb(db).prefs || {};
         const gym = currentGym(db);
         const block = Training.blockFromSource(draft.days, {
-          gym: gym, daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5), weeks: 4,
-          shape: prefs.shape || 'build4', intensity: prefs.intensity || 'high',
+          gym: gym, daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5),
+          weeks: blockWeeks(prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax6')),
+          shape: prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax6'),
           style: prefs.style || 'minmax',
           targets: trainTargets(db, prefs.style || 'minmax'), custom: tdb(db).custom,
           equipment: (prefs.equipment || []).length ? prefs.equipment : null, dislikes: prefs.dislikes,
@@ -1344,7 +1345,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                     ? 'Set ' + Math.min(work.length, (work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
-                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? (style.toFailure ? ' to failure' : ' at ' + tgt.rir + ' RIR') : ' reps')}
+                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
               {open
@@ -1361,7 +1362,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                      text on the right, so the whole prescription is one line instead of three. ---- */}
                 <div className="flex items-center gap-2 mb-4">
                   {tgt && (style.toFailure
-                    ? <MetaBit label="To failure" onHelp={() => setHelp('failure')} hideHelp={t.prefs.hideHelp} />
+                    ? <MetaBit label={(tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week' : (tgt.rir > 0 ? 'Last set to failure' : 'To failure')}
+                      onHelp={() => setHelp('failure')} hideHelp={t.prefs.hideHelp} />
                     : <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />)}
                   {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
                   {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
@@ -1422,12 +1424,16 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                     and somebody who knows there is one set does not. It is said on the movement you
                     are about to do, once, and only while it is still ahead of you - a line telling
                     you to lock in, above a set you have already finished, is noise. */}
-                {style.toFailure && !work.some(x => x.done) && (
+                {style.toFailure && !work.some(x => x.done) && tgt && (
                   <div className="text-[11.5px] mb-3 px-2.5 py-2 leading-snug"
                     style={{ borderLeft: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)' }}>
-                    {work.length === 1
-                      ? 'One set here. Make it count: take it to the rep where the weight stops moving.'
-                      : 'Two sets here, and the first one is the one that counts. Take it until the weight stops moving.'}
+                    {(tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0
+                      ? 'Intro week. Leave ' + (tgt.rirLast == null ? tgt.rir : tgt.rirLast) + ' in the tank on the last set: this week is what earns you the next five.'
+                      : work.length === 1
+                        ? 'One set here. Make it count: take it to the rep where the weight stops moving.'
+                        : tgt.rir > 0
+                          ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.'
+                          : 'Two sets, both to failure. The second is lighter for exactly that reason.'}
                   </div>
                 )}
 
@@ -1512,9 +1518,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                           reps under the window and teaches nobody anything, so the app has already
                           taken 15% off. Said out loud, because a weight the app quietly lowered
                           reads as a bug rather than as the protocol it is. */}
-                      {s.backOff && !s.done && (
+                      {style.toFailure && !s.done && (s.backOff || s.targetRir > 0) && (
                         <div className="text-[10.5px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
-                          Back-off set: 15% lighter, taken to failure again.
+                          {s.backOff
+                            ? 'Back-off set: 15% lighter, taken to failure again.'
+                            : 'Leave ' + s.targetRir + (s.targetRir === 1 ? ' rep' : ' reps') + ' in the tank on this one.'}
                         </div>
                       )}
                       {setMenu === ii + ':' + si && (
@@ -1842,7 +1850,7 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
   let title = '', body = '';
   if (topic === 'failure') {
     title = 'To failure';
-    body = 'The set ends when the weight stops moving, not when it gets hard. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. On that volume the last rep is what makes the session worth doing, and there is no next set to save anything for. Stop if your form breaks rather than grinding out a rep that has already gone wrong, and use the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
+    body = 'The LAST set of a movement ends when the weight stops moving, not when it gets hard. Where a movement has two sets, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. The first week of a block sits a rep or two further back on everything, and it is not a formality: it is what lets the next five weeks be this hard. Stop if your form breaks rather than grinding a rep that has already gone wrong, and take the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
   } else if (topic === 'rir') {
     title = 'Reps in reserve';
     body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the block goes on so the hard weeks land when you are ready for them.';
@@ -2412,6 +2420,13 @@ function TrainField({ label, effect, hint, children }) {
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
+// How many weeks a block shape runs for. The six-week min-max block is not a four-week block with
+// two more stapled on: its first week is an intro week, and the five after it are the block.
+function blockWeeks(shape) {
+  const sh = Training.SHAPES[shape];
+  return (sh && (sh.build + (sh.deload ? 1 : 0))) || 4;
+}
+
 // What the draft basket will hold once these reads are folded into it. Pure, on a copy, because the
 // count has to be known BEFORE the write: trainUpdate hands React a function it runs when it pleases,
 // and the message telling somebody what landed is written on the line after. It is also the only way
@@ -2444,7 +2459,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // told the food side of the app they are cutting has already answered this question.
   const cutting = ((db.profile || {}).goalType === 'cut');
   const [goal, setGoal] = useState('hypertrophy');
-  const [shape, setShape] = useState(t.prefs.shape || 'build4');
+  const [shape, setShape] = useState(t.prefs.shape || (t.prefs.style === 'landmarks' ? 'build4' : 'minmax6'));
   // The one answer on this screen that changes what a brought plan IS: their block run as written, or
   // their choices read as inspiration for one of ours. Everything else on the screen is a setting.
   const shapeDef = Training.SHAPES[shape] || Training.SHAPES.build4;
@@ -2485,13 +2500,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       // inspiration at the day count set below, or photocopies it when the shape says "as brought".
       const blk = draftDays > 0
         ? Training.blockFromSource(t.draft.days, {
-          daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+          daysPerWeek: days, weeks: blockWeeks(shape), shape: shape, intensity: intensity, goal: goal, targets: targets,
           style: style, gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
           custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
           name: t.draft.name || 'My block', startISO: null,
         })
         : Training.generateBlock({
-          daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+          daysPerWeek: days, weeks: blockWeeks(shape), shape: shape, intensity: intensity, goal: goal, targets: targets,
           style: style, gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
           custom: t.custom, sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
         });
@@ -2726,7 +2741,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     let block;
     if (draftDays > 0) {
       block = Training.blockFromSource(t.draft.days, {
-        daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+        daysPerWeek: days, weeks: blockWeeks(shape), shape: shape, intensity: intensity, goal: goal, targets: targets,
         style: style, gym: gym, equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes, custom: t.custom, sessionMinutes: minutes, emphasis: emphasis,
         name: t.draft.name || 'My block', startISO: null,
@@ -2734,7 +2749,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       });
     } else {
       block = Training.generateBlock({
-        daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+        daysPerWeek: days, weeks: blockWeeks(shape), shape: shape, intensity: intensity, goal: goal, targets: targets,
         style: style, gym: gym, equipment: equipment.length ? equipment : null,
         dislikes: t.prefs.dislikes, custom: t.custom,
         sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
@@ -2850,6 +2865,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         hint={Training.STYLES[style].blurb}>
         <Seg value={style} onChange={v => {
           setStyle(v);
+          // The block length belongs to the style: min-max runs six weeks off an intro week, the
+          // volume model four. Only moved when the person has not chosen one for themselves.
+          if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax6' : 'build4');
           // Five days is the min-max week and four is the volume model's default shape. Only moved
           // when the person has not set a day count of their own, so a deliberate answer is never
           // overwritten by changing your mind about the style.
@@ -2911,10 +2929,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             ? 'Their plan, their sets, their numbers, run for four weeks. Nothing of mine added.'
             : shapeDef.label + ' What you brought sets the movements; the sets, the climb and the day count are mine.')
           : shapeDef.label}>
-        <Seg value={shape} onChange={setShape} options={[
-          { v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' },
-          { v: 'as-written', l: 'As brought' },
-        ]} />
+        <Seg value={shape} onChange={setShape} options={(style === 'minmax'
+          ? [{ v: 'minmax6', l: '6 weeks' }, { v: 'build4', l: '4 weeks' }]
+          : [{ v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' }]
+        ).concat([{ v: 'as-written', l: 'As brought' }])} />
       </TrainField>
       {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
           which is why it replaced the nine tick boxes that used to live here. */}
@@ -5499,9 +5517,11 @@ function HowItWorks({ onBack }) {
     ['Volume, in hard sets',
       'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'],
     ['Two ways to train, and one of them is the default',
-      'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and every working set taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'],
+      'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'],
     ['On min-max, the weight is the progression',
-      'There are no sets to add, so week four looks exactly like week one on paper and everything that changed is on the bar. Each movement has a rep window: 6 to 9 on the heavy compounds, 10 to 15 on everything else. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where a movement has a second set, the app takes 15 percent off it: an all-out first set means a second at the same weight would miss the window by three reps.'],
+      'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'],
+    ['The last set is the one that goes',
+      'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'],
     ['Stalling is a movement problem, not a volume problem',
       'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'],
     ['Every muscle, twice a week',

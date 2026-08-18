@@ -132,14 +132,14 @@
     landmarks: {
       key: 'landmarks', label: 'Volume landmarks',
       startSets: null,          // taken from the intensity setting, as it always was
-      maxSets: 5, growSets: true, toFailure: false,
+      maxSets: 5, growSets: true, toFailure: false, shape: 'build4', weeks: 4,
       landmarks: null, stableKit: false, minEx: 4, maxExCap: 9,
       blurb: 'Start near the least volume that grows a muscle, add a set a week where there is room, and finish the block close to failure.',
     },
     minmax: {
       key: 'minmax', label: 'Min-max',
-      startSets: 2, maxSets: 2, growSets: false, toFailure: true,
-      landmarks: MINMAX_LANDMARKS, stableKit: true, minEx: 5, maxExCap: 7,
+      startSets: 2, maxSets: 2, growSets: false, toFailure: true, shape: 'minmax6', weeks: 6,
+      landmarks: MINMAX_LANDMARKS, stableKit: true, minEx: 5, maxExCap: 9,
       blurb: 'Four to ten hard sets a muscle a week, one or two per movement, every one of them to failure. Progress comes from the weight and the reps, never from more sets.',
     },
   };
@@ -1603,16 +1603,22 @@
    * The weekday numbers are part of the split, not an afterthought: the rest days only do their job
    * where they actually fall.
    */
+  // [day kind, name, weekday, rep window]. The four and five day weeks are the cadences the published
+  // programmes actually run - four days is full body, then upper, lower, arms after a gap; five is
+  // upper, lower, rest, upper, lower, arms, rest. Two and three go full body for the same reason
+  // they do on the other model: an upper/lower week run twice gives the legs one session, and one
+  // session of two-set movements is not four sets of quads however hard they are taken.
+  //
+  // The rep window belongs to the SESSION, not to the movement, because that is how the programmes
+  // are written: a muscle's first exposure of the week is the heavier one at 6 to 8 and its second
+  // is 8 to 10. Same movements, same sets, a different corner of the rep range - which is variation
+  // that costs nothing, unlike variation in volume.
   var MINMAX_SPLITS = {
-    // Two and three days go full body, for the same reason they do on the other model: an upper /
-    // lower week run twice gives the legs one session, and one session of two-set movements is not
-    // four sets of quads however hard they are taken. Spaced out, because the rest days are the
-    // half of this method that does the recovering.
-    2: [['full', 'Full body A', 0], ['full', 'Full body B', 3]],
-    3: [['full', 'Full body A', 0], ['full', 'Full body B', 2], ['full', 'Full body C', 4]],
-    4: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4]],
-    5: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['arms', 'Arms and delts', 5]],
-    6: [['upper', 'Upper A', 0], ['lower', 'Lower A', 1], ['arms', 'Arms and delts', 2], ['upper', 'Upper B', 3], ['lower', 'Lower B', 4], ['full', 'Whatever is behind', 5]],
+    2: [['full', 'Full body A', 0, 'low'], ['full', 'Full body B', 3, 'high']],
+    3: [['full', 'Full body A', 0, 'low'], ['full', 'Full body B', 2, 'high'], ['full', 'Full body C', 4, 'high']],
+    4: [['full', 'Full body', 0, 'low'], ['upper', 'Upper', 3, 'high'], ['lower', 'Lower', 4, 'low'], ['arms', 'Arms and delts', 5, 'high']],
+    5: [['upper', 'Upper A', 0, 'low'], ['lower', 'Lower A', 1, 'low'], ['upper', 'Upper B', 3, 'high'], ['lower', 'Lower B', 4, 'high'], ['arms', 'Arms and delts', 5, 'high']],
+    6: [['upper', 'Upper A', 0, 'low'], ['lower', 'Lower A', 1, 'low'], ['arms', 'Arms and delts', 2, 'high'], ['upper', 'Upper B', 3, 'high'], ['lower', 'Lower B', 4, 'high'], ['full', 'Whatever is behind', 5, 'low']],
   };
 
   // Which muscles each day type is responsible for, in the order they should be trained: the
@@ -1719,6 +1725,27 @@
     if (gym.bench === false) excluded = excluded.concat(NEEDS_BENCH);
     if (gym.pullupBar === false) excluded = excluded.concat(NEEDS_BAR);
     return { equipment: equipment, prefer: base.prefer || [], excluded: excluded, repBias: base.repBias || 0 };
+  }
+
+  /* ---- how close to failure, per movement ------------------------------------------------------
+   * Min-max does not take literally every set to failure, and the published programmes are precise
+   * about it: the LAST set of a movement is the all-out one, and where a movement has two sets the
+   * first stops a rep short. Isolation goes to failure on both, because the cost of failing a cable
+   * curl is nothing; a squat's first set stops short, because the cost of failing that is a squat
+   * you have to get out from under.
+   *
+   * The opening week of a block is easier again - one rep further back on everything, two on the
+   * heaviest free-weight compounds. That is the intro week, and it is not a formality: it is what
+   * lets weeks two to six be as hard as they are.
+   */
+  function minmaxEffort(ex, sets, intro) {
+    var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+    var heavy = compound && ex && !STABLE_KIT[ex.equipment] && ex.equipment !== 'bodyweight';
+    var last = 0;
+    var first = compound ? 1 : 0;
+    if (intro) { var bump = heavy ? 2 : 1; first += bump; last += bump; }
+    // One set means one all-out set: there is no earlier set for it to be the harder half of.
+    return sets > 1 ? { rir: first, rirLast: last } : { rir: last, rirLast: last };
   }
 
   // Kit that holds the path of the bar for you, so the last rep of a set to failure is a rep that
@@ -1833,7 +1860,7 @@
   };
   function intensityOf(key) { return INTENSITY[key] || INTENSITY.high; }
 
-  function repScheme(ex, muscle, bias, intensity, style) {
+  function repScheme(ex, muscle, bias, intensity, style, window) {
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
     var iv = intensityOf(intensity);
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
@@ -1842,10 +1869,15 @@
     // Heavy compounds get 6 to 9, everything else 10 to 15. Rest is long, because one set decides
     // the movement and a set taken to failure on a half-recovered system is a wasted one.
     if (styleOf(style && style.key ? style.key : style).toFailure) {
-      if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 90 };
-      return compound
-        ? { repLow: 6 + b, repHigh: 9 + b, restSec: 180 }
-        : { repLow: 10 + b, repHigh: 15 + b, restSec: 120 };
+      // Two windows, 6-8 and 8-10, and which one you are in is the session's business rather than
+      // the movement's (see MINMAX_SPLITS). Rest is by how much of you the movement uses: three to
+      // five minutes on the heavy compounds, two to three on the rest of them, one to two on
+      // isolation - a set to failure on a half-recovered system is a wasted set.
+      var rest = !compound ? 90 : (ex && !STABLE_KIT[ex.equipment] && isLowerBody(ex) ? 240 : 150);
+      if (ex && ex.pattern === 'core') return { repLow: 6, repHigh: 8, restSec: 90 };
+      return window === 'high'
+        ? { repLow: 8 + b, repHigh: 10 + b, restSec: rest }
+        : { repLow: 6 + b, repHigh: 8 + b, restSec: rest };
     }
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
     // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
@@ -1870,6 +1902,11 @@
   // So: build for four, then let deloadAdvice() read what actually happened and say whether a lighter
   // week is earned. Anyone who prefers the fixed rhythm can still choose it.
   var SHAPES = {
+    // The min-max block, and the shape the published programmes run: six weeks, the first of them an
+    // intro week a rep or two further from failure on everything. The intro week is not a formality
+    // or a courtesy to beginners - it is what buys weeks two to six the right to be as hard as they
+    // are, and both blocks of the twelve-week programmes open with one.
+    'minmax6': { build: 6, deload: false, intro: true, label: '6 weeks: an easier first week, then five hard ones' },
     'build4': { build: 4, deload: false, label: '4 building weeks, then we check whether you need a lighter one' },
     'build3-deload1': { build: 3, deload: true, label: '3 building weeks and a lighter fourth, every block' },
     // Somebody else's plan, run the way they wrote it. No set added per week, no lighter fourth, no
@@ -1996,10 +2033,11 @@
       // Walks 3-2-1-0 on the default 'high' intensity: the final building week lands at true failure
       // (0 RIR), not a floor of 1. Stopping short of failure every week is the thing "high intensity"
       // is supposed to rule out. 'moderate' keeps the old floor of 1 for anyone who wants it.
-      // On min-max there is nothing to walk down: the first set of week one is already an all-out
-      // set, and that is the point of it. A lighter week, if the shape asks for one, is the only
-      // week that stops short.
-      var rir = style.toFailure ? (isDeload ? 2 : 0) : (isDeload ? 4 : Math.max(iv.rirFloor, 4 - w));
+      // Min-max walks nothing down across the block: weeks two to six are all as hard as each other,
+      // and the only week that stops short is the one at the front (and a lighter week, if the shape
+      // asks for one). Everything else that changes between week two and week six is on the bar.
+      var isIntro = !!(style.toFailure && SHAPES[shape].intro && w === 1);
+      var rir = style.toFailure ? 0 : (isDeload ? 4 : Math.max(iv.rirFloor, 4 - w));
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -2032,10 +2070,16 @@
             var effort = asWritten
               ? (item.target && item.target.rir != null ? item.target.rir : 2)
               : rir;
+            // The min-max pair: the last set of a movement is the all-out one, the set before it
+            // stops a rep short on anything you could get hurt failing, and the intro week sits a
+            // rep or two behind both.
+            var pair = (style.toFailure && !asWritten) ? minmaxEffort(exx, sets, isIntro || isDeload) : null;
             return {
               id: (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
-              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target, { sets: sets, rir: effort }),
+              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
+                { sets: sets, rir: pair ? pair.rir : effort },
+                pair ? { rirLast: pair.rirLast } : {}),
             };
           }),
         });
@@ -2924,8 +2968,8 @@
     // and re-deriving them from a muscle name throws that away for nothing. Sets and proximity to
     // failure are never theirs to set: those are the two things that have to answer to the person's
     // own landmarks and to the week of the block they are standing in.
-    function schemeFor(ex, muscle) {
-      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity, style);
+    function schemeFor(ex, muscle, window) {
+      var rs = repScheme(ex, muscle, opts.repBias, opts.intensity, style, window);
       var src = insp && insp.prescriptions[ex.id];
       if (!src) return rs;
       var lo = clamp(+src.repLow || rs.repLow, 1, 40);
@@ -2937,21 +2981,23 @@
     // full, then set the sets so the WEEKLY total for each muscle lands at or just above MEV.
     var used = {};
     var template = split.map(function (d, i) {
-      var kind = d[0], name = d[1];
+      var kind = d[0], name = d[1], window = d[3] || null;
       var muscles = DAY_MUSCLES[kind];
       var exercises = [];
       for (var m = 0; m < muscles.length && exercises.length < maxEx; m++) {
         var ex = pickFor(muscles[m], Object.assign({ used: used }, pickOpts));
         if (!ex) continue;
         used[ex.id] = 1;
-        var rs = schemeFor(ex, muscles[m]);
+        var rs = schemeFor(ex, muscles[m], window);
+        var ef = minmaxEffort(ex, startSets, false);
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
+          target: Object.assign({ sets: startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: style.toFailure ? ef.rir : 3, restSec: rs.restSec, tempo: rs.tempo || defaultTempo(ex) },
+            style.toFailure ? { rirLast: ef.rirLast } : {}),
         });
       }
-      return { kind: kind, name: name, dayOfWeek: d[2] == null ? i : d[2], exercises: exercises };
+      return { kind: kind, name: name, dayOfWeek: d[2] == null ? i : d[2], window: window, exercises: exercises };
     });
 
     // Frequency floor: every muscle at least twice a week, before volume gets topped up at all.
@@ -2987,10 +3033,12 @@
           var exf = pickFor(m, Object.assign({ used: used }, pickOpts));
           if (!exf) break;
           used[exf.id] = 1;
-          var rsf = schemeFor(exf, m);
+          var rsf = schemeFor(exf, m, dest.window);
+          var eff = minmaxEffort(exf, startSets, false);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
+            target: Object.assign({ sets: startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: style.toFailure ? eff.rir : 3, restSec: rsf.restSec, tempo: rsf.tempo || defaultTempo(exf) },
+              style.toFailure ? { rirLast: eff.rirLast } : {}),
           });
         }
       });
@@ -3050,10 +3098,12 @@
         // can say which of their movements did not make it instead of quietly being a shorter plan.
         if (!dest2) { spare.push(id); return; }
         used[id] = 1;
-        var rsb = schemeFor(exb, prim[0]);
+        var rsb = schemeFor(exb, prim[0], dest2.window);
+        var efb = minmaxEffort(exb, startSets, false);
         dest2.exercises.push({
           id: exb.id + '_brought_' + dest2.exercises.length, exerciseId: exb.id, order: dest2.exercises.length,
-          target: { sets: startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: style.toFailure ? 0 : 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
+          target: Object.assign({ sets: startSets, repLow: rsb.repLow, repHigh: rsb.repHigh, rir: style.toFailure ? efb.rir : 3, restSec: rsb.restSec, tempo: rsb.tempo || defaultTempo(exb) },
+            style.toFailure ? { rirLast: efb.rirLast } : {}),
         });
       });
     }
@@ -3087,10 +3137,12 @@
         var shortest = template.filter(function (d) { return d.exercises.length < hardCap; })
           .sort(function (a, b) { return a.exercises.length - b.exercises.length; })[0];
         if (!shortest) { stuck[gap.muscle] = true; continue; }
-        var rs2 = schemeFor(ex2, gap.muscle);
+        var rs2 = schemeFor(ex2, gap.muscle, shortest.window);
+        var ef2 = minmaxEffort(ex2, startSets, false);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: style.toFailure ? 0 : 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
+          target: Object.assign({ sets: startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: style.toFailure ? ef2.rir : 3, restSec: rs2.restSec, tempo: rs2.tempo || defaultTempo(ex2) },
+            style.toFailure ? { rirLast: ef2.rirLast } : {}),
         });
       }
     }
@@ -3633,11 +3685,16 @@
     var out = [];
     for (var i = 0; i < n; i++) {
       var prev = prevSets[i] || prevSets[prevSets.length - 1];
-      // The weight for the top set is what the progression said; the second set is that, backed off,
-      // because a second all-out set at the same load is a set that misses the window by three reps.
+      // The weight for the top set is what the progression said. What happens on the second set
+      // depends on what the first one was: where the plan stops set one a rep short (the compounds),
+      // set two is the all-out set at the SAME weight, which is how the published programmes are
+      // written. Where BOTH sets are to failure - isolation, where failing costs nothing - a second
+      // set at the same load lands three reps under the window and teaches nobody anything, so the
+      // app takes 15% off it.
       var lead = progressed ? +progressed.weightKg || 0 : 0;
+      var bothToFailure = (t.rir === 0);
       var planned = style.toFailure && lead
-        ? (i === 0 ? lead : backOffLoad(lead, ex))
+        ? (i === 0 || !bothToFailure ? lead : backOffLoad(lead, ex))
         : 0;
       out.push({
         setIndex: i, exerciseId: sessionExercise.exerciseId, type: 'work',
@@ -3646,7 +3703,10 @@
         lastTime: prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null,
         // What this row is FOR, so the runner can label a backed-off second set as the deliberate
         // thing it is rather than leaving somebody to wonder why the app dropped their weight.
-        backOff: !!(style.toFailure && lead && i > 0),
+        backOff: !!(style.toFailure && lead && i > 0 && bothToFailure),
+        // What THIS set is being asked for, since the last set of a movement is the all-out one and
+        // the set before it is not. A single number on the movement cannot say that.
+        targetRir: style.toFailure ? (i === n - 1 ? (t.rirLast == null ? t.rir : t.rirLast) : t.rir) : t.rir,
       });
     }
     return {

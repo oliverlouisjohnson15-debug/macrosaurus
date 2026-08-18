@@ -677,14 +677,14 @@ test('days collected from separate screenshots do not share exercise ids', () =>
 // preference, so each of these is a thing that must not drift.
 
 const minmax = (opts) => T.generateBlock(Object.assign({
-  style: 'minmax', daysPerWeek: 5, weeks: 4, sessionMinutes: 60,
+  style: 'minmax', daysPerWeek: 5, weeks: 6, shape: 'minmax6', sessionMinutes: 60,
   targets: T.defaultTargets({ style: 'minmax' }),
 }, opts || {}));
 
 test('no muscle is programmed more than ten hard sets a week', () => {
   for (const days of [2, 3, 4, 5, 6]) {
     const block = minmax({ daysPerWeek: days });
-    for (let w = 1; w <= 4; w++) {
+    for (let w = 1; w <= 6; w++) {
       const vol = T.blockWeekVolume(block, w);
       // The ceiling is the whole method and applies to everything.
       for (const m of T.MUSCLES) {
@@ -712,17 +712,39 @@ test('no movement is ever prescribed more than two working sets', () => {
   }
 });
 
-test('every working set is prescribed to failure', () => {
-  const block = minmax({ shape: 'build4' });
+test('the last set of every movement is the all-out one', () => {
+  // Not every set: the published programmes stop the FIRST set of a two-set compound a rep short,
+  // because the cost of failing a squat is a squat you have to get out from under. The last set is
+  // always the one taken to failure, and on isolation both of them are.
+  const block = minmax({ shape: 'minmax6' });
   for (const s of block.sessions) {
-    for (const e of s.exercises) assert.equal(e.target.rir, 0, `${s.name} week ${s.week} asks for ${e.target.rir} RIR`);
+    for (const e of s.exercises) {
+      const ex = T.byId(e.exerciseId);
+      const intro = s.week === 1;
+      if (intro) {
+        assert.ok(e.target.rirLast >= 1, `${ex.name} in the intro week should stop short, got ${e.target.rirLast}`);
+      } else {
+        assert.equal(e.target.rirLast, 0, `${s.name} week ${s.week}: ${ex.name} last set at ${e.target.rirLast} RIR`);
+        assert.ok(e.target.rir <= 1, `${ex.name} first set at ${e.target.rir} RIR`);
+        if (ex.pattern === 'isolation') assert.equal(e.target.rir, 0, `${ex.name} is isolation: both sets go`);
+      }
+    }
   }
 });
 
-test('week four is week one: the progression is not in the plan', () => {
+test('the block is six weeks and opens on an easier one', () => {
+  const block = minmax({ shape: 'minmax6', weeks: 6 });
+  assert.equal(block.weeks, 6);
+  const heaviest = (w) => T.weekSessions(block, w).reduce((a, s) => a.concat(s.exercises), [])
+    .reduce((a, e) => a + e.target.rir + e.target.rirLast, 0);
+  assert.ok(heaviest(1) > heaviest(2), 'week one sits further from failure than week two');
+  assert.equal(heaviest(2), heaviest(6), 'and weeks two to six are all as hard as each other');
+});
+
+test('the last week is the first week: the progression is not in the plan', () => {
   const block = minmax();
   const setsIn = (w) => T.weekSessions(block, w).reduce((a, s) => a + s.exercises.reduce((x, e) => x + e.target.sets, 0), 0);
-  assert.equal(setsIn(4), setsIn(1), 'sets must not climb on a style with nothing to add');
+  assert.equal(setsIn(6), setsIn(1), 'sets must not climb on a style with nothing to add');
 });
 
 test('the week is five sessions inside seven days, with the rest days where they belong', () => {
@@ -732,13 +754,34 @@ test('the week is five sessions inside seven days, with the rest days where they
   assert.deepEqual(week.map(s => s.kind), ['upper', 'lower', 'upper', 'lower', 'arms']);
 });
 
-test('a session is five to seven movements', () => {
+test('a session is five to nine movements, as the published weeks run', () => {
   for (const mins of [40, 60, 80]) {
     const block = minmax({ sessionMinutes: mins });
     for (const s of T.weekSessions(block, 1)) {
-      assert.ok(s.exercises.length >= 5 && s.exercises.length <= 7, `${s.name} has ${s.exercises.length} movements at ${mins} minutes`);
+      assert.ok(s.exercises.length >= 5 && s.exercises.length <= 9, `${s.name} has ${s.exercises.length} movements at ${mins} minutes`);
     }
   }
+});
+
+test('the five day week is the published cadence, and the four day week is its own shape', () => {
+  const five = T.weekSessions(minmax({ daysPerWeek: 5 }), 1).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  assert.deepEqual(five.map(s => s.kind), ['upper', 'lower', 'upper', 'lower', 'arms']);
+  assert.deepEqual(five.map(s => s.dayOfWeek), [0, 1, 3, 4, 5]);
+  // Four days is full body, a gap, then upper, lower, arms - not upper/lower twice.
+  const four = T.weekSessions(minmax({ daysPerWeek: 4 }), 1).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  assert.deepEqual(four.map(s => s.kind), ['full', 'upper', 'lower', 'arms']);
+  assert.deepEqual(four.map(s => s.dayOfWeek), [0, 3, 4, 5]);
+});
+
+test('a muscle meets both rep windows across the week', () => {
+  // The first exposure is the heavier one and the second is the higher-rep one. Same movements,
+  // same sets, a different corner of the range - variation that costs no volume.
+  const sessions = T.weekSessions(minmax({ daysPerWeek: 5 }), 2).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  const windows = sessions.map(s => {
+    const main = s.exercises.filter(e => T.byId(e.exerciseId).pattern !== 'core')[0];
+    return main.target.repLow + '-' + main.target.repHigh;
+  });
+  assert.deepEqual(windows.slice(0, 4), ['6-8', '6-8', '8-10', '8-10']);
 });
 
 test('the rep windows are the two the method runs on', () => {
@@ -748,7 +791,7 @@ test('the rep windows are the two the method runs on', () => {
       const ex = T.byId(e.exerciseId);
       if (ex.pattern === 'core') continue;
       const window = e.target.repLow + '-' + e.target.repHigh;
-      assert.ok(window === '6-9' || window === '10-15', `${ex.name} got ${window}`);
+      assert.ok(window === '6-8' || window === '8-10', `${ex.name} got ${window}`);
     }
   }
 });
@@ -778,7 +821,7 @@ test('a block built before styles existed still behaves the way it was built', (
 // what a percentage table was guessing at, so there are three outcomes and no arithmetic.
 
 const hack = () => T.byId('hack_squat');
-const window69 = { sets: 2, repLow: 6, repHigh: 9, rir: 0 };
+const window69 = { sets: 2, repLow: 6, repHigh: 8, rir: 1, rirLast: 0 };
 const didSet = (w, r) => [{ done: true, type: 'work', weightKg: w, reps: r }];
 
 test('hitting the top of the window puts the weight up by the smallest jump the kit allows', () => {
@@ -814,15 +857,26 @@ test('three identical sessions is a plateau, and the answer is a different movem
   assert.ok(subs.length > 0 && subs.every(x => x.id !== 'hack_squat'), 'and something to swap it for');
 });
 
-test('the second set is backed off, because the first one was to failure', () => {
-  assert.equal(T.backOffLoad(100, hack()), 85);
-  const pre = T.prefillSets(
-    { exerciseId: 'hack_squat', target: window69 },
-    [{ dateISO: '2026-08-01', sets: [{ exerciseId: 'hack_squat', done: true, type: 'work', weightKg: 100, reps: 7 }] }],
-    [], { style: 'minmax' });
+test('a two-set compound keeps its weight, because set one stopped a rep short', () => {
+  const log = [{ dateISO: '2026-08-01', sets: [{ exerciseId: 'hack_squat', done: true, type: 'work', weightKg: 100, reps: 7 }] }];
+  const pre = T.prefillSets({ exerciseId: 'hack_squat', target: window69 }, log, [], { style: 'minmax' });
   assert.equal(pre.sets.length, 2);
-  assert.equal(pre.sets[0].weightKg, 100, 'the top set holds at the weight that is still being beaten');
-  assert.equal(pre.sets[1].weightKg, 85, 'and the second comes down 15%');
+  assert.equal(pre.sets[0].weightKg, 100);
+  assert.equal(pre.sets[1].weightKg, 100, 'the second set is the all-out one, at the same weight');
+  assert.ok(!pre.sets[1].backOff);
+  assert.equal(pre.sets[0].targetRir, 1, 'set one stops a rep short');
+  assert.equal(pre.sets[1].targetRir, 0, 'set two goes');
+});
+
+test('when both sets go to failure the second one is backed off', () => {
+  // Isolation: failing a cable curl costs nothing, so the plan asks for failure twice - and a second
+  // all-out set at the same load lands three reps under the window.
+  assert.equal(T.backOffLoad(100, hack()), 85);
+  const both = { sets: 2, repLow: 8, repHigh: 10, rir: 0, rirLast: 0 };
+  const log = [{ dateISO: '2026-08-01', sets: [{ exerciseId: 'cable_curl', done: true, type: 'work', weightKg: 40, reps: 9 }] }];
+  const pre = T.prefillSets({ exerciseId: 'cable_curl', target: both }, log, [], { style: 'minmax' });
+  assert.equal(pre.sets[0].weightKg, 40);
+  assert.equal(pre.sets[1].weightKg, T.backOffLoad(40, T.byId('cable_curl')));
   assert.equal(pre.sets[1].backOff, true);
 });
 
