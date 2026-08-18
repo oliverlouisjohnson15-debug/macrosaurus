@@ -248,6 +248,10 @@
         logs: [],          // [{ id, dateISO, blockId, sessionId, startedAt, endedAt, notes, sets:[{ exerciseId, setIndex, weightKg, reps, rir, type, done }], cardio:[{ exerciseId, minutes, note }] }]
         custom: [],        // user-invented exercises, same shape as the library rows (a primary muscle is required, or they would count for nothing)
         volumeTargets: {}, // per-muscle overrides layered on the defaults: { ch: { mev, mav, mrv } }
+        volumeTargetsMinmax: {}, // the same, for the min-max style, whose numbers are on a different
+                                 // scale entirely: 6 sets is a full week there and a third of one on
+                                 // the volume model, so a ceiling learned on one would be nonsense
+                                 // applied to the other.
         // Where you train. More than one, because people genuinely have a home setup and a gym, and
         // a plan that assumes a cable stack is useless in a garage. Picked at the start of a session
         // so anything unavailable can be swapped there and then.

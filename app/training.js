@@ -3491,9 +3491,16 @@
   // Landmarks tuned by what actually happened: if a muscle was trained above MAV and its lifts
   // still went up, that user tolerates more; if lifts stalled at high volume, they tolerate less.
   // Deliberately timid, +/- 2 sets per block, because over-reacting to one block is noise-chasing.
-  function tuneTargets(targets, review) {
+  function tuneTargets(targets, review, opts) {
+    opts = opts || {};
     var out = JSON.parse(JSON.stringify(targets));
     if (!review || review.adherence < 70) return out;   // do not tune on a block nobody ran
+    // On min-max the numbers are the method rather than an estimate of it. Learning "you tolerated
+    // eight sets, so have ten" from a block is how a 4-to-10 rule quietly becomes a 6-to-14 one over
+    // three blocks, having never been a decision anybody made. What a block CAN still teach is the
+    // other direction: a muscle that stalled at the top of its band is one to give less of, and that
+    // is worth keeping whichever way you train.
+    var mayRaise = !styleOf(opts.style).toFailure;
     var stalledMuscles = {};
     (review.stalled || []).forEach(function (l) {
       var ex = byId(l.exerciseId);
@@ -3502,8 +3509,27 @@
     (review.coverage.rows || []).forEach(function (r) {
       var t = out[r.muscle];
       if (!t) return;
-      if (r.band === 'high' && !stalledMuscles[r.muscle]) { t.mav = Math.min(t.mrv, t.mav + 2); }
-      if (stalledMuscles[r.muscle] && (r.band === 'high' || r.band === 'over')) { t.mav = Math.max(t.mev + 2, t.mav - 2); t.mrv = Math.max(t.mav + 2, t.mrv - 2); }
+      if (mayRaise && r.band === 'high' && !stalledMuscles[r.muscle]) { t.mav = Math.min(t.mrv, t.mav + 2); }
+      if (stalledMuscles[r.muscle] && (r.band === 'high' || r.band === 'over')) {
+        // Proportional, not a flat two sets. Two off a ceiling of 22 is a tenth of it; two off a
+        // ceiling of 8 is a quarter, and clamped by a floor written for wide bands it came out as
+        // nothing at all - so on min-max, the one adjustment a block genuinely earns did not happen.
+        var step = Math.max(1, Math.round(t.mrv * 0.1));
+        t.mav = Math.max(t.mev + 1, t.mav - step);
+        t.mrv = Math.max(t.mav + 1, t.mrv - step);
+      }
+    });
+    return out;
+  }
+  // Only the muscles a tune actually moved. The review screen used to save the WHOLE table as the
+  // person's own landmarks, which meant finishing one block stamped seventeen muscles' worth of
+  // numbers over their settings whether or not anything had been learned about them.
+  function targetChanges(before, after) {
+    var out = {};
+    MUSCLES.forEach(function (m) {
+      var a = (before || {})[m], b = (after || {})[m];
+      if (!a || !b) return;
+      if (a.mev !== b.mev || a.mav !== b.mav || a.mrv !== b.mrv) out[m] = { mev: b.mev, mav: b.mav, mrv: b.mrv };
     });
     return out;
   }
@@ -3514,7 +3540,7 @@
     opts = opts || {};
     var next = generateBlock(Object.assign({}, opts, {
       daysPerWeek: block.daysPerWeek, weeks: block.weeks, shape: block.shape,
-      goal: block.goal, targets: tuneTargets(targets, review),
+      goal: block.goal, targets: tuneTargets(targets, review, { style: block.style }),
       // The style carries forward by default, same as the shape and the days do - it is a standing
       // choice, not a one-off, unless the caller explicitly asks for something else this time.
       intensity: opts.intensity || block.intensity,
@@ -3929,7 +3955,7 @@
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
-    tuneTargets: tuneTargets, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
+    tuneTargets: tuneTargets, targetChanges: targetChanges, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
     trainingDaysOfWeek: trainingDaysOfWeek, round: round,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Training;

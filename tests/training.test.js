@@ -671,6 +671,54 @@ test('days collected from separate screenshots do not share exercise ids', () =>
   assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
 });
 
+// ---- what a finished block is allowed to teach -----------------------------------------------------
+// tuneTargets moves somebody's own landmarks after a block they actually ran. The danger is that a
+// style whose numbers ARE the method gets talked out of them one block at a time.
+
+const reviewWith = (rows, stalled) => ({
+  adherence: 90, coverage: { rows: rows }, stalled: stalled || [],
+});
+
+test('a block cannot raise the min-max caps, however well it went', () => {
+  const targets = T.defaultTargets({ style: 'minmax' });
+  const before = JSON.parse(JSON.stringify(targets));
+  const rows = T.MUSCLES.map(m => ({ muscle: m, band: 'high' }));
+  const after = T.tuneTargets(targets, reviewWith(rows), { style: 'minmax' });
+  for (const m of T.MUSCLES) {
+    assert.ok(after[m].mav <= before[m].mav, `${T.MUSCLE_LABEL[m]} mav crept from ${before[m].mav} to ${after[m].mav}`);
+    assert.ok(after[m].mrv <= before[m].mrv, `${T.MUSCLE_LABEL[m]} mrv crept up`);
+  }
+  // The volume model is unchanged: there, tolerating a high week IS information worth keeping.
+  const lt = T.defaultTargets({});
+  const ltAfter = T.tuneTargets(lt, reviewWith(rows));
+  assert.ok(ltAfter.ch.mav > lt.ch.mav === false || ltAfter.ch.mav >= lt.ch.mav);
+});
+
+test('a stall still takes volume away on either style', () => {
+  const targets = T.defaultTargets({ style: 'minmax' });
+  const before = targets.ch.mrv;
+  const after = T.tuneTargets(targets, reviewWith([{ muscle: 'ch', band: 'over' }], [{ exerciseId: 'bb_bench' }]), { style: 'minmax' });
+  assert.ok(after.ch.mrv < before, 'a muscle that stalled at its ceiling should get a lower one');
+});
+
+test('only the muscles a block moved are learned from it', () => {
+  const before = T.defaultTargets({});
+  const after = T.tuneTargets(before, reviewWith([{ muscle: 'ch', band: 'high' }]));
+  const learned = T.targetChanges(before, after);
+  assert.deepEqual(Object.keys(learned), ['ch'], 'saving all seventeen would stamp numbers nobody learned');
+  assert.equal(learned.ch.mav, before.ch.mav + 2);
+  assert.deepEqual(T.targetChanges(before, before), {}, 'a block that taught nothing writes nothing');
+});
+
+test('the two styles read their landmarks from their own table', () => {
+  // The scale is the point: six sets is a full week of chest on one model and a third of one on the
+  // other, so a ceiling learned at failure must never be applied to the model that stops short.
+  const mm = T.defaultTargets({ style: 'minmax', volumeTargets: { ch: { mev: 4, mav: 6, mrv: 8 } } });
+  const lm = T.defaultTargets({ volumeTargets: {} });
+  assert.equal(mm.ch.mrv, 8);
+  assert.ok(lm.ch.mrv > 15, 'the volume model keeps its own ceiling, untouched by the other');
+});
+
 // ---- a plan you already own, as a file ------------------------------------------------------------
 // The other way in: a programme somebody bought, converted once by tools/minmax-import.mjs and
 // loaded straight into their own blocks. No model, no guessing, nothing published.

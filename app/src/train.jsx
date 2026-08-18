@@ -16,6 +16,11 @@ function tdb(db) {
   return {
     blocks: t.blocks || [], logs: t.logs || [], custom: t.custom || [],
     volumeTargets: t.volumeTargets || {},
+    // Landmarks learned on the min-max style, kept apart from the volume model's. Six sets and
+    // sixteen sets are both "a week of chest" and neither number means anything in the other's
+    // units, so one saved table cannot serve both: a recovery ceiling learned at failure would
+    // read as a catastrophic cut on the model that trains a rep or two short of it.
+    volumeTargetsMinmax: t.volumeTargetsMinmax || {},
     // The draft basket: days collected from several imports before they become a block. This is how
     // "here is Upper A, here is Upper B, here is Lower A" from four separate posts turns into one
     // programme, rather than four one-day blocks that overwrite each other.
@@ -29,9 +34,11 @@ function tdb(db) {
 // that tells somebody their programme is broken when it is working exactly as designed.
 function trainTargets(db, style) {
   const t = tdb(db);
+  const s = style === undefined ? t.prefs.style : style;
   return Training.defaultTargets({
-    experience: t.prefs.experience, volumeTargets: t.volumeTargets,
-    style: style === undefined ? t.prefs.style : style,
+    experience: t.prefs.experience,
+    volumeTargets: Training.styleOf(s).toFailure ? t.volumeTargetsMinmax : t.volumeTargets,
+    style: s,
   });
 }
 function activeBlock(db) {
@@ -446,7 +453,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
-  const targets = trainTargets(db);
+  // The landmarks of the block being LOOKED at. Somebody running an imported min-max block while
+  // the wizard is still set to the volume model was being told a complete six-set chest week was
+  // short on chest - the app disagreeing with a plan it is running, in a bar with no explanation.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
   const doneThisWeek = thisWeek.filter(x => x.log).length;
@@ -592,14 +602,25 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                 {t.logs.length ? 'Nothing running right now' : 'Let us get you a block'}
               </div>
               <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-                {t.logs.length
-                  ? 'Four weeks that build on each other and then back off, so you start the next one fresher than you finished this one. I will keep the numbers.'
-                  : 'Four weeks that build on each other and then back off. Bring one you already follow, take one off the shelf, or I will write you one.'}
+                {(() => {
+                  // What the block would actually be, rather than what blocks used to be. The two
+                  // styles are different promises and the empty state is where the promise is made.
+                  const mm = plannedShape(t.prefs) === 'minmax6';
+                  const n = plannedWeeks(t.prefs);
+                  if (mm) {
+                    return t.logs.length
+                      ? n + ' weeks: an easier first one, then five hard ones. One or two sets a movement, taken to where the weight stops moving. I will keep the numbers.'
+                      : n + ' weeks: an easier first one, then five hard ones. Bring a plan you already follow, take one off the shelf, or I will write you one.';
+                  }
+                  return t.logs.length
+                    ? n + ' weeks that build on each other and then back off, so you start the next one fresher than you finished this one. I will keep the numbers.'
+                    : n + ' weeks that build on each other and then back off. Bring one you already follow, take one off the shelf, or I will write you one.';
+                })()}
               </div>
             </div>
           </div>
           <button onClick={() => go('wizard')} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            Build a 4-week block
+            Build a {plannedWeeks(t.prefs)}-week block
           </button>
           <div className="flex gap-2 mb-2">
             <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Browse blocks</button>
@@ -1378,7 +1399,22 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   </span>
                 </div>
 
-                {it.note && <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{it.note}</div>}
+                {it.note && (
+                  <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
+                    {it.note}
+                    {/* A stall is the one note that asks for a decision rather than reporting one,
+                        and it was asking for it with no way to say yes: you read "change the
+                        movement" and then went hunting for the swap tool yourself. The button is
+                        the note's own verb. */}
+                    {it.swap && (
+                      <button onClick={() => setSwapping(ii)}
+                        className="pixel-box px-2.5 ml-2 text-[11px] align-middle"
+                        style={{ minHeight: 34, background: 'var(--surface2)', color: 'var(--text2)' }}>
+                        Change it
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* What the plan's author wrote against this movement, and what they asked for on its
                     last set. Both come out of an imported programme and both are instructions, not
@@ -1746,7 +1782,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           offer={(() => {
             const it = items[swapping] || {};
             const own = (it.choice && it.choice.options) || it.alts || [];
-            return own.filter(id => id !== it.exerciseId);
+            if (own.length) return own.filter(id => id !== it.exerciseId);
+            // Nothing written against this movement, so work out what does its job instead: same
+            // muscle, same shape of movement, and on min-max something you can still fail safely.
+            return Training.substituteFor(it.exerciseId, {
+              style: block && block.style, custom: t.custom,
+              equipment: gym ? Training.gymEquipment(gym).equipment : t.prefs.equipment,
+              dislikes: t.prefs.dislikes,
+              currentExerciseIds: items.map(x => x.exerciseId),
+            }).map(x => x.id);
           })()}
           onPick={(id) => { swapExercise(swapping, id); setSwapping(null); }}
           onClose={() => setSwapping(null)} />
@@ -2434,8 +2478,8 @@ function BlockPreview({ preview, changeLine, brought, sourceCount }) {
             </span>
             <span className="text-[10.5px] leading-snug" style={{ color: 'var(--muted)' }}>
               {brought
-                ? 'Your ' + sourceCount + ' ' + (sourceCount === 1 ? 'day' : 'days') + ' set the movements. The builder sets volume and the four-week climb.'
-                : 'No source, so the builder writes all four weeks from your answers below.'}
+                ? 'Your ' + sourceCount + ' ' + (sourceCount === 1 ? 'day' : 'days') + ' set the movements. The builder sets the volume and how the ' + weeks.length + ' weeks run.'
+                : 'No source, so the builder writes all ' + weeks.length + ' weeks from your answers below.'}
             </span>
           </div>
           <div className="text-[10.5px] mt-2" style={{ color: 'var(--muted2)' }}>About {minutesEach} min a session.</div>
@@ -2469,6 +2513,19 @@ function TrainField({ label, effect, hint, children }) {
 function blockWeeks(shape) {
   const sh = Training.SHAPES[shape];
   return (sh && (sh.build + (sh.deload ? 1 : 0))) || 4;
+}
+// The shape a new block would be built as, from what was last chosen. Every screen that offers to
+// build one has to agree with the builder about how long it will be: "Build a 4-week block" on a
+// button that produces six is the app misdescribing its own product, and it is the first sentence
+// anybody reads.
+function plannedShape(prefs) {
+  return (prefs && prefs.shape) || ((prefs && prefs.style) === 'landmarks' ? 'build4' : 'minmax6');
+}
+function plannedWeeks(prefs) { return blockWeeks(plannedShape(prefs)); }
+// Which saved override table a style's landmarks come from. Kept next to the other two so the three
+// screens that build a block cannot end up reading different ones.
+function styleTargets(t, style) {
+  return Training.styleOf(style).toFailure ? t.volumeTargetsMinmax : t.volumeTargets;
 }
 
 // What the draft basket will hold once these reads are folded into it. Pure, on a copy, because the
@@ -2538,7 +2595,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
      falls back to no preview and the questions still work. */
   const preview = useMemo(() => {
     try {
-      const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets, style: style });
+      const targets = Training.defaultTargets({ experience: experience, volumeTargets: styleTargets(t, style), style: style });
       // One call whether or not anything was brought, because the answer to "what will I get" has to
       // be the same function that later gives it to you. blockFromSource reads a brought plan as
       // inspiration at the day count set below, or photocopies it when the shape says "as brought".
@@ -2564,7 +2621,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         spare: (blk.broughtSpare || []).map(id => (Training.byId(id, t.custom) || {}).name).filter(Boolean),
       }, read);
     } catch (_) { return null; }
-  }, [days, minutes, experience, goal, shape, intensity, emphasis, equipment, gym, draftDays, t.draft, t.custom, t.volumeTargets]);
+  }, [days, minutes, experience, goal, shape, intensity, emphasis, equipment, gym, draftDays, t.draft, t.custom, t.volumeTargets, t.volumeTargetsMinmax, style]);
 
   // The one-line consequence of the answer you just changed. Without it the panel silently redraws
   // and you are left to spot the difference between two grids of numbers, which nobody does.
@@ -2781,7 +2838,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // whatever shape and intensity are set below, not a frozen photocopy of someone else's numbers.
   function build() {
     setBusy(true);
-    const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets, style: style });
+    const targets = Training.defaultTargets({ experience: experience, volumeTargets: styleTargets(t, style), style: style });
     let block;
     if (draftDays > 0) {
       block = Training.blockFromSource(t.draft.days, {
@@ -3905,7 +3962,9 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
   useBackClose(onBack);
   const t = tdb(db);
   const block = t.blocks.filter(b => b.id === blockId)[0] || activeBlock(db);
-  const targets = trainTargets(db);
+  // Same rule as everywhere else that draws a coverage bar: the block decides which landmarks it is
+  // measured against, because six sets means two different things on the two styles.
+  const targets = trainTargets(db, block ? block.style : undefined);
   const today = Store.todayISO();
   const prog = block ? Training.blockProgress(block, today) : null;
   const [week, setWeek] = useState(prog ? prog.week : 1);
@@ -4032,8 +4091,16 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
     setBusy(false);
   }
   function buildNext() {
-    const tuned = Training.tuneTargets(targets, review);
-    trainUpdate(update, (tr) => { tr.volumeTargets = tuned; });
+    const tuned = Training.tuneTargets(targets, review, { style: block.style });
+    const learned = Training.targetChanges(targets, tuned);
+    trainUpdate(update, (tr) => {
+      // Only the muscles this block actually moved, merged into the table for the style it was run
+      // on. It used to write all seventeen, wholesale, into the one shared table - so finishing a
+      // min-max block handed its 4-to-10 numbers to the volume model as if they were the same thing.
+      if (!Object.keys(learned).length) return;
+      const key = Training.styleOf(block.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
+      tr[key] = Object.assign({}, tr[key] || {}, learned);
+    });
     const draft = Training.nextBlock(block, review, targets, {
       equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom,
       sessionMinutes: t.prefs.sessionMinutes, startISO: Store.todayISO(),
@@ -4131,8 +4198,8 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
       )}
 
       {/* The block you just ran, in the same grid the builder drew it in. Closing the loop matters
-          here: you agreed to this climb four weeks ago as a picture, and this is that picture again
-          next to what you actually did with it. */}
+          here: you agreed to this block as a picture, and this is that picture again next to what
+          you actually did with it. */}
       {(() => {
         const read = readBlock(block);
         if (!read) return null;
@@ -4140,7 +4207,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
           <Card className="p-0 overflow-hidden mb-4">
             <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
             <div className="p-3.5">
-              <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>What you signed up for, four weeks ago.</div>
+              <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>What you signed up for, {block.weeks} {block.weeks === 1 ? 'week' : 'weeks'} ago.</div>
               <MesoGrid weeks={read.weeks} sessions={read.sessions} />
             </div>
           </Card>
@@ -4163,7 +4230,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
       <StickyAction>
         {/* Two ways on, and running THIS block again is the one most people want. "Build the next
             block" throws the plan away and generates a fresh one, which is the wrong answer for
-            somebody who imported a coach's programme, liked it, and wants another four weeks of it
+            somebody who imported a coach's programme, liked it, and wants another run of it
             with the things that stalled changed. */}
         <div className="flex gap-2">
           <button onClick={buildNext} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
@@ -4548,7 +4615,8 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
     trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { [k]: v }); });
   }
   function resetTargets() {
-    trainUpdate(update, (tr) => { tr.volumeTargets = {}; });
+    const key = Training.styleOf(prefs.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
+    trainUpdate(update, (tr) => { tr[key] = {}; });
     showToast && showToast('Volume bands back to the defaults for your experience.');
   }
   return (
@@ -4578,7 +4646,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
         <span className="min-w-0">
           <span className="block text-[13px] font-semibold">How your plan is built</span>
           <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
-            The rules behind the volume bands, the effort targets and the four-week shape.
+            The rules behind the volume bands, the effort targets and the shape of a block.
           </span>
         </span>
         <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
@@ -5233,7 +5301,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             of days their plan happened to be photographed across. */}
         {(Training.SHAPES[t.prefs.shape] || Training.SHAPES.build4).asWritten
           ? 'They will be built exactly as written, for four weeks.'
-          : 'The movements and rep ranges are theirs; the ' + (t.prefs.daysPerWeek || 4) + ' sessions a week, the sets and the four-week climb come from the builder.'}
+          : 'The movements and rep ranges are theirs; the ' + (t.prefs.daysPerWeek || 4) + ' sessions a week, the sets and how the ' + plannedWeeks(t.prefs) + ' weeks run come from the builder.'}
       </div>
 
       {/* ---- the count bar, per `Build a block v3.dc.html` ----
