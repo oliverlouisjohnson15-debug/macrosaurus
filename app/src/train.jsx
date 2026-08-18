@@ -476,6 +476,16 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // a question for the build screens, and this one is about the week you are actually running.
   const blockDone = prog && prog.done;
   const isDeload = block && prog && Training.weekSessions(block, prog.week).some(s => s.deload);
+  // The opening week of a min-max block is deliberately a rep or two short of where the rest of it
+  // lives, and nothing said so until you opened a movement and read the RIR. It is the week people
+  // quit a programme over, thinking it is too soft.
+  const isIntro = !!(block && prog && prog.week === 1 && (Training.SHAPES[block.shape] || {}).intro);
+  // Monday-first, like every dayOfWeek in this module. app.jsx counts from Sunday because it indexes
+  // Date.getDay(); borrowing that here would move every session by a day.
+  const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
+  const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
+  const restToday = restDays.indexOf(todayDow) !== -1;
+  const trainingToday = thisWeek.filter(x => x.session.dayOfWeek === todayDow);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -513,6 +523,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               {doneThisWeek >= thisWeek.length
                 ? 'That is the whole week done.'
                 : (thisWeek.length - doneThisWeek) + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
+              {restDays.length > 0 && restDays.length < 7 && (
+                <span style={{ color: 'var(--muted2)' }}> Rest on {restDays.map(d => WEEKDAYS[d]).join(' and ')}.</span>
+              )}
             </span>
           </div>
           <div className="p-3.5">
@@ -520,6 +533,21 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           {isDeload && (
             <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
               Deload week. Lighter on purpose, so the next block starts on a fresh body.
+            </div>
+          )}
+
+          {isIntro && !isDeload && (
+            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--accent-ink)' }}>
+              Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the five after it.
+            </div>
+          )}
+
+          {/* A rest day is prescribed, not a day you failed to train. Saying so is the difference
+              between a week that is going to plan and a week that looks like it is slipping. */}
+          {restToday && !trainingToday.length && (
+            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+              <b>Today is a rest day.</b> That is the plan, not a gap in it - the week is built around
+              {restDays.length === 1 ? ' it' : ' these two'}. Next up is {next ? next.session.name.split(' - ')[0] : 'the next session'}.
             </div>
           )}
 
@@ -561,6 +589,42 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                session is not a page you visited, it is a timer and a log, and it should take saying
                so. The cost is one tap on the way in. */
             <>
+              {/* What you are about to lift, before you commit to lifting it. The tab could tell you
+                  how many sessions were left and how long the next one takes but not what was IN it,
+                  which is the thing anybody deciding whether tonight is a gym night actually wants -
+                  and on a style whose whole psychology is "one set, make it count", the opener and
+                  what it asks for is worth reading before you are standing in front of it. */}
+              {(() => {
+                const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
+                if (!items.length) return null;
+                const style = Training.styleOf(block.style);
+                const lead = items[0];
+                const leadEx = Training.byId(lead.exerciseId, t.custom);
+                const effort = style.toFailure
+                  ? ((lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0
+                    ? 'stopping short this week'
+                    : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
+                  : lead.target.rir + ' RIR';
+                return (
+                  <div className="mb-3 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
+                    <div className="pf text-[7.5px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Opening with</div>
+                    <div className="text-[12.5px] font-semibold leading-tight">
+                      {leadEx ? leadEx.name : lead.exerciseId}
+                    </div>
+                    <div className="text-[11px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+                      {lead.target.sets} × {lead.target.repLow}–{lead.target.repHigh} · {effort}
+                      {lead.technique ? ' · ' + lead.technique.toLowerCase() : ''}
+                    </div>
+                    {items.length > 1 && (
+                      <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: 'var(--muted2)' }}>
+                        then {items.slice(1, 3).map(e => (Training.byId(e.exerciseId, t.custom) || {}).name).filter(Boolean).join(', ')}
+                        {items.length > 3 ? ' and ' + (items.length - 3) + ' more' : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* The page's one primary action, so it wears the accent rather than a hardcoded white
                   slab - which was also the last control in Train that stayed daylight at night. */}
               <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>

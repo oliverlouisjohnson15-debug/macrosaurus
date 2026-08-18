@@ -4201,6 +4201,17 @@
 
   // Which weekday numbers a block trains, so the nutrition side can line carb-cycling high days up
   // with training days. This is the hook into Engine.cycling (see WORKOUTS_PLAN.md sec 9).
+  // The weekdays a block does NOT train, which is a different thing from the days it has no session
+  // left on. A rest day is prescribed: on min-max it is half of what makes the week work, and an app
+  // that cannot tell one from a day you skipped is an app that makes a good week look like a bad one.
+  function restDaysOfWeek(block, week) {
+    var trained = {};
+    weekSessions(block, week || 1).forEach(function (s) { trained[s.dayOfWeek] = 1; });
+    var out = [];
+    for (var d = 0; d < 7; d++) if (!trained[d]) out.push(d);
+    return out;
+  }
+
   function trainingDaysOfWeek(block) {
     var wk1 = weekSessions(block, 1);
     return uniq(wk1.map(function (s) { return s.dayOfWeek; })).sort();
@@ -4243,7 +4254,7 @@
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, targetChanges: targetChanges, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
-    trainingDaysOfWeek: trainingDaysOfWeek, round: round,
+    trainingDaysOfWeek: trainingDaysOfWeek, restDaysOfWeek: restDaysOfWeek, round: round,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Training;
   root.Training = Training;
