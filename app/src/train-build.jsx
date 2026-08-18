@@ -183,8 +183,26 @@ function blockWeeks(shape) {
 // build one has to agree with the builder about how long it will be: "Build a 4-week block" on a
 // button that produces six is the app misdescribing its own product, and it is the first sentence
 // anybody reads.
+/* What a NEW block would be built as, which is a different question from how an EXISTING block
+ * behaves - and conflating the two is how the tab came to offer a six-week block while describing a
+ * four-week one.
+ *
+ * Training.styleOf answers the second question, and answers it with the volume model when no style
+ * is recorded, because a block built before styles existed was built that way and has to keep
+ * behaving that way. The wizard answers the first question with min-max, because that is the house
+ * method now. Both are right; they are just not the same function.
+ *
+ * The saved SHAPE needs the same care. Somebody who has been using this app has 'build4' saved from
+ * before any of this existed, and that answer carries no opinion about min-max - it was the only
+ * option. So it governs only once they have actually chosen a style; until then the style's own
+ * shape wins, and a returning user gets the six-week block the wizard would really build rather
+ * than a min-max block squeezed into the old default's length.
+ */
+function plannedStyle(prefs) { return (prefs && prefs.style) || 'minmax'; }
 function plannedShape(prefs) {
-  return (prefs && prefs.shape) || ((prefs && prefs.style) === 'landmarks' ? 'build4' : 'minmax6');
+  const chosen = prefs && prefs.style;
+  if (chosen && prefs.shape) return prefs.shape;
+  return plannedStyle(prefs) === 'landmarks' ? 'build4' : 'minmax6';
 }
 function plannedWeeks(prefs) { return blockWeeks(plannedShape(prefs)); }
 // Which saved override table a style's landmarks come from. Kept next to the other two so the three
@@ -219,13 +237,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [whyEmpty, setWhyEmpty] = useState(false);
   // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
   // and five days is the shape it is written for, so that is the day count it arrives on.
-  const [style, setStyle] = useState(t.prefs.style || 'minmax');
+  const [style, setStyle] = useState(plannedStyle(t.prefs));
   const [days, setDays] = useState(t.prefs.daysPerWeek || (t.prefs.style === 'landmarks' ? 4 : 5));
   // Recovery is lower in a deficit and low volume holds muscle perfectly well, so somebody who has
   // told the food side of the app they are cutting has already answered this question.
   const cutting = ((db.profile || {}).goalType === 'cut');
   const [goal, setGoal] = useState('hypertrophy');
-  const [shape, setShape] = useState(t.prefs.shape || (t.prefs.style === 'landmarks' ? 'build4' : 'minmax6'));
+  const [shape, setShape] = useState(plannedShape(t.prefs));
   // The one answer on this screen that changes what a brought plan IS: their block run as written, or
   // their choices read as inspiration for one of ours. Everything else on the screen is a setting.
   const shapeDef = Training.SHAPES[shape] || Training.SHAPES.build4;

@@ -391,7 +391,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   const tail = t.logs.length
                     ? ' I will keep the numbers.'
                     : ' Bring one you already follow, take one off the shelf, or I will write you one.';
-                  if (Training.styleOf(t.prefs.style).toFailure) {
+                  // plannedStyle, not styleOf: this sentence is a promise about the block that WOULD
+                  // be built, and styleOf answers for blocks that already exist. Reading the promise
+                  // off styleOf meant somebody with no style recorded was offered a six-week block
+                  // and told, in the same breath, that it would build week on week and then back off.
+                  if (Training.styleOf(plannedStyle(t.prefs)).toFailure) {
                     return n + ' weeks' + (intro ? ', an easier first one and ' + (n - 1) + ' hard ones' : '')
                       + '. One or two sets a movement, taken to where the weight stops moving, and nothing added week to week: the weight does the moving.' + tail;
                   }

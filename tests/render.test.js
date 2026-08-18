@@ -177,6 +177,13 @@ test('the empty state promises what the STYLE does, not what the length implies'
     ['minmax', 'minmax6', /nothing added week to week/, /build on each other/],
     ['minmax', 'build4', /nothing added week to week/, /build on each other/],
     ['landmarks', 'build4', /build on each other and then back off/, /nothing added week to week/],
+    // The two that matter most and that the first version of this test missed: nobody has chosen a
+    // style yet. Training.styleOf answers "landmarks" for an absent style, because a block built
+    // before styles existed must keep behaving as it did - but the block about to be BUILT is
+    // min-max, and reading the promise off styleOf offered a six-week block while describing a
+    // four-week one in the same sentence.
+    [undefined, undefined, /nothing added week to week/, /build on each other/],
+    [undefined, 'build4', /nothing added week to week/, /build on each other/],
   ];
   for (const [style, shape, expected, forbidden] of cases) {
     const db = accountWith();
@@ -185,5 +192,22 @@ test('the empty state promises what the STYLE does, not what the length implies'
     const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
     assert.ok(expected.test(r.text), style + '/' + shape + ' should say ' + expected + ': ' + r.text.slice(0, 200));
     assert.ok(!forbidden.test(r.text), style + '/' + shape + ' must not claim ' + forbidden);
+    // And the button has to offer the same block the sentence just described.
+    const weeks = (r.text.match(/Build a (\d+)-week block/) || [])[1];
+    const promised = (r.text.match(/(\d+) weeks/) || [])[1];
+    assert.equal(weeks, promised, style + '/' + shape + ': the button offers ' + weeks + ' weeks and the copy promises ' + promised);
   }
+});
+
+test('a returning user gets the block the wizard would actually build', () => {
+  // Somebody who used this app before styles existed has shape 'build4' saved and no style, and that
+  // saved answer carries no opinion about a method that did not exist when they gave it.
+  const db = accountWith();
+  db.training.blocks = [];
+  db.training.prefs = { units: 'kg', shape: 'build4', daysPerWeek: 4, sessionMinutes: 60 };
+  const tab = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
+  assert.ok(tab.has('Build a 6-week block'), 'the tab should offer the house method: ' + tab.text.slice(0, 120));
+  // And the wizard it opens has to agree, or the tab was writing a cheque the next screen bounces.
+  const wiz = render(A.BlockWizard, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} });
+  assert.ok(/6 weeks/.test(wiz.text), 'the wizard should open on the six-week shape: ' + (wiz.text.match(/[^.]*weeks[^.]*/) || [''])[0]);
 });
