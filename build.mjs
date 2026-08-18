@@ -31,7 +31,9 @@ const twCss = read('.build/tw.css').trim();
 // app.jsx's `const` helpers (Icon, Card, Pill, Field) at call time.
 // sprite-manifest.js is GENERATED (tools/gen-anim.mjs) and must come first: it is a `const`, which
 // does not hoist, and app.jsx reads it at module scope.
-const APP_SOURCES = ['app/src/sprite-manifest.js', 'app/src/prompts.jsx', 'app/src/app.jsx', 'app/src/train.jsx'];
+// The list lives in app/src/manifest.json, because the render tests concatenate the same sources in
+// the same order and two copies of a list like that drift the first time a file is added.
+const APP_SOURCES = JSON.parse(read('app/src/manifest.json').replace(/^\s*"_":[\s\S]*?",\n/m, '')).sources;
 const appSrc = APP_SOURCES.map(f => '/* ---- ' + f + ' ---- */\n' + read(f)).join('\n');
 const transpiled = transformSync(appSrc, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]],

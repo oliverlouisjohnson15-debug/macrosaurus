@@ -116,34 +116,64 @@ bundle would read a packed block as a block with no sessions - an empty Train ta
 It cannot lose data (the merge unions by id and writes back what it read), and the service worker
 version bump ends it on the next load.
 
-### 10. Split train.jsx — one day
-6,028 lines and about forty components. The session player alone is a thousand. Four files - player,
-wizard, block editor, library and sharing - would make everything above safer to change. No
-behaviour change, so it wants doing on a quiet day and reviewing as a pure move.
+### 10. Split train.jsx ✔
+Done, and done in a way that could be checked rather than trusted. The file was cut at five natural
+boundaries into `train-core` (helpers and the small shared pieces), `train-tab` (the router and the
+home screen), `train-session` (the player and everything you reach for while in one), `train-build`
+(preview, wizard, editor) and what remains in `train.jsx` (the shelf, coverage, review, library,
+importing, gyms, write-ups). The cuts are contiguous line ranges, so concatenating the parts gives
+back the original byte for byte - and the built bundle, with comments stripped, is **identical to the
+one before the split**. That is the whole safety argument: no code moved relative to any other code.
 
-### 11. Some tests that render — one day
-1,032 engine tests, zero that mount a component. Items 1, 2 and 3 above were all invisible to the
-suite and all visible in about ten seconds of using the app. A handful of jsdom smoke tests -
-session player renders a min-max block, wizard preview redraws on each answer, coverage screen draws
-a block of each style - would catch that class.
+The source list moved to `app/src/manifest.json`, read by both build.mjs and the render harness, so
+there are not two lists to drift apart.
 
-### 12. A style contract test — half a day
-The two styles now fork in about fifteen places. One matrix - every style, day count and shape,
-asserting each style's invariants - would have caught both #2 and #4 the day they were written.
+### 11. Some tests that render ✔
+Done. `tests/helpers/app.js` does what the build does - same sources, same order, same Babel
+transform - then evaluates the result in a jsdom context and hands back the scope. The app has no
+imports, so every component is a function declaration in one shared scope, which is what makes the
+harness four lines of setup rather than a bundler. Rendered with react-dom/server: effects do not
+run, which suits tests about what a screen SAYS.
 
-### 13. Today's prescription on the Train tab — half a day
-The home screen shows last session and week progress; what you are about to do is one tap away. On a
-method whose whole psychology is "one set, make it count", the next session's top set and its RIR
-pair belong on the tab.
+Nine of them, each pinned to a way this module has actually been wrong - the block a tab claims to be
+running, the weeks a build button offers, a session asking for reps in reserve on a style that has
+none, a coverage bar measured against the other style's landmarks, an open slot asked about before
+the block starts. react, react-dom and jsdom are devDependencies; nothing ships with them.
 
-### 14. Make rest days real — half a day
-The min-max week prescribes rest days, `MINMAX_SPLITS` encodes which weekdays they are, and the home
-screen has no concept of one. A prescribed rest day currently looks identical to a day you skipped,
-which is both discouraging and wrong.
+### 12. A style contract test ✔
+Done: `tests/style-contract.test.js`, a matrix over every style, day count and shape. What is true of
+any block, then what makes each style itself, then that neither can read the other's landmarks.
 
-### 15. Announce the intro week — an hour
-Week 1 of a block is deliberately easier, and nothing says so until you open a movement and read the
-RIR. It is the week people quit a programme over, thinking it is too soft.
+### 13. Today's prescription on the Train tab ✔
+Done. The next session's opener, with its sets, its rep window, what it asks for at the end of the
+set and any technique on it, plus what follows.
+
+### 14. Rest days are real ✔
+Done. `Training.restDaysOfWeek` names them, the week line says which days they are, and when today is
+one the tab says so instead of leaving a week that is going exactly to plan looking like one that is
+slipping.
+
+### 15. The intro week announces itself ✔
+Done. A banner in the same place the deload one lives, saying the week is meant to feel easy and why.
+
+---
+
+## Where this leaves the module
+
+Every item on the list is done. What was found ALONG the way, and would not have been found by
+working from the list, is worth more than the list was:
+
+- one override table serving both styles, so finishing a min-max block would have handed its 4-to-10
+  numbers to the volume model as if they were the same units
+- `generateBlock({ style: 'minmax' })` with no explicit targets building against the volume model's
+  ceilings, because `defaultTargets` was being called without the style
+- the stall reduction being a flat two sets, which is nothing at all against a ceiling of eight
+- the spreadsheet reader mis-parsing self-closing cells, shifting every column after them left - reps
+  landing in the rest column, on any xlsx import
+- a second min-max block being regenerated rather than carried forward, which would have reshuffled
+  exercise selection on a style whose progression depends on running one lift long enough to load it
+
+The next honest piece of work is not on a list yet: nothing here has been run by a person in a gym.
 
 ---
 

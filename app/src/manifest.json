@@ -1,0 +1,16 @@
+{
+  "_": "The app is concatenated in this order and handed to Babel as one script. Anything declared
+        with a module-level const must come before the code that reads it at module scope; function
+        declarations hoist across the whole bundle and can be in any order. build.mjs and the render
+        test harness both read this file, so there is one list rather than two that drift.",
+  "sources": [
+    "app/src/sprite-manifest.js",
+    "app/src/prompts.jsx",
+    "app/src/app.jsx",
+    "app/src/train-core.jsx",
+    "app/src/train-tab.jsx",
+    "app/src/train-session.jsx",
+    "app/src/train-build.jsx",
+    "app/src/train.jsx"
+  ]
+}

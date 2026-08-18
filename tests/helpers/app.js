@@ -23,9 +23,10 @@ const ReactDOMServer = require('react-dom/server');
 const ROOT = path.join(__dirname, '..', '..');
 const ENGINES = ['app/engine.js', 'app/store.js', 'app/game.js', 'app/quantity.js', 'app/recipe.js',
   'app/cofid.js', 'app/training.js', 'app/talk.js', 'app/menu.js'];
-// Same list, same order, as build.mjs. If that changes and this does not, the harness stops being a
-// test of the app that ships.
-const SOURCES = ['app/src/sprite-manifest.js', 'app/src/prompts.jsx', 'app/src/app.jsx', 'app/src/train.jsx'];
+// The same list build.mjs uses, read from the same file, so this cannot quietly stop being a test of
+// the app that ships.
+const SOURCES = JSON.parse(readFileSync(path.join(ROOT, 'app/src/manifest.json'), 'utf8')
+  .replace(/^\s*"_":[\s\S]*?",\n/m, '')).sources;
 
 let cached = null;
 function app() {

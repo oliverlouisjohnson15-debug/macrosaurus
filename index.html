@@ -51091,7 +51091,17 @@ function App() {
 }
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
 
-/* ---- app/src/train.jsx ---- */
+/* ---- app/src/train-core.jsx ---- */
+/* ---- train core ----------------------------------------------------------------------
+ * shared helpers, formatters and the small pieces every Train screen is built from
+ *
+ * Part of the Train module, which was one 6,200-line file. The sources have no imports:
+ * build.mjs concatenates them in the order given by app/src/manifest.json and hands the lot
+ * to Babel, so everything here shares one scope with the rest of the app. Function
+ * declarations hoist across the whole bundle, which is why these files can call each other
+ * freely; module-level `const` does not, so anything declared with one has to appear before
+ * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
+ * ------------------------------------------------------------------------------------- */
 /* ---- train.jsx ----
  * The Train tab: blocks, the in-gym session player, the coverage audit and the block review.
  *
@@ -51532,6 +51542,17 @@ function BuddySays({
   }, children));
 }
 
+/* ---- app/src/train-tab.jsx ---- */
+/* ---- train tab ----------------------------------------------------------------------
+ * the Train tab itself: the router, the home screen and the week in front of you
+ *
+ * Part of the Train module, which was one 6,200-line file. The sources have no imports:
+ * build.mjs concatenates them in the order given by app/src/manifest.json and hands the lot
+ * to Babel, so everything here shares one scope with the rest of the app. Function
+ * declarations hoist across the whole bundle, which is why these files can call each other
+ * freely; module-level `const` does not, so anything declared with one has to appear before
+ * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
+ * ------------------------------------------------------------------------------------- */
 // ---- the tab ----------------------------------------------------------------------------------
 function TrainTab({
   db,
@@ -52347,6 +52368,17 @@ function relativeDay(iso, todayISO) {
 // logging app eventually gets. The apps that feel good in a gym either keep rows very dense (Hevy)
 // or focus one movement at a time (Gravl). We are a PLAN app, and a plan has an order, so focusing
 // is the honest fit. The chip strip along the top is the safety valve: the rack being taken is not
+/* ---- app/src/train-session.jsx ---- */
+/* ---- train session ----------------------------------------------------------------------
+ * running a session, and everything you reach for while you are in one
+ *
+ * Part of the Train module, which was one 6,200-line file. The sources have no imports:
+ * build.mjs concatenates them in the order given by app/src/manifest.json and hands the lot
+ * to Babel, so everything here shares one scope with the rest of the app. Function
+ * declarations hoist across the whole bundle, which is why these files can call each other
+ * freely; module-level `const` does not, so anything declared with one has to appear before
+ * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
+ * ------------------------------------------------------------------------------------- */
 // an edge case, so jumping around has to stay a single tap.
 //
 // Everything else here exists because it removes a real friction: set types so the volume maths is
@@ -54629,6 +54661,17 @@ function CustomExercise({
    sentences, and none of them showed the shape.
 
    `weeks` is [{week, deload, sessions:[{name, sets}]}]; `readBlock` below builds it from a block. */
+/* ---- app/src/train-build.jsx ---- */
+/* ---- train build ----------------------------------------------------------------------
+ * building and editing a block: the preview, the wizard, the editor, one session
+ *
+ * Part of the Train module, which was one 6,200-line file. The sources have no imports:
+ * build.mjs concatenates them in the order given by app/src/manifest.json and hands the lot
+ * to Babel, so everything here shares one scope with the rest of the app. Function
+ * declarations hoist across the whole bundle, which is why these files can call each other
+ * freely; module-level `const` does not, so anything declared with one has to appear before
+ * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
+ * ------------------------------------------------------------------------------------- */
 function MesoGrid({
   weeks,
   sessions
@@ -56709,6 +56752,17 @@ function TargetSheet({
 // sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
 // block" button could not be reached at all. A block built by mistake was permanent. Editing and
 // deleting are the same screen because they answer the same question: this one is wrong, now what.
+/* ---- app/src/train.jsx ---- */
+/* ---- train ----------------------------------------------------------------------
+ * everything that happens around a block: the shelf, coverage, the review, the library, importing, gyms, and the write-ups
+ *
+ * Part of the Train module, which was one 6,200-line file. The sources have no imports:
+ * build.mjs concatenates them in the order given by app/src/manifest.json and hands the lot
+ * to Babel, so everything here shares one scope with the rest of the app. Function
+ * declarations hoist across the whole bundle, which is why these files can call each other
+ * freely; module-level `const` does not, so anything declared with one has to appear before
+ * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
+ * ------------------------------------------------------------------------------------- */
 function BlockList({
   db,
   update,
