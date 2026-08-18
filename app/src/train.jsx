@@ -823,7 +823,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     if (!session) return [];
     return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
       const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
-      return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null, superset: e.supersetGroup || null };
+      return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
+        choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
+        superset: e.supersetGroup || null };
     });
   });
   const [focus, setFocus] = useState(0);
@@ -1378,6 +1380,20 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
 
                 {it.note && <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{it.note}</div>}
 
+                {/* What the plan's author wrote against this movement, and what they asked for on its
+                    last set. Both come out of an imported programme and both are instructions, not
+                    decoration: "1 second pause at the bottom" and "two drop sets at 25%" are the
+                    difference between doing the exercise and doing their exercise. */}
+                {it.technique && (
+                  <div className="text-[11.5px] mb-2 px-2.5 py-2 leading-snug"
+                    style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--text2)' }}>
+                    <b>On the last set:</b> {it.technique}
+                  </div>
+                )}
+                {it.planNote && (
+                  <div className="text-[11px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>{it.planNote}</div>
+                )}
+
                 {/* ---- what you did last time, ABOVE the table ----
                     It used to sit under the set rows, which is the one place it is no use: you type
                     into the first row, and the thing you are trying to beat was below the fold. And
@@ -1727,6 +1743,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {swapping != null && (
         <ExercisePicker db={db} update={update} title="Swap movement"
           basedOn={items[swapping] && items[swapping].exerciseId}
+          offer={(() => {
+            const it = items[swapping] || {};
+            const own = (it.choice && it.choice.options) || it.alts || [];
+            return own.filter(id => id !== it.exerciseId);
+          })()}
           onPick={(id) => { swapExercise(swapping, id); setSwapping(null); }}
           onClose={() => setSwapping(null)} />
       )}
@@ -2062,7 +2083,7 @@ function restAlert(prefs) {
 }
 
 // ---- exercise picker --------------------------------------------------------------------------
-function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
+function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, offer }) {
   useBackClose(onClose);
   const t = tdb(db);
   // Opening on the plan's own wording for a movement means the search has already been run and the
@@ -2100,6 +2121,29 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-6">
+        {/* What the plan itself says to use instead. A written programme lists a substitution or two
+            against each movement, and those are a better answer than anything a search can rank:
+            the author picked them for this slot. Only shown before you start searching, because once
+            you are typing you have something else in mind. */}
+        {!q && (offer || []).length > 0 && (
+          <div className="mb-3">
+            <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>What the plan suggests</div>
+            {(offer || []).map(id => {
+              const ex = Training.byId(id, t.custom);
+              if (!ex) return null;
+              return (
+                <button key={id} onClick={() => onPick(id)} className="w-full text-left pixel-box p-3 mb-2 flex items-center gap-2" style={{ background: 'var(--surface2)' }}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-semibold truncate">{ex.name}</span>
+                    <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>
+                      {(ex.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ')} · {ex.equipment}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* The commonest reason a movement is not in the library is that it is a variation of one
             that is: a grip, a stance, an attachment. Making it from its parent inherits what it
             trains, which is the part nobody standing at a machine wants to fill in. */}
@@ -3033,6 +3077,9 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
 
   const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
   const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
+  // Movements the plan left open, e.g. "Squat (Your Choice)". Empty for anything the app generated,
+  // which never leaves a slot open: it has already made the pick.
+  const choices = Training.blockChoices(block, t.custom);
 
   function edit(fn) { setBlock(b => { const n = JSON.parse(JSON.stringify(b)); fn(n); return n; }); }
   function setSets(sessionId, itemId, delta) {
@@ -3162,6 +3209,43 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         <CoverageBars coverage={cov} />
       </Card>
 
+      {/* Slots the programme deliberately left open. A written plan that says "Squat (Your Choice)"
+          and lists six of them is not being vague: it is saying this slot is about the pattern, and
+          the gym you are standing in decides the rest. So the slot survives the import and gets
+          asked once, here, before the block starts - and picking moves every week of the block at
+          once, because a programme that squats in week one and hack squats in week four is not the
+          programme. */}
+      {choices.length > 0 && (
+        <Card className="p-4 mb-4">
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your call</div>
+          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+            {choices.length === 1 ? 'One movement in this plan is' : choices.length + ' movements in this plan are'} left up to you. Pick once and it applies to every week.
+          </div>
+          {choices.map(c => (
+            <div key={c.key} className="mb-3">
+              <div className="text-[12.5px] font-semibold mb-1">{c.label}</div>
+              <div className="text-[10.5px] mb-2" style={{ color: 'var(--muted2)' }}>{c.sessions.join(', ')}</div>
+              <div className="flex gap-2 flex-wrap">
+                {c.options.map(id => {
+                  const ex = Training.byId(id, t.custom);
+                  const on = c.picked === id;
+                  return (
+                    <button key={id} onClick={() => edit(b => { Training.applyChoice(b, c.key, id); })}
+                      className="pixel-box px-2.5 text-[11px]" style={{
+                        minHeight: 44,
+                        background: on ? 'var(--good)' : 'var(--surface2)',
+                        color: on ? '#05140a' : 'var(--text2)',
+                      }}>
+                      {ex ? ex.name : id}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
           movement, then sets / reps / tempo on one line. Reading the plan and running the plan
           should not look like two different apps. */}
@@ -3192,6 +3276,10 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                       <span className="pf text-[9px] shrink-0 mt-0.5 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[ei]}</span>
                       <span className="flex-1 min-w-0 text-[13px] font-semibold leading-tight">
                         <ExerciseName id={it.exerciseId} custom={t.custom} />
+                        {it.choice && (
+                          <span className="pf text-[7px] uppercase ml-1.5 px-1 py-0.5 align-middle"
+                            style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>Your call</span>
+                        )}
                       </span>
                       <button onClick={() => removeItem(s.id, it.id)} aria-label="Remove" className="px-1 text-[15px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
                     </div>
@@ -3644,6 +3732,24 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
     showToast && showToast('Block deleted.');   // ConfirmDialog closes itself once onConfirm returns
   }
 
+  // Load a block file: a plan somebody already owns, converted once and brought straight in. It goes
+  // into THEIR blocks and nowhere else - nothing here publishes, and a plan bought from a coach is
+  // not ours to put in front of anybody else.
+  const [loadBusy, setLoadBusy] = useState('');
+  async function loadBlockFile(file) {
+    if (!file) return;
+    setLoadBusy('Reading it...');
+    try {
+      const text = await file.text();
+      const res = Training.blocksFromFile(text, { custom: t.custom, fileName: file.name });
+      trainUpdate(update, (tr) => { tr.blocks = (tr.blocks || []).concat(res.blocks); });
+      showToast && showToast(res.blocks.length === 1 ? 'Block added.' : res.blocks.length + ' blocks added.');
+      setLoadBusy(res.problems.length ? res.problems.slice(0, 3).join('. ') + '.' : '');
+    } catch (e) {
+      setLoadBusy((e && e.message) || 'That file could not be read.');
+    }
+  }
+
   function statusOf(block) {
     const prog = Training.blockProgress(block, today);
     if (block.id === liveId && !prog.done) return prog.notStarted ? 'Starts ' + weekRangeLabel(block.startISO, 1).split(' to ')[0] : 'Running · week ' + prog.week + ' of ' + block.weeks;
@@ -3670,6 +3776,20 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
             Build one from your kit and your days, or import a plan you already follow.
           </div>
         </div>
+      )}
+
+      {/* A block you already own, as a file. The wizard's importer reads a plan somebody photographed
+          and has to guess at every line; a file has already been read exactly, so this path does no
+          guessing at all - and it is the honest way to bring in a programme you paid for, because
+          nothing about it is published or shared. */}
+      <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] mb-4 ' + (loadBusy === 'Reading it...' ? 'opacity-60' : 'cursor-pointer')}
+        style={{ background: 'var(--surface2)' }}>
+        {loadBusy === 'Reading it...' ? loadBusy : 'Load a block file'}
+        <input type="file" className="hidden" accept=".json,application/json" disabled={loadBusy === 'Reading it...'}
+          onChange={e => { loadBlockFile(e.target.files && e.target.files[0]); e.target.value = ''; }} />
+      </label>
+      {loadBusy && loadBusy !== 'Reading it...' && (
+        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--warn)' }}>{loadBusy}</div>
       )}
 
       {blocks.map(block => {
@@ -4700,8 +4820,13 @@ async function readXlsx(file) {
   const rows = [];
   String(sheetXml).replace(/<row[^>]*>([\s\S]*?)<\/row>/g, (_, rowXml) => {
     const cells = [];
-    String(rowXml).replace(/<c([^>]*)>([\s\S]*?)<\/c>|<c([^>]*)\/>/g, (__, attrs, inner) => {
-      const a = attrs || '';
+    String(rowXml).replace(/<c([^>]*?)\/>|<c([^>]*?)>([\s\S]*?)<\/c>/g, (__, selfAttrs, attrs, inner) => {
+      // The self-closing case FIRST, and non-greedy. A blank-but-styled cell is written
+      // `<c r="A14" s="1"/>`, and matching `<c([^>]*)>` against it captures the trailing slash
+      // as an attribute and then runs on to the next `</c>` several columns later - swallowing
+      // every cell in between and shifting the whole row left. A spreadsheet read that way is
+      // not slightly wrong, it is reps in the rest column.
+      const a = selfAttrs || attrs || '';
       const ref = (a.match(/r="([A-Z]+)\d+"/) || [])[1] || '';
       let col = 0;
       for (let i = 0; i < ref.length; i++) col = col * 26 + (ref.charCodeAt(i) - 64);

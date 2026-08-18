@@ -671,6 +671,81 @@ test('days collected from separate screenshots do not share exercise ids', () =>
   assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
 });
 
+// ---- a plan you already own, as a file ------------------------------------------------------------
+// The other way in: a programme somebody bought, converted once by tools/minmax-import.mjs and
+// loaded straight into their own blocks. No model, no guessing, nothing published.
+
+const fileDoc = () => ({
+  macrosaurus: 'blocks', version: 1,
+  blocks: [{
+    name: 'A programme', weeks: 2, daysPerWeek: 2, style: 'minmax', shape: 'as-written',
+    sessions: [1, 2].flatMap(w => [
+      { week: w, dayOfWeek: 0, name: 'Upper', kind: 'upper', exercises: [
+        { exerciseId: 'machine_press', order: 0, sourceName: 'Machine Chest Press',
+          alts: ['smith_bench', 'db_bench'], planNote: '1 second pause at the bottom.',
+          technique: w === 2 ? 'Two Drop Sets (~25% per)' : null,
+          target: { sets: 2, repLow: 8, repHigh: 10, rir: 1, rirLast: 0, restSec: 240 } },
+        { exerciseId: 'nothing_like_this', order: 1, sourceName: 'Invented Machine', target: { sets: 2 } },
+      ] },
+      { week: w, dayOfWeek: 1, name: 'Lower', kind: 'lower', exercises: [
+        { exerciseId: 'back_squat', order: 0, sourceName: 'Squat (Your Choice)',
+          choice: { key: 'squat', label: 'Squat - your choice', options: ['back_squat', 'hack_squat', 'pendulum_squat'] },
+          target: { sets: 2, repLow: 6, repHigh: 8, rir: 1, rirLast: 0, restSec: 240 } },
+      ] },
+    ]),
+  }],
+});
+
+test('a block file loads exactly as written, and says what it could not place', () => {
+  const res = T.blocksFromFile(fileDoc(), {});
+  assert.equal(res.blocks.length, 1);
+  const b = res.blocks[0];
+  assert.equal(b.weeks, 2);
+  assert.equal(b.style, 'minmax');
+  assert.equal(b.shape, 'as-written', 'a plan you own is not ours to periodise');
+  const press = b.sessions[0].exercises[0];
+  assert.deepEqual([press.target.sets, press.target.repLow, press.target.repHigh, press.target.rir, press.target.rirLast, press.target.restSec],
+    [2, 8, 10, 1, 0, 240], 'every number comes off the file');
+  assert.equal(press.planNote, '1 second pause at the bottom.');
+  assert.deepEqual(press.alts, ['smith_bench', 'db_bench']);
+  assert.ok(res.problems.some(p => /Invented Machine/.test(p)), 'and a movement the library lacks is named, not dropped in silence');
+});
+
+test('nothing loaded from a file is published, started or able to collide', () => {
+  const a = T.blocksFromFile(fileDoc(), {}).blocks[0];
+  const b = T.blocksFromFile(fileDoc(), {}).blocks[0];
+  assert.notEqual(a.id, b.id, 'the same file loaded twice must not overwrite itself');
+  const ids = [a, b].flatMap(x => x.sessions.flatMap(s => s.exercises.map(e => e.id)));
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(a.shared, false);
+  assert.equal(a.startISO, null, 'loading a plan is not starting it');
+  assert.equal(a.source, 'file');
+});
+
+test('a slot the plan left open is a choice, and picking moves every week of it', () => {
+  const b = T.blocksFromFile(fileDoc(), {}).blocks[0];
+  const choices = T.blockChoices(b);
+  assert.equal(choices.length, 1);
+  assert.equal(choices[0].label, 'Squat - your choice');
+  assert.deepEqual(choices[0].options, ['back_squat', 'hack_squat', 'pendulum_squat']);
+  assert.equal(choices[0].picked, 'back_squat');
+  const moved = T.applyChoice(b, 'squat', 'pendulum_squat');
+  assert.equal(moved, 2, 'both weeks, not just the one in front of you');
+  assert.ok(b.sessions.every(s => s.exercises.every(e => !e.choice || e.exerciseId === 'pendulum_squat')));
+  // A generated block leaves nothing open: it has already made the pick.
+  assert.deepEqual(T.blockChoices(T.generateBlock({ style: 'minmax', daysPerWeek: 5, weeks: 6 })), []);
+});
+
+test('a block file cannot smuggle in numbers the app would not accept', () => {
+  const doc = fileDoc();
+  doc.blocks[0].sessions[0].exercises[0].target = { sets: 99, repLow: 0, repHigh: 900, rir: 12, restSec: 99999 };
+  doc.blocks[0].sessions[0].dayOfWeek = 40;
+  const b = T.blocksFromFile(doc, {}).blocks[0];
+  const e = b.sessions[0].exercises[0];
+  assert.ok(e.target.sets <= T.SETS_MAX && e.target.repHigh <= T.REPS_MAX && e.target.rir <= T.RIR_MAX);
+  assert.ok(b.sessions[0].dayOfWeek >= 0 && b.sessions[0].dayOfWeek <= 6);
+});
+
 // ---- min-max ------------------------------------------------------------------------------------
 // The house method: four to ten hard sets a muscle a week, one or two per movement, every one of them
 // to failure, on kit that makes failing safe. Everything below is a rule of the method rather than a

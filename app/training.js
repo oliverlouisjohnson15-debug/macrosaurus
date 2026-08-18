@@ -205,6 +205,7 @@
     'plate_front_raise|Plate front raise|dumbbell|isolation|fd||mid',
     'rear_delt_fly|Rear delt fly|dumbbell|isolation|rd|ub|sho',
     'reverse_pec_deck|Reverse pec deck|machine|isolation|rd|ub|sho',
+    'reverse_pec_deck_single|Single-arm reverse pec deck|machine|isolation|rd|ub|len',
     'cable_rear_fly|Cable rear delt fly|cable|isolation|rd|ub|mid',
     'face_pull|Face pull|cable|isolation|rd|ub|mid',
     'facepull_rope_high|High rope face pull|cable|isolation|rd|ub|mid',
@@ -220,6 +221,7 @@
     'prone_t_raise|Prone T raise|bodyweight|isolation|rd|ub|sho',
     'db_lateral_seated|Seated dumbbell lateral raise|dumbbell|isolation|sd||sho',
     'cable_y_raise|Cable Y raise|cable|isolation|sd|rd|mid',
+    'db_y_raise_incline|Incline dumbbell Y-raise|dumbbell|isolation|sd|rd,ub|len',
     'machine_rear_delt|Rear delt machine|machine|isolation|rd|ub|sho',
     'db_ohp_single|Single-arm dumbbell press|dumbbell|vertPress|fd|sd,tr,ob|mid',
     'landmine_press|Landmine press|barbell|vertPress|fd|ch,tr|mid',
@@ -249,6 +251,13 @@
     'shrug_db|Dumbbell shrug|dumbbell|isolation|ub||sho',
     'shrug_machine|Machine shrug|machine|isolation|ub||sho',
     'shrug_cable|Cable shrug|cable|isolation|ub||mid',
+    // Row-position shrugs. A Kelso shrug is a shrug done lying or leaning forward, so the traps work
+    // against a horizontal line of pull rather than a vertical one - a different exercise from a
+    // standing shrug, not a grip on it, and it turns up in enough written programmes to belong here.
+    'kelso_shrug|Kelso shrug|cable|isolation|ub||len',
+    'kelso_shrug_db|Incline dumbbell Kelso shrug|dumbbell|isolation|ub||len',
+    'shrug_in_cable|Cable shrug-in|cable|isolation|ub|rd|mid',
+    'tbar_row_supported|Chest-supported T-bar row|machine|horizPull|ub|lt,bi,rd|mid',
     'plate_row|Plate-loaded row|machine|horizPull|ub,lt|bi,rd|mid',
     'kroc_row|Kroc row|dumbbell|horizPull|ub,lt|bi,fa|mid',
     'cable_row_single|Single-arm cable row|cable|horizPull|ub,lt|bi,rd|mid',
@@ -384,12 +393,14 @@
     'band_curl|Band curl|band|isolation|bi|fa|sho',
     'chinup_negative|Chin-up negative|bodyweight|vertPull|bi,lt|ub,fa|len',
     'zottman_curl|Zottman curl|dumbbell|isolation|bi,fa||mid',
+    'zottman_curl_modified|Modified Zottman curl|dumbbell|isolation|bi,fa||mid',
     'ez_preacher|EZ preacher curl|ez|isolation|bi|fa|len',
     'machine_preacher|Preacher curl machine|machine|isolation|bi||len',
     'crossbody_curl|Cross-body hammer curl|dumbbell|isolation|bi,fa||mid',
     // ---- triceps
     'close_grip_bench|Close-grip bench press|barbell|horizPress|tr|ch,fd|mid',
     'dip_triceps|Triceps dip|bodyweight|horizPress|tr|ch,fd|mid',
+    'dip_machine|Seated dip machine|machine|horizPress|tr|ch|mid',
     'skullcrusher|Skullcrusher|ez|isolation|tr||len',
     'db_skullcrusher|Dumbbell skullcrusher|dumbbell|isolation|tr||len',
     'overhead_ext_db|Overhead dumbbell extension|dumbbell|isolation|tr||len',
@@ -398,6 +409,7 @@
     'bar_pushdown|Bar pushdown|cable|isolation|tr||sho',
     'machine_pushdown|Triceps machine|machine|isolation|tr||mid',
     'jm_press|JM press|barbell|isolation|tr||mid',
+    'jm_press_smith|Smith machine JM press|smith|isolation|tr||mid',
     'kickback|Triceps kickback|dumbbell|isolation|tr||sho',
     'diamond_pushup|Diamond press-up|bodyweight|horizPress|tr|ch|mid',
     'bench_dip|Bench dip|bodyweight|horizPress|tr|ch,fd|mid',
@@ -509,6 +521,49 @@
   // step: without it, teaching cleanName that "tricep" means "triceps" silently unhooks every alias
   // that spells it the short way.
   var ALIAS_N = null;
+  /* Coaching-app vocabulary. Every one of these came out of a real published programme where the
+   * scorer's best guess was not just weak but WRONG in a way that changes what you train: a lying
+   * leg RAISE scored onto a lying leg CURL, a standing dumbbell curl onto a standing leg curl, a
+   * close-grip pull-up onto a close-grip press-up, a wrist extension onto an overhead extension.
+   * A near-miss on a name is a rounding error; a pull read as a push is a different session.
+   */
+  var COACH_ALIASES = {
+    // Spellings and abbreviations coaches actually write
+    'db flye': 'db_fly', 'cable flye': 'cable_fly', 'flye': 'db_fly', 'flyes': 'db_fly',
+    'incline db flye': 'db_incline_fly', 'lying reverse db flye': 'rear_delt_fly',
+    'reverse cable crossover': 'cable_rear_fly', 'cable crossover': 'cable_fly',
+    'barbell rdl': 'rdl', 'bb rdl': 'rdl', 'db lunge': 'walking_lunge', 'barbell lunge': 'walking_lunge',
+    'triceps pressdown': 'rope_pushdown', 'tricep pressdown': 'rope_pushdown', 'pressdown': 'rope_pushdown',
+    'triceps pushdown': 'rope_pushdown',
+    // Pulls that were scoring onto pushes
+    'close grip pull up': 'neutral_pullup', 'close grip pull-up': 'neutral_pullup',
+    'close grip lat pulldown': 'pulldown_neutral', 'close-grip lat pulldown': 'pulldown_neutral',
+    '1 arm cable pulldown': 'pulldown_single', 'one arm cable pulldown': 'pulldown_single',
+    'seated cable deadlift': 'seated_cable_row',
+    // Hamstrings, quads and abs, each of which was landing on the wrong one
+    'nordic ham curl': 'nordic_curl', 'nordic hamstring curl': 'nordic_curl',
+    'lying leg raise': 'reverse_crunch', 'standing db curl': 'db_curl', 'standing dumbbell curl': 'db_curl',
+    'alternating db curl': 'db_curl', 'bent knee dragon flag': 'dragon_flag',
+    'smith machine lunge': 'split_squat', 'reverse nordic': 'reverse_nordic',
+    // Forearms: extension is not curl, and it is not an overhead triceps extension either
+    'wrist extension': 'reverse_wrist_curl', 'db wrist extension': 'reverse_wrist_curl',
+    'dumbbell wrist extension': 'reverse_wrist_curl', 'cable wrist extension': 'reverse_wrist_curl',
+    'db wrist curl': 'wrist_curl', 'dumbbell wrist curl': 'wrist_curl',
+    // Odds and ends
+    'seated dip machine': 'dip_machine', 'close grip dip': 'dip_triceps', 'close-grip dip': 'dip_triceps',
+    'standing plate abduction': 'cable_abduction', 'machine hip abduction': 'hip_abduction',
+    'weighted crunch': 'weighted_crunch', 'machine crunch': 'machine_crunch',
+    'leg press calf press': 'leg_press_calf', 'donkey calf raise': 'donkey_calf',
+    'bayesian cable curl': 'bayesian_curl', 'ez bar preacher curl': 'preacher_curl',
+    'incline db y raise': 'db_y_raise_incline', 'modified zottman curl': 'zottman_curl_modified',
+    'kelso shrug': 'kelso_shrug', 'incline db kelso shrug': 'kelso_shrug_db',
+    'seated cable kelso shrug': 'kelso_shrug', 'cable shrug in': 'shrug_in_cable',
+    'chest supported t bar row': 'tbar_row_supported', 'chest-supported t-bar row': 'tbar_row_supported',
+    '1 arm reverse pec deck': 'reverse_pec_deck_single', 'one arm reverse pec deck': 'reverse_pec_deck_single',
+    'smith machine jm press': 'jm_press_smith',
+  };
+  Object.keys(COACH_ALIASES).forEach(function (k) { if (!ALIASES[k]) ALIASES[k] = COACH_ALIASES[k]; });
+
   function aliasFor(q) {
     if (!ALIAS_N) {
       ALIAS_N = {};
@@ -2765,6 +2820,121 @@
     return days;
   }
 
+  /* ---- movements the programme leaves up to you ------------------------------------------------
+   * A written programme often prescribes a SLOT rather than a movement: "Squat (Your Choice)", with
+   * a note listing the back squat, front squat, pendulum, hack, belt and Smith versions. That is not
+   * vagueness, it is the author saying this slot is about the pattern and the gym you are standing
+   * in decides the rest.
+   *
+   * So the slot survives the import. An item carries `choice: { key, label, options: [ids] }`, its
+   * exerciseId is whichever option is currently picked, and picking a different one moves EVERY week
+   * of the block at once - a programme where week one squats and week four hack squats is not the
+   * programme. `alts` is the same idea one step weaker: the substitutions the author wrote against a
+   * movement, offered first when somebody swaps it because the machine is busy.
+   */
+  function blockChoices(block, custom) {
+    var seen = {}, out = [];
+    ((block && block.sessions) || []).forEach(function (s) {
+      (s.exercises || []).forEach(function (e) {
+        var c = e.choice;
+        if (!c || !c.key || seen[c.key]) return;
+        seen[c.key] = 1;
+        out.push({
+          key: c.key, label: c.label || 'Your choice',
+          options: (c.options || []).filter(function (id) { return !!byId(id, custom); }),
+          picked: e.exerciseId,
+          sessions: uniq(((block.sessions) || []).filter(function (x) {
+            return (x.exercises || []).some(function (y) { return y.choice && y.choice.key === c.key; });
+          }).map(function (x) { return x.name; })),
+        });
+      });
+    });
+    return out;
+  }
+  // Pick one, everywhere it appears. Mutates the block, like swapInBlock, so a caller can run it
+  // inside a store update. Returns how many lines moved.
+  function applyChoice(block, key, exerciseId) {
+    var n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      (s.exercises || []).forEach(function (e) {
+        if (!e.choice || e.choice.key !== key) return;
+        e.exerciseId = exerciseId;
+        n++;
+      });
+    });
+    return n;
+  }
+
+  /* ---- loading a block somebody already owns ----------------------------------------------------
+   * A plan bought as a spreadsheet, converted once (see tools/minmax-import.mjs) and loaded straight
+   * in. No model, no guessing, and nothing published: the file lands in the person's own blocks and
+   * goes no further, which is the only sane way to handle a plan they paid somebody else for.
+   *
+   * Everything is re-minted on the way in - block id, session ids, exercise line ids - because two
+   * imports of the same file, or a file somebody edited by hand, must not collide with what is
+   * already on the shelf or with each other. Anything pointing at a movement this library does not
+   * have is reported rather than dropped in silence.
+   */
+  function blocksFromFile(json, opts) {
+    opts = opts || {};
+    var problems = [];
+    var doc = json;
+    if (typeof doc === 'string') { try { doc = JSON.parse(doc); } catch (e) { throw new Error('That is not a block file: ' + e.message); } }
+    var list = doc && doc.blocks ? doc.blocks : (doc && doc.sessions ? [doc] : null);
+    if (!list || !list.length) throw new Error('That file has no blocks in it.');
+    var stamp = Date.now().toString(36);
+    var out = list.map(function (b, bi) {
+      if (!b || !b.sessions || !b.sessions.length) { problems.push('A block in the file had no sessions.'); return null; }
+      var id = 'blk_' + stamp + '_' + bi + Math.random().toString(36).slice(2, 5);
+      var sessions = b.sessions.map(function (s, si) {
+        var exercises = (s.exercises || []).map(function (e, ei) {
+          if (!byId(e.exerciseId, opts.custom)) {
+            problems.push((e.sourceName || e.exerciseId) + ' is not in the library');
+            return null;
+          }
+          var t = e.target || {};
+          return {
+            id: id + '_s' + si + '_e' + ei,
+            exerciseId: e.exerciseId, order: e.order == null ? ei : e.order,
+            sourceName: e.sourceName || null,
+            choice: e.choice || null, alts: e.alts || null,
+            technique: e.technique || null, planNote: e.planNote || null,
+            supersetGroup: e.supersetGroup || null,
+            target: {
+              sets: clamp(+t.sets || 2, SETS_MIN, SETS_MAX),
+              repLow: clamp(+t.repLow || 6, REPS_MIN, REPS_MAX),
+              repHigh: clamp(+t.repHigh || 10, REPS_MIN, REPS_MAX),
+              rir: clamp(t.rir == null ? 1 : +t.rir, 0, RIR_MAX),
+              rirLast: clamp(t.rirLast == null ? (t.rir == null ? 0 : +t.rir) : +t.rirLast, 0, RIR_MAX),
+              restSec: clamp(+t.restSec || 120, 30, 600),
+              tempo: t.tempo || null,
+            },
+          };
+        }).filter(Boolean);
+        return {
+          id: id + '_s' + si, week: +s.week || 1,
+          dayOfWeek: clamp(+s.dayOfWeek || 0, 0, 6),
+          name: s.name || ('Day ' + (si + 1)), kind: s.kind || 'full', deload: !!s.deload,
+          exercises: exercises,
+        };
+      }).filter(function (s) { return s.exercises.length; });
+      if (!sessions.length) { problems.push('Nothing in "' + (b.name || 'a block') + '" could be read.'); return null; }
+      return {
+        id: id, name: b.name || 'Imported block', goal: b.goal || 'hypertrophy',
+        weeks: Math.max.apply(null, sessions.map(function (s) { return s.week; })),
+        shape: SHAPES[b.shape] ? b.shape : 'as-written',
+        style: STYLES[b.style] ? b.style : null,
+        daysPerWeek: b.daysPerWeek || uniq(sessions.filter(function (s) { return s.week === 1; }).map(function (s) { return s.dayOfWeek; })).length,
+        intensity: b.intensity || 'high',
+        startISO: null, archived: false, shared: false,
+        source: 'file', sourceRef: b.sourceRef || { kind: 'file', name: opts.fileName || 'a block file' },
+        sessions: sessions,
+      };
+    }).filter(Boolean);
+    if (!out.length) throw new Error('Nothing in that file could be read as a block.');
+    return { blocks: out, problems: uniq(problems) };
+  }
+
   // ---- sharing -------------------------------------------------------------------------------
   // Pull the week-1 template back out of a built block. This is what gets shared, NOT the expanded
   // four weeks: whoever runs it next re-periodises against their own landmarks, so an advanced
@@ -3752,6 +3922,7 @@
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
+    blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,
