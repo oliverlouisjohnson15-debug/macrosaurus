@@ -20012,11 +20012,21 @@ class AppErrorBoundary extends React.Component {
   componentDidCatch(error, info) { try { window.Sentry && window.Sentry.captureException(error, { extra: info }); } catch (_) {} }
   render() {
     if (!this.state.error) return this.props.children;
+    // The error itself is ON the screen, not just in a console nobody has open on a phone. A blank
+    // page and a screen that says "something went wrong" are equally unreportable; the one thing
+    // that turns a bug report into a fix is the message and the line it came from.
+    const err = this.state.error;
+    const detail = (err && (err.stack || err.message)) || String(err);
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" style={{ background: 'var(--bg, #fff)', color: 'var(--text, #111)' }}>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6" style={{ background: 'var(--bg, #fff)', color: 'var(--text, #111)' }}>
         <div className="text-lg font-bold">Something went wrong.</div>
-        <div className="text-[13px] text-[#8A8A90] max-w-sm">Your data is safe. Reloading usually fixes this.</div>
-        <button className="pf px-5 py-3 rounded-xl font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} onClick={() => window.location.reload()}>Reload</button>
+        <div className="text-[13px] text-[#8A8A90] max-w-sm text-center">Your data is safe. Reloading usually fixes this. If it keeps happening, send this text over.</div>
+        <pre className="text-[11px] w-full max-w-md overflow-auto p-3 rounded-xl whitespace-pre-wrap" style={{ maxHeight: '40vh', background: 'var(--surface3, #eee)' }}>{detail}</pre>
+        <div className="flex gap-2">
+          <button className="pf px-4 py-3 rounded-xl font-bold" style={{ background: 'var(--surface3, #eee)', color: 'var(--text, #111)' }}
+            onClick={() => { try { navigator.clipboard.writeText(detail); } catch (_) {} }}>Copy</button>
+          <button className="pf px-5 py-3 rounded-xl font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} onClick={() => window.location.reload()}>Reload</button>
+        </div>
       </div>
     );
   }
