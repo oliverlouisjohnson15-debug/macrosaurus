@@ -4925,6 +4925,7 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
     const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg; if (!w) return;
     const bfVal = bf === '' || bf == null ? null : +bf;
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
       if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } }
       else { const ne = { id: Store.uid(), date: t, scale_weight: +w.toFixed(2) }; if (bfVal != null) { ne.bodyfat = bfVal; ne.bf_source = bfSrc; } d.weight_entries.push(ne); }
@@ -5974,6 +5975,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     setWErr('');
     const bfVal = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const ex = d.weight_entries.find(x => x.date === date);
       if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } else { delete ex.bodyfat; delete ex.bf_source; } }
       else { const ne = { id: Store.uid(), date, scale_weight: +w.toFixed(2) }; if (bfVal != null) { ne.bodyfat = bfVal; ne.bf_source = bfSrc; } d.weight_entries.push(ne); }
@@ -11515,6 +11517,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   // trend recomputed, and the number read back in a toast so it's obvious where it landed.
   const saveTodayWeight = (kg) => {
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
       if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +kg.toFixed(2) });
       recomputeTrend(d);
@@ -19656,7 +19659,10 @@ function App() {
     return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', ghRefresh); clearInterval(iv); };
   }, [session]);
 
-  function update(m) { setDb(prev => { const n = JSON.parse(JSON.stringify(prev)); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
+  // structuredClone, not JSON.parse(JSON.stringify()): accounts with large synced state (imported
+  // recipes carry inlined thumbnail images) can push this blob into the megabytes, and re-encoding
+  // every byte through a JSON string twice on every single save is real, avoidable work on that path.
+  function update(m) { setDb(prev => { const n = structuredClone(prev); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
   // `opts.syncWeighIn` makes today's weigh-in agree with the weight just stated, creating it if there
   // isn't one. Only the fresh start passes it: that flow has already written a seed reading from the
   // scale, so if the wizard's weight is then edited the two would disagree, and the seed is what the
@@ -19960,7 +19966,7 @@ function App() {
           onAdd={(mealId, item) => addEntry(tday, mealId, item)}
           onAddMeal={(mealId, items) => addMeal(tday, mealId, items)}
           onAddItems={(mealId, items) => addEstimateItems(tday, mealId, items)}
-          onSaveWeight={(kg) => { update(d => { const ex = d.weight_entries.find(x => x.date === tday); if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: tday, scale_weight: +kg.toFixed(2) }); recomputeTrend(d); }); showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.'); }}
+          onSaveWeight={(kg) => { update(d => { d.weight_entries = d.weight_entries || []; const ex = d.weight_entries.find(x => x.date === tday); if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: tday, scale_weight: +kg.toFixed(2) }); recomputeTrend(d); }); showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.'); }}
           onOpenScreen={(view) => { setTalking(false); if (view === 'checkin') { setView('goals'); setCheckingIn(true); } else if (view === 'weigh') { setView('dashboard'); setWeighing(true); } else if (view === 'play') { setDexOpen(true); } else setView(view); }} />
       ); })()}
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items, replaceIds) => addEstimateItems(adding.date, mealId, items, replaceIds)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
@@ -19996,4 +20002,23 @@ function App() {
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+// Last line of defence: nothing upstream renders without one of these, so any exception that
+// escapes a component (including one thrown inside a setDb/update() updater, which runs during
+// React's render phase) used to unmount the whole tree to a blank white page. This turns that
+// into a recoverable screen instead of silence.
+class AppErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { try { window.Sentry && window.Sentry.captureException(error, { extra: info }); } catch (_) {} }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" style={{ background: 'var(--bg, #fff)', color: 'var(--text, #111)' }}>
+        <div className="text-lg font-bold">Something went wrong.</div>
+        <div className="text-[13px] text-[#8A8A90] max-w-sm">Your data is safe. Reloading usually fixes this.</div>
+        <button className="pf px-5 py-3 rounded-xl font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<AppErrorBoundary><App /></AppErrorBoundary>);

@@ -19250,6 +19250,7 @@ function WeighSheet({
     if (!w) return;
     const bfVal = bf === '' || bf == null ? null : +bf;
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const t = Store.todayISO();
       const ex = d.weight_entries.find(x => x.date === t);
       if (ex) {
@@ -21185,6 +21186,7 @@ function WeighInEditModal({
     setWErr('');
     const bfVal = bf === '' || bf == null || isNaN(+bf) ? null : +bf;
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const ex = d.weight_entries.find(x => x.date === date);
       if (ex) {
         ex.scale_weight = +w.toFixed(2);
@@ -32020,6 +32022,7 @@ function Dashboard({
   // trend recomputed, and the number read back in a toast so it's obvious where it landed.
   const saveTodayWeight = kg => {
     update(d => {
+      d.weight_entries = d.weight_entries || [];
       const t = Store.todayISO();
       const ex = d.weight_entries.find(x => x.date === t);
       if (ex) ex.scale_weight = +kg.toFixed(2);else d.weight_entries.push({
@@ -51322,9 +51325,13 @@ function App() {
       clearInterval(iv);
     };
   }, [session]);
+
+  // structuredClone, not JSON.parse(JSON.stringify()): accounts with large synced state (imported
+  // recipes carry inlined thumbnail images) can push this blob into the megabytes, and re-encoding
+  // every byte through a JSON string twice on every single save is real, avoidable work on that path.
   function update(m) {
     setDb(prev => {
-      const n = JSON.parse(JSON.stringify(prev));
+      const n = structuredClone(prev);
       m(n);
       n._rev = Date.now();
       if (session) {
@@ -52077,6 +52084,7 @@ function App() {
       onAddItems: (mealId, items) => addEstimateItems(tday, mealId, items),
       onSaveWeight: kg => {
         update(d => {
+          d.weight_entries = d.weight_entries || [];
           const ex = d.weight_entries.find(x => x.date === tday);
           if (ex) ex.scale_weight = +kg.toFixed(2);else d.weight_entries.push({
             id: Store.uid(),
@@ -52232,7 +52240,52 @@ function App() {
     onDone: () => setShowWelcome(false)
   }));
 }
-ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
+// Last line of defence: nothing upstream renders without one of these, so any exception that
+// escapes a component (including one thrown inside a setDb/update() updater, which runs during
+// React's render phase) used to unmount the whole tree to a blank white page. This turns that
+// into a recoverable screen instead of silence.
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      error: null
+    };
+  }
+  static getDerivedStateFromError(error) {
+    return {
+      error
+    };
+  }
+  componentDidCatch(error, info) {
+    try {
+      window.Sentry && window.Sentry.captureException(error, {
+        extra: info
+      });
+    } catch (_) {}
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center",
+      style: {
+        background: 'var(--bg, #fff)',
+        color: 'var(--text, #111)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-lg font-bold"
+    }, "Something went wrong."), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] text-[#8A8A90] max-w-sm"
+    }, "Your data is safe. Reloading usually fixes this."), /*#__PURE__*/React.createElement("button", {
+      className: "pf px-5 py-3 rounded-xl font-bold",
+      style: {
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
+      },
+      onClick: () => window.location.reload()
+    }, "Reload"));
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(AppErrorBoundary, null, /*#__PURE__*/React.createElement(App, null)));
 
 /* ---- app/src/train-core.jsx ---- */
 /* ---- train core ----------------------------------------------------------------------
