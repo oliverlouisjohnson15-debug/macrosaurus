@@ -2501,7 +2501,7 @@ function StatSheet({ db, onBack }) {
 // A list of things you can do, as a sheet. The grid of chunky boxes this replaced was crammed two
 // across in the middle of the card you were working in, so it read as part of the layout rather than
 // as a menu, and there was no room for any of the options to say what they actually did.
-function ActionSheet({ title, kicker, actions, onClose }) {
+function ActionSheet({ title, kicker, actions, onClose, children }) {
   useBackClose(onClose);
   return (
     <div role="dialog" aria-modal="true" aria-label="Options" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
@@ -2518,6 +2518,10 @@ function ActionSheet({ title, kicker, actions, onClose }) {
           <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{kicker || 'Options'}</div>
           {title && <div className="text-[13.5px] font-semibold leading-tight mt-1">{title}</div>}
         </div>
+        {/* Free-form content between the title and the action list, for the rare sheet that needs a
+            field rather than a row of choices (session notes is the one caller). Every other sheet
+            passes nothing and this renders nothing. */}
+        {children && <div className="px-4 pb-3">{children}</div>}
         {/* Two things this list has to get right, both of them from the same finding: a consequential
             option sitting flush against a benign one gets picked by accident (NN/g, "Dangerous UX:
             Consequential Options Close to Benign Options").

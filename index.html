@@ -53772,6 +53772,7 @@ function SessionPlayer({
     });
   });
   const [focus, setFocus] = useState(0);
+  const [queueExpanded, setQueueExpanded] = useState(false); // the "Up next" fold, past the first two
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null); // a swap that could apply to the rest of the block
@@ -53793,6 +53794,7 @@ function SessionPlayer({
   const [exNotes, setExNotes] = useState(() => existing && existing.exerciseNotes || {});
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [sessionMenu, setSessionMenu] = useState(false); // the header's MORE, for the whole session
+  const [notesOpen, setNotesOpen] = useState(false); // the session notes field, off the header
   const [targetFor, setTargetFor] = useState(null); // index of the movement whose prescription is open
   const [signOff, setSignOff] = useState(null); // the buddy's send-off, once the session is saved
   const [startedAt] = useState(() => existing && existing.startedAt ? Date.parse(existing.startedAt) : Date.now());
@@ -54454,399 +54456,412 @@ function SessionPlayer({
       style: {
         color: 'var(--muted)'
       }
-    }, "Add the first movement. Next time it comes back with your weights already in.")), items.map((it, ii) => {
-      const ex = Training.byId(it.exerciseId, t.custom);
-      const tgt = it.target;
-      const open = ii === focus;
-      const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
-      const done = work.length > 0 && work.every(s => s.done);
-      const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
-      const hist = Training.exerciseHistory(t.logs, it.exerciseId);
-      return /*#__PURE__*/React.createElement("div", {
-        key: it.exerciseId + '_' + ii,
-        className: "pixel-box mb-4",
-        style: {
-          background: 'var(--card)'
-        }
-      }, /*#__PURE__*/React.createElement("button", {
-        onClick: () => {
-          setFocus(open ? -1 : ii);
-          setPlateFor(null);
-          setMenuOpen(false);
-        },
-        className: 'w-full flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3'),
-        style: open ? {
-          background: 'var(--cardhead-bg)',
-          borderBottom: '2px solid var(--border)'
-        } : null
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "pf text-[10px] shrink-0 flex items-center justify-center",
-        style: open ? {
-          color: 'var(--accent)'
-        } : {
-          width: 30,
-          height: 30,
-          border: '2px solid var(--border)',
-          background: done ? 'var(--good)' : 'var(--card)',
-          color: done ? '#fff' : 'var(--accent-ink)'
-        }
-      }, codes[ii]), /*#__PURE__*/React.createElement("span", {
-        className: "min-w-0 flex-1"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "block text-[14px] font-bold leading-tight",
-        style: {
-          color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)'
-        }
-      }, ex ? ex.name : it.exerciseId), /*#__PURE__*/React.createElement("span", {
-        className: "block pf text-[8px] uppercase mt-1.5",
-        style: {
-          color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)',
-          letterSpacing: '0.1em'
-        }
-      }, open ? 'Set ' + Math.min(work.length, work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? style.toFailure ? tgt.rir > 0 ? ' · last set to failure' : ' to failure' : ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
-        className: "shrink-0",
-        style: {
-          color: 'var(--cardhead-text)'
-        }
-      }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "16",
-        height: "16",
-        style: {
-          transform: 'rotate(90deg)'
-        }
-      })) : done ? /*#__PURE__*/React.createElement("span", {
-        className: "shrink-0 w-6 h-6 flex items-center justify-center",
-        style: {
-          background: 'var(--good)',
-          color: '#fff'
-        }
-      }, /*#__PURE__*/React.createElement(Tick, {
-        size: 12
-      })) : /*#__PURE__*/React.createElement("span", {
-        className: "shrink-0",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "16",
-        height: "16"
-      }))), open && /*#__PURE__*/React.createElement("div", {
-        className: "px-3 pb-3 pt-3"
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "flex items-center gap-2 mb-4"
-      }, tgt && (style.toFailure ? /*#__PURE__*/React.createElement(MetaBit, {
-        label: (tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week' : tgt.rir > 0 ? 'Last set to failure' : 'To failure',
-        onHelp: () => setHelp('failure'),
-        hideHelp: t.prefs.hideHelp
-      }) : /*#__PURE__*/React.createElement(MetaBit, {
-        label: tgt.rir + ' RIR',
-        onHelp: () => setHelp('rir'),
-        hideHelp: t.prefs.hideHelp
-      })), tgt && tgt.tempo && /*#__PURE__*/React.createElement(MetaBit, {
-        label: tgt.tempo,
-        onHelp: () => setHelp('tempo:' + tgt.tempo),
-        hideHelp: t.prefs.hideHelp
-      }), tgt && /*#__PURE__*/React.createElement(MetaBit, {
-        label: fmtRest(tgt.restSec || 120),
-        onHelp: () => setHelp('rest'),
-        muted: true,
-        hideHelp: t.prefs.hideHelp
-      }), /*#__PURE__*/React.createElement("span", {
-        className: "ml-auto shrink-0 text-[11.5px] text-right",
-        style: {
-          color: 'var(--muted)'
-        }
-      }, work.length, " ", work.length === 1 ? 'set' : 'sets', " · ", tgt ? tgt.repLow + '–' + tgt.repHigh : '–', " reps")), it.note && /*#__PURE__*/React.createElement("div", {
-        className: "text-[11.5px] mb-2 leading-snug",
-        style: {
-          color: 'var(--accent-ink)'
-        }
-      }, it.note, it.swap && /*#__PURE__*/React.createElement("button", {
-        onClick: () => setSwapping(ii),
-        className: "pixel-box px-2.5 ml-2 text-[11px] align-middle",
-        style: {
-          minHeight: 34,
-          background: 'var(--surface2)',
-          color: 'var(--text2)'
-        }
-      }, "Change it")), it.technique && /*#__PURE__*/React.createElement("div", {
-        className: "text-[11.5px] mb-2 px-2.5 py-2 leading-snug",
-        style: {
-          background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))',
-          color: 'var(--text2)'
-        }
-      }, /*#__PURE__*/React.createElement("b", null, "On the last set:"), " ", it.technique), it.planNote && /*#__PURE__*/React.createElement("div", {
-        className: "text-[11px] mb-2 leading-snug",
-        style: {
-          color: 'var(--muted)'
-        }
-      }, it.planNote), (() => {
-        const lts = it.sets.map(x => x.lastTime).filter(Boolean);
-        if (lts.length) {
+    }, "Add the first movement. Next time it comes back with your weights already in.")), (() => {
+      function renderRow(it, ii, grouped) {
+        const ex = Training.byId(it.exerciseId, t.custom);
+        const tgt = it.target;
+        const open = ii === focus;
+        const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+        const done = work.length > 0 && work.every(s => s.done);
+        const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
+        const hist = Training.exerciseHistory(t.logs, it.exerciseId);
+        return /*#__PURE__*/React.createElement("div", {
+          key: it.exerciseId + '_' + ii,
+          className: grouped ? '' : 'pixel-box mb-4',
+          style: grouped ? {
+            borderTop: '2px solid var(--border)'
+          } : {
+            background: 'var(--card)'
+          }
+        }, /*#__PURE__*/React.createElement("button", {
+          onClick: () => {
+            setFocus(open ? -1 : ii);
+            setPlateFor(null);
+            setMenuOpen(false);
+          },
+          className: 'w-full flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3'),
+          style: open ? {
+            background: 'var(--cardhead-bg)',
+            borderBottom: '2px solid var(--border)'
+          } : null
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "pf text-[10px] shrink-0 flex items-center justify-center",
+          style: open ? {
+            color: 'var(--accent)'
+          } : {
+            width: 30,
+            height: 30,
+            border: '2px solid var(--border)',
+            background: done ? 'var(--good)' : 'var(--card)',
+            color: done ? '#fff' : 'var(--accent-ink)'
+          }
+        }, codes[ii]), /*#__PURE__*/React.createElement("span", {
+          className: "min-w-0 flex-1"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "block text-[14px] font-bold leading-tight",
+          style: {
+            color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)'
+          }
+        }, ex ? ex.name : it.exerciseId), /*#__PURE__*/React.createElement("span", {
+          className: "block pf text-[8px] uppercase mt-1.5",
+          style: {
+            color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)',
+            letterSpacing: '0.1em'
+          }
+        }, open ? 'Set ' + Math.min(work.length, work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? style.toFailure ? tgt.rir > 0 ? ' · last set to failure' : ' to failure' : ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
+          className: "shrink-0",
+          style: {
+            color: 'var(--cardhead-text)'
+          }
+        }, /*#__PURE__*/React.createElement(Icon.chevron, {
+          width: "16",
+          height: "16",
+          style: {
+            transform: 'rotate(90deg)'
+          }
+        })) : done ? /*#__PURE__*/React.createElement("span", {
+          className: "shrink-0 w-6 h-6 flex items-center justify-center",
+          style: {
+            background: 'var(--good)',
+            color: '#fff'
+          }
+        }, /*#__PURE__*/React.createElement(Tick, {
+          size: 12
+        })) : /*#__PURE__*/React.createElement("span", {
+          className: "shrink-0",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, /*#__PURE__*/React.createElement(Icon.chevron, {
+          width: "16",
+          height: "16"
+        }))), open && /*#__PURE__*/React.createElement("div", {
+          className: "px-3 pb-3 pt-3"
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center gap-2 mb-4"
+        }, tgt && (style.toFailure ? /*#__PURE__*/React.createElement(MetaBit, {
+          label: (tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week' : tgt.rir > 0 ? 'Last set to failure' : 'To failure',
+          onHelp: () => setHelp('failure'),
+          hideHelp: t.prefs.hideHelp
+        }) : /*#__PURE__*/React.createElement(MetaBit, {
+          label: tgt.rir + ' RIR',
+          onHelp: () => setHelp('rir'),
+          hideHelp: t.prefs.hideHelp
+        })), tgt && tgt.tempo && /*#__PURE__*/React.createElement(MetaBit, {
+          label: tgt.tempo,
+          onHelp: () => setHelp('tempo:' + tgt.tempo),
+          hideHelp: t.prefs.hideHelp
+        }), tgt && /*#__PURE__*/React.createElement(MetaBit, {
+          label: fmtRest(tgt.restSec || 120),
+          onHelp: () => setHelp('rest'),
+          muted: true,
+          hideHelp: t.prefs.hideHelp
+        }), /*#__PURE__*/React.createElement("span", {
+          className: "ml-auto shrink-0 text-[11.5px] text-right",
+          style: {
+            color: 'var(--muted)'
+          }
+        }, work.length, " ", work.length === 1 ? 'set' : 'sets', " · ", tgt ? tgt.repLow + '–' + tgt.repHigh : '–', " reps")), it.note && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11.5px] mb-2 leading-snug",
+          style: {
+            color: 'var(--accent-ink)'
+          }
+        }, it.note, it.swap && /*#__PURE__*/React.createElement("button", {
+          onClick: () => setSwapping(ii),
+          className: "pixel-box px-2.5 ml-2 text-[11px] align-middle",
+          style: {
+            minHeight: 34,
+            background: 'var(--surface2)',
+            color: 'var(--text2)'
+          }
+        }, "Change it")), it.technique && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11.5px] mb-2 px-2.5 py-2 leading-snug",
+          style: {
+            background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))',
+            color: 'var(--text2)'
+          }
+        }, /*#__PURE__*/React.createElement("b", null, "On the last set:"), " ", it.technique), it.planNote && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11px] mb-2 leading-snug",
+          style: {
+            color: 'var(--muted)'
+          }
+        }, it.planNote), (() => {
+          const lts = it.sets.map(x => x.lastTime).filter(Boolean);
+          if (lts.length) {
+            return /*#__PURE__*/React.createElement("div", {
+              className: "text-[11.5px] mb-2 leading-snug",
+              style: {
+                color: 'var(--muted)'
+              }
+            }, /*#__PURE__*/React.createElement("span", {
+              style: {
+                color: 'var(--muted2)'
+              }
+            }, "Last time: "), lts.map(l => (l.weightKg > 0 ? toDisplayWeight(l.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + l.reps).join(', '));
+          }
+          // A grip you have never done has no history, so the line borrows the movement it
+          // came from and says whose number it is. Deliberately only the LINE: the weight box
+          // stays empty, because a wide-grip row is not the weight of a plain one and a
+          // number sitting in an input reads as an instruction rather than a reference.
+          const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
+          if (!ref || !ref.borrowed) return null;
+          const from = Training.byId(ref.fromId, t.custom);
           return /*#__PURE__*/React.createElement("div", {
             className: "text-[11.5px] mb-2 leading-snug",
             style: {
               color: 'var(--muted)'
             }
+          }, "New to this one. On ", from ? from.name : 'the plain version', " you did ", toDisplayWeight(ref.best.weightKg, units), unitLabel(units), " × ", ref.best.repsAtBest);
+        })(), warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0 && Training.warmupSets(work[0].weightKg, ex, {
+          count: it.warmups
+        }).length > 0 && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11.5px] mb-4 leading-snug",
+          style: {
+            color: 'var(--accent-ink)'
+          }
+        }, /*#__PURE__*/React.createElement("span", {
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "Warm up: "), Training.warmupSets(work[0].weightKg, ex, {
+          count: it.warmups
+        }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')), style.toFailure && !work.some(x => x.done) && tgt && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11.5px] mb-3 px-2.5 py-2 leading-snug",
+          style: {
+            borderLeft: '3px solid var(--accent)',
+            background: 'var(--surface2)',
+            color: 'var(--text2)'
+          }
+        }, (tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week. Leave ' + (tgt.rirLast == null ? tgt.rir : tgt.rirLast) + ' in the tank on the last set: this week is what earns you the next five.' : work.length === 1 ? 'One set here. Make it count: take it to the rep where the weight stops moving.' : tgt.rir > 0 ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.' : 'Two sets, both to failure. The second is lighter for exactly that reason.'), /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center gap-2 pb-2"
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "w-8 pf text-[7px] uppercase",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "Set"), /*#__PURE__*/React.createElement("div", {
+          className: "flex-1 pf text-[7px] uppercase text-center",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, unitLabel(units)), /*#__PURE__*/React.createElement("div", {
+          className: "flex-1 pf text-[7px] uppercase text-center",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "Reps"), !style.toFailure && /*#__PURE__*/React.createElement("div", {
+          className: "w-11 pf text-[7px] uppercase text-center",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "RIR"), /*#__PURE__*/React.createElement("div", {
+          className: "w-12 pf text-[7px] uppercase text-center",
+          style: {
+            color: 'var(--muted2)'
+          }
+        }, "Done")), it.sets.map((s, si) => {
+          const type = s.type || 'work';
+          const tone = SET_TYPE_TONE[type];
+          const workIndex = it.sets.slice(0, si + 1).filter(x => (x.type || 'work') !== 'warmup').length;
+          const cellStyle = {
+            background: 'var(--surface2)',
+            color: s.done ? 'var(--text)' : 'var(--muted)'
+          };
+          // 15px could not fit "62.5" in the weight box, and a clipped decimal reads as a
+          // different number rather than as truncation. 13px fits four characters at 375px.
+          // Taller and larger now the Prev column is not stealing the width.
+          const cell = 'h-12 pixel-box text-[15px] text-center tnum min-w-0 px-0.5';
+          return /*#__PURE__*/React.createElement("div", {
+            key: si,
+            className: "mb-2 -mx-1 px-1 py-0.5"
+          }, /*#__PURE__*/React.createElement("div", {
+            className: "flex items-center gap-2"
+          }, /*#__PURE__*/React.createElement("button", {
+            onClick: () => setSetMenu(setMenu === ii + ':' + si ? null : ii + ':' + si),
+            "aria-label": 'Set ' + workIndex + ' options. Currently ' + (SET_TYPES.find(x => x.v === type) || {}).full,
+            className: "w-11 h-12 flex items-center justify-center shrink-0"
           }, /*#__PURE__*/React.createElement("span", {
+            className: "w-7 h-7 flex items-center justify-center pf text-[11px] tnum",
+            style: {
+              // The set number reads green alongside its tick, so a completed row is
+              // one colour from either end rather than a gold square and a gold tick
+              // with a cream row between them. The frame stays either way: losing it
+              // when done made the number jump a pixel as you ticked it.
+              background: s.done ? 'var(--good)' : 'var(--card)',
+              color: s.done ? '#ffffff' : tone || 'var(--muted)',
+              border: '2px solid ' + (s.done ? 'var(--border)' : tone || 'var(--border)')
+            }
+          }, type === 'work' ? workIndex : (SET_TYPES.find(x => x.v === type) || {}).label)), /*#__PURE__*/React.createElement("input", {
+            type: "number",
+            inputMode: "decimal",
+            className: 'flex-1 ' + cell,
+            style: cellStyle,
+            value: s.weightKg ? toDisplayWeight(s.weightKg, units) : '',
+            onFocus: e => {
+              try {
+                e.target.select();
+              } catch (_) {}
+            },
+            onChange: e => setField(ii, si, 'weightKg', fromDisplayWeight(e.target.value, units)),
+            placeholder: s.lastTime ? String(toDisplayWeight(s.lastTime.weightKg, units)) : '0'
+          }), /*#__PURE__*/React.createElement("input", {
+            type: "number",
+            inputMode: "numeric",
+            className: 'flex-1 ' + cell,
+            style: cellStyle,
+            value: s.reps == null ? '' : s.reps,
+            onFocus: e => {
+              try {
+                e.target.select();
+              } catch (_) {}
+            },
+            onChange: e => setField(ii, si, 'reps', e.target.value === '' ? null : +e.target.value),
+            placeholder: tgt ? String(tgt.repHigh) : s.targetReps ? String(s.targetReps).split('-').pop() : ''
+          }), !style.toFailure && /*#__PURE__*/React.createElement("input", {
+            type: "number",
+            inputMode: "numeric",
+            className: 'w-11 ' + cell,
+            style: cellStyle,
+            value: s.rir == null ? '' : s.rir,
+            onFocus: e => {
+              try {
+                e.target.select();
+              } catch (_) {}
+            },
+            onChange: e => setField(ii, si, 'rir', e.target.value === '' ? null : +e.target.value),
+            placeholder: tgt ? String(tgt.rir) : ''
+          }), /*#__PURE__*/React.createElement("button", {
+            onClick: () => toggleDone(ii, si),
+            "aria-label": s.done ? 'Set ' + (si + 1) + ' done, tap to undo' : 'Mark set ' + (si + 1) + ' done',
+            className: "w-11 h-11 pixel-box flex items-center justify-center text-[19px] font-bold shrink-0 transition-transform",
+            style: {
+              // Green, not gold. The design keeps gold for the one thing you are being
+              // asked to press next; a column of gold ticks for sets already behind you
+              // competed with Finish for the loudest colour on the screen.
+              background: s.done ? 'var(--good)' : 'var(--surface2)',
+              color: s.done ? '#ffffff' : 'var(--muted2)',
+              opacity: s.done ? 1 : 0.85,
+              transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)'
+            }
+          }, /*#__PURE__*/React.createElement(Tick, {
+            size: 12
+          }))), style.toFailure && !s.done && (s.backOff || s.targetRir > 0) && /*#__PURE__*/React.createElement("div", {
+            className: "text-[10.5px] mt-0.5 pl-11 leading-snug",
             style: {
               color: 'var(--muted2)'
             }
-          }, "Last time: "), lts.map(l => (l.weightKg > 0 ? toDisplayWeight(l.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + l.reps).join(', '));
-        }
-        // A grip you have never done has no history, so the line borrows the movement it
-        // came from and says whose number it is. Deliberately only the LINE: the weight box
-        // stays empty, because a wide-grip row is not the weight of a plain one and a
-        // number sitting in an input reads as an instruction rather than a reference.
-        const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
-        if (!ref || !ref.borrowed) return null;
-        const from = Training.byId(ref.fromId, t.custom);
-        return /*#__PURE__*/React.createElement("div", {
-          className: "text-[11.5px] mb-2 leading-snug",
-          style: {
-            color: 'var(--muted)'
-          }
-        }, "New to this one. On ", from ? from.name : 'the plain version', " you did ", toDisplayWeight(ref.best.weightKg, units), unitLabel(units), " × ", ref.best.repsAtBest);
-      })(), warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0 && Training.warmupSets(work[0].weightKg, ex, {
-        count: it.warmups
-      }).length > 0 && /*#__PURE__*/React.createElement("div", {
-        className: "text-[11.5px] mb-4 leading-snug",
-        style: {
-          color: 'var(--accent-ink)'
-        }
-      }, /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, "Warm up: "), Training.warmupSets(work[0].weightKg, ex, {
-        count: it.warmups
-      }).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')), style.toFailure && !work.some(x => x.done) && tgt && /*#__PURE__*/React.createElement("div", {
-        className: "text-[11.5px] mb-3 px-2.5 py-2 leading-snug",
-        style: {
-          borderLeft: '3px solid var(--accent)',
-          background: 'var(--surface2)',
-          color: 'var(--text2)'
-        }
-      }, (tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week. Leave ' + (tgt.rirLast == null ? tgt.rir : tgt.rirLast) + ' in the tank on the last set: this week is what earns you the next five.' : work.length === 1 ? 'One set here. Make it count: take it to the rep where the weight stops moving.' : tgt.rir > 0 ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.' : 'Two sets, both to failure. The second is lighter for exactly that reason.'), /*#__PURE__*/React.createElement("div", {
-        className: "flex items-center gap-2 pb-2"
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "w-8 pf text-[7px] uppercase",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, "Set"), /*#__PURE__*/React.createElement("div", {
-        className: "flex-1 pf text-[7px] uppercase text-center",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, unitLabel(units)), /*#__PURE__*/React.createElement("div", {
-        className: "flex-1 pf text-[7px] uppercase text-center",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, "Reps"), !style.toFailure && /*#__PURE__*/React.createElement("div", {
-        className: "w-11 pf text-[7px] uppercase text-center",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, "RIR"), /*#__PURE__*/React.createElement("div", {
-        className: "w-12 pf text-[7px] uppercase text-center",
-        style: {
-          color: 'var(--muted2)'
-        }
-      }, "Done")), it.sets.map((s, si) => {
-        const type = s.type || 'work';
-        const tone = SET_TYPE_TONE[type];
-        const workIndex = it.sets.slice(0, si + 1).filter(x => (x.type || 'work') !== 'warmup').length;
-        const cellStyle = {
-          background: 'var(--surface2)',
-          color: s.done ? 'var(--text)' : 'var(--muted)'
-        };
-        // 15px could not fit "62.5" in the weight box, and a clipped decimal reads as a
-        // different number rather than as truncation. 13px fits four characters at 375px.
-        // Taller and larger now the Prev column is not stealing the width.
-        const cell = 'h-12 pixel-box text-[15px] text-center tnum min-w-0 px-0.5';
-        return /*#__PURE__*/React.createElement("div", {
-          key: si,
-          className: "mb-2 -mx-1 px-1 py-0.5"
-        }, /*#__PURE__*/React.createElement("div", {
-          className: "flex items-center gap-2"
-        }, /*#__PURE__*/React.createElement("button", {
-          onClick: () => setSetMenu(setMenu === ii + ':' + si ? null : ii + ':' + si),
-          "aria-label": 'Set ' + workIndex + ' options. Currently ' + (SET_TYPES.find(x => x.v === type) || {}).full,
-          className: "w-11 h-12 flex items-center justify-center shrink-0"
-        }, /*#__PURE__*/React.createElement("span", {
-          className: "w-7 h-7 flex items-center justify-center pf text-[11px] tnum",
-          style: {
-            // The set number reads green alongside its tick, so a completed row is
-            // one colour from either end rather than a gold square and a gold tick
-            // with a cream row between them. The frame stays either way: losing it
-            // when done made the number jump a pixel as you ticked it.
-            background: s.done ? 'var(--good)' : 'var(--card)',
-            color: s.done ? '#ffffff' : tone || 'var(--muted)',
-            border: '2px solid ' + (s.done ? 'var(--border)' : tone || 'var(--border)')
-          }
-        }, type === 'work' ? workIndex : (SET_TYPES.find(x => x.v === type) || {}).label)), /*#__PURE__*/React.createElement("input", {
-          type: "number",
-          inputMode: "decimal",
-          className: 'flex-1 ' + cell,
-          style: cellStyle,
-          value: s.weightKg ? toDisplayWeight(s.weightKg, units) : '',
-          onFocus: e => {
-            try {
-              e.target.select();
-            } catch (_) {}
-          },
-          onChange: e => setField(ii, si, 'weightKg', fromDisplayWeight(e.target.value, units)),
-          placeholder: s.lastTime ? String(toDisplayWeight(s.lastTime.weightKg, units)) : '0'
-        }), /*#__PURE__*/React.createElement("input", {
-          type: "number",
-          inputMode: "numeric",
-          className: 'flex-1 ' + cell,
-          style: cellStyle,
-          value: s.reps == null ? '' : s.reps,
-          onFocus: e => {
-            try {
-              e.target.select();
-            } catch (_) {}
-          },
-          onChange: e => setField(ii, si, 'reps', e.target.value === '' ? null : +e.target.value),
-          placeholder: tgt ? String(tgt.repHigh) : s.targetReps ? String(s.targetReps).split('-').pop() : ''
-        }), !style.toFailure && /*#__PURE__*/React.createElement("input", {
-          type: "number",
-          inputMode: "numeric",
-          className: 'w-11 ' + cell,
-          style: cellStyle,
-          value: s.rir == null ? '' : s.rir,
-          onFocus: e => {
-            try {
-              e.target.select();
-            } catch (_) {}
-          },
-          onChange: e => setField(ii, si, 'rir', e.target.value === '' ? null : +e.target.value),
-          placeholder: tgt ? String(tgt.rir) : ''
+          }, s.backOff ? 'Back-off set: 15% lighter, taken to failure again.' : 'Leave ' + s.targetRir + (s.targetRir === 1 ? ' rep' : ' reps') + ' in the tank on this one.'), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
+            className: "flex gap-1 flex-wrap mt-1 mb-2 pl-1"
+          }, SET_TYPES.map(st => /*#__PURE__*/React.createElement("button", {
+            key: st.v,
+            onClick: () => {
+              setField(ii, si, 'type', st.v);
+              setSetMenu(null);
+            },
+            className: "pixel-box px-3 h-11 text-[11px]",
+            style: {
+              background: type === st.v ? 'var(--accent)' : 'var(--surface2)',
+              color: type === st.v ? 'var(--on-accent)' : 'var(--text2)'
+            }
+          }, st.full)), /*#__PURE__*/React.createElement("button", {
+            onClick: () => {
+              removeSet(ii, si);
+              setSetMenu(null);
+            },
+            className: "pixel-box px-3 h-11 text-[11px]",
+            style: {
+              background: 'var(--surface2)',
+              color: 'var(--danger)'
+            }
+          }, "Remove set")), t.prefs.plateCalc !== false && Training.usesBar(ex) && s.weightKg > 0 && (si === 0 || it.sets[si - 1].weightKg !== s.weightKg) && /*#__PURE__*/React.createElement("button", {
+            onClick: () => setPlateFor(plateFor === ii + ':' + si ? null : ii + ':' + si),
+            className: "text-[10px] pl-10 tnum text-left",
+            style: {
+              color: 'var(--muted2)'
+            }
+          }, plateBarLine(s.weightKg, units)));
         }), /*#__PURE__*/React.createElement("button", {
-          onClick: () => toggleDone(ii, si),
-          "aria-label": s.done ? 'Set ' + (si + 1) + ' done, tap to undo' : 'Mark set ' + (si + 1) + ' done',
-          className: "w-11 h-11 pixel-box flex items-center justify-center text-[19px] font-bold shrink-0 transition-transform",
+          onClick: () => addSet(ii),
+          className: "pixel-box w-full h-11 text-[12px] mt-2",
           style: {
-            // Green, not gold. The design keeps gold for the one thing you are being
-            // asked to press next; a column of gold ticks for sets already behind you
-            // competed with Finish for the loudest colour on the screen.
-            background: s.done ? 'var(--good)' : 'var(--surface2)',
-            color: s.done ? '#ffffff' : 'var(--muted2)',
-            opacity: s.done ? 1 : 0.85,
-            transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)'
+            background: 'var(--surface2)'
           }
-        }, /*#__PURE__*/React.createElement(Tick, {
-          size: 12
-        }))), style.toFailure && !s.done && (s.backOff || s.targetRir > 0) && /*#__PURE__*/React.createElement("div", {
-          className: "text-[10.5px] mt-0.5 pl-11 leading-snug",
-          style: {
-            color: 'var(--muted2)'
-          }
-        }, s.backOff ? 'Back-off set: 15% lighter, taken to failure again.' : 'Leave ' + s.targetRir + (s.targetRir === 1 ? ' rep' : ' reps') + ' in the tank on this one.'), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
-          className: "flex gap-1 flex-wrap mt-1 mb-2 pl-1"
-        }, SET_TYPES.map(st => /*#__PURE__*/React.createElement("button", {
-          key: st.v,
-          onClick: () => {
-            setField(ii, si, 'type', st.v);
-            setSetMenu(null);
-          },
-          className: "pixel-box px-3 h-11 text-[11px]",
-          style: {
-            background: type === st.v ? 'var(--accent)' : 'var(--surface2)',
-            color: type === st.v ? 'var(--on-accent)' : 'var(--text2)'
-          }
-        }, st.full)), /*#__PURE__*/React.createElement("button", {
-          onClick: () => {
-            removeSet(ii, si);
-            setSetMenu(null);
-          },
-          className: "pixel-box px-3 h-11 text-[11px]",
+        }, "+ Add set"), /*#__PURE__*/React.createElement("div", {
+          className: "flex gap-2 mt-3"
+        }, /*#__PURE__*/React.createElement(ToolBtn, {
+          on: noteOpen === it.exerciseId || !!exNotes[it.exerciseId],
+          onClick: () => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)
+        }, "Note"), /*#__PURE__*/React.createElement(ToolBtn, {
+          disabled: !hist.length,
+          onClick: () => setPastFor(it.exerciseId)
+        }, "History"), /*#__PURE__*/React.createElement(ToolBtn, {
+          on: menuOpen === ii,
+          onClick: () => setMenuOpen(ii)
+        }, "More")), (noteOpen === it.exerciseId || exNotes[it.exerciseId]) && /*#__PURE__*/React.createElement("input", {
+          value: exNotes[it.exerciseId] || '',
+          onChange: e => setExNote(it.exerciseId, e.target.value),
+          placeholder: "e.g. seat 3, pin 6",
+          autoFocus: noteOpen === it.exerciseId,
+          className: "w-full pixel-box px-3 h-10 text-[12px] mt-2",
           style: {
             background: 'var(--surface2)',
-            color: 'var(--danger)'
+            color: 'var(--text)'
           }
-        }, "Remove set")), t.prefs.plateCalc !== false && Training.usesBar(ex) && s.weightKg > 0 && (si === 0 || it.sets[si - 1].weightKg !== s.weightKg) && /*#__PURE__*/React.createElement("button", {
-          onClick: () => setPlateFor(plateFor === ii + ':' + si ? null : ii + ':' + si),
-          className: "text-[10px] pl-10 tnum text-left",
-          style: {
-            color: 'var(--muted2)'
-          }
-        }, plateBarLine(s.weightKg, units)));
-      }), /*#__PURE__*/React.createElement("button", {
-        onClick: () => addSet(ii),
-        className: "pixel-box w-full h-11 text-[12px] mt-2",
+        })));
+      }
+
+      // Three bands: what is already logged (its own boxed row, a receipt), the one movement open
+      // right now (its full card), and what has not been touched yet. That last band used to be N
+      // more full-width boxes - readable, but a leg day with six accessories after the lead lift was
+      // six decisions' worth of weight for zero decisions actually pending. It becomes one "Up next"
+      // card: the next two named in full, the rest folded behind a count, because what is coming is a
+      // glance, not a list to read top to bottom.
+      const doneRows = [],
+        queueRows = [];
+      items.forEach((it, ii) => {
+        if (ii === focus) return;
+        const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+        (work.length > 0 && work.every(s => s.done) ? doneRows : queueRows).push({
+          it,
+          ii
+        });
+      });
+      const shownQueue = queueExpanded ? queueRows : queueRows.slice(0, 2);
+      const foldedQueue = queueRows.length - shownQueue.length;
+      return /*#__PURE__*/React.createElement(React.Fragment, null, doneRows.map(({
+        it,
+        ii
+      }) => renderRow(it, ii, false)), items[focus] != null && renderRow(items[focus], focus, false), queueRows.length > 0 && /*#__PURE__*/React.createElement("div", {
+        className: "pixel-box mb-4 overflow-hidden",
         style: {
-          background: 'var(--surface2)'
+          background: 'var(--card)'
         }
-      }, "+ Add set"), /*#__PURE__*/React.createElement("div", {
-        className: "flex gap-2 mt-3"
-      }, /*#__PURE__*/React.createElement(ToolBtn, {
-        on: noteOpen === it.exerciseId || !!exNotes[it.exerciseId],
-        onClick: () => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)
-      }, "Note"), /*#__PURE__*/React.createElement(ToolBtn, {
-        disabled: !hist.length,
-        onClick: () => setPastFor(it.exerciseId)
-      }, "History"), /*#__PURE__*/React.createElement(ToolBtn, {
-        on: menuOpen === ii,
-        onClick: () => setMenuOpen(ii)
-      }, "More")), (noteOpen === it.exerciseId || exNotes[it.exerciseId]) && /*#__PURE__*/React.createElement("input", {
-        value: exNotes[it.exerciseId] || '',
-        onChange: e => setExNote(it.exerciseId, e.target.value),
-        placeholder: "e.g. seat 3, pin 6",
-        autoFocus: noteOpen === it.exerciseId,
-        className: "w-full pixel-box px-3 h-10 text-[12px] mt-2",
+      }, /*#__PURE__*/React.createElement(CardHead, {
+        title: "Up next",
+        right: String(queueRows.length)
+      }), shownQueue.map(({
+        it,
+        ii
+      }) => renderRow(it, ii, true)), foldedQueue > 0 && /*#__PURE__*/React.createElement("button", {
+        onClick: () => setQueueExpanded(true),
+        className: "w-full text-left px-3 py-3 text-[12.5px]",
         style: {
-          background: 'var(--surface2)',
-          color: 'var(--text)'
+          borderTop: '2px solid var(--border)',
+          color: 'var(--accent-ink)'
         }
-      })));
-    }), /*#__PURE__*/React.createElement("button", {
+      }, "+ ", foldedQueue, " more · tap to jump")));
+    })(), /*#__PURE__*/React.createElement("button", {
       onClick: () => setPicking(true),
       className: "pixel-box w-full h-12 text-[13px] mb-4",
       style: {
         background: 'var(--surface2)'
       }
-    }, "+ Add an exercise"), /*#__PURE__*/React.createElement(Card, {
-      className: "p-0 overflow-hidden mb-4"
-    }, /*#__PURE__*/React.createElement(CardHead, {
-      title: "Session notes",
-      right: notes ? 'Written' : 'Optional'
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "p-3.5"
-    }, /*#__PURE__*/React.createElement("textarea", {
-      value: notes,
-      onChange: e => {
-        setNotes(e.target.value);
-        persist(null, e.target.value);
-      },
-      rows: 2,
-      placeholder: "How the session felt, anything that hurt, what to change next week.",
-      className: "w-full px-3 py-3 text-[13px]",
-      style: {
-        border: '2px solid var(--border)',
-        background: 'var(--surface2)',
-        color: 'var(--text)'
-      }
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "mb-2"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setConfirmEnd(true),
-      className: "pixel-btn w-full h-14 pf text-[11px] uppercase",
-      style: {
-        borderWidth: 3,
-        letterSpacing: '0.05em',
-        background: allWorkDone ? 'var(--accent)' : 'var(--surface2)',
-        color: allWorkDone ? 'var(--on-accent)' : 'var(--text2)'
-      }
-    }, allWorkDone ? 'Finish the session' : 'Finish early · ' + doneSets + ' of ' + totalSets), /*#__PURE__*/React.createElement("div", {
-      className: "text-[10.5px] mt-2 leading-snug",
+    }, "+ Add an exercise"), !allWorkDone && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-center mb-2",
       style: {
         color: 'var(--muted2)'
       }
-    }, allWorkDone ? 'Every set is in. Nothing else to do.' : 'What you have logged is kept. The rest stays unlogged.')), rest && /*#__PURE__*/React.createElement("div", {
+    }, doneSets, " of ", totalSets, " sets logged so far."), rest && /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-3",
       style: {
         background: 'var(--cardhead-bg)',
@@ -55003,6 +55018,13 @@ function SessionPlayer({
         sub: 'Something you did that is not in the plan',
         onClick: () => setPicking(true)
       }, {
+        label: 'Session notes',
+        sub: notes ? 'Written' : 'How it felt, what to change next week',
+        onClick: () => {
+          setSessionMenu(false);
+          setNotesOpen(true);
+        }
+      }, {
         label: t.prefs.restTimer === false ? 'Turn the rest timer on' : 'Turn the rest timer off',
         sub: t.prefs.restTimer === false ? 'A countdown starts when you tick a set' : 'No countdown when you tick a set',
         onClick: () => {
@@ -55024,7 +55046,30 @@ function SessionPlayer({
         sub: 'Everything ticked is already saved. Come back to it later.',
         onClick: onExit
       }]
-    }), pr && /*#__PURE__*/React.createElement(PRFlash, {
+    }), notesOpen && /*#__PURE__*/React.createElement(ActionSheet, {
+      kicker: "Session",
+      title: "Notes",
+      onClose: () => setNotesOpen(false),
+      actions: [{
+        label: 'Done',
+        onClick: () => setNotesOpen(false)
+      }]
+    }, /*#__PURE__*/React.createElement("textarea", {
+      value: notes,
+      onChange: e => {
+        setNotes(e.target.value);
+        persist(null, e.target.value);
+      },
+      rows: 3,
+      autoFocus: true,
+      placeholder: "How the session felt, anything that hurt, what to change next week.",
+      className: "w-full px-3 py-3 text-[13px]",
+      style: {
+        border: '2px solid var(--border)',
+        background: 'var(--surface2)',
+        color: 'var(--text)'
+      }
+    })), pr && /*#__PURE__*/React.createElement(PRFlash, {
       pr: pr,
       db: db,
       units: units,
@@ -62037,7 +62082,8 @@ function ActionSheet({
   title,
   kicker,
   actions,
-  onClose
+  onClose,
+  children
 }) {
   useBackClose(onClose);
   return /*#__PURE__*/React.createElement("div", {
@@ -62061,7 +62107,9 @@ function ActionSheet({
     }
   }, kicker || 'Options'), title && /*#__PURE__*/React.createElement("div", {
     className: "text-[13.5px] font-semibold leading-tight mt-1"
-  }, title)), (actions || []).filter(Boolean).map((a, i) => {
+  }, title)), children && /*#__PURE__*/React.createElement("div", {
+    className: "px-4 pb-3"
+  }, children), (actions || []).filter(Boolean).map((a, i) => {
     const prev = (actions || []).filter(Boolean)[i - 1];
     const opensGap = a.danger && prev && !prev.danger;
     return /*#__PURE__*/React.createElement("button", {

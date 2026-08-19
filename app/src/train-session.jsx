@@ -87,6 +87,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     });
   });
   const [focus, setFocus] = useState(0);
+  const [queueExpanded, setQueueExpanded] = useState(false);   // the "Up next" fold, past the first two
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
@@ -105,6 +106,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [exNotes, setExNotes] = useState(() => (existing && existing.exerciseNotes) || {});
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [sessionMenu, setSessionMenu] = useState(false);  // the header's MORE, for the whole session
+  const [notesOpen, setNotesOpen] = useState(false);        // the session notes field, off the header
   const [targetFor, setTargetFor] = useState(null); // index of the movement whose prescription is open
   const [signOff, setSignOff] = useState(null);    // the buddy's send-off, once the session is saved
   const [startedAt] = useState(() => (existing && existing.startedAt ? Date.parse(existing.startedAt) : Date.now()));
@@ -568,7 +570,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           and jumping to any of it is one tap. Only the one you are working on is open. The letter
           codes down the left are how a coach writes a programme: A1 and A2 are done back to back,
           A then B then C is the order. It tells you where you are without a word of explanation. */}
-      {items.map((it, ii) => {
+      {/* renderRow is a named function rather than an inline map callback for exactly one reason: the
+          movements still to come are drawn as rows inside a shared "Up next" card rather than as
+          their own boxes, and the row body - the open and closed headers, the whole working table,
+          every handler - has to be identical either way. `grouped` changes nothing but the wrapper. */}
+      {(() => { function renderRow(it, ii, grouped) {
         const ex = Training.byId(it.exerciseId, t.custom);
         const tgt = it.target;
         const open = ii === focus;
@@ -577,7 +583,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
         return (
-          <div key={it.exerciseId + '_' + ii} className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
+          <div key={it.exerciseId + '_' + ii}
+            className={grouped ? '' : 'pixel-box mb-4'}
+            style={grouped ? { borderTop: '2px solid var(--border)' } : { background: 'var(--card)' }}>
             {/* ---- header, always visible ----
                 The movement you are ON gets the design's filled ink title bar, the same object every
                 panel in this design opens with. The others stay as light rows. That one difference
@@ -869,37 +877,56 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
             )}
           </div>
         );
-      })}
+      }
+
+      // Three bands: what is already logged (its own boxed row, a receipt), the one movement open
+      // right now (its full card), and what has not been touched yet. That last band used to be N
+      // more full-width boxes - readable, but a leg day with six accessories after the lead lift was
+      // six decisions' worth of weight for zero decisions actually pending. It becomes one "Up next"
+      // card: the next two named in full, the rest folded behind a count, because what is coming is a
+      // glance, not a list to read top to bottom.
+      const doneRows = [], queueRows = [];
+      items.forEach((it, ii) => {
+        if (ii === focus) return;
+        const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+        ((work.length > 0 && work.every(s => s.done)) ? doneRows : queueRows).push({ it, ii });
+      });
+      const shownQueue = queueExpanded ? queueRows : queueRows.slice(0, 2);
+      const foldedQueue = queueRows.length - shownQueue.length;
+
+      return (
+        <>
+          {doneRows.map(({ it, ii }) => renderRow(it, ii, false))}
+          {items[focus] != null && renderRow(items[focus], focus, false)}
+          {queueRows.length > 0 && (
+            <div className="pixel-box mb-4 overflow-hidden" style={{ background: 'var(--card)' }}>
+              <CardHead title="Up next" right={String(queueRows.length)} />
+              {shownQueue.map(({ it, ii }) => renderRow(it, ii, true))}
+              {foldedQueue > 0 && (
+                <button onClick={() => setQueueExpanded(true)} className="w-full text-left px-3 py-3 text-[12.5px]"
+                  style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
+                  + {foldedQueue} more · tap to jump
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      );
+      })()}
 
       <button onClick={() => setPicking(true)} className="pixel-box w-full h-12 text-[13px] mb-4" style={{ background: 'var(--surface2)' }}>+ Add an exercise</button>
 
-      {/* Session notes as the design draws it: a titled panel, open, with the prompt IN the field.
-          Folded behind a disclosure it was a row of small print you had to know to look for, on the
-          one screen where "what hurt, what to change next week" is the most valuable thing you can
-          leave behind. Open it costs three lines and asks the question. */}
-      <Card className="p-0 overflow-hidden mb-4">
-        <CardHead title="Session notes" right={notes ? 'Written' : 'Optional'} />
-        <div className="p-3.5">
-          <textarea value={notes} onChange={e => { setNotes(e.target.value); persist(null, e.target.value); }} rows={2}
-            placeholder="How the session felt, anything that hurt, what to change next week."
-            className="w-full px-3 py-3 text-[13px]" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)' }} />
+      {/* Session notes and finishing both used to live here, at the bottom of the scroll: a titled
+          panel and a full-width button sitting under every set on the way past. Both are
+          end-of-session tools rather than mid-set ones, so both moved into the header's MORE sheet -
+          "Session notes" opens the same field, and "Finish the session" was already there. What is
+          worth keeping on the main screen is a plain word of where you stand, which used to be the
+          finish button's second job. */}
+      {!allWorkDone && (
+        <div className="text-[11px] text-center mb-2" style={{ color: 'var(--muted2)' }}>
+          {doneSets} of {totalSets} sets logged so far.
         </div>
-      </Card>
-
-      {/* ---- FINISH, at the end of the session rather than pinned over it ----
-          It was a fixed bar, which meant the loudest control on the screen was permanently the one
-          that ENDS the thing you are in the middle of, sitting under your thumb for the whole hour.
-          At the end of the list it is where you arrive when the work is done, it can say what state
-          you are in, and it gives the rest bar the bottom of the screen to itself. */}
-      <div className="mb-2">
-        <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 pf text-[11px] uppercase"
-          style={{ borderWidth: 3, letterSpacing: '0.05em', background: allWorkDone ? 'var(--accent)' : 'var(--surface2)', color: allWorkDone ? 'var(--on-accent)' : 'var(--text2)' }}>
-          {allWorkDone ? 'Finish the session' : 'Finish early · ' + doneSets + ' of ' + totalSets}
-        </button>
-        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
-          {allWorkDone ? 'Every set is in. Nothing else to do.' : 'What you have logged is kept. The rest stays unlogged.'}
-        </div>
-      </div>
+      )}
 
       {/* ---- THE REST BAR ----
           Now the only thing pinned to the bottom, and only while it is running. The clock is big
@@ -997,6 +1024,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         <ActionSheet kicker="Session" title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
           actions={[
             { label: 'Add a movement', sub: 'Something you did that is not in the plan', onClick: () => setPicking(true) },
+            { label: 'Session notes', sub: notes ? 'Written' : 'How it felt, what to change next week', onClick: () => { setSessionMenu(false); setNotesOpen(true); } },
             {
               label: t.prefs.restTimer === false ? 'Turn the rest timer on' : 'Turn the rest timer off',
               sub: t.prefs.restTimer === false ? 'A countdown starts when you tick a set' : 'No countdown when you tick a set',
@@ -1010,6 +1038,17 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
             { label: 'Finish the session', sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved', onClick: () => setConfirmEnd(true) },
             { label: 'Leave without finishing', sub: 'Everything ticked is already saved. Come back to it later.', onClick: onExit },
           ]} />
+      )}
+
+      {/* The notes field, off the header rather than a card sitting under every set on the way past.
+          Same field, same prompt, one more tap than before and mid-set zero times. */}
+      {notesOpen && (
+        <ActionSheet kicker="Session" title="Notes" onClose={() => setNotesOpen(false)}
+          actions={[{ label: 'Done', onClick: () => setNotesOpen(false) }]}>
+          <textarea value={notes} onChange={e => { setNotes(e.target.value); persist(null, e.target.value); }} rows={3} autoFocus
+            placeholder="How the session felt, anything that hurt, what to change next week."
+            className="w-full px-3 py-3 text-[13px]" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)' }} />
+        </ActionSheet>
       )}
 
       {pr && <PRFlash pr={pr} db={db} units={units} onClose={() => setPr(null)} />}
