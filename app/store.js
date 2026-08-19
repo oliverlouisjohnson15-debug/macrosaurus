@@ -95,6 +95,13 @@
     // can't linger, resurface through a merge, or be read by code that no longer expects it. Keep
     // items (Fight trophies), game_awards (badge idempotency), amber_ledger, fight and buddy.
     ['catch_log', 'dex_boost', 'sleepDex', 'primed', 'eggs', 'breakthrough'].forEach(function (k) { delete s[k]; });
+    // Bring-your-own-key removal. Every AI call has gone through the server-side proxy on the app's
+    // own key for a while (see aiRequest), so this field stopped being read long before it stopped
+    // being stored, and what it stored was a real API key sitting in plain text in synced state and
+    // in every device's IndexedDB. Strip it on load, from the profile and from the top level an
+    // older resetAll copied it to, so it leaves each device the first time the app opens.
+    delete s.aiKey;
+    if (s.profile) delete s.profile.aiKey;
     // Back-fill the high/low plan history for state saved before the plan was dated. With no
     // history there is nothing for a day to be read against but the plan as it stands NOW, so a
     // plan set today reshapes every day already eaten: exactly what the history exists to stop.

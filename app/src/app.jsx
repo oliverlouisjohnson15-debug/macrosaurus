@@ -2063,7 +2063,6 @@ function mergeHealthInto(d, health) {
 }
 
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
-// `key` is retained for signature compatibility but is no longer used, the proxy holds the key.
 // opts.cacheText: a big STATIC instruction block (e.g. the meal/label prompt) sent as the first
 // content block with cache_control, so Anthropic prompt-caches it. Because every user's call of the
 // same kind shares this identical prefix on the one server-side key, the fixed prompt is billed at
@@ -2072,7 +2071,7 @@ function mergeHealthInto(d, health) {
 // the same text into roughly a third more tokens than Sonnet 4.6 did, so budgets carried over from
 // the old model now cut long meals off mid-object; parseModelJSON salvages what it can, but the
 // tail (usually the totals) is lost. These budgets are the ceiling, not the expected spend.
-async function claudeVision(key, files, prompt, opts) {
+async function claudeVision(files, prompt, opts) {
   opts = opts || {};
   const model = opts.model || AI_MODEL;
   const maxTokens = opts.maxTokens || 3000;
@@ -2092,8 +2091,8 @@ async function claudeVision(key, files, prompt, opts) {
 }
 // AI coaching layer: the deterministic engine has ALREADY decided the numbers; this only turns them
 // into a warm, plain-English explanation + one tip. Guardrailed so it can't invent numbers or give
-// medical/extreme advice, and it's optional (needs a key, degrades gracefully offline). Returns text.
-async function coachNarrative(key, payload) {
+// medical/extreme advice, and it degrades gracefully offline. Returns text.
+async function coachNarrative(payload) {
   const who = (payload && payload.buddy_name) || 'Your buddy';
   const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nYour take (one or two short sentences):';
@@ -2620,7 +2619,7 @@ async function structureRecipeFromSources(parts, frames, meta) {
   const prompt = RECIPE_PROMPT + MULTISOURCE_GUIDE + (text ? '\n\nWHAT WE READ AROUND THE VIDEO:\n' + text : '\n\nThere is no usable caption for this video, so the frames are all you have.');
   // Frames are the hard read (small overlay text, awkward angles), so this rung uses the reasoning
   // model rather than the fast one. It only runs when the free text sources came up short.
-  const raw = await claudeVision(null, frames, prompt, { model: AI_MODEL, maxTokens: 4096, maxImg: 1024 });
+  const raw = await claudeVision(frames, prompt, { model: AI_MODEL, maxTokens: 4096, maxImg: 1024 });
   return Rcp.normalize(raw, meta || {});
 }
 // ---- The import ladder -----------------------------------------------------------------------
@@ -2715,11 +2714,11 @@ async function structureRecipeFromImages(files, meta, hint) {
   const ctx = hint && String(hint).trim()
     ? '\n\nThe post caption/title (a hint only, trust the image for ingredients):\n' + String(hint).trim()
     : '';
-  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached image(s) (a video cover frame or screenshot); read any on-screen text carefully. If the image genuinely shows no recipe, return empty ingredients.' + ctx, { model: AI_MODEL_FAST, maxTokens: 4096, maxImg: 1024 });
+  const raw = await claudeVision(files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached image(s) (a video cover frame or screenshot); read any on-screen text carefully. If the image genuinely shows no recipe, return empty ingredients.' + ctx, { model: AI_MODEL_FAST, maxTokens: 4096, maxImg: 1024 });
   return Rcp.normalize(raw, meta || {});
 }
 async function scanFridgeItems(files) {
-  const raw = await claudeVision(null, files, FRIDGE_PROMPT, { model: AI_MODEL, maxTokens: 1000, maxImg: 1024 });
+  const raw = await claudeVision(files, FRIDGE_PROMPT, { model: AI_MODEL, maxTokens: 1000, maxImg: 1024 });
   const items = Array.isArray(raw && raw.items) ? raw.items : [];
   const seen = {}, out = [];
   items.forEach(function (it) {
@@ -4724,7 +4723,7 @@ const BF_BANDS = {
   male: [{ r: '8–10%', v: 9, d: 'Very lean, clear abs and vascularity' }, { r: '11–14%', v: 12, d: 'Lean, abs visible and defined' }, { r: '15–19%', v: 17, d: 'Fit, flat stomach, faint definition' }, { r: '20–24%', v: 22, d: 'Average, soft midsection, no visible abs' }, { r: '25–29%', v: 27, d: 'Higher, rounder waist, softer look' }, { r: '30%+', v: 33, d: 'High, waist notably larger' }],
   female: [{ r: '14–17%', v: 16, d: 'Very lean, athletic, visible muscle' }, { r: '18–22%', v: 20, d: 'Lean, some muscle definition' }, { r: '23–27%', v: 25, d: 'Fit, smooth and healthy' }, { r: '28–32%', v: 30, d: 'Average, softer curves' }, { r: '33–37%', v: 35, d: 'Higher, fuller figure' }, { r: '38%+', v: 40, d: 'High' }],
 };
-function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
+function BodyFatPicker({ sex, prevBf, onPick, onClose }) {
   // `Sheet` arms the back layer for us.
   const bands = BF_BANDS[sex === 'female' ? 'female' : 'male'];
   const [mode, setMode] = useState('bands');
@@ -4740,7 +4739,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
       const prompt = BF_PROMPT + ' The person is ' + (sex === 'female' ? 'female' : 'male') + '.'
         + (prevBf != null ? ' Their last recorded body fat was ' + prevBf + '%. Treat that as a consistency anchor and only move away from it if the photos clearly justify it.' : '')
         + ' Photos provided (in order): ' + have.join(', ') + '.';
-      const est = await claudeVision(apiKey, have.map(s => imgs[s].file), prompt, { model: AI_MODEL, maxTokens: 700 });
+      const est = await claudeVision(have.map(s => imgs[s].file), prompt, { model: AI_MODEL, maxTokens: 700 });
       setResult({ pct: Math.round(est.bodyfat_percent), confidence: est.confidence || 'medium', note: est.note || '' });
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
@@ -4786,7 +4785,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
 /* =====================================================================
    ONBOARDING WIZARD (account setup)
    ===================================================================== */
-function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
+function Wizard({ initial, onDone, onCancel, buddy }) {
   const [step, setStep] = useState(0);
   const [showMaths, setShowMaths] = useState(false);
   const [f, setF] = useState(initial || {
@@ -4794,7 +4793,7 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
     // weighCadence stays null so the buddy asks it after hatch (progressive disclosure, not a form step).
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, aiKey: initialKey || '', theme: 'light',
+    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -4889,7 +4888,7 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
         {step > 0 ? <Btn kind="ghost" onClick={() => setStep(step - 1)}>Back</Btn> : (onCancel ? <Btn kind="ghost" onClick={onCancel}>Cancel</Btn> : null)}
         <Btn className="flex-1" onClick={() => last ? onDone(profile) : setStep(step + 1)}>{last ? 'Save my plan' : 'Continue'}</Btn>
       </div>
-      {bfPick && <BodyFatPicker sex={f.sex} apiKey={f.aiKey} prevBf={f.bodyFatPct} onPick={v => set('bodyFatPct', v)} onClose={() => setBfPick(false)} />}
+      {bfPick && <BodyFatPicker sex={f.sex} prevBf={f.bodyFatPct} onPick={v => set('bodyFatPct', v)} onClose={() => setBfPick(false)} />}
     </div>
     </div>
   );
@@ -5521,7 +5520,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       steps_recommendedLever: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.lever : null,
       steps_suggestTargetPerDay: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.suggestTarget : null,
     };
-    coachNarrative(p.aiKey, payload).then(t => { if (!cancelled) setCoach(t ? { text: t } : null); }).catch(() => { if (!cancelled) setCoach({ error: true }); });
+    coachNarrative(payload).then(t => { if (!cancelled) setCoach(t ? { text: t } : null); }).catch(() => { if (!cancelled) setCoach({ error: true }); });
     return () => { cancelled = true; };
   }, [result && result.status, result && result.accepted]);
   const [wErr, setWErr] = useState('');
@@ -5942,7 +5941,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} onSkip={() => onClose()} />
         </div>}
     </Sheet>
-    {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
+    {bfPick && <BodyFatPicker sex={p.sex} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
     {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
   </>);
 }
@@ -6001,7 +6000,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
         </Field>
         <SheetBtn onClick={save}>Save</SheetBtn>
       </div>
-      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={bfState ? bfState.pct : p.bodyFatPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
+      {bfPick && <BodyFatPicker sex={p.sex} prevBf={bfState ? bfState.pct : p.bodyFatPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
       {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
     </Sheet>
   );
@@ -8787,11 +8786,10 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
       // The estimate itself is the ESTIMATOR's job, not the conversation's: same calibrated prompt,
       // same model, same review screen as the Estimate tab. The buddy only decides that one is
       // wanted and passes on what it was told.
-      const key = db.profile.aiKey || 'builtin';
       const files = pic ? [pic.file] : [];
       const ctx = 'Context: food or drink consumed in England.' + (files.length ? ' A photo of the food is attached.' : '')
         + ' Description: "' + p.description + '"' + personalFoodHint(db) + personalNumbersHint(db, p.description) + cofidRefHint(p.description);
-      const est = await claudeVision(key, files, ctx, { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
+      const est = await claudeVision(files, ctx, { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setPic(null);
       const mealId = mealOr(p.mealId);
       pushCard({ kind: 'estimate', est, photos: pic ? [pic] : [], mealId });
@@ -13750,7 +13748,6 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
 function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
-  const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
   // initialFiles arrives from the share sheet (a photo shared into the app) and from the Scan tab's
   // "describe it instead" route, both of which used to land on a second, near-identical estimator.
@@ -13792,7 +13789,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     if (listening) stopMic();
     setBusy(true); setErr('');
     try {
-      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
+      const est = await claudeVision(imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
@@ -13803,7 +13800,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     setBusy(true); setErr('');
     try {
       const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
-      const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
+      const est = await claudeVision(imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
@@ -13874,7 +13871,6 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
    offers to treat it as provisional: the remaining budget is worked out as though it were not there,
    and choosing a dish swaps it out in one action, with one undo. */
 function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
-  const key = db.profile.aiKey || 'builtin';
   const MAX_FILES = 4;
   const SHOWN = 3;
   const [swap, setSwap] = useState(true);   // a planned meal is provisional by default, see above
@@ -14056,7 +14052,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         + (where ? '\nThe restaurant: ' + where + '. If that is a UK chain, use its published nutrition.' : '')
         + '\nAssume the dish comes as described, including anything the description says it is served with.'
         + ' Name it as the menu names it. Respond ONLY with the JSON.';
-      const est = await claudeVision(key, [], prompt, { model: AI_MODEL, maxTokens: 2500, cacheText: AI_PROMPT });
+      const est = await claudeVision([], prompt, { model: AI_MODEL, maxTokens: 2500, cacheText: AI_PROMPT });
       setPicked({ name: item.name });
       setEst(est);
       setRefineCount(0);
@@ -14075,7 +14071,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       const prompt = 'Revise this estimate for a single restaurant dish (eaten in England). Previous estimate JSON: ' + JSON.stringify(est)
         + '\nThe dish: "' + (picked ? picked.name : '') + '"' + (place.trim() ? ' at ' + place.trim() : '') + '.'
         + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep the totals equal to the sum of the items and stay calibrated: change only what their correction actually implies, and do not drift the other components to compensate. Set "question" to "" and "question_options" to []. Respond ONLY with the JSON.';
-      const out = await claudeVision(key, [], prompt, { model: AI_MODEL, maxTokens: 3000, cacheText: AI_PROMPT });
+      const out = await claudeVision([], prompt, { model: AI_MODEL, maxTokens: 3000, cacheText: AI_PROMPT });
       setEst(out); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy('');
@@ -14396,7 +14392,6 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
    without becoming a different thing than the one you were updating. */
 function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
   // `Sheet` arms the back layer for us.
-  const key = db.profile.aiKey || 'builtin';
   const MAX_PHOTOS = 3;
   const [imgs, setImgs] = useState([]);
   const [note, setNote] = useState('');
@@ -14427,7 +14422,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
     if (!imgs.length) { setErr('Add a photo of what you actually had.'); return; }
     setBusy(true); setErr('');
     try {
-      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
+      const est = await claudeVision(imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
       try { window.MTRACK && MTRACK('photo_update', { outcome: 'estimated', photos: imgs.length, noted: !!note.trim(), was: Math.round(+before.kcal || 0) }); } catch (_) {}
     } catch (e) { setErr('Update failed: ' + e.message); }
@@ -14442,7 +14437,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
         + (brief ? '\nWhat the user had originally logged, before the photo: ' + brief : '')
         + (note.trim() ? '\nTheir note: "' + note.trim() + '"' : '')
         + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
-      const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
+      const est = await claudeVision(imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
@@ -14731,13 +14726,12 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
   const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [parsed, setParsed] = useState(null); const [mode, setMode] = useState(autoScan ? 'scan' : null); const [notFound, setNotFound] = useState(false); const [rescan, setRescan] = useState(false);
   // The LogSheet barcode shortcut (and ?action=scan) jump straight into the live scanner.
   useEffect(() => { if (autoScan) { setNotFound(false); setMode('scan'); } }, [autoScan]);
-  const key = db.profile.aiKey || 'builtin';
   async function onLabel(file) { if (!file) return; const wasRescan = rescan; setRescan(false); const srcNote = wasRescan ? 'Read from your nutrition label, replacing the database numbers.' : 'Read straight from your nutrition label.'; setBusy('Reading the label…'); setErr('');
     try {
       // Cost-smart OCR at high resolution: read with the cheap fast model first, and only escalate to
       // the strong model when that read looks unreliable (calories not matching macros, values missing,
       // or estimated). Easy labels stay cheap; harder ones automatically get the stronger reader.
-      const read = (model, mt) => claudeVision(key, [file], '', { model, maxTokens: mt, maxImg: 1568, cacheText: LABEL_PROMPT });
+      const read = (model, mt) => claudeVision([file], '', { model, maxTokens: mt, maxImg: 1568, cacheText: LABEL_PROMPT });
       let est = await read(AI_MODEL_FAST, 1200);
       if (!labelReadReliable(est)) { setBusy('Double-checking the label…'); est = await read(AI_MODEL, 2000); }
       const sg = +est.serving_g || null;
@@ -17353,7 +17347,7 @@ function demoState() {
     reminders: true, nudgeHour: 14,
     carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
-    program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance', aiKey: '',
+    program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance',
     premiumSince: demoPremiumSince,
   };
   const t = E.computeInitialTargets(withActivity(s.profile)); t.id = Store.uid(); t.effective_date = shiftISO(today, -14); t.source = 'initial';
@@ -19865,7 +19859,7 @@ function App() {
     showToast('Saved ' + recipe.title + ' as a meal you can quick-log');
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
-  function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
+  function resetAll() { const f2 = Store.defaultState(); const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
   // A fresh start, with `keep` saying which groups survive it (see Store.FRESH_PARTS). Store.freshStart
   // does the state surgery and explains what it clears and why; the job here is to re-anchor the plan
   // in the same breath, because a state with no target at all has no plan and the dashboard reads its
@@ -19922,7 +19916,7 @@ function App() {
   }
   // Essentials not set yet: the egg picker already stubbed profile with the familiarity choice, so key
   // off a real essential (weight) rather than the profile object existing at all.
-  if (!db.profile || db.profile.weightKg == null) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} buddy={db.buddy} />;
+  if (!db.profile || db.profile.weightKg == null) return <Wizard onDone={(pr) => saveProfile(pr, true)} buddy={db.buddy} />;
   // Founding-member buddy upgrade: established accounts that predate pick-your-egg get a one-time
   // celebratory re-hatch (brag + thank-you + choose an egg), keeping their streak/stage/history. It's
   // snoozeable so it never becomes a wall. `?demo&upgrade` previews it.
