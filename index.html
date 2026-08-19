@@ -23582,7 +23582,9 @@ function WeighInline({
   onSave
 }) {
   const s0 = kgToStLb(seedKg || 0);
-  const [kg, setKg] = useState(seedKg ? +seedKg.toFixed(1) : '');
+  // Coerced before .toFixed, like the full sheet does: the seed is the newest entry's scale_weight,
+  // and a body-fat-only morning has no scale weight to give, so this cannot assume it got a number.
+  const [kg, setKg] = useState(seedKg ? (+seedKg).toFixed(1) : '');
   const [st, setSt] = useState(s0.st);
   const [lb, setLb] = useState(s0.lb);
   const [err, setErr] = useState('');
@@ -23836,10 +23838,15 @@ function BuddyHabitat({
   const pointing = !incubating && !asking && !!(msg && msg.primary && msg.primary.onClick);
   /* Answering gets an answer back. `nod` for yes, `shake` for "not now" - the two poses Design drew
      for exactly this, wrapped around the handlers the box already had so the reaction cannot drift
-     out of step with what the button actually does. */
-  const answered = (fn, anim) => fn ? () => {
+     out of step with what the button actually does.
+     It forwards its arguments, and has to: every OTHER handler this wraps is a button that takes
+     none, but the inline weigh-in answers with a number, and a wrapper that quietly ate it handed
+     saveTodayWeight an undefined to call .toFixed on. That threw inside the update() mutator, which
+     meant the weight was never written AND the whole tree came down on the way out. A decorator
+     around somebody else's handler has no business knowing its signature. */
+  const answered = (fn, anim) => fn ? (...a) => {
     buddyReact(anim);
-    fn();
+    fn(...a);
   } : fn;
   /* THE ACCENT RING LIVES ON THIS CARD NOW. It used to ring the macro card, from when that card was
      the page's one hero. The buddy box carries the day's figures in its status strip and is the
