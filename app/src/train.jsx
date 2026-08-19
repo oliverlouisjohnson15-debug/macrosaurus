@@ -227,6 +227,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
   const [lens, setLens] = useState('planned');
   const [advice, setAdvice] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [allMuscles, setAllMuscles] = useState(false);
 
   // Performed is judged over the last seven days, which is how anyone actually thinks about a week.
   const weekAgo = new Date(Date.parse(today + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
@@ -277,7 +278,33 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
           <div className="pf text-[18px]" style={{ color: cov.score >= 70 ? 'var(--good)' : cov.score >= 40 ? 'var(--warn)' : 'var(--danger)' }}>{cov.score}%</div>
           <div className="text-[11px] text-right" style={{ color: 'var(--muted)' }}>{cov.totalSets} hard sets counted<br /><span style={{ color: 'var(--muted2)' }}>across every muscle</span></div>
         </div>
-        <CoverageBars coverage={cov} />
+        {/* Collapsed to the three closest to a band edge only when the week is clean - which is the
+            state a working block is in most weeks, and seventeen identical green bars answering a
+            question nobody asked was the flattest screen in the module. The moment anything IS short
+            or over, the fuller picture is the more useful default: a gap is a question about the
+            whole week, not one muscle. */}
+        {(() => {
+          const clean = cov.gaps.length === 0 && cov.overs.length === 0;
+          if (!clean || allMuscles) return <CoverageBars coverage={cov} />;
+          const edge = r => Math.min(Math.abs(r.sets - r.mev), Math.abs(r.sets - r.mrv));
+          const worst = cov.rows.slice().sort((a, b) => edge(a) - edge(b)).slice(0, 3);
+          return (
+            <>
+              <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+                Nothing to fix. The three closest to their band's edge, if you want somewhere to look:
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {worst.map(r => <CoverageRow key={r.muscle} row={r} compact />)}
+              </div>
+            </>
+          );
+        })()}
+        {cov.gaps.length === 0 && cov.overs.length === 0 && (
+          <button onClick={() => setAllMuscles(v => !v)} className="w-full text-left mt-3 pt-3 text-[12px]"
+            style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
+            {allMuscles ? 'Show fewer' : 'All ' + cov.rows.length + ' muscles · open ›'}
+          </button>
+        )}
       </Card>
 
       {cov.gaps.length > 0 && (
@@ -326,6 +353,35 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 }
 
 // ---- block review -----------------------------------------------------------------------------
+// The "+ N more" fold for a list of lifts, where a review shows only the biggest movers up front.
+// A local toggle rather than state lifted into the caller: nothing outside this list needs to know.
+function ExpandableLiftList({ lifts }) {
+  const [open, setOpen] = useState(false);
+  const row = l => (
+    <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 px-3.5 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
+      <div className="min-w-0">
+        <div className="text-[13px] truncate">{l.name}</div>
+        <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
+      </div>
+      <div className="text-right whitespace-nowrap">
+        <div className="text-[13px] font-bold" style={{ color: l.deltaPct > 1 ? 'var(--good)' : l.deltaPct < -1 ? 'var(--danger)' : 'var(--muted)' }}>
+          {l.deltaPct > 0 ? '+' : ''}{l.deltaPct}%
+        </div>
+        <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>est. 1RM</div>
+      </div>
+    </div>
+  );
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="w-full text-left px-3.5 py-3 text-[12px]"
+        style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
+        + {lifts.length} more, all readable · show ›
+      </button>
+    );
+  }
+  return <>{lifts.map(row)}</>;
+}
+
 function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockId, onBack, onNext, onRerun }) {
   useBackClose(onBack);
   const t = tdb(db);
@@ -346,24 +402,6 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
     catch (e) { setProse('Could not reach ' + buddyName(db) + ' just now. The numbers below are still yours.'); }
     setBusy(false);
   }
-  function buildNext() {
-    const tuned = Training.tuneTargets(targets, review, { style: block.style });
-    const learned = Training.targetChanges(targets, tuned);
-    trainUpdate(update, (tr) => {
-      // Only the muscles this block actually moved, merged into the table for the style it was run
-      // on. It used to write all seventeen, wholesale, into the one shared table - so finishing a
-      // min-max block handed its 4-to-10 numbers to the volume model as if they were the same thing.
-      if (!Object.keys(learned).length) return;
-      const key = Training.styleOf(block.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
-      tr[key] = Object.assign({}, tr[key] || {}, learned);
-    });
-    const draft = Training.nextBlock(block, review, targets, {
-      equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom,
-      sessionMinutes: t.prefs.sessionMinutes, startISO: Store.todayISO(),
-    });
-    onNext(draft);
-  }
-
   return (
     <div className="fade-in pb-24">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
@@ -397,12 +435,15 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         return (
           <Card className="p-4 mb-4" style={{ background: d.needed ? 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' : 'var(--card)' }}>
             <div className="pf text-[9px] uppercase mb-2" style={{ color: tone }}>
-              {d.needed ? 'Take a lighter week' : d.borderline ? 'Your call' : 'Straight on'}
+              The verdict · {d.needed ? 'Take a lighter week' : d.borderline ? 'Your call' : 'Straight on'}
             </div>
             <div className="text-[13px] leading-snug mb-2">{d.advice}</div>
-            {d.reasons.length > 0 && (
+            {(d.reasons.length > 0 || review.adherence < 60) && (
               <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {d.reasons.map(r => r.text).join(' ')}
+                {/* deloadAdvice already names the percentage when it is low enough to score, so this
+                    adds the reframe without repeating the number. */}
+                {review.adherence < 60 ? ' A plan you cannot get to is a plan to change, not a body to blame - shorter sessions or fewer days next time.' : ''}
               </div>
             )}
             {!d.needed && !d.borderline && (
@@ -414,19 +455,13 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         );
       })()}
 
-      {review.adherence < 60 && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="text-[13px] leading-snug">
-            You ran a bit over half of this block. That is worth knowing before we read anything into the numbers: a plan you cannot get to is a plan to change, not a body to blame. The next one can be shorter sessions or fewer days.
-          </div>
-        </Card>
-      )}
-
+      {/* The biggest movers, signed and already sorted that way by the engine, rather than ten rows
+          in session order. The question this card answers is "did it work", not "list everything". */}
       {review.lifts.length > 0 && (
-        <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-4" style={{ color: 'var(--muted)' }}>Your lifts</div>
-          {review.lifts.slice(0, 10).map(l => (
-            <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
+        <Card className="p-0 overflow-hidden mb-4">
+          <CardHead title="Your lifts" right="biggest movers" />
+          {review.lifts.slice(0, 3).map(l => (
+            <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 px-3.5 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
               <div className="min-w-0">
                 <div className="text-[13px] truncate">{l.name}</div>
                 <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
@@ -439,6 +474,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
               </div>
             </div>
           ))}
+          {review.lifts.length > 3 && <ExpandableLiftList lifts={review.lifts.slice(3)} />}
         </Card>
       )}
 
@@ -483,19 +519,16 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         </button>
       )}
 
+      {/* One way on, not two. "Build a new one" threw the plan away and generated a fresh block,
+          which is the wrong answer for anyone who imported a coach's programme, liked it, and wants
+          another run with what stalled changed - and it is also what "Run this again" already is:
+          RerunScreen keeps every movement that worked, offers a change only where the evidence says
+          so, and now learns your landmarks the same way this button used to. Nothing this page could
+          do is left on the path fewer people were taking. */}
       <StickyAction>
-        {/* Two ways on, and running THIS block again is the one most people want. "Build the next
-            block" throws the plan away and generates a fresh one, which is the wrong answer for
-            somebody who imported a coach's programme, liked it, and wants another run of it
-            with the things that stalled changed. */}
-        <div className="flex gap-2">
-          <button onClick={buildNext} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
-            Build a new one
-          </button>
-          <button onClick={() => onRerun(block.id)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            Run this again
-          </button>
-        </div>
+        <button onClick={() => onRerun(block.id)} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+          Plan the next block ›
+        </button>
       </StickyAction>
     </div>
   );
@@ -604,6 +637,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   const [off, setOff] = useState({});          // volume proposals turned down, by index
   const [swaps, setSwaps] = useState(null);     // rotation choices, by exerciseId
   const [showAll, setShowAll] = useState(false);
+  const [expandedKeep, setExpandedKeep] = useState({});  // "keep as-is" rows opened out to the full card
 
   // The engine's answer is the starting position, not the state: seed once, then it is yours.
   const chosen = swaps || (rot ? rot.lifts.reduce((a, l) => {
@@ -648,6 +682,17 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   }
 
   function build() {
+    // What the block just taught about your own recovery, merged into the shared landmarks table
+    // before the next block is built off it. This used to live only in the OTHER way out of "How it
+    // went", which meant choosing "run it again" - the answer most people actually want - quietly
+    // skipped the learning. One button now, so it cannot be skipped by picking the popular option.
+    const learned = Training.targetChanges(targets, Training.tuneTargets(targets, plan.review, { style: block.style }));
+    if (Object.keys(learned).length) {
+      trainUpdate(update, (tr) => {
+        const key = Training.styleOf(block.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
+        tr[key] = Object.assign({}, tr[key] || {}, learned);
+      });
+    }
     const out = Training.applyRotation(block, rotations, {
       targets: targets, custom: t.custom, startISO: Store.todayISO(), also: acceptedVolume,
     });
@@ -679,7 +724,12 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
         );
       })()}
 
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Movements</div>
+      {/* Grouped by what the numbers say: the movements worth a decision get the full card,
+          everything that earned its place is a row you skim in one line. Both had the same visual
+          weight before, which is how thirty-four identical cards happened. */}
+      {upFront.length > 0 && (
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Worth a change · {upFront.length}</div>
+      )}
       {upFront.map(l => (
         <RotationCard key={l.exerciseId + '_' + l.day + '_' + l.index} lift={l} on={!!chosen[l.exerciseId]}
           chosen={chosen[l.exerciseId]} onToggle={() => toggle(l)}
@@ -699,18 +749,40 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
         </Card>
       )}
 
+      {/* Everything that earned its place, one line each rather than a dozen near-identical cards
+          all saying "nothing to say it has stopped working yet". Any of them is still one tap from
+          the full card, because "not that one, THAT one" is a real thing to want even from a lift
+          that is doing fine. Three shown, which is enough to prove the list is honest. */}
       {rest.length > 0 && (
-        <>
-          <button onClick={() => setShowAll(v => !v)} className="pf text-[9px] uppercase mb-3 hit"
-            style={{ color: 'var(--accent-ink)' }}>
-            {showAll ? '‹ Hide the rest' : 'Change something else (' + rest.length + ') ›'}
-          </button>
-          {showAll && rest.map(l => (
-            <RotationCard key={l.exerciseId + '_' + l.day + '_' + l.index} lift={l} on={!!chosen[l.exerciseId]}
-              chosen={chosen[l.exerciseId]} onToggle={() => toggle(l)} muted
-              onPick={(c) => setChosen(x => Object.assign({}, x, { [l.exerciseId]: c }))} />
-          ))}
-        </>
+        <Card className="p-0 overflow-hidden mb-3">
+          <CardHead title="Keep as-is" right={String(rest.length)} />
+          {(showAll ? rest : rest.slice(0, 3)).map(l => {
+            const key = l.exerciseId + '_' + l.day + '_' + l.index;
+            if (expandedKeep[key]) {
+              return (
+                <div key={key} className="p-3.5" style={{ borderTop: '2px solid var(--border)' }}>
+                  <RotationCard lift={l} on={!!chosen[l.exerciseId]} chosen={chosen[l.exerciseId]}
+                    onToggle={() => toggle(l)} onPick={(c) => setChosen(x => Object.assign({}, x, { [l.exerciseId]: c }))} />
+                </div>
+              );
+            }
+            return (
+              <button key={key} onClick={() => setExpandedKeep(x => Object.assign({}, x, { [key]: true }))}
+                className="w-full text-left px-3.5 py-3 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
+                <span className="text-[13px] font-semibold truncate">{l.name}</span>
+                <span className="pf text-[9px] uppercase shrink-0" style={{ color: l.deltaPct > 1 ? 'var(--good-ink)' : 'var(--accent-ink)' }}>
+                  {l.deltaPct > 1 ? 'trend ↗' : 'swap ›'}
+                </span>
+              </button>
+            );
+          })}
+          {rest.length > 3 && (
+            <button onClick={() => setShowAll(v => !v)} className="w-full text-left px-3.5 py-3 text-[12px]"
+              style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
+              {showAll ? 'Show fewer' : '+ ' + (rest.length - 3) + ' more, all readable · show ›'}
+            </button>
+          )}
+        </Card>
       )}
 
       {volume.length > 0 && (
@@ -837,16 +909,22 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
               a list of lifts is one object, and the rules between its rows say so at a fraction of the
               ink. The name still gets its own line - "Seated cab..." tells you nothing, and the pixel
               font eats horizontal space fast - so the numbers keep a row to themselves. */}
-          {shown.length > 0 && <Card className="p-0 overflow-hidden">
-            <CardHead title="Your lifts" right="Best set shown" />
-            {shown.map((l, i) => (
+          {shown.length > 0 && (() => {
+            // Recency grouping rather than one flat twenty-six-row wall. What you did this week is
+            // what most visits are checking, and it earns a section instead of being row one of
+            // twenty-six with nothing marking where "recent" stops.
+            const todayISO = Store.todayISO();
+            const weekAgo = new Date(Date.parse(todayISO + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
+            const thisWeek = shown.filter(l => l.lastISO >= weekAgo);
+            const earlier = shown.filter(l => l.lastISO < weekAgo);
+            const row = (l, i) => (
               <button key={l.exerciseId} onClick={() => onOpenExercise(l.exerciseId)}
                 className="w-full text-left px-3.5 py-3 flex items-start justify-between gap-3"
-                style={i ? { borderTop: '2px solid var(--border)' } : null}>
+                style={{ borderTop: '2px solid var(--border)' }}>
                 <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold leading-tight">{l.name}</span>
                   <span className="block text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
-                    {relativeDay(l.lastISO, Store.todayISO())} · {l.sessions} {l.sessions === 1 ? 'session' : 'sessions'}
+                    {relativeDay(l.lastISO, todayISO)} · {l.sessions} {l.sessions === 1 ? 'session' : 'sessions'}
                   </span>
                 </span>
                 {/* The best, which is the whole reason for coming to this screen. */}
@@ -861,8 +939,21 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
                   )}
                 </span>
               </button>
-            ))}
-          </Card>}
+            );
+            const heading = (label, ruled) => (
+              <div className="px-3.5 pt-3 pb-1 pf text-[8px] uppercase"
+                style={{ color: 'var(--muted)', letterSpacing: '0.1em', borderTop: ruled ? '2px solid var(--border)' : null }}>{label}</div>
+            );
+            return (
+              <Card className="p-0 overflow-hidden">
+                <CardHead title="Your lifts" right="Best set shown" />
+                {thisWeek.length > 0 && heading('This week', false)}
+                {thisWeek.map(row)}
+                {earlier.length > 0 && heading('Earlier', thisWeek.length > 0)}
+                {earlier.map(row)}
+              </Card>
+            );
+          })()}
         </div>
       )}
 
@@ -934,19 +1025,44 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
   const stall = Training.detectStall(own);
   const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
   const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
+  // Where you stand and which way it has gone: the chart shows the shape, this says what it means.
+  const shownHist = hist.slice(-24);
+  const firstRow = shownHist[0], latest = shownHist[shownHist.length - 1];
+  const delta = firstRow && firstRow.e1rm > 0 && latest ? Math.round(((latest.e1rm - firstRow.e1rm) / firstRow.e1rm) * 1000) / 10 : 0;
+  const isPB = !!(latest && latest.e1rm > 0 && latest.e1rm >= max);
+  // Month ticks under the chart, rather than two raw ISO dates at its ends: "Jun / Jul / Aug" is
+  // what anybody scanning the shape of a run actually reads it against.
+  const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthTicks = [];
+  shownHist.forEach((h, i) => {
+    const m = MONTH[parseInt(h.dateISO.slice(5, 7), 10) - 1];
+    if (!monthTicks.length || monthTicks[monthTicks.length - 1].label !== m) monthTicks.push({ label: m, i: i });
+  });
 
   return (
     <div className="fade-in">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; History</button>
       <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Movement</div>
-      <h1 className="text-[19px] font-bold leading-tight mb-2">{ex ? ex.name : exerciseId}</h1>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h1 className="text-[19px] font-bold leading-tight">{ex ? ex.name : exerciseId}</h1>
+        {/* The PR moment the block review celebrates gets a home outside the session too. */}
+        {isPB && (
+          <span className="pf text-[8px] uppercase shrink-0 px-2 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.08em' }}>PB ▲</span>
+        )}
+      </div>
       <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-4" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
+          <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
+          <div className="flex items-baseline gap-2 mb-4">
+            <span className="pf text-[18px] tnum">{toDisplayWeight(latest.e1rm, units)}{unitLabel(units)}</span>
+            {delta !== 0 && (
+              <span className="text-[12px] tnum font-bold" style={{ color: delta > 0 ? 'var(--good-ink)' : 'var(--danger)' }}>{delta > 0 ? '+' : ''}{delta}%</span>
+            )}
+          </div>
           <div className="flex items-end gap-1 h-24">
-            {hist.slice(-24).map((h, i) => (
+            {shownHist.map((h, i) => (
               <div key={i} className="flex-1" title={h.dateISO + ' · ' + h.name}
                 style={{
                   height: Math.max(2, (h.e1rm / max) * 100) + '%',
@@ -957,8 +1073,10 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
                 }} />
             ))}
           </div>
-          <div className="flex justify-between text-[10px] mt-2" style={{ color: 'var(--muted2)' }}>
-            <span>{hist[Math.max(0, hist.length - 24)].dateISO}</span><span>{hist[hist.length - 1].dateISO}</span>
+          <div className="relative mt-2" style={{ height: 12 }}>
+            {monthTicks.map((tk, i) => (
+              <span key={i} className="absolute text-[10px]" style={{ color: 'var(--muted2)', left: (tk.i / shownHist.length * 100) + '%' }}>{tk.label}</span>
+            ))}
           </div>
         </Card>
       )}
@@ -1024,66 +1142,88 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
     trainUpdate(update, (tr) => { tr[key] = {}; });
     showToast && showToast('Volume bands back to the defaults for your experience.');
   }
+  // How many muscles' bands your own blocks have nudged away from the research defaults - the one
+  // number that makes folding the seventeen-row table safe, because most visits the answer is none.
+  const defaults = Training.defaultTargets({ experience: prefs.experience });
+  const changedCount = Training.MUSCLES.filter(m => targets[m].mav !== defaults[m].mav || targets[m].mrv !== defaults[m].mrv).length;
+  const [bandsOpen, setBandsOpen] = useState(false);
+
   return (
     <div className="fade-in">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-4">Training settings</h1>
-      {/* Gyms come first: they change what gets programmed more than any other setting here. */}
-      <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Where you train</div>
-        <div className="text-[11px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Save each place you train. You pick one when a session starts, and anything it has not got is swapped for something that works.
+
+      {/* Three groups by WHEN a setting matters - you, in a session, the model - rather than by when
+          it happened to be added. A seventeen-row bands table and a kg/lb toggle used to sit in one
+          undifferentiated list, at the same visual weight. */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title="You" />
+        <div className="p-3.5">
+          <Field label="Weight units" hint="Only changes what you see. Everything is stored the same way underneath.">
+            <Seg value={prefs.units} onChange={v => set('units', v)} options={[{ v: 'kg', l: 'kg' }, { v: 'lb', l: 'lb' }]} />
+          </Field>
+          <Field label="Experience" hint="Sets the volume bands your coverage is judged against.">
+            <Seg value={prefs.experience} onChange={v => set('experience', v)} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
+          </Field>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>Where you train</div>
+          {gyms.map(g => (
+            <button key={g.id} onClick={() => setGymEdit(g)} className="w-full text-left flex items-center justify-between gap-2 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold truncate">{g.name}</span>
+                <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>
+              </span>
+              <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+            </button>
+          ))}
+          {!gyms.length && <div className="text-[12px] mb-2" style={{ color: 'var(--muted2)' }}>None saved yet. Anything a saved gym has not got is swapped for something that works.</div>}
+          <button onClick={() => setGymEdit('new')} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add a gym</button>
         </div>
-        {gyms.map(g => (
-          <button key={g.id} onClick={() => setGymEdit(g)} className="w-full text-left flex items-center justify-between gap-2 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
-            <span className="min-w-0">
-              <span className="block text-[13px] font-semibold truncate">{g.name}</span>
-              <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>
-            </span>
-            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-          </button>
-        ))}
-        {!gyms.length && <div className="text-[12px] mb-2" style={{ color: 'var(--muted2)' }}>None saved yet.</div>}
-        <button onClick={() => setGymEdit('new')} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add a gym</button>
       </Card>
 
-      <button onClick={onHowItWorks} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'var(--card)' }}>
-        <span className="min-w-0">
-          <span className="block text-[13px] font-semibold">How your plan is built</span>
-          <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
-            The rules behind the volume bands, the effort targets and the shape of a block.
-          </span>
-        </span>
-        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-      </button>
-
-      <Field label="Weight units" hint="Only changes what you see. Everything is stored the same way underneath.">
-        <Seg value={prefs.units} onChange={v => set('units', v)} options={[{ v: 'kg', l: 'kg' }, { v: 'lb', l: 'lb' }]} />
-      </Field>
-      <Field label="Experience" hint="Sets the volume bands your coverage is judged against.">
-        <Seg value={prefs.experience} onChange={v => set('experience', v)} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
-      </Field>
-      <Field label="Rest timer" hint="Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest.">
-        <Seg value={prefs.restTimer ? 'on' : 'off'} onChange={v => set('restTimer', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
-      </Field>
-      <Field label="Sound when rest ends" hint="It buzzes either way. On an iPhone with the screen off the alert can arrive late, which is a limit of installed web apps rather than something we can fix.">
-        <Seg value={prefs.restSound === false ? 'off' : 'on'} onChange={v => set('restSound', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
-      </Field>
-      <Field label="Plate calculator" hint="Shows what to hang on each side under barbell movements.">
-        <Seg value={prefs.plateCalc === false ? 'off' : 'on'} onChange={v => set('plateCalc', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
-      </Field>
-      <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Your volume bands</div>
-        <div className="text-[11px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          These start from the research and then move as your blocks show what you recover from.
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title="In a session" />
+        <div className="p-3.5">
+          <Field label="Rest timer" hint="Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest.">
+            <Seg value={prefs.restTimer ? 'on' : 'off'} onChange={v => set('restTimer', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
+          </Field>
+          <Field label="Sound when rest ends" hint="It buzzes either way. On an iPhone with the screen off the alert can arrive late, which is a limit of installed web apps rather than something we can fix.">
+            <Seg value={prefs.restSound === false ? 'off' : 'on'} onChange={v => set('restSound', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
+          </Field>
+          <Field label="Plate calculator" hint="Shows what to hang on each side under barbell movements.">
+            <Seg value={prefs.plateCalc === false ? 'off' : 'on'} onChange={v => set('plateCalc', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
+          </Field>
         </div>
-        {Training.MUSCLES.map(m => (
-          <div key={m} className="flex items-baseline justify-between py-1 text-[12px]">
-            <span style={{ color: 'var(--text2)' }}>{Training.MUSCLE_LABEL[m]}</span>
-            <span style={{ color: 'var(--muted)' }}>{targets[m].mev} - {targets[m].mav} <span style={{ color: 'var(--muted2)' }}>(max {targets[m].mrv})</span></span>
+      </Card>
+
+      {/* The bands table folds to a one-line summary that says whether you have touched it at all -
+          which used to take reading all seventeen rows to find out - and the rules move in beside it
+          as a plain read link rather than a full-width card of its own. */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title="Your volume bands" />
+        <button onClick={() => setBandsOpen(v => !v)} className="w-full text-left flex items-center justify-between gap-2 px-3.5 py-3">
+          <span className="text-[12.5px]" style={{ color: 'var(--text2)' }}>
+            {Training.MUSCLES.length} muscles{changedCount ? ' · ' + changedCount + ' changed from default' : ''}
+          </span>
+          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{bandsOpen ? 'close' : 'open ›'}</span>
+        </button>
+        {bandsOpen && (
+          <div className="px-3.5 pb-3.5" style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="text-[11px] my-3 leading-snug" style={{ color: 'var(--muted)' }}>
+              These start from the research and then move as your blocks show what you recover from.
+            </div>
+            {Training.MUSCLES.map(m => (
+              <div key={m} className="flex items-baseline justify-between py-1 text-[12px]">
+                <span style={{ color: 'var(--text2)' }}>{Training.MUSCLE_LABEL[m]}</span>
+                <span style={{ color: 'var(--muted)' }}>{targets[m].mev} - {targets[m].mav} <span style={{ color: 'var(--muted2)' }}>(max {targets[m].mrv})</span></span>
+              </div>
+            ))}
+            <button onClick={resetTargets} className="pixel-box w-full py-3 text-[12px] mt-3" style={{ background: 'var(--surface2)' }}>Reset to defaults</button>
           </div>
-        ))}
-        <button onClick={resetTargets} className="pixel-box w-full py-3 text-[12px] mt-3" style={{ background: 'var(--surface2)' }}>Reset to defaults</button>
+        )}
+        <button onClick={onHowItWorks} className="w-full text-left flex items-center justify-between gap-2 px-3.5 py-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <span className="text-[12.5px]" style={{ color: 'var(--text2)' }}>How your plan is built</span>
+          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>read ›</span>
+        </button>
       </Card>
 
       {gymEdit && (
@@ -1516,11 +1656,12 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
           <FilterPill key={n} on={days === n} onClick={() => setDays(days === n ? null : n)}>{n} days</FilterPill>
         ))}
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
         {['full', 'upper_lower', 'ppl'].map(s => (
           <FilterPill key={s} on={split === s} onClick={() => setSplit(split === s ? null : s)}>{SPLIT_LABEL[s]}</FilterPill>
         ))}
       </div>
+      <div className="text-[11px] mb-4" style={{ color: 'var(--muted2)' }}>Filters match your kit and recovery settings by default.</div>
 
       {busy && items === null && <SkeletonRows n={4} />}
       {err && <Card className="p-4 mb-4"><div className="text-[12px]">{err}</div></Card>}
@@ -1726,12 +1867,25 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       <div className="fade-in">
         <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
         <h1 className="pf text-lg mb-2">Draft block</h1>
-        <Card className="p-4">
-          <div className="text-[13px] mb-1">Nothing collected yet.</div>
-          <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
-            Import a session and choose "Add to draft" instead of building straight away. Do that for each day of someone's week and they stack up here.
+        <Card className="p-4 text-center">
+          {/* Every other empty state in the app has the buddy in it. */}
+          <div className="flex justify-center mb-4">
+            <div className="pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
+              <BuddyAvatar buddy={db.buddy || {}} px={2} />
+            </div>
           </div>
-          <button onClick={onImport} className="pixel-btn w-full h-12 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Import a session</button>
+          <div className="text-[13px] font-bold mb-1">Nothing collected yet</div>
+          {/* What a draft IS, in one sentence. The paragraph that used to sit here described the
+              button underneath it rather than the idea. */}
+          <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
+            A draft stacks up single sessions - import one for each day of someone's week, then build the block from the pile.
+          </div>
+          <button onClick={onImport} className="pixel-btn w-full h-12 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Import a session</button>
+          {/* The escape hatch. Nothing to import yet is not the same as nothing to build, and the old
+              dead end offered only the import path. */}
+          <button onClick={onImport} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>
+            or build straight away ›
+          </button>
         </Card>
         {/* A draft can be empty and still exist: delete every day one by one and the basket itself is
             still there, named, holding nothing. Without this there is no way to be rid of it. */}
@@ -2165,6 +2319,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
 // endorsement nobody has given us.
 function HowItWorks({ onBack }) {
   useBackClose(onBack);
+  const [openRule, setOpenRule] = useState(0);
   const rows = [
     ['Four weeks, then decide',
       'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'],
@@ -2210,12 +2365,26 @@ function HowItWorks({ onBack }) {
       <div className="text-[12px] mb-6 leading-snug" style={{ color: 'var(--muted)' }}>
         None of this is guesswork or an AI making it up as it goes. These rules are written into the app, tested, and every number you see comes out of them.
       </div>
-      {rows.map(([h, b], i) => (
-        <Card key={i} className="p-4 mb-4">
-          <div className="text-[13.5px] font-bold mb-1">{h}</div>
-          <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>{b}</div>
-        </Card>
-      ))}
+      {/* An accordion, one row open at a time, rather than eighteen full-length essay cards stacked
+          the whole way down. Every headline is visible at once - the table of contents this page
+          never had - and nothing is deleted: the words are exactly what they were, read one at a
+          time instead of scrolled past twenty times over. */}
+      <Card className="p-0 overflow-hidden mb-4">
+        {rows.map(([h, b], i) => (
+          <div key={i} style={i ? { borderTop: '2px solid var(--border)' } : null}>
+            <button onClick={() => setOpenRule(o => (o === i ? -1 : i))} aria-expanded={openRule === i}
+              className="w-full text-left flex items-center justify-between gap-3 px-3.5 py-3.5">
+              <span className="text-[13.5px] font-bold">{h}</span>
+              <span className="shrink-0" style={{ color: 'var(--muted2)', transform: openRule === i ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}>
+                <Icon.chevron width="16" height="16" />
+              </span>
+            </button>
+            {openRule === i && (
+              <div className="px-3.5 pb-4 text-[12px] leading-relaxed fade-in" style={{ color: 'var(--muted)' }}>{b}</div>
+            )}
+          </div>
+        ))}
+      </Card>
       <div className="text-[11px] leading-snug mt-2" style={{ color: 'var(--muted2)' }}>
         Where the research is genuinely unsettled we pick the more conservative option. None of it is a substitute for a coach who can watch you lift.
       </div>

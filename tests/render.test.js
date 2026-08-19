@@ -100,7 +100,10 @@ test('a volume-model session still logs reps in reserve', () => {
 // ---- coverage, the bar that was measuring against the wrong table --------------------------------
 
 test('a block is judged against the landmarks of its own style', () => {
-  const block = minmax();
+  // Three days rather than the shared five-day fixture: this needs a block with a real gap, so the
+  // screen draws every muscle instead of collapsing to the three nearest a band edge (the fold added
+  // once a clean week turned out to be the state a working block is in most weeks).
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 3, sessionMinutes: 45 });
   const db = accountWith(block);
   // The wizard left on the OTHER style, which is exactly the case that used to call a complete
   // min-max week short on everything.
@@ -272,7 +275,7 @@ test('run it again renders at all', () => {
   const { db, block } = ranAndStalled();
   const r = rerun(db, block);
   assert.ok(r.has('Run it again'), 'the screen did not render: ' + r.text.slice(0, 120));
-  assert.ok(r.has('Movements'), 'the movement list is the point of the screen');
+  assert.ok(/Worth a change|Keep as-is/.test(r.text), 'the movement list is the point of the screen');
   assert.ok(/Build it/.test(r.text), 'and there has to be a way out of it');
 });
 
@@ -294,7 +297,7 @@ test('a rotation says what it costs, where the cost is real', () => {
 test('every other movement is one tap away, not gone', () => {
   const { db, block } = ranAndStalled();
   const r = rerun(db, block);
-  assert.ok(/Change something else/.test(r.text),
+  assert.ok(/Keep as-is|more, all readable/.test(r.text),
     'the rest of the block was hidden with no way back to it: ' + r.text.slice(0, 200));
 });
 
@@ -311,4 +314,15 @@ test('a block that has been deleted underneath you says so', () => {
   const db = accountWith();
   const r = render(A.RerunScreen, { db, update() {}, showToast() {}, blockId: 'gone', onBack() {}, onDraft() {} });
   assert.ok(r.has('not here any more'), r.text.slice(0, 120));
+});
+
+test('a clean coverage week collapses to the three closest to a band edge', () => {
+  // Nothing short, nothing over: the state a working block is in most weeks. Seventeen identical
+  // green bars answered a question nobody asked, so it collapses to a verdict and the three worth a
+  // glance, with a way to open the rest.
+  const block = minmax();
+  const db = accountWith(block);
+  const r = render(A.CoverageScreen, { db, update() {}, isPremium: true, onUpgrade() {}, blockId: block.id, onBack() {} });
+  assert.ok(r.has('Nothing to fix'), 'a clean week should say so: ' + r.text.slice(0, 200));
+  assert.ok(/All \d+ muscles/.test(r.text), 'and still offer the way to see everything');
 });

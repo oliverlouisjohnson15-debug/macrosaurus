@@ -58715,6 +58715,7 @@ function CoverageScreen({
   const [lens, setLens] = useState('planned');
   const [advice, setAdvice] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [allMuscles, setAllMuscles] = useState(false);
 
   // Performed is judged over the last seven days, which is how anyone actually thinks about a week.
   const weekAgo = new Date(Date.parse(today + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
@@ -58800,9 +58801,33 @@ function CoverageScreen({
     style: {
       color: 'var(--muted2)'
     }
-  }, "across every muscle"))), /*#__PURE__*/React.createElement(CoverageBars, {
-    coverage: cov
-  })), cov.gaps.length > 0 && /*#__PURE__*/React.createElement(Card, {
+  }, "across every muscle"))), (() => {
+    const clean = cov.gaps.length === 0 && cov.overs.length === 0;
+    if (!clean || allMuscles) return /*#__PURE__*/React.createElement(CoverageBars, {
+      coverage: cov
+    });
+    const edge = r => Math.min(Math.abs(r.sets - r.mev), Math.abs(r.sets - r.mrv));
+    const worst = cov.rows.slice().sort((a, b) => edge(a) - edge(b)).slice(0, 3);
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-3 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Nothing to fix. The three closest to their band's edge, if you want somewhere to look:"), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col gap-2.5"
+    }, worst.map(r => /*#__PURE__*/React.createElement(CoverageRow, {
+      key: r.muscle,
+      row: r,
+      compact: true
+    }))));
+  })(), cov.gaps.length === 0 && cov.overs.length === 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAllMuscles(v => !v),
+    className: "w-full text-left mt-3 pt-3 text-[12px]",
+    style: {
+      borderTop: '2px solid var(--border)',
+      color: 'var(--accent-ink)'
+    }
+  }, allMuscles ? 'Show fewer' : 'All ' + cov.rows.length + ' muscles · open ›')), cov.gaps.length > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -58864,6 +58889,52 @@ function CoverageScreen({
 }
 
 // ---- block review -----------------------------------------------------------------------------
+// The "+ N more" fold for a list of lifts, where a review shows only the biggest movers up front.
+// A local toggle rather than state lifted into the caller: nothing outside this list needs to know.
+function ExpandableLiftList({
+  lifts
+}) {
+  const [open, setOpen] = useState(false);
+  const row = l => /*#__PURE__*/React.createElement("div", {
+    key: l.exerciseId,
+    className: "flex items-baseline justify-between gap-2 px-3.5 py-2.5",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] truncate"
+  }, l.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px]",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, l.sessions, " sessions")), /*#__PURE__*/React.createElement("div", {
+    className: "text-right whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold",
+    style: {
+      color: l.deltaPct > 1 ? 'var(--good)' : l.deltaPct < -1 ? 'var(--danger)' : 'var(--muted)'
+    }
+  }, l.deltaPct > 0 ? '+' : '', l.deltaPct, "%"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px]",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, "est. 1RM")));
+  if (!open) {
+    return /*#__PURE__*/React.createElement("button", {
+      onClick: () => setOpen(true),
+      className: "w-full text-left px-3.5 py-3 text-[12px]",
+      style: {
+        borderTop: '2px solid var(--border)',
+        color: 'var(--accent-ink)'
+      }
+    }, "+ ", lifts.length, " more, all readable · show ›");
+  }
+  return /*#__PURE__*/React.createElement(React.Fragment, null, lifts.map(row));
+}
 function BlockReviewScreen({
   db,
   update,
@@ -58908,28 +58979,6 @@ function BlockReviewScreen({
       setProse('Could not reach ' + buddyName(db) + ' just now. The numbers below are still yours.');
     }
     setBusy(false);
-  }
-  function buildNext() {
-    const tuned = Training.tuneTargets(targets, review, {
-      style: block.style
-    });
-    const learned = Training.targetChanges(targets, tuned);
-    trainUpdate(update, tr => {
-      // Only the muscles this block actually moved, merged into the table for the style it was run
-      // on. It used to write all seventeen, wholesale, into the one shared table - so finishing a
-      // min-max block handed its 4-to-10 numbers to the volume model as if they were the same thing.
-      if (!Object.keys(learned).length) return;
-      const key = Training.styleOf(block.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
-      tr[key] = Object.assign({}, tr[key] || {}, learned);
-    });
-    const draft = Training.nextBlock(block, review, targets, {
-      equipment: t.prefs.equipment,
-      dislikes: t.prefs.dislikes,
-      custom: t.custom,
-      sessionMinutes: t.prefs.sessionMinutes,
-      startISO: Store.todayISO()
-    });
-    onNext(draft);
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in pb-24"
@@ -58995,38 +59044,29 @@ function BlockReviewScreen({
       style: {
         color: tone
       }
-    }, d.needed ? 'Take a lighter week' : d.borderline ? 'Your call' : 'Straight on'), /*#__PURE__*/React.createElement("div", {
+    }, "The verdict · ", d.needed ? 'Take a lighter week' : d.borderline ? 'Your call' : 'Straight on'), /*#__PURE__*/React.createElement("div", {
       className: "text-[13px] leading-snug mb-2"
-    }, d.advice), d.reasons.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, d.advice), (d.reasons.length > 0 || review.adherence < 60) && /*#__PURE__*/React.createElement("div", {
       className: "text-[11.5px] leading-snug",
       style: {
         color: 'var(--muted)'
       }
-    }, d.reasons.map(r => r.text).join(' ')), !d.needed && !d.borderline && /*#__PURE__*/React.createElement("div", {
+    }, d.reasons.map(r => r.text).join(' '), review.adherence < 60 ? ' A plan you cannot get to is a plan to change, not a body to blame - shorter sessions or fewer days next time.' : ''), !d.needed && !d.borderline && /*#__PURE__*/React.createElement("div", {
       className: "text-[11.5px] leading-snug mt-1",
       style: {
         color: 'var(--muted2)'
       }
     }, "A lighter week you have not earned costs you a productive one, so we only ask for it when something says you need it."));
-  })(), review.adherence < 60 && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4",
-    style: {
-      background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] leading-snug"
-  }, "You ran a bit over half of this block. That is worth knowing before we read anything into the numbers: a plan you cannot get to is a plan to change, not a body to blame. The next one can be shorter sessions or fewer days.")), review.lifts.length > 0 && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-4",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Your lifts"), review.lifts.slice(0, 10).map(l => /*#__PURE__*/React.createElement("div", {
+  })(), review.lifts.length > 0 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-4"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "Your lifts",
+    right: "biggest movers"
+  }), review.lifts.slice(0, 3).map(l => /*#__PURE__*/React.createElement("div", {
     key: l.exerciseId,
-    className: "flex items-baseline justify-between gap-2 py-2 border-t",
+    className: "flex items-baseline justify-between gap-2 px-3.5 py-2.5",
     style: {
-      borderColor: 'var(--border)'
+      borderTop: '2px solid var(--border)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
@@ -59049,7 +59089,9 @@ function BlockReviewScreen({
     style: {
       color: 'var(--muted2)'
     }
-  }, "est. 1RM"))))), review.stalled.length > 0 && /*#__PURE__*/React.createElement(Card, {
+  }, "est. 1RM")))), review.lifts.length > 3 && /*#__PURE__*/React.createElement(ExpandableLiftList, {
+    lifts: review.lifts.slice(3)
+  })), review.stalled.length > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -59103,22 +59145,14 @@ function BlockReviewScreen({
     style: {
       background: 'var(--surface2)'
     }
-  }, busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: buildNext,
-    className: "pixel-box flex-1 h-14 text-[12.5px]",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Build a new one"), /*#__PURE__*/React.createElement("button", {
+  }, busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => onRerun(block.id),
-    className: "pixel-btn flex-1 h-14 font-bold",
+    className: "pixel-btn w-full h-14 font-bold",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "Run this again"))));
+  }, "Plan the next block ›")));
 }
 
 // ---- running the same block again ---------------------------------------------------------------
@@ -59256,6 +59290,7 @@ function RerunScreen({
   const [off, setOff] = useState({}); // volume proposals turned down, by index
   const [swaps, setSwaps] = useState(null); // rotation choices, by exerciseId
   const [showAll, setShowAll] = useState(false);
+  const [expandedKeep, setExpandedKeep] = useState({}); // "keep as-is" rows opened out to the full card
 
   // The engine's answer is the starting position, not the state: seed once, then it is yours.
   const chosen = swaps || (rot ? rot.lifts.reduce((a, l) => {
@@ -59311,6 +59346,19 @@ function RerunScreen({
     });
   }
   function build() {
+    // What the block just taught about your own recovery, merged into the shared landmarks table
+    // before the next block is built off it. This used to live only in the OTHER way out of "How it
+    // went", which meant choosing "run it again" - the answer most people actually want - quietly
+    // skipped the learning. One button now, so it cannot be skipped by picking the popular option.
+    const learned = Training.targetChanges(targets, Training.tuneTargets(targets, plan.review, {
+      style: block.style
+    }));
+    if (Object.keys(learned).length) {
+      trainUpdate(update, tr => {
+        const key = Training.styleOf(block.style).toFailure ? 'volumeTargetsMinmax' : 'volumeTargets';
+        tr[key] = Object.assign({}, tr[key] || {}, learned);
+      });
+    }
     const out = Training.applyRotation(block, rotations, {
       targets: targets,
       custom: t.custom,
@@ -59358,12 +59406,12 @@ function RerunScreen({
       weeks: read.weeks,
       sessions: read.sessions
     })));
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), upFront.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "Movements"), upFront.map(l => /*#__PURE__*/React.createElement(RotationCard, {
+  }, "Worth a change · ", upFront.length), upFront.map(l => /*#__PURE__*/React.createElement(RotationCard, {
     key: l.exerciseId + '_' + l.day + '_' + l.index,
     lift: l,
     on: !!chosen[l.exerciseId],
@@ -59387,23 +59435,55 @@ function RerunScreen({
     style: {
       color: 'var(--text2)'
     }
-  }, "You are changing ", rotations.length, " movements. Nothing stops you, but a block where most of it is new is a block you cannot compare to this one, and none of what happens can be pinned on any one change.")), rest.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+  }, "You are changing ", rotations.length, " movements. Nothing stops you, but a block where most of it is new is a block you cannot compare to this one, and none of what happens can be pinned on any one change.")), rest.length > 0 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-3"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "Keep as-is",
+    right: String(rest.length)
+  }), (showAll ? rest : rest.slice(0, 3)).map(l => {
+    const key = l.exerciseId + '_' + l.day + '_' + l.index;
+    if (expandedKeep[key]) {
+      return /*#__PURE__*/React.createElement("div", {
+        key: key,
+        className: "p-3.5",
+        style: {
+          borderTop: '2px solid var(--border)'
+        }
+      }, /*#__PURE__*/React.createElement(RotationCard, {
+        lift: l,
+        on: !!chosen[l.exerciseId],
+        chosen: chosen[l.exerciseId],
+        onToggle: () => toggle(l),
+        onPick: c => setChosen(x => Object.assign({}, x, {
+          [l.exerciseId]: c
+        }))
+      }));
+    }
+    return /*#__PURE__*/React.createElement("button", {
+      key: key,
+      onClick: () => setExpandedKeep(x => Object.assign({}, x, {
+        [key]: true
+      })),
+      className: "w-full text-left px-3.5 py-3 flex items-center justify-between gap-3",
+      style: {
+        borderTop: '2px solid var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[13px] font-semibold truncate"
+    }, l.name), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[9px] uppercase shrink-0",
+      style: {
+        color: l.deltaPct > 1 ? 'var(--good-ink)' : 'var(--accent-ink)'
+      }
+    }, l.deltaPct > 1 ? 'trend ↗' : 'swap ›'));
+  }), rest.length > 3 && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(v => !v),
-    className: "pf text-[9px] uppercase mb-3 hit",
+    className: "w-full text-left px-3.5 py-3 text-[12px]",
     style: {
+      borderTop: '2px solid var(--border)',
       color: 'var(--accent-ink)'
     }
-  }, showAll ? '‹ Hide the rest' : 'Change something else (' + rest.length + ') ›'), showAll && rest.map(l => /*#__PURE__*/React.createElement(RotationCard, {
-    key: l.exerciseId + '_' + l.day + '_' + l.index,
-    lift: l,
-    on: !!chosen[l.exerciseId],
-    chosen: chosen[l.exerciseId],
-    onToggle: () => toggle(l),
-    muted: true,
-    onPick: c => setChosen(x => Object.assign({}, x, {
-      [l.exerciseId]: c
-    }))
-  }))), volume.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, showAll ? 'Show fewer' : '+ ' + (rest.length - 3) + ' more, all readable · show ›')), volume.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2 mt-5",
     style: {
       color: 'var(--accent-ink)'
@@ -59574,41 +59654,59 @@ function TrainHistory({
     style: {
       color: 'var(--muted)'
     }
-  }, "You have not logged anything matching \"", q, "\"."), shown.length > 0 && /*#__PURE__*/React.createElement(Card, {
-    className: "p-0 overflow-hidden"
-  }, /*#__PURE__*/React.createElement(CardHead, {
-    title: "Your lifts",
-    right: "Best set shown"
-  }), shown.map((l, i) => /*#__PURE__*/React.createElement("button", {
-    key: l.exerciseId,
-    onClick: () => onOpenExercise(l.exerciseId),
-    className: "w-full text-left px-3.5 py-3 flex items-start justify-between gap-3",
-    style: i ? {
-      borderTop: '2px solid var(--border)'
-    } : null
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "block text-[13.5px] font-semibold leading-tight"
-  }, l.name), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11.5px] mt-0.5",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, relativeDay(l.lastISO, Store.todayISO()), " · ", l.sessions, " ", l.sessions === 1 ? 'session' : 'sessions')), /*#__PURE__*/React.createElement("span", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "block pf text-[10px] tnum",
-    style: {
-      color: 'var(--accent-ink)',
-      letterSpacing: '0.06em'
-    }
-  }, toDisplayWeight(l.topKg, units), unitLabel(units), " × ", l.topReps), l.e1rm > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11px] tnum mt-0.5",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, toDisplayWeight(l.e1rm, units), unitLabel(units), " est. 1RM")))))), tab === 'sessions' && /*#__PURE__*/React.createElement("div", null, logs.length === 0 && /*#__PURE__*/React.createElement(Card, {
+  }, "You have not logged anything matching \"", q, "\"."), shown.length > 0 && (() => {
+    // Recency grouping rather than one flat twenty-six-row wall. What you did this week is
+    // what most visits are checking, and it earns a section instead of being row one of
+    // twenty-six with nothing marking where "recent" stops.
+    const todayISO = Store.todayISO();
+    const weekAgo = new Date(Date.parse(todayISO + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
+    const thisWeek = shown.filter(l => l.lastISO >= weekAgo);
+    const earlier = shown.filter(l => l.lastISO < weekAgo);
+    const row = (l, i) => /*#__PURE__*/React.createElement("button", {
+      key: l.exerciseId,
+      onClick: () => onOpenExercise(l.exerciseId),
+      className: "w-full text-left px-3.5 py-3 flex items-start justify-between gap-3",
+      style: {
+        borderTop: '2px solid var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block text-[13.5px] font-semibold leading-tight"
+    }, l.name), /*#__PURE__*/React.createElement("span", {
+      className: "block text-[11.5px] mt-0.5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, relativeDay(l.lastISO, todayISO), " · ", l.sessions, " ", l.sessions === 1 ? 'session' : 'sessions')), /*#__PURE__*/React.createElement("span", {
+      className: "text-right shrink-0"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block pf text-[10px] tnum",
+      style: {
+        color: 'var(--accent-ink)',
+        letterSpacing: '0.06em'
+      }
+    }, toDisplayWeight(l.topKg, units), unitLabel(units), " × ", l.topReps), l.e1rm > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "block text-[11px] tnum mt-0.5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, toDisplayWeight(l.e1rm, units), unitLabel(units), " est. 1RM")));
+    const heading = (label, ruled) => /*#__PURE__*/React.createElement("div", {
+      className: "px-3.5 pt-3 pb-1 pf text-[8px] uppercase",
+      style: {
+        color: 'var(--muted)',
+        letterSpacing: '0.1em',
+        borderTop: ruled ? '2px solid var(--border)' : null
+      }
+    }, label);
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-0 overflow-hidden"
+    }, /*#__PURE__*/React.createElement(CardHead, {
+      title: "Your lifts",
+      right: "Best set shown"
+    }), thisWeek.length > 0 && heading('This week', false), thisWeek.map(row), earlier.length > 0 && heading('Earlier', thisWeek.length > 0), earlier.map(row));
+  })()), tab === 'sessions' && /*#__PURE__*/React.createElement("div", null, logs.length === 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px]",
@@ -59706,6 +59804,23 @@ function ExerciseDetail({
   const stall = Training.detectStall(own);
   const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
   const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
+  // Where you stand and which way it has gone: the chart shows the shape, this says what it means.
+  const shownHist = hist.slice(-24);
+  const firstRow = shownHist[0],
+    latest = shownHist[shownHist.length - 1];
+  const delta = firstRow && firstRow.e1rm > 0 && latest ? Math.round((latest.e1rm - firstRow.e1rm) / firstRow.e1rm * 1000) / 10 : 0;
+  const isPB = !!(latest && latest.e1rm > 0 && latest.e1rm >= max);
+  // Month ticks under the chart, rather than two raw ISO dates at its ends: "Jun / Jul / Aug" is
+  // what anybody scanning the shape of a run actually reads it against.
+  const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthTicks = [];
+  shownHist.forEach((h, i) => {
+    const m = MONTH[parseInt(h.dateISO.slice(5, 7), 10) - 1];
+    if (!monthTicks.length || monthTicks[monthTicks.length - 1].label !== m) monthTicks.push({
+      label: m,
+      i: i
+    });
+  });
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -59719,9 +59834,18 @@ function ExerciseDetail({
     style: {
       color: 'var(--muted)'
     }
-  }, "Movement"), /*#__PURE__*/React.createElement("h1", {
-    className: "text-[19px] font-bold leading-tight mb-2"
-  }, ex ? ex.name : exerciseId), /*#__PURE__*/React.createElement("div", {
+  }, "Movement"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "text-[19px] font-bold leading-tight"
+  }, ex ? ex.name : exerciseId), isPB && /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0 px-2 py-1",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      letterSpacing: '0.08em'
+    }
+  }, "PB ▲")), /*#__PURE__*/React.createElement("div", {
     className: "mb-6"
   }, /*#__PURE__*/React.createElement(MuscleTags, {
     exerciseId: exerciseId,
@@ -59729,13 +59853,22 @@ function ExerciseDetail({
   })), hist.length > 1 && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-4",
+    className: "pf text-[9px] uppercase mb-1",
     style: {
       color: 'var(--muted)'
     }
   }, "Estimated 1RM"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[18px] tnum"
+  }, toDisplayWeight(latest.e1rm, units), unitLabel(units)), delta !== 0 && /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] tnum font-bold",
+    style: {
+      color: delta > 0 ? 'var(--good-ink)' : 'var(--danger)'
+    }
+  }, delta > 0 ? '+' : '', delta, "%")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-end gap-1 h-24"
-  }, hist.slice(-24).map((h, i) => /*#__PURE__*/React.createElement("div", {
+  }, shownHist.map((h, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "flex-1",
     title: h.dateISO + ' · ' + h.name,
@@ -59747,11 +59880,18 @@ function ExerciseDetail({
       borderLeft: h.changed ? '2px solid var(--warn)' : 'none'
     }
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between text-[10px] mt-2",
+    className: "relative mt-2",
     style: {
-      color: 'var(--muted2)'
+      height: 12
     }
-  }, /*#__PURE__*/React.createElement("span", null, hist[Math.max(0, hist.length - 24)].dateISO), /*#__PURE__*/React.createElement("span", null, hist[hist.length - 1].dateISO))), cameFrom && /*#__PURE__*/React.createElement(Card, {
+  }, monthTicks.map((tk, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    className: "absolute text-[10px]",
+    style: {
+      color: 'var(--muted2)',
+      left: tk.i / shownHist.length * 100 + '%'
+    }
+  }, tk.label)))), cameFrom && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -59846,6 +59986,13 @@ function TrainSettings({
     });
     showToast && showToast('Volume bands back to the defaults for your experience.');
   }
+  // How many muscles' bands your own blocks have nudged away from the research defaults - the one
+  // number that makes folding the seventeen-row table safe, because most visits the answer is none.
+  const defaults = Training.defaultTargets({
+    experience: prefs.experience
+  });
+  const changedCount = Training.MUSCLES.filter(m => targets[m].mav !== defaults[m].mav || targets[m].mrv !== defaults[m].mrv).length;
+  const [bandsOpen, setBandsOpen] = useState(false);
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -59857,74 +60004,12 @@ function TrainSettings({
   }, "‹ Train"), /*#__PURE__*/React.createElement("h1", {
     className: "pf text-lg mb-4"
   }, "Training settings"), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Where you train"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mb-4 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Save each place you train. You pick one when a session starts, and anything it has not got is swapped for something that works."), gyms.map(g => /*#__PURE__*/React.createElement("button", {
-    key: g.id,
-    onClick: () => setGymEdit(g),
-    className: "w-full text-left flex items-center justify-between gap-2 py-3 border-t",
-    style: {
-      borderColor: 'var(--border)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "block text-[13px] font-semibold truncate"
-  }, g.name), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11px]",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, gymSummary(g))), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
-    style: {
-      color: 'var(--muted2)',
-      flexShrink: 0
-    }
-  }))), !gyms.length && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-2",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "None saved yet."), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setGymEdit('new'),
-    className: "pixel-box w-full h-11 text-[12px] mt-2",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "+ Add a gym")), /*#__PURE__*/React.createElement("button", {
-    onClick: onHowItWorks,
-    className: "w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3",
-    style: {
-      background: 'var(--card)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "block text-[13px] font-semibold"
-  }, "How your plan is built"), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11.5px] mt-0.5 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "The rules behind the volume bands, the effort targets and the shape of a block.")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
-    style: {
-      color: 'var(--muted2)',
-      flexShrink: 0
-    }
-  })), /*#__PURE__*/React.createElement(Field, {
+    className: "p-0 overflow-hidden mb-4"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "You"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3.5"
+  }, /*#__PURE__*/React.createElement(Field, {
     label: "Weight units",
     hint: "Only changes what you see. Everything is stored the same way underneath."
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -59953,7 +60038,53 @@ function TrainSettings({
       v: 'advanced',
       l: 'Years'
     }]
-  })), /*#__PURE__*/React.createElement(Field, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.12em'
+    }
+  }, "Where you train"), gyms.map(g => /*#__PURE__*/React.createElement("button", {
+    key: g.id,
+    onClick: () => setGymEdit(g),
+    className: "w-full text-left flex items-center justify-between gap-2 py-3 border-t",
+    style: {
+      borderColor: 'var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-[13px] font-semibold truncate"
+  }, g.name), /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11px]",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, gymSummary(g))), /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "16",
+    height: "16",
+    style: {
+      color: 'var(--muted2)',
+      flexShrink: 0
+    }
+  }))), !gyms.length && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-2",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, "None saved yet. Anything a saved gym has not got is swapped for something that works."), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGymEdit('new'),
+    className: "pixel-box w-full h-11 text-[12px] mt-2",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "+ Add a gym"))), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-4"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "In a session"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3.5"
+  }, /*#__PURE__*/React.createElement(Field, {
     label: "Rest timer",
     hint: "Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest."
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -59992,15 +60123,30 @@ function TrainSettings({
       v: 'off',
       l: 'Off'
     }]
-  })), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
+  })))), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-4"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "Your volume bands"
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBandsOpen(v => !v),
+    className: "w-full text-left flex items-center justify-between gap-2 px-3.5 py-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[12.5px]",
     style: {
-      color: 'var(--muted)'
+      color: 'var(--text2)'
     }
-  }, "Your volume bands"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mb-4 leading-snug",
+  }, Training.MUSCLES.length, " muscles", changedCount ? ' · ' + changedCount + ' changed from default' : ''), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, bandsOpen ? 'close' : 'open ›')), bandsOpen && /*#__PURE__*/React.createElement("div", {
+    className: "px-3.5 pb-3.5",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] my-3 leading-snug",
     style: {
       color: 'var(--muted)'
     }
@@ -60025,7 +60171,23 @@ function TrainSettings({
     style: {
       background: 'var(--surface2)'
     }
-  }, "Reset to defaults")), gymEdit && /*#__PURE__*/React.createElement(GymEditor, {
+  }, "Reset to defaults")), /*#__PURE__*/React.createElement("button", {
+    onClick: onHowItWorks,
+    className: "w-full text-left flex items-center justify-between gap-2 px-3.5 py-3",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[12.5px]",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, "How your plan is built"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "read ›"))), gymEdit && /*#__PURE__*/React.createElement(GymEditor, {
     gym: gymEdit === 'new' ? null : gymEdit,
     onSave: saveGym,
     onClose: () => setGymEdit(null),
@@ -60634,12 +60796,17 @@ function BlockLibrary({
     on: days === n,
     onClick: () => setDays(days === n ? null : n)
   }, n, " days"))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-2 mb-4"
+    className: "flex gap-2 overflow-x-auto pb-2 mb-2"
   }, ['full', 'upper_lower', 'ppl'].map(s => /*#__PURE__*/React.createElement(FilterPill, {
     key: s,
     on: split === s,
     onClick: () => setSplit(split === s ? null : s)
-  }, SPLIT_LABEL[s]))), busy && items === null && /*#__PURE__*/React.createElement(SkeletonRows, {
+  }, SPLIT_LABEL[s]))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mb-4",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, "Filters match your kit and recovery settings by default."), busy && items === null && /*#__PURE__*/React.createElement(SkeletonRows, {
     n: 4
   }), err && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
@@ -60932,22 +61099,40 @@ function BlockDraft({
     }, "‹ Train"), /*#__PURE__*/React.createElement("h1", {
       className: "pf text-lg mb-2"
     }, "Draft block"), /*#__PURE__*/React.createElement(Card, {
-      className: "p-4"
+      className: "p-4 text-center"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px] mb-1"
-    }, "Nothing collected yet."), /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-center mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-2",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none',
+        lineHeight: 0
+      }
+    }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+      buddy: db.buddy || {},
+      px: 2
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-bold mb-1"
+    }, "Nothing collected yet"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] leading-snug mb-4",
       style: {
         color: 'var(--muted)'
       }
-    }, "Import a session and choose \"Add to draft\" instead of building straight away. Do that for each day of someone's week and they stack up here."), /*#__PURE__*/React.createElement("button", {
+    }, "A draft stacks up single sessions - import one for each day of someone's week, then build the block from the pile."), /*#__PURE__*/React.createElement("button", {
       onClick: onImport,
-      className: "pixel-btn w-full h-12 font-bold",
+      className: "pixel-btn w-full h-12 font-bold mb-2",
       style: {
         background: 'var(--accent)',
         color: 'var(--on-accent)'
       }
-    }, "Import a session")), draft && /*#__PURE__*/React.createElement("button", {
+    }, "Import a session"), /*#__PURE__*/React.createElement("button", {
+      onClick: onImport,
+      className: "text-[12px]",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "or build straight away ›")), draft && /*#__PURE__*/React.createElement("button", {
       onClick: () => {
         trainUpdate(update, tr => {
           tr.draft = null;
@@ -61609,6 +61794,7 @@ function HowItWorks({
   onBack
 }) {
   useBackClose(onBack);
+  const [openRule, setOpenRule] = useState(0);
   const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'], ['The last set is the one that goes', 'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Changing a movement between blocks', 'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'], ['A swap restarts the number, not the muscle', 'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'], ['The big lifts are the expensive ones to change', 'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -61625,17 +61811,35 @@ function HowItWorks({
     style: {
       color: 'var(--muted)'
     }
-  }, "None of this is guesswork or an AI making it up as it goes. These rules are written into the app, tested, and every number you see comes out of them."), rows.map(([h, b], i) => /*#__PURE__*/React.createElement(Card, {
+  }, "None of this is guesswork or an AI making it up as it goes. These rules are written into the app, tested, and every number you see comes out of them."), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-4"
+  }, rows.map(([h, b], i) => /*#__PURE__*/React.createElement("div", {
     key: i,
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13.5px] font-bold mb-1"
-  }, h), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] leading-relaxed",
+    style: i ? {
+      borderTop: '2px solid var(--border)'
+    } : null
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpenRule(o => o === i ? -1 : i),
+    "aria-expanded": openRule === i,
+    className: "w-full text-left flex items-center justify-between gap-3 px-3.5 py-3.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[13.5px] font-bold"
+  }, h), /*#__PURE__*/React.createElement("span", {
+    className: "shrink-0",
+    style: {
+      color: 'var(--muted2)',
+      transform: openRule === i ? 'rotate(90deg)' : 'none',
+      transition: 'transform .12s'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "16",
+    height: "16"
+  }))), openRule === i && /*#__PURE__*/React.createElement("div", {
+    className: "px-3.5 pb-4 text-[12px] leading-relaxed fade-in",
     style: {
       color: 'var(--muted)'
     }
-  }, b))), /*#__PURE__*/React.createElement("div", {
+  }, b)))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] leading-snug mt-2",
     style: {
       color: 'var(--muted2)'
