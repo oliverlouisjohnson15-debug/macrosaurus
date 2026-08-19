@@ -78,4 +78,59 @@ function accountWith(block, extra) {
   }, extra || {});
 }
 
-module.exports = { app, render, accountWith, React };
+/* The same screens, but MOUNTED and clicked rather than rendered once.
+ *
+ * renderToStaticMarkup above is the right tool for what a screen SAYS, and it cannot reach what a
+ * screen DOES: every sheet, picker and menu in the Train module is behind component state, so the
+ * half of the app that opens when you tap something is invisible to it. The replacement flow is
+ * exactly that shape - tap a movement, tap Replace, read the options - and wiring it wrongly
+ * (passing no options, so the picker opens on a search box) is a change no static render can see.
+ *
+ * So this mounts into jsdom with the real react-dom and clicks with real events. Effects run, which
+ * is the point and also the cost: it is slower and closer to a browser than anything else in here,
+ * so reach for `render` first and this only when the thing under test is a tap.
+ */
+function mount(component, props) {
+  const A = app();
+  const ReactDOM = require('react-dom/client');
+  const { act } = React;
+  const doc = A.document;
+  const host = doc.createElement('div');
+  doc.body.appendChild(host);
+  // React reads the environment off globalThis, not off the context the app was built in.
+  const prevWindow = global.window, prevDoc = global.document, prevNav = global.navigator;
+  global.window = A; global.document = doc;
+  try { global.navigator = A.navigator; } catch (e) { /* already defined and read-only: harmless */ }
+  global.IS_REACT_ACT_ENVIRONMENT = true;
+  const restore = () => {
+    global.window = prevWindow; global.document = prevDoc;
+    try { global.navigator = prevNav; } catch (e) { /* see above */ }
+  };
+  let root;
+  // Restored even when the first render throws, or a failing test poisons every test after it with
+  // a jsdom window that has already been torn down.
+  try {
+    root = ReactDOM.createRoot(host);
+    act(() => { root.render(React.createElement(component, props)); });
+  } catch (e) { restore(); throw e; }
+  const api = {
+    get text() { return host.textContent.replace(/\s+/g, ' ').trim(); },
+    has: (s) => host.textContent.replace(/\s+/g, ' ').indexOf(s) !== -1,
+    // Find a clickable by the words on it, the way somebody scanning the screen would.
+    click(label) {
+      const hits = Array.from(host.querySelectorAll('button, [role="button"]'))
+        .filter(b => b.textContent.replace(/\s+/g, ' ').indexOf(label) !== -1);
+      if (!hits.length) throw new Error('nothing to click reading "' + label + '" in: ' + api.text.slice(0, 400));
+      // The most specific match, so "Replace it" is not swallowed by a card that contains it.
+      const el = hits.sort((a, b) => a.textContent.length - b.textContent.length)[0];
+      act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true })); });
+      return api;
+    },
+    unmount() {
+      try { act(() => { root.unmount() }); } finally { host.remove(); restore(); }
+    },
+  };
+  return api;
+}
+
+module.exports = { app, render, mount, accountWith, React };

@@ -1730,6 +1730,189 @@
     return out.slice(0, opts.limit || 3);
   }
 
+  /* ---- movements that do the same job ----------------------------------------------------------
+   * Hand-written, and deliberately kept apart from the programmes' own `alts`. Those are a
+   * transcription of the author's spreadsheet, checked against it column by column by
+   * tools/verify-programmes.mjs, and our opinions do not belong in somebody else's plan.
+   *
+   * This is the app's own knowledge instead, and it answers a question the plan cannot: what to do
+   * when a movement is not in a written programme at all, or when the two substitutions the author
+   * had room for are both unavailable too. The incline press is the case that names the pattern -
+   * the bar, the Smith, the machine and the dumbbells are four ways to load the same movement, and
+   * a gym that is missing one almost always has another.
+   *
+   * Only pairs that genuinely swap: same movement, same joint action, same job in a session. A
+   * lateral raise is not a Y-raise and a fly is not a press, however close they look on a muscle
+   * chart. Anything not listed here still gets suggestions worked out from the muscle and the
+   * pattern; this table is for the ones worth being sure about.
+   */
+  var SAME_JOB = {
+    // Presses, by what is holding the weight.
+    bb_incline: ['smith_machine_incline_press', 'machine_incline', 'db_incline'],
+    smith_machine_incline_press: ['bb_incline', 'machine_incline', 'db_incline'],
+    machine_incline: ['bb_incline', 'smith_machine_incline_press', 'db_incline'],
+    db_incline: ['machine_incline', 'bb_incline', 'smith_machine_incline_press'],
+    bb_bench: ['smith_bench', 'machine_press', 'db_bench'],
+    smith_bench: ['bb_bench', 'machine_press', 'db_bench'],
+    machine_press: ['smith_bench', 'bb_bench', 'db_bench'],
+    db_bench: ['machine_press', 'bb_bench', 'smith_bench'],
+    bb_ohp: ['smith_overhead_press', 'machine_ohp', 'db_ohp'],
+    machine_ohp: ['smith_overhead_press', 'db_ohp', 'bb_ohp'],
+    db_ohp: ['machine_ohp', 'smith_overhead_press', 'bb_ohp'],
+    seated_machine_press: ['machine_ohp', 'db_ohp', 'smith_overhead_press'],
+    /* Raises that put the arm overhead in a Y. Only these two: the prone version looks like the
+     * same movement and is not one - lying face down turns it into a rear-delt and upper-back
+     * exercise, which is why the library attributes it that way, and offering it as a sure thing for
+     * a side-delt raise would quietly take the side delts out of the session. It can still turn up
+     * as a suggestion, where it is marked as our guess rather than something we know. */
+    db_y_raise_incline: ['cable_y_raise'],
+    cable_y_raise: ['db_y_raise_incline'],
+    // Side delts.
+    db_lateral: ['cable_lateral', 'machine_lateral'],
+    cable_lateral: ['db_lateral', 'machine_lateral'],
+    machine_lateral: ['cable_lateral', 'db_lateral'],
+    // Hinges, squats and the rest of the big patterns.
+    rdl: ['db_rdl', 'good_morning'],
+    db_rdl: ['rdl', 'good_morning'],
+    back_squat: ['hack_squat', 'smith_squat', 'leg_press'],
+    hack_squat: ['back_squat', 'pendulum_squat', 'leg_press'],
+    leg_press: ['hack_squat', 'smith_squat'],
+    lying_leg_curl: ['seated_leg_curl'],
+    seated_leg_curl: ['lying_leg_curl'],
+    standing_calf: ['leg_press_calf', 'seated_calf'],
+    // Pulls.
+    lat_pulldown: ['pullup', 'lat_pulldown_wide_grip'],
+    pullup: ['lat_pulldown', 'neutral_pullup'],
+    seated_cable_row: ['chest_supported_row', 'chest_supported_machine_row'],
+    chest_supported_row: ['seated_cable_row', 'chest_supported_machine_row'],
+    // Arms.
+    bb_curl: ['ez_curl', 'db_curl'],
+    ez_curl: ['bb_curl', 'db_curl'],
+    db_curl: ['ez_curl', 'bb_curl'],
+    triceps_pressdown: ['rope_pushdown', 'overhead_cable_triceps_extension'],
+    rope_pushdown: ['triceps_pressdown', 'overhead_cable_triceps_extension'],
+  };
+  // Both directions, always. A table written by hand gets edited by hand, and a pair that is listed
+  // one way round but not the other is a movement you can leave but never get back to.
+  function sameJobFor(id, custom) {
+    var out = (SAME_JOB[id] || []).slice();
+    Object.keys(SAME_JOB).forEach(function (k) {
+      if (k !== id && SAME_JOB[k].indexOf(id) !== -1 && out.indexOf(k) === -1) out.push(k);
+    });
+    return out.filter(function (x) { return !!byId(x, custom); });
+  }
+
+  /* ---- what a movement can be replaced with ----------------------------------------------------
+   * "Replace this" is a different question from "search the library", and for years it was answered
+   * with the library: tapping a movement opened two hundred exercises and a text box. Somebody stood
+   * in front of a busy incline bench does not want to go shopping. They want the two or three things
+   * that do THIS movement's job, and for a written programme the author has usually already named
+   * them.
+   *
+   * So the list is assembled in order of how much is actually KNOWN about each option:
+   *   original  - what the plan said before it was replaced, so a replacement is never a one-way door
+   *   plan      - the author's own substitutions (`alts`), or the options of a slot left open (`choice`)
+   *   sameJob   - the library's own hand-written pairs, for the swaps worth being sure about
+   *   suggested - worked out from the muscle and the movement pattern, to top a thin list up
+   * Each entry says which it is, because "your coach wrote this down", "we know these two are the
+   * same movement" and "we think this is similar" are three different claims, and a screen that
+   * blurs them is lying quietly.
+   *
+   * Ways of doing the SAME movement - grips, stances, attachments - are deliberately not in here.
+   * The picker already offers those on their own row, and listing them twice would push the genuine
+   * alternatives off the bottom of a short list.
+   */
+  function replacementsFor(item, opts) {
+    opts = opts || {};
+    var current = item && item.exerciseId;
+    if (!current) return [];
+    var limit = opts.limit || 5;
+    var out = [], seen = {};
+    seen[current] = 1;
+    // Everything else in the session, so a replacement cannot quietly duplicate a movement that is
+    // already two rows further down.
+    (opts.currentExerciseIds || []).forEach(function (id) { if (id !== current) seen[id] = 1; });
+    function push(id, kind) {
+      if (!id || seen[id]) return;
+      var ex = byId(id, opts.custom);
+      if (!ex) return;
+      seen[id] = 1;
+      out.push({ id: id, name: ex.name, equipment: ex.equipment, kind: kind });
+    }
+    push(item.baseExerciseId, 'original');
+    // An open slot's options ARE the plan's answer here, and they beat `alts` when a row has both.
+    // Length-checked rather than truthiness-checked: an empty array is truthy, so a slot that ended
+    // up with no options would have silently swallowed the substitutions written beside it.
+    var slot = item.choice && item.choice.options;
+    (slot && slot.length ? slot : (item.alts || [])).forEach(function (id) { push(id, 'plan'); });
+    // Filtered by what is actually in front of them. The plan's own substitutions are left alone -
+    // those are the author's words and worth showing even when the kit is doubtful - but a pair the
+    // app volunteers has no such excuse: offering a Smith machine to somebody training in a garage
+    // is the same failure as opening a search box on them.
+    var kit = opts.equipment && opts.equipment.length ? opts.equipment : null;
+    var no = {}; (opts.dislikes || []).forEach(function (d) { no[d] = 1; });
+    sameJobFor(current, opts.custom).forEach(function (id) {
+      if (no[id]) return;
+      var ex = byId(id, opts.custom);
+      if (kit && ex && ex.equipment && ex.equipment !== 'bodyweight' && kit.indexOf(ex.equipment) === -1) return;
+      push(id, 'sameJob');
+    });
+    if (out.length < limit) {
+      substituteFor(current, {
+        style: opts.style, custom: opts.custom, equipment: opts.equipment, dislikes: opts.dislikes,
+        currentExerciseIds: Object.keys(seen), limit: limit - out.length,
+      }).forEach(function (c) { push(c.id, 'suggested'); });
+    }
+    return out.slice(0, limit);
+  }
+
+  /* Replace one movement with another, in place. Moving the id is the easy part and it is all that
+   * used to happen, which left two things behind:
+   *
+   * The movement it USED to be. `alts` lists what the author offered INSTEAD of the original, so
+   * once the original had been overwritten it was gone from its own list and the only route back was
+   * to remember its name and search for it. `baseExerciseId` is stamped on the first replacement and
+   * never restamped, so a row replaced three times still offers what the plan actually asked for
+   * rather than whatever it happened to be ten seconds ago.
+   *
+   * The coaching note. `planNote` is written about a specific movement - "use a 30 degree incline
+   * bench and lift the weight up and out in a Y shape" - and leaving it under a lateral raise is
+   * worse than having no note at all. It is put aside rather than thrown away, because going back to
+   * the plan's own movement should bring the plan's own words back with it.
+   *
+   * Returns true when something changed, so a caller never has to re-derive whether it did.
+   */
+  function replaceExercise(row, toId) {
+    if (!row || !toId || row.exerciseId === toId) return false;
+    /* Answering an open slot from a movement's own Replace list is the same act as answering it from
+     * the block screen's chips, and it has to read the same way: a question answered, not a movement
+     * stood in for. Without this, picking the front squat off "Squat (Your Choice)" announced
+     * "Front squat instead of Back squat" - naming a movement the plan never asked for - and took
+     * the sentence explaining the slot away with it. */
+    if (row.choice && (row.choice.options || []).indexOf(toId) !== -1) {
+      row.exerciseId = toId;
+      if (row.baseExerciseId) {
+        if (row.basePlanNote) row.planNote = row.basePlanNote;
+        delete row.basePlanNote;
+        delete row.baseExerciseId;
+      }
+      return true;
+    }
+    if (!row.baseExerciseId) {
+      row.baseExerciseId = row.exerciseId;
+      if (row.planNote) row.basePlanNote = row.planNote;
+    }
+    row.exerciseId = toId;
+    if (toId === row.baseExerciseId) {
+      if (row.basePlanNote) row.planNote = row.basePlanNote;
+      delete row.basePlanNote;
+      delete row.baseExerciseId;
+    } else if (row.planNote) {
+      delete row.planNote;
+    }
+    return true;
+  }
+
   // Given last week's prescription and what was actually done, what should next week say?
   // Returns { sets, repLow, repHigh, rir, weightKg, reason, action }.
   function progressExercise(prescription, performedSets, ex, opts) {
@@ -2755,8 +2938,9 @@
       var hit = false;
       (s.exercises || []).forEach(function (e) {
         if (e.exerciseId !== fromId) return;
-        e.exerciseId = toId;
-        hit = true;
+        // Through replaceExercise rather than by hand, so a movement changed across a whole block
+        // keeps the same way back, and drops the same stale note, as one changed for a single day.
+        if (replaceExercise(e, toId)) hit = true;
       });
       if (hit) n++;
     });
@@ -3286,7 +3470,13 @@
     ((block && block.sessions) || []).forEach(function (s) {
       (s.exercises || []).forEach(function (e) {
         if (!e.choice || e.choice.key !== key) return;
-        e.exerciseId = exerciseId;
+        // replaceExercise knows that answering a slot is not replacing anything, so this is the same
+        // rule rather than a second copy of it. A pick outside the listed options still counts as an
+        // answer here: this IS the slot's own control, whatever it has been pointed at.
+        if (e.exerciseId !== exerciseId) {
+          if ((e.choice.options || []).indexOf(exerciseId) !== -1) replaceExercise(e, exerciseId);
+          else { e.exerciseId = exerciseId; delete e.basePlanNote; delete e.baseExerciseId; }
+        }
         n++;
       });
     });
@@ -5335,6 +5525,7 @@
     sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn, rirDrift: rirDrift,
     rotationPlan: rotationPlan, applyRotation: applyRotation, rotationChain: rotationChain, familyHistory: familyHistory,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
+    replacementsFor: replacementsFor, replaceExercise: replaceExercise, sameJobFor: sameJobFor,
     VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
     baseOf: baseOf, variantsOf: variantsOf,
     sessionItems: sessionItems, moveExercise: moveExercise, toggleSuperset: toggleSuperset,

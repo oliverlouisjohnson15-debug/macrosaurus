@@ -9,7 +9,7 @@
 // person would actually read.
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { app, render, accountWith } = require('./helpers/app.js');
+const { app, render, mount, accountWith } = require('./helpers/app.js');
 
 const A = app();
 const T = A.Training;
@@ -130,6 +130,199 @@ test('a slot the plan left open is asked about before the block starts', () => {
   const r = render(A.BlockBuilder, { db, update() {}, showToast() {}, isPremium: true, blockId: block.id, onBack() {}, onStart() {} });
   assert.ok(r.has('Your call'), 'the open slot should be asked about: ' + r.text.slice(0, 200));
   assert.ok(/Hack squat/.test(r.text), 'with the options the plan listed');
+});
+
+// ---- replacing a movement -----------------------------------------------------------------------
+
+const picker = (offer, extra) => render(A.ExercisePicker, Object.assign({
+  db: accountWith(minmax()), update() {}, onPick() {}, onClose() {},
+  title: 'Replace movement', offer,
+}, extra || {}));
+
+test('replacing a movement leads with what the plan itself offers', () => {
+  // The whole point of the feature: this screen used to answer "what else could I do here" with a
+  // search box over two hundred movements, on a question the programme had already answered.
+  const offer = T.replacementsFor({
+    exerciseId: 'bb_incline', alts: ['smith_machine_incline_press', 'machine_incline', 'db_incline'],
+  }, {});
+  // basedOn as the real screens pass it, so the ordering assertions below are about the picker
+  // people actually meet rather than a reduced version of it.
+  const r = picker(offer, { basedOn: 'bb_incline' });
+  assert.ok(r.has('Replace with'), 'the list needs a name: ' + r.text.slice(0, 200));
+  assert.ok(/Smith machine incline press/.test(r.text), 'the Smith version');
+  assert.ok(/Incline machine press/.test(r.text), 'and the machine version');
+  // Above the muscle filters and the library below them, because a list you have to scroll to is a
+  // list somebody searches around instead.
+  assert.ok(r.text.indexOf('Replace with') < r.text.indexOf('Smith machine incline press'),
+    'the heading introduces the list rather than trailing it');
+  assert.ok(r.text.indexOf('Smith machine incline press') < r.text.indexOf('Make a variation'),
+    'and the plan\'s answer comes before the library\'s');
+});
+
+test('the app\'s own suggestions are not passed off as the plan\'s', () => {
+  // "Your coach wrote this down" and "this looks similar to us" are different claims. A screen that
+  // runs them into one list is quietly lying about which is which.
+  const r = picker(T.replacementsFor({ exerciseId: 'bb_incline', alts: ['db_incline'] }, { limit: 4 }));
+  assert.ok(r.has('Replace with'), 'the plan\'s one substitution');
+  assert.ok(/does the same job/.test(r.text), 'and the worked-out ones, under their own heading');
+});
+
+test('a replaced movement offers the way back, marked as the original', () => {
+  const row = { exerciseId: 'bb_incline', alts: ['smith_machine_incline_press', 'db_incline'] };
+  T.replaceExercise(row, 'smith_machine_incline_press');
+  const r = picker(T.replacementsFor(row, {}));
+  assert.ok(/Barbell incline press|Incline barbell press/i.test(r.text), 'what the plan asked for is back on the list');
+  assert.ok(r.has('As written'), 'and it is labelled as the plan\'s own, not as an alternative');
+});
+
+test('nothing is offered before a search when there is nothing written down', () => {
+  const r = picker(null);
+  assert.ok(!r.has('Replace with'), 'an empty heading over an empty list helps nobody');
+});
+
+test('the session screen names the gesture that changes a movement', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const r = render(A.SessionPreview, {
+    db, update() {}, showToast() {}, session: block.sessions[0], block, onBack() {}, onStart() {},
+  });
+  assert.ok(/Tap a movement to replace it/.test(r.text), 'a chevron never says how: ' + r.text.slice(-260));
+});
+
+// ---- tapping a movement and replacing it, end to end ----------------------------------------------
+// Everything above renders a screen once. These press the buttons, because the whole feature lives
+// behind two taps and passing the picker the wrong list is invisible until you take them.
+
+test('tapping a movement on the session screen offers the plan\'s replacements', () => {
+  const block = minmax();
+  const first = block.sessions[0].exercises[0];
+  first.alts = ['smith_machine_incline_press', 'machine_incline'];
+  const name = T.byId(first.exerciseId).name;
+  const db = accountWith(block);
+  const ui = mount(A.SessionPreview, {
+    db, update() {}, showToast() {}, session: block.sessions[0], block, onBack() {}, onStart() {},
+  });
+  try {
+    ui.click(name);
+    assert.ok(ui.has('Replace it'), 'the movement\'s options should offer it: ' + ui.text.slice(0, 300));
+    ui.click('Replace it');
+    assert.ok(ui.has('Replace with'), 'and the picker should open on the plan\'s own answer, not a search box');
+    assert.ok(ui.has('Smith machine incline press'), 'listing what the author wrote against this movement');
+    assert.ok(ui.has('Incline machine press'), 'all of it');
+  } finally { ui.unmount(); }
+});
+
+test('a replaced movement says what it is standing in for', () => {
+  // Otherwise a block you edited three weeks ago reads exactly like one you did not, and the
+  // movement the programme actually asked for is nowhere on the screen.
+  const block = minmax();
+  const row = block.sessions[0].exercises[0];
+  T.replaceExercise(row, 'machine_incline');
+  const db = accountWith(block);
+  const r = render(A.SessionPreview, {
+    db, update() {}, showToast() {}, session: block.sessions[0], block, onBack() {}, onStart() {},
+  });
+  assert.ok(/instead of Machine chest press/.test(r.text), 'the plan\'s own movement stays visible: ' + r.text.slice(0, 400));
+});
+
+test('a movement with nothing written against it still gets somewhere to go', () => {
+  // Most movements in a generated block carry no substitutions at all. Opening a bare search box on
+  // them would make the feature useless exactly where it is needed most.
+  const block = minmax();
+  const first = block.sessions[0].exercises[0];
+  delete first.alts; delete first.choice;
+  const db = accountWith(block);
+  const ui = mount(A.SessionPreview, {
+    db, update() {}, showToast() {}, session: block.sessions[0], block, onBack() {}, onStart() {},
+  });
+  try {
+    ui.click(T.byId(first.exerciseId).name).click('Replace it');
+    assert.ok(/does the same job/i.test(ui.text), 'worked out, and labelled as worked out: ' + ui.text.slice(0, 500));
+  } finally { ui.unmount(); }
+});
+
+test('a movement can be replaced before the block has started, in every week at once', () => {
+  // The screen the whole request was about: deciding what you are actually going to do before any
+  // of it has been done. There are no trained weeks to protect here, so it moves the lot.
+  const block = minmax();
+  block.sessions.forEach(s => { s.exercises[0].exerciseId = 'bb_incline'; s.exercises[0].alts = ['machine_incline']; });
+  const db = accountWith(block);
+  // accountWith dates the block from today; a block being planned has not started at all, and that
+  // is the difference this test is about.
+  block.startISO = null;
+  db.training.blocks = [block];
+  const ui = mount(A.BlockBuilder, {
+    db, update() {}, showToast() {}, isPremium: true, blockId: block.id, onBack() {}, onStart() {},
+  });
+  try {
+    ui.click(block.sessions[0].name);
+    assert.ok(ui.has('Tap a movement to replace it'), 'the gesture is named: ' + ui.text.slice(0, 300));
+    ui.click('Incline barbell press');
+    assert.ok(ui.has('Replace with'), 'the picker opens on the plan\'s answer');
+    ui.click('Incline machine press');
+    // The row in front of you, changed. Not a toast about it.
+    assert.ok(ui.has('Incline machine press'), 'the movement on screen is the new one: ' + ui.text.slice(0, 400));
+    // The old one survives on screen only in the line saying what this is standing in for, which is
+    // the point of that line: the plan's own movement never disappears without trace.
+    assert.ok(ui.has('instead of Incline barbell press'), 'with what it replaced still named');
+  } finally { ui.unmount(); }
+});
+
+test('ticking a set does not take the plan away from the movement', () => {
+  // Every row in the player is rebuilt from scratch on each edit, so anything not carried through
+  // is lost on the first tap. That quietly took a line's technique, its coaching note and the
+  // author's substitutions with it - and, once this feature existed, the way back to what the plan
+  // asked for as well.
+  const block = minmax();
+  const first = block.sessions[0].exercises[0];
+  first.alts = ['machine_incline'];
+  first.planNote = 'Pause for a second at the bottom.';
+  const db = accountWith(block);
+  const ui = mount(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: block.sessions[0].id, blockId: block.id, onExit() {},
+  });
+  try {
+    assert.ok(ui.has('Pause for a second at the bottom.'), 'the note is there to begin with: ' + ui.text.slice(0, 300));
+    ui.click('Add set');
+    assert.ok(ui.has('Pause for a second at the bottom.'), 'and it is still there after an edit');
+  } finally { ui.unmount(); }
+});
+
+test('replacing a movement in a running block leaves the trained weeks alone', () => {
+  // This editor opens on blocks already under way, and its own save button promises that changes
+  // apply to the weeks you have not trained yet. Week 1 is history by the time you are in week 3.
+  const block = minmax();
+  block.sessions.forEach(s => { s.exercises[0].exerciseId = 'bb_incline'; s.exercises[0].alts = ['machine_incline']; });
+  const db = accountWith(block);
+  // Two weeks in.
+  const start = new Date(Date.parse(A.Store.todayISO() + 'T00:00:00Z') - 14 * 86400000);
+  block.startISO = start.toISOString().slice(0, 10);
+  db.training.blocks = [block];
+  let saved = null;
+  const ui = mount(A.BlockBuilder, {
+    db, update(fn) { saved = fn; }, showToast() {}, isPremium: true, blockId: block.id, onBack() {}, onStart() {},
+  });
+  try {
+    // It opens on the week the block is actually on, so the rows you can still change are the rows
+    // in front of you. Opening on week 1 meant tapping a row that the edit could not touch.
+    assert.ok(ui.has('Week 3'), 'the screen opens on the week being trained: ' + ui.text.slice(0, 200));
+    ui.click(block.sessions.filter(s => s.week === 3)[0].name);
+    ui.click('Incline barbell press').click('Incline machine press');
+    assert.ok(ui.has('Incline machine press'), 'the week you are on changed: ' + ui.text.slice(0, 400));
+    // And the weeks behind it did not. Read off the component's own state by saving.
+    ui.click('Save changes');
+  } finally { ui.unmount(); }
+  assert.ok(saved, 'saving writes the edited block back');
+  const d = { training: { blocks: [block] } };
+  saved(d);
+  const out = d.training.blocks[0];
+  const idsIn = w => (out.sessions || []).filter(s => s.week === w)
+    .reduce((a, s) => a.concat((s.exercises || []).map(e => e.exerciseId)), []);
+  assert.ok(idsIn(1).includes('bb_incline'), 'week 1 was trained and must keep what was lifted');
+  assert.ok(idsIn(2).includes('bb_incline'), 'week 2 too');
+  assert.ok(!idsIn(3).includes('bb_incline'), 'week 3 is the week being trained and moves');
+  assert.ok(idsIn(3).includes('machine_incline'), 'to the movement that was picked');
+  assert.ok(idsIn(6).includes('machine_incline'), 'and so does every week after it');
 });
 
 test('a block that runs techniques says what it adds', () => {
