@@ -19659,10 +19659,16 @@ function App() {
     return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', ghRefresh); clearInterval(iv); };
   }, [session]);
 
-  // structuredClone, not JSON.parse(JSON.stringify()): accounts with large synced state (imported
-  // recipes carry inlined thumbnail images) can push this blob into the megabytes, and re-encoding
-  // every byte through a JSON string twice on every single save is real, avoidable work on that path.
-  function update(m) { setDb(prev => { const n = structuredClone(prev); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
+  // Writing to disk from inside a setDb callback is not safe, and it cost a weigh-in to find out.
+  // React may run an updater more than once, and it discards the result outright when a later
+  // render throws - and the write that lived inside the updater went with it, so a weight could be
+  // typed, toasted as saved, and simply not be there. The new state is built from the ref, handed
+  // to React, and only then written down, where a render that blows up afterwards cannot reach it.
+  function persist(n) { if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } }
+  // dbRef, not the setDb callback, is the source of the previous state, so two update() calls in one
+  // tick still compose: the second sees what the first just built rather than the last render's copy.
+  function commit(n) { n._rev = Date.now(); dbRef.current = n; setDb(n); persist(n); }
+  function update(m) { const prev = dbRef.current; if (!prev) return; const n = JSON.parse(JSON.stringify(prev)); m(n); commit(n); }
   // `opts.syncWeighIn` makes today's weigh-in agree with the weight just stated, creating it if there
   // isn't one. Only the fresh start passes it: that flow has already written a seed reading from the
   // scale, so if the wizard's weight is then edited the two would disagree, and the seed is what the
