@@ -519,3 +519,55 @@ test('a clean coverage week collapses to the three closest to a band edge', () =
   assert.ok(r.has('Nothing to fix'), 'a clean week should say so: ' + r.text.slice(0, 200));
   assert.ok(/All \d+ muscles/.test(r.text), 'and still offer the way to see everything');
 });
+
+// ---- Weekly shape ------------------------------------------------------------------------------
+
+// The day strip is a forecast of the week, and the difference between "forecast" and "seven days
+// each worked out on its own" is the whole bug it was written after: with an even shape, no big
+// days and nothing declared, the row still drew a steep taper - 2104, 2063, 2045, 2015, 1955, 1775 -
+// because each future day re-spread the SAME running surplus over one fewer day than the last. It
+// looked like a shape, on the screen whose only job is to show you the shape, and there was no
+// setting anywhere that would have produced it.
+function evenWeekAccount(overKcal) {
+  const db = A.Store.defaultState();
+  const today = A.Store.todayISO();
+  db.profile = {
+    sex: 'male', age: 32, heightCm: 178, weightKg: 84, bodyFatPct: 22,
+    activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced',
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+  };
+  db.targets = [{ id: 't1', effective_date: A.shiftISO(today, -30), kcal: 2135, protein_g: 170, carbs_g: 200, fat_g: 65 }];
+  db.last_checkin = A.shiftISO(today, -1);
+  // One complete day, eaten over: a real balance for the week to even out.
+  db.log_entries = [{ id: 'e1', date: A.shiftISO(today, -1), computed_macros: { kcal: 2135 + (overKcal || 186) } }];
+  return db;
+}
+const shapeStrip = (db) => {
+  const r = render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} });
+  return { r, kcals: (r.html.match(/tnum font-semibold">(\d+)</g) || []).map(m => +m.match(/(\d+)</)[1]) };
+};
+
+test('an even week with nothing declared draws an even row', () => {
+  const { r, kcals } = shapeStrip(evenWeekAccount());
+  assert.equal(kcals.length, 7, 'seven days should be drawn: ' + r.text.slice(0, 200));
+  // The last day falls after the next check-in, where the balance is settled and the target is plain
+  // again; the six before it are one week being evened out, so they are all the same number.
+  const week = kcals.slice(0, 6);
+  assert.equal(new Set(week).size, 1, 'the days left in the cycle should all read the same: ' + week.join(', '));
+  assert.ok(week[0] < 2135 && week[0] > 2135 - 60, 'and should be the target less the evening-out shift: ' + week[0]);
+});
+
+test('a row sitting under the target says why, so it is not read as a shape', () => {
+  const { r } = shapeStrip(evenWeekAccount());
+  assert.ok(/Nothing is shaping these days/.test(r.text), 'the row is unshaped and should say so: ' + r.text.slice(0, 400));
+  assert.ok(/186 kcal over/.test(r.text), 'and name the balance it is evening out: ' + r.text.slice(0, 400));
+});
+
+test('with evening out off, every day of an even week is the target itself', () => {
+  const db = evenWeekAccount();
+  db.profile.carryover = { enabled: false, mode: 'dispersed', capKcal: 400 };
+  const { kcals } = shapeStrip(db);
+  assert.deepEqual(new Set(kcals).size, 1, 'nothing is shaping anything: ' + kcals.join(', '));
+  assert.equal(kcals[0], 2135);
+});

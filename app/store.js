@@ -36,7 +36,14 @@
   // Profile-level defaults (profile is null in defaultState, so it needs its own
   // backfill map for deep-merge migration of nested settings).
   var PROFILE_DEFAULTS = {
-    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    // OFF unless you ask for it. Evening out is a real feature, but it is the only thing in the app
+    // that can move a day off the number you agreed at your check-in, and it was arriving switched
+    // on: you settle on 2,135, eat 186 over on the Monday, and every day for the rest of the week
+    // quietly reads 2,104 for a reason nothing on the Today screen mentions. Somebody who wants the
+    // week to balance itself can turn it on in Weekly shape; nobody should have to go looking for
+    // why their goal is not their goal. Existing profiles keep whatever they already have - this map
+    // only fills in what is missing (see deepDefaults).
+    carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, deltaPct }],
                             // ascending, effective_date null = since the beginning. A day is always
@@ -102,6 +109,18 @@
     // older resetAll copied it to, so it leaves each device the first time the app opens.
     delete s.aiKey;
     if (s.profile) delete s.profile.aiKey;
+    // Evening out arrives OFF now (see PROFILE_DEFAULTS), but it used to arrive ON, so every account
+    // set up before this is carrying a setting nobody chose. It is the only thing in the app that can
+    // put a number in front of you that is not the one your check-in agreed: one Monday eaten 186 kcal
+    // over and every day for the rest of the week reads 2,104 against a 2,135 target, with nothing on
+    // the Today screen saying why. Turned off once, on the next load, and stamped so it can never run
+    // twice - anyone who wants the week to balance itself turns it back on in Weekly shape, and the
+    // stamp is what makes that choice stick. Nothing already eaten moves: the ledger only ever shaped
+    // days still ahead.
+    if (s.profile && !s.profile.carryoverDefaultCleared) {
+      s.profile.carryoverDefaultCleared = true;
+      if (s.profile.carryover) s.profile.carryover.enabled = false;
+    }
     // Back-fill the high/low plan history for state saved before the plan was dated. With no
     // history there is nothing for a day to be read against but the plan as it stands NOW, so a
     // plan set today reshapes every day already eaten: exactly what the history exists to stop.

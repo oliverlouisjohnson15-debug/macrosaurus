@@ -32,6 +32,26 @@ test('migrate backfills the smoothed-expenditure field for old state shapes', ()
   assert.strictEqual(kept.expenditure.n, 4);
 });
 
+test('a new profile is not signed up to evening out', () => {
+  assert.strictEqual(Store.defaultState().profile, null);
+  const s = Store.migrate({ profile: { goalType: 'cut' } });
+  assert.strictEqual(s.profile.carryover.enabled, false,
+    'the number your check-in agreed is the number you get, unless you ask for something else');
+  assert.strictEqual(s.profile.carryover.mode, 'dispersed', 'the rest of the setting is still there to turn on');
+});
+
+test('an account carrying evening out it never asked for has it turned off once, and only once', () => {
+  // It used to arrive switched on, so "enabled" on an old profile is not evidence of a choice.
+  const s = Store.migrate({ profile: { goalType: 'cut', carryover: { enabled: true, mode: 'aggressive', capKcal: 300 } } });
+  assert.strictEqual(s.profile.carryover.enabled, false);
+  assert.strictEqual(s.profile.carryover.mode, 'aggressive', 'how they would want it made up is still remembered');
+  assert.strictEqual(s.profile.carryoverDefaultCleared, true, 'and it is stamped, so it cannot run again');
+  // Switched back on deliberately: the next load has to leave it exactly there.
+  s.profile.carryover.enabled = true;
+  const again = Store.migrate(s);
+  assert.strictEqual(again.profile.carryover.enabled, true, 'a real choice must survive every load after it');
+});
+
 test('migrate: a plan changed before the history existed does not reach back over earlier days', () => {
   // The live shape of the bug: a plan set today, no history, so every day since the start of
   // logging was being read against a shape that only came into force this morning.

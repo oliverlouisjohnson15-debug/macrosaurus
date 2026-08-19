@@ -4793,7 +4793,9 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
     // weighCadence stays null so the buddy asks it after hatch (progressive disclosure, not a form step).
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, theme: 'light',
+    // Both shape settings start off: the number you agree at the end of this wizard is the number
+    // you get, every day, until a check-in changes it. (See PROFILE_DEFAULTS in store.js.)
+    program_mode: 'collaborative', carryover: { enabled: false, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -15625,6 +15627,32 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           : '';
         return bill + rest;
       })();
+      // The row is a FORECAST of the week, not seven days each worked out on its own. effectiveTarget
+      // composes ONE day, and to do that it has to assume nothing is eaten between the last check-in
+      // and the day it is composing - fine for today, wrong for every day after it. A running
+      // surplus then sat frozen while the "days left" it is spread over shrank, so dispersed
+      // carryover paid the same 360 kcal back six times over: -60, -72, -90, -120, -180, -360 straight
+      // down the row. An even week with nothing switched on read as a steep taper nobody had asked
+      // for, and the shape controls above were the only thing on screen to blame. Walking the days
+      // forward (weekForecastTargets - the same helper the meal-plan week and the day view already
+      // use) assumes each day is eaten on its own target, so the balance is paid down as it really
+      // would be and an even week reads even.
+      const fc = weekForecastTargets(db, strip);
+      // Why an even row can still sit under the target, named rather than left to be worked out.
+      // Every day of a flat row carries the SAME evening-out shift, so seeing six days of 2,104
+      // against a 2,135 target reads as a shape somebody chose - which is exactly the thing this
+      // screen is for, and exactly what it is not.
+      const carryNote = (() => {
+        const t0 = fc[today];
+        if (!t0 || !t0.carry || !t0.carryDetail) return null;
+        const bal = Math.round(t0.carryDetail.balance || 0);
+        if (!bal) return null;
+        const flat = !stripWindow && !(cyc.enabled && cyc.highDays.length);
+        return (flat ? 'Nothing is shaping these days: they are your ' + base.kcal + ' kcal target with the week evened out on top. ' : '')
+          + 'You are ' + Math.abs(bal) + ' kcal ' + (bal < 0 ? 'over' : 'under') + ' so far this cycle, so every day left '
+          + (t0.carry < 0 ? 'comes down ' : 'goes up ') + Math.abs(Math.round(t0.carry))
+          + ' until your next check-in. Turn evening out off below and every day is your target.';
+      })();
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
@@ -15634,7 +15662,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             + new Date(shiftISO((settleEnd || stripWindow.end), 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + '.' : ''}
         </div>
         <div className="grid grid-cols-7 gap-1">{strip.map(iso => {
-          const on = isHigh(iso), away = awayOn(iso), t = effectiveTarget(db, iso);
+          const on = isHigh(iso), away = awayOn(iso), t = fc[iso];
           return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-0.5 text-center"
             style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
               boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined }}>
@@ -15646,6 +15674,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         })}</div>
         {/* Named, so the row stops being a set of numbers you have to reverse-engineer. */}
         {payNote && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--text2)' }}>{payNote}</div>}
+        {carryNote && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--text2)' }}>{carryNote}</div>}
         {/* The way back out. "I picked maintenance, so shouldn't it be even?" is the right instinct
             and there was no way to act on it: big days could be added a tap at a time and only
             removed the same way, so a shape somebody had not chosen on purpose - the model's read of
@@ -17345,7 +17374,7 @@ function demoState() {
     weight_unit: 'kg', height_unit: 'cm',
     theme: new URLSearchParams(window.location.search).has('dark') ? 'dark' : 'light',
     reminders: true, nudgeHour: 14,
-    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance',
     premiumSince: demoPremiumSince,
