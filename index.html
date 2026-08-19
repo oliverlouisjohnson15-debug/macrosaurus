@@ -2101,7 +2101,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   //                                                      day of the cycle, so the carryover ledger
   //                                                      scores a trip day against the target it
   //                                                      actually ran under. `base` already carries
-  //                                                      it for `date` itself.
+  //                                                      it for `date` itself. A NUMBER (0 included)
+  //                                                      means a window shapes that day, and the
+  //                                                      weekday rhythm does not; null means no
+  //                                                      window does and the rhythm stands.
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -2126,10 +2129,20 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // before it gets here and the ledger only ever reconstructed cycling. Eating exactly to a 2,655
     // travel target booked an 1,155 kcal "surplus", which dispersed carryover then clawed straight
     // back off the rest of the trip: the plan quietly took itself apart the moment it was followed.
+    // ONE shape per day, in the ledger exactly as on the day itself. A day inside a window (or one
+    // of the days settling it up) is composed with the weekday rhythm switched OFF - the window is
+    // the shape - so reconstructing that day as rhythm PLUS window invents a target it never ran
+    // under. A cut with a high Saturday, and a Saturday spent abroad, was scored against a bar
+    // carrying both bumps, and the phantom deficit that made was handed back over the days after
+    // the trip. Which is why this asks whether a window shapes the day at all rather than adding
+    // its number: `null` (or no function) means nothing does and the rhythm stands, and a NUMBER
+    // means a window does - zero included, because a window that bends nothing still displaces the
+    // rhythm.
     var windowDeltaOn = opts.windowDeltaOn || null;
     function planDelta(iso) {
-      return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor)
-        + (windowDeltaOn ? (+windowDeltaOn(iso) || 0) : 0);
+      var w = windowDeltaOn ? windowDeltaOn(iso) : null;
+      if (w != null) return +w || 0;
+      return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor);
     }
     // The day being composed already carries its window bend inside `base` (the caller applies it,
     // so the floor and the macro split see it), so only the LEDGER's past days need it added back.
@@ -2832,7 +2845,14 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Profile-level defaults (profile is null in defaultState, so it needs its own
   // backfill map for deep-merge migration of nested settings).
   var PROFILE_DEFAULTS = {
-    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    // OFF unless you ask for it. Evening out is a real feature, but it is the only thing in the app
+    // that can move a day off the number you agreed at your check-in, and it was arriving switched
+    // on: you settle on 2,135, eat 186 over on the Monday, and every day for the rest of the week
+    // quietly reads 2,104 for a reason nothing on the Today screen mentions. Somebody who wants the
+    // week to balance itself can turn it on in Weekly shape; nobody should have to go looking for
+    // why their goal is not their goal. Existing profiles keep whatever they already have - this map
+    // only fills in what is missing (see deepDefaults).
+    carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, deltaPct }],
                             // ascending, effective_date null = since the beginning. A day is always
@@ -2898,6 +2918,18 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // older resetAll copied it to, so it leaves each device the first time the app opens.
     delete s.aiKey;
     if (s.profile) delete s.profile.aiKey;
+    // Evening out arrives OFF now (see PROFILE_DEFAULTS), but it used to arrive ON, so every account
+    // set up before this is carrying a setting nobody chose. It is the only thing in the app that can
+    // put a number in front of you that is not the one your check-in agreed: one Monday eaten 186 kcal
+    // over and every day for the rest of the week reads 2,104 against a 2,135 target, with nothing on
+    // the Today screen saying why. Turned off once, on the next load, and stamped so it can never run
+    // twice - anyone who wants the week to balance itself turns it back on in Weekly shape, and the
+    // stamp is what makes that choice stick. Nothing already eaten moves: the ledger only ever shaped
+    // days still ahead.
+    if (s.profile && !s.profile.carryoverDefaultCleared) {
+      s.profile.carryoverDefaultCleared = true;
+      if (s.profile.carryover) s.profile.carryover.enabled = false;
+    }
     // Back-fill the high/low plan history for state saved before the plan was dated. With no
     // history there is nothing for a day to be read against but the plan as it stands NOW, so a
     // plan set today reshapes every day already eaten: exactly what the history exists to stop.
@@ -2961,7 +2993,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // eaten under the rate it actually had, and restating those is what the rest of this file exists
     // to prevent: the carryover ledger reconstructs a past day from the plan as it stands, so moving
     // the rate under it would read those days as surpluses and claw the difference back off the days
-    // that are left. Those are corrected by hand, from the rate control on What's coming up.
+    // that are left. A running window's rate is fixed on What's coming up for the same reason, so the
+    // way to correct one is to end it there ("I'm back", which keeps every day already run) and
+    // declare a new one for what is left.
     var planToday = todayISO();
     (s.week_plans || []).forEach(function (w) {
       if (!w || !w.start || w.start <= planToday) return;
@@ -15650,6 +15684,12 @@ function plannedKcalOn(db, dISO) {
   const t = E.targetOn(db.targets, dISO) || currentTargets(db);
   if (!t) return 0;
   const p = db.profile || {};
+  // ...and the plan shaping it is the one that was actually shaping it: ONE shape per day, the same
+  // rule effectiveTarget composes by. This used to add the weekday rhythm and nothing else, so a day
+  // away was judged against the bar it would have had at home - 1,300 kcal on a day the app had set
+  // to 2,275 counted as a full day's honest log, because it cleared 60% of 2,000.
+  const sh = shapingPlanOn(db, dISO);
+  if (sh.plan) return t.kcal + E.planDayDelta(sh.plan, p, dISO, t.kcal, E.kcalFloor(p), sh.settleEnd);
   return t.kcal + E.cyclingDeltaOn(p.cycling, p.cyclingHistory, dISO, t.kcal, E.kcalFloor(p));
 }
 // The plan history as it would read after saving `next` today, with the rebalance that change owes
@@ -16139,7 +16179,9 @@ function effectiveTarget(db, date) {
   // straddle the start or the end of a trip.
   const windowDeltaOn = iso => {
     const s = shapingPlanOn(db, iso);
-    return s.plan ? E.planDayDelta(s.plan, p, iso, (E.targetOn(db.targets, iso) || unbent).kcal, E.kcalFloor(p), s.settleEnd) : 0;
+    // null, not 0: 0 is a window that bends nothing, which still switches the rhythm off for that
+    // day, and the two must not read the same (see composeDayTarget.planDelta).
+    return s.plan ? E.planDayDelta(s.plan, p, iso, (E.targetOn(db.targets, iso) || unbent).kcal, E.kcalFloor(p), s.settleEnd) : null;
   };
   return E.composeDayTarget({
     base,
@@ -19072,9 +19114,11 @@ function Wizard({
     dietStyle: 'balanced',
     proteinGPerKgLBM: 2.4,
     proteinManualG: '',
+    // Both shape settings start off: the number you agree at the end of this wizard is the number
+    // you get, every day, until a check-in changes it. (See PROFILE_DEFAULTS in store.js.)
     program_mode: 'collaborative',
     carryover: {
-      enabled: true,
+      enabled: false,
       mode: 'dispersed',
       capKcal: 400
     },
@@ -19922,7 +19966,7 @@ function WeekAheadFlow({
   // its keep if the answer changes something, and this is the change: their last honest answer
   // seeds the suggestion rather than our default.
   const lastOfKind = (db.week_plans || []).filter(w => w && w.kind === kind && w.outcome).slice(-1)[0] || null;
-  const suggested = lastOfKind ? lastOfKind.outcome === 'off_plan' ? 0 : lastOfKind.outcome === 'roughly' ? Math.round(Math.abs(p.rateKgPerWeek || 0.5) * 50) / 100 : lastOfKind.acceptRateKgPerWeek : null;
+  const suggested = lastOfKind ? lastOfKind.outcome === 'off_plan' ? 0 : lastOfKind.outcome === 'roughly' ? Math.round(Math.abs(p.rateKgPerWeek || 0.5) * 50) / 100 : E.planRate(lastOfKind, p) : null;
   // `hold` is what they ANSWERED, not what the preset guessed. planRate reads hold before it reads
   // the rate, so carrying the preset's default onto the saved plan threw the answer away: picking
   // "Training block" (hold: true by default) and then "full 0.9 kg, no change" wrote both, and the
@@ -20221,7 +20265,13 @@ function WeekAheadFlow({
   }), bail);
 
   // 6. What it comes to, before committing.
-  const dayKcal = iso => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
+  // Priced the way the app will actually price it, settle span included. Left off, the preview
+  // spread every big day over the days AWAY alone, while the saved window spreads it as far as the
+  // weigh-in - so the screen headed "what it comes to" quoted 2,025 for the ordinary days of a trip
+  // the app then ran at 2,086, always harsher than the real thing, on the last screen before you
+  // commit to it.
+  const draftSettleEnd = draft ? settleEndFor(db, draft) : null;
+  const dayKcal = iso => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p), draftSettleEnd)) : null;
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(Bubble, {
@@ -20317,6 +20367,10 @@ function WeekPlanBanner({
   const ctx = E.weekPlanContext(db.week_plans, today);
   const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
+  // Through Engine.planRate, like everywhere else. Read straight off the field, this said "Aiming at
+  // 0.5 kg a week" over a window `hold` was running at maintenance, and "Aiming at null kg a week"
+  // over one saved without a rate at all.
+  const planRate = E.planRate(pl, db.profile);
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3.5 mb-4",
@@ -20341,7 +20395,7 @@ function WeekPlanBanner({
     }
   }, "Your diet break is running, so you're at maintenance and this is on hold underneath it."), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 leading-snug"
-  }, ctx.active ? pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.' : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.' : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.'))), ctx.active && /*#__PURE__*/React.createElement("button", {
+  }, ctx.active ? planRate === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + planRate + ' kg a week while this runs, as agreed.' : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.' : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.'))), ctx.active && /*#__PURE__*/React.createElement("button", {
     onClick: () => setHomeAsk(true),
     className: "hit mt-2.5 pf text-[9px] uppercase py-2 pr-2",
     style: {
@@ -40955,13 +41009,14 @@ function WeekPlansScreen({
   const plans = (db.week_plans || []).slice().sort((a, b) => a.start < b.start ? 1 : -1);
   const upcoming = plans.filter(w => w.end >= today);
   const past = plans.filter(w => w.end < today).slice(0, 5);
-  const cancel = w => {
-    update(d => {
-      tombstone(d, [w.id]);
-      d.week_plans = (d.week_plans || []).filter(x => x.id !== w.id);
-    });
-    showToast && showToast('Cancelled ' + w.label);
-  };
+  // Cancelling a window that has RUN is not a delete. Those days were really spent away: they were
+  // eaten against eased targets, and wiping the window re-scores them against the plain one, so
+  // three days followed exactly booked an 825 kcal surplus the ledger then took back off the days
+  // ahead - under a dialog promising that nothing already logged would change. A window that has not
+  // run a day has no such days, so that one really is a delete. Which of the two it is is
+  // Engine.planHomeEarly's call, and this shares the one writer with "I'm back", so a window cannot
+  // be ended two different ways from two buttons on the same card.
+  const cancel = w => endWindowEarly(update, showToast, w, today);
   const OUTCOME = {
     went_well: 'Went well',
     roughly: 'Roughly stuck to it',
@@ -40973,8 +41028,18 @@ function WeekPlansScreen({
   // (see parseFree, which used to skip the confirmation step) was stuck. Shortening one drops the big
   // days that fall outside it, since a big day nobody is away for is not a big day.
   const setDates = (w, patch) => {
-    const start = patch.start || w.start;
+    // Once a window is running its START is fixed, for exactly the reason its rate is: the days
+    // behind it were eaten against the targets it set, and moving it re-scores them. Nudging "From"
+    // on a running trip forward by one day took today from 2,275 to 2,220, and kept going. Ending it
+    // early is a real thing to want and has its own safe door ("I'm back"), which keeps every day
+    // already away; what it will not do is reach back over them.
+    const started = w.start <= today;
+    const start = started ? w.start : patch.start || w.start;
     let end = patch.end || w.end;
+    if (started && end < today) {
+      showToast && showToast('Use "I\'m back" to end it today, so the days you were away keep their numbers');
+      return;
+    }
     if (end < start) end = start;
     // Never let an edit swallow another window; the create flow refuses an overlap for the same
     // reason, and says so rather than just snapping the field back at you.
@@ -41023,66 +41088,74 @@ function WeekPlansScreen({
     onDone: () => setAdding(false)
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, upcoming.length ? /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5 mb-4"
-  }, upcoming.map(w => /*#__PURE__*/React.createElement("div", {
-    key: w.id,
-    className: "pixel-box p-3.5",
-    style: {
-      background: 'var(--card)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-start justify-between gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-semibold"
-  }, w.label), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11.5px] text-[#8A8A90] mt-0.5"
-  }, fmtRange(w.start, w.end), " · ", datesBetween(w.start, w.end).length, " days"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11.5px] mt-1",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week')), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setConfirmDel(w),
-    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
-    title: "Cancel"
-  }, "×")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2 mt-2.5"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "From"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    className: inputCls,
-    value: w.start,
-    onChange: e => setDates(w, {
-      start: e.target.value
-    })
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "To"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    className: inputCls,
-    value: w.end,
-    min: w.start,
-    onChange: e => setDates(w, {
-      end: e.target.value
-    })
-  }))), w.start > today ? /*#__PURE__*/React.createElement(Field, {
-    label: "Aiming at"
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    value: String(w.acceptRateKgPerWeek),
-    onChange: v => setRate(w, +v),
-    options: acceptOptions(p, null).map(o => ({
-      v: String(o.v),
-      l: o.l
-    }))
-  })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
-  }, "This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change."), /*#__PURE__*/React.createElement(Btn, {
-    kind: "ghost",
-    className: "w-full mt-2.5",
-    onClick: () => setConfirmHome(w)
-  }, "I'm back"))))) : /*#__PURE__*/React.createElement("div", {
+  }, upcoming.map(w => {
+    const started = w.start <= today,
+      rate = E.planRate(w, p);
+    return /*#__PURE__*/React.createElement("div", {
+      key: w.id,
+      className: "pixel-box p-3.5",
+      style: {
+        background: 'var(--card)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-semibold"
+    }, w.label), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11.5px] text-[#8A8A90] mt-0.5"
+    }, fmtRange(w.start, w.end), " · ", datesBetween(w.start, w.end).length, " days"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11.5px] mt-1",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, rate === 0 ? 'Holding steady' : 'Aiming at ' + rate + ' kg a week')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setConfirmDel(w),
+      className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
+      title: "Cancel"
+    }, "×")), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-2 mt-2.5"
+    }, /*#__PURE__*/React.createElement(Field, {
+      label: "From"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      className: inputCls,
+      value: w.start,
+      disabled: started,
+      style: started ? {
+        opacity: 0.55
+      } : null,
+      onChange: e => setDates(w, {
+        start: e.target.value
+      })
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "To"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      className: inputCls,
+      value: w.end,
+      min: started ? today : w.start,
+      onChange: e => setDates(w, {
+        end: e.target.value
+      })
+    }))), !started ? /*#__PURE__*/React.createElement(Field, {
+      label: "Aiming at"
+    }, /*#__PURE__*/React.createElement(Dropdown, {
+      value: String(w.acceptRateKgPerWeek),
+      onChange: v => setRate(w, +v),
+      options: acceptOptions(p, null).map(o => ({
+        v: String(o.v),
+        l: o.l
+      }))
+    })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
+    }, "This one is running, so its start and its rate are fixed now: the days you have already eaten keep what they ran under. You can still push the end date back if you're staying longer. If it needs to change more than that, end it here and declare a new one."), /*#__PURE__*/React.createElement(Btn, {
+      kind: "ghost",
+      className: "w-full mt-2.5",
+      onClick: () => setConfirmHome(w)
+    }, "I'm back")));
+  })) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Nothing coming up. Your plan runs as normal."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -41104,13 +41177,17 @@ function WeekPlansScreen({
     className: "text-[#8A8A90]"
   }, "· ", fmtRange(w.start, w.end))), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
-  }, OUTCOME[w.outcome] || 'not reviewed')))))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
-    title: 'Cancel ' + confirmDel.label + '?',
-    body: "Your normal targets come back for those days. Nothing you have already logged changes.",
-    confirmLabel: "Cancel it",
-    onConfirm: () => cancel(confirmDel),
-    onClose: () => setConfirmDel(null)
-  }), confirmHome && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, OUTCOME[w.outcome] || 'not reviewed')))))), confirmDel && (() => {
+    const gone = confirmDel.start >= today;
+    return /*#__PURE__*/React.createElement(ConfirmDialog, {
+      title: (gone ? 'Cancel ' : 'End ') + confirmDel.label + '?',
+      body: gone ? 'It has not run a day yet, so there is nothing to keep: your normal targets stand for those dates.' : endWindowBody(confirmDel, today),
+      confirmLabel: gone ? 'Cancel it' : 'End it today',
+      confirmKind: gone ? undefined : 'accent',
+      onConfirm: () => cancel(confirmDel),
+      onClose: () => setConfirmDel(null)
+    });
+  })(), confirmHome && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Back from ' + confirmHome.label.toLowerCase() + '?',
     body: endWindowBody(confirmHome, today),
     confirmLabel: "I'm back",
@@ -41202,6 +41279,12 @@ function WeeklyShapeScreen({
   // number twice. The days that come back down are the settling days themselves, which are already
   // in the row; the two after them are just the target, unshaped, said again. Capped at a fortnight
   // so a month away is two readable rows rather than five.
+  // ...and whether it is actually SHAPING TODAY, which is not the same question. A trip three days
+  // out belongs in the row - those are its days and its numbers - but the days before it are still
+  // the weekday rhythm's, so a screen that greys the rhythm out, says it is "not in force while
+  // you're away" and calls you away in the present tense is describing the wrong week to somebody
+  // sitting at home.
+  const windowLive = !!stripWindow && stripWindow.start <= today;
   const settleEnd = stripWindow ? settleEndFor(db, stripWindow) : null;
   const stripEnd = stripWindow ? [settleEnd || stripWindow.end, shiftISO(today, 13)].sort()[0] : shiftISO(today, 6);
   const strip = [];
@@ -41263,14 +41346,14 @@ function WeeklyShapeScreen({
   }, /*#__PURE__*/React.createElement(SavedFlash, {
     tick: tick
   }), /*#__PURE__*/React.createElement(SubHead, null, "Shape your week"), /*#__PURE__*/React.createElement("div", {
-    className: `grid grid-cols-2 gap-2${stripWindow ? ' opacity-50' : ''}`
+    className: `grid grid-cols-2 gap-2${windowLive ? ' opacity-50' : ''}`
   }, PLAN_PRESETS.map(pr => /*#__PURE__*/React.createElement("button", {
     key: pr.id,
     onClick: () => pickPreset(pr.id),
     className: `pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`
   }, pr.label))), stripWindow && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
-  }, "Not in force while you're away: your trip is the shape until ", fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1)), ". This is the rhythm you come back to."), base && (() => {
+  }, windowLive ? /*#__PURE__*/React.createElement(React.Fragment, null, "Not in force while you're away: your trip is the shape until ", fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1)), ". This is the rhythm you come back to.") : /*#__PURE__*/React.createElement(React.Fragment, null, "In force until ", fmtShortDay(stripWindow.start), ", when your trip takes over as the shape until ", fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1)), ".")), base && (() => {
     const dow = iso => new Date(iso + 'T00:00:00').getDay();
     // A settling day belongs to the trip's shape as much as a day away does: it is one of the days
     // paying for the big ones, so it toggles and reads against the window, not the weekday rhythm.
@@ -41346,18 +41429,41 @@ function WeeklyShapeScreen({
       const rest = idle.length ? ' ' + listOf(idle.map(name)) + (idle.length === 1 ? ' is' : ' are') + ' on your usual ' + base.kcal + ' kcal, the lowest I will take you, so ' + (idle.length === 1 ? 'it has' : 'they have') + ' nothing spare to give.' : '';
       return bill + rest;
     })();
+    // The row is a FORECAST of the week, not seven days each worked out on its own. effectiveTarget
+    // composes ONE day, and to do that it has to assume nothing is eaten between the last check-in
+    // and the day it is composing - fine for today, wrong for every day after it. A running
+    // surplus then sat frozen while the "days left" it is spread over shrank, so dispersed
+    // carryover paid the same 360 kcal back six times over: -60, -72, -90, -120, -180, -360 straight
+    // down the row. An even week with nothing switched on read as a steep taper nobody had asked
+    // for, and the shape controls above were the only thing on screen to blame. Walking the days
+    // forward (weekForecastTargets - the same helper the meal-plan week and the day view already
+    // use) assumes each day is eaten on its own target, so the balance is paid down as it really
+    // would be and an even week reads even.
+    const fc = weekForecastTargets(db, strip);
+    // Why an even row can still sit under the target, named rather than left to be worked out.
+    // Every day of a flat row carries the SAME evening-out shift, so seeing six days of 2,104
+    // against a 2,135 target reads as a shape somebody chose - which is exactly the thing this
+    // screen is for, and exactly what it is not.
+    const carryNote = (() => {
+      const t0 = fc[today];
+      if (!t0 || !t0.carry || !t0.carryDetail) return null;
+      const bal = Math.round(t0.carryDetail.balance || 0);
+      if (!bal) return null;
+      const flat = !stripWindow && !(cyc.enabled && cyc.highDays.length);
+      return (flat ? 'Nothing is shaping these days: they are your ' + base.kcal + ' kcal target with the week evened out on top. ' : '') + 'You are ' + Math.abs(bal) + ' kcal ' + (bal < 0 ? 'over' : 'under') + ' so far this cycle, so every day left ' + (t0.carry < 0 ? 'comes down ' : 'goes up ') + Math.abs(Math.round(t0.carry)) + ' until your next check-in. Turn evening out off below and every day is your target.';
+    })();
     return /*#__PURE__*/React.createElement("div", {
       className: "mt-3"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] mb-2 leading-snug"
-    }, "Tap a day to make it a big one. The rest come down to keep the total the same.", stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week') + ', and the bill for any big day can be spread as far as your weigh-in on ' + new Date(shiftISO(settleEnd || stripWindow.end, 1) + 'T00:00:00').toLocaleDateString('en-GB', {
+    }, "Tap a day to make it a big one. The rest come down to keep the total the same.", stripWindow ? (windowLive ? ' You\'re ' : ' You\'ll be ') + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week') + ', and the bill for any big day can be spread as far as your weigh-in on ' + new Date(shiftISO(settleEnd || stripWindow.end, 1) + 'T00:00:00').toLocaleDateString('en-GB', {
       weekday: 'long'
     }) + '.' : ''), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-7 gap-1"
     }, strip.map(iso => {
       const on = isHigh(iso),
         away = awayOn(iso),
-        t = effectiveTarget(db, iso);
+        t = fc[iso];
       return /*#__PURE__*/React.createElement("button", {
         key: iso,
         onClick: () => toggle(iso),
@@ -41378,7 +41484,12 @@ function WeeklyShapeScreen({
       style: {
         color: 'var(--text2)'
       }
-    }, payNote), stripWindow && (stripWindow.highDays || []).some(d => d >= today) && (() => {
+    }, payNote), carryNote && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] mt-2 leading-snug",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, carryNote), stripWindow && (stripWindow.highDays || []).some(d => d >= today) && (() => {
       // A big day already eaten stays a big day: it really was eaten, and the days after it are
       // genuinely covering it, so dropping it would hand back calories the week never had. Only
       // the days still ahead are cleared, and the label says which of the two this is.
@@ -41392,10 +41503,10 @@ function WeeklyShapeScreen({
           color: 'var(--accent-ink)'
         }
       }, kept.length ? 'Even out the days still ahead ›' : 'Even it out: no big days, every day of the trip the same ›');
-    })(), /*#__PURE__*/React.createElement("div", {
+    })(), strip.some(isHigh) && /*#__PURE__*/React.createElement("div", {
       className: "mt-3"
     }, /*#__PURE__*/React.createElement(Field, {
-      label: `${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`
+      label: `${stripWindow ? windowLive ? 'Big-day boost while you\'re away' : 'Big-day boost on your trip' : 'High-day boost'}: +${boostPct}%`
     }, /*#__PURE__*/React.createElement("input", {
       type: "range",
       min: "5",
@@ -41410,7 +41521,7 @@ function WeeklyShapeScreen({
       }
     }, "Landing at +", capPct, "%: that is everything the other days have left to give before they hit the floor. Drop a big day, or spread them out, to buy more.")), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] leading-snug"
-    }, stripWindow ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.' : 'The next seven days, as they actually stand.', " Days you've already eaten keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '', stripWindow ? /*#__PURE__*/React.createElement(React.Fragment, null, " ", /*#__PURE__*/React.createElement("button", {
+    }, windowLive ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.' : stripWindow ? 'The days before it run on your normal rhythm; from ' + fmtShortDay(stripWindow.start) + ' the trip is the shape, through to the days that settle it up. A big day in it is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.' : 'The next seven days, as they actually stand.', " Days you've already eaten keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '', stripWindow ? /*#__PURE__*/React.createElement(React.Fragment, null, " ", /*#__PURE__*/React.createElement("button", {
       onClick: () => onOpen && onOpen('weekplans'),
       style: {
         color: 'var(--accent-ink)'
@@ -45750,7 +45861,7 @@ function demoState() {
     reminders: true,
     nudgeHour: 14,
     carryover: {
-      enabled: true,
+      enabled: false,
       mode: 'dispersed',
       capKcal: 400
     },
