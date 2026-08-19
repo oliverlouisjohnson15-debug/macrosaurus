@@ -66,6 +66,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         if (!e) e = planned.filter(x => x.exerciseId === g.exerciseId && !used[x.id])[0];
         if (e) used[e.id] = 1;
         const saved = (existing.itemTargets || {})[g.itemId] || null;
+        // Did this line get swapped after the session started? The plan row and the log disagree
+        // about the movement exactly when it did.
+        const same = !!e && e.exerciseId === g.exerciseId;
         return {
           id: (e && e.id) || g.itemId || null,
           exerciseId: g.exerciseId,
@@ -75,6 +78,22 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           target: (e && e.target) || saved,
           sets: g.sets, note: null,
           superset: (e && e.supersetGroup) || null,
+          // Everything the plan knows about this line, carried through the resume. Without it a
+          // session picked up halfway offered no substitutions, no way back to the movement the plan
+          // asked for, and no technique on the last set - on the sessions somebody is most likely to
+          // be standing in a gym looking at.
+          // Only when the plan row and the logged row are the same MOVEMENT. They part company the
+          // moment somebody swaps one just for the day: the log remembers what was actually lifted
+          // and the plan still says what was written, and pinning one's substitutions and coaching
+          // note onto the other would attribute an author's words to a movement they never chose.
+          // The technique is the exception, because it belongs to the slot rather than to whatever
+          // is filling it - a line written to finish with a drop set still does.
+          alts: same ? (e.alts || null) : null, choice: same ? (e.choice || null) : null,
+          planNote: same ? (e.planNote || null) : null,
+          technique: (e && e.technique) || null,
+          warmups: e && e.warmups != null ? e.warmups : null,
+          baseExerciseId: same ? (e.baseExerciseId || null) : (e ? e.exerciseId : null),
+          basePlanNote: same ? (e.basePlanNote || null) : (e && e.planNote) || null,
         };
       });
     }
@@ -83,6 +102,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
       return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
         choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
+        // What the plan asked for before anybody replaced it, so the picker can offer the way back
+        // from inside the gym as well as from the plan.
+        baseExerciseId: e.baseExerciseId || null, basePlanNote: e.basePlanNote || null,
         warmups: e.warmups == null ? null : e.warmups, superset: e.supersetGroup || null };
     });
   });
@@ -185,9 +207,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   }
   function mutate(fn) {
     setItems(prev => {
-      // id travels with the item: it is what ties a logged set back to its line in the plan, and it
-      // is rebuilt from scratch here on every edit, so leaving it out loses it on the first tap.
-      const next = prev.map(it => ({ id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note, superset: it.superset, sets: it.sets.map(s => Object.assign({}, s)) }));
+      // Every row is rebuilt from scratch here on every edit, so anything not named is lost on the
+      // first tap - which is why `id` is spelled out: it is what ties a logged set back to its line
+      // in the plan. Everything the PLAN says about a line has to survive the same way. It did not,
+      // so ticking a single set quietly took away that line's intensity technique, its coaching
+      // note, the substitutions its author wrote against it, and any record of what it was before
+      // somebody replaced it. None of that is a property of the sets, and none of it should have
+      // depended on whether you had touched them yet.
+      const next = prev.map(it => ({
+        id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note,
+        superset: it.superset, sets: it.sets.map(s => Object.assign({}, s)),
+        alts: it.alts || null, choice: it.choice || null, technique: it.technique || null,
+        planNote: it.planNote || null, warmups: it.warmups == null ? null : it.warmups,
+        swap: it.swap || null,
+        baseExerciseId: it.baseExerciseId || null, basePlanNote: it.basePlanNote || null,
+      }));
       fn(next);
       persist(next);
       return next;
@@ -314,13 +348,32 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     mutate(n => { n.splice(ii, 1); });
     setFocus(f => Math.max(0, Math.min(f, items.length - 2)));
   }
+  /* One movement becoming another, as a row. Every route that replaces something mid-session builds
+     the new row through here, because the row is REBUILT rather than edited - fresh prefilled sets,
+     a fresh coach note - and each rebuild used to quietly drop the three fields that make a
+     replacement reversible: the author's substitution list, the open slot it belongs to, and which
+     movement the plan originally asked for. Losing those meant the picker you had just used could
+     not offer you the way back. */
+  function replacedRow(old, exId) {
+    const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: (old.sets || []).length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
+    const row = {
+      id: old.id || ('swap_' + trainUid()), exerciseId: old.exerciseId, target: old.target,
+      sets: pre.sets, note: coachNote(pre), superset: old.superset,
+      alts: old.alts || null, choice: old.choice || null,
+      // The technique and the warm-ups belong to the SLOT rather than to whatever is filling it: a
+      // block built to finish this line with a drop set still finishes it with a drop set when the
+      // machine is busy and you are on the dumbbells instead.
+      technique: old.technique || null, warmups: old.warmups == null ? null : old.warmups,
+      baseExerciseId: old.baseExerciseId, planNote: old.planNote, basePlanNote: old.basePlanNote,
+    };
+    // Training owns what a replacement MEANS - what the way back is, and which note stops being
+    // true - exactly as it does for a replacement made on the plan rather than in the gym.
+    Training.replaceExercise(row, exId);
+    return row;
+  }
   function swapExercise(ii, exId) {
     const wasId = items[ii] && items[ii].exerciseId;
-    mutate(n => {
-      const old = n[ii];
-      const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: old.sets.length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
-      n[ii] = { id: old.id || ('swap_' + trainUid()), exerciseId: exId, target: old.target, sets: pre.sets, note: coachNote(pre), superset: old.superset };
-    });
+    mutate(n => { n[ii] = replacedRow(n[ii], exId); });
     // Today is changed. Whether the BLOCK should change is a different question, and only the person
     // knows the answer: a machine being busy is today, a grip that suits you better is the rest of
     // the block. Asked only when there is something to ask about, which is when the movement we just
@@ -541,8 +594,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   if (!u.alt) return;
                   const old2 = n[u.index];
                   if (!old2) return;
-                  const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 2, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
-                  n[u.index] = { id: old2.id || ('swap_' + trainUid()), exerciseId: u.alt, target: old2.target, sets: pre.sets, note: coachNote(pre), superset: old2.superset };
+                  n[u.index] = replacedRow(old2, u.alt);
                 });
               });
               showToast && showToast('Swapped for what is here.');
@@ -974,7 +1026,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         <ActionSheet kicker="Movement" title={(Training.byId(items[menuOpen].exerciseId, t.custom) || {}).name || 'This movement'}
           onClose={() => setMenuOpen(null)}
           actions={[
-            { label: 'Swap for something else', sub: 'Keeps your sets and reps', onClick: () => setSwapping(menuOpen) },
+            { label: 'Replace it', sub: 'Something else that does the same job, keeping your sets and reps', onClick: () => setSwapping(menuOpen) },
             // The prescription was readable on this screen and editable only back in the builder, so
             // "three sets is plenty today" meant leaving the session to change it. It is the most
             // common on-the-day edit there is and it belongs where the work is happening.
@@ -1058,21 +1110,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {pastFor && <PastSets db={db} exerciseId={pastFor} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
       {swapping != null && (
-        <ExercisePicker db={db} update={update} title="Swap movement"
+        <ExercisePicker db={db} update={update} title="Replace movement"
           basedOn={items[swapping] && items[swapping].exerciseId}
-          offer={(() => {
-            const it = items[swapping] || {};
-            const own = (it.choice && it.choice.options) || it.alts || [];
-            if (own.length) return own.filter(id => id !== it.exerciseId);
-            // Nothing written against this movement, so work out what does its job instead: same
-            // muscle, same shape of movement, and on min-max something you can still fail safely.
-            return Training.substituteFor(it.exerciseId, {
-              style: block && block.style, custom: t.custom,
-              equipment: gym ? Training.gymEquipment(gym).equipment : t.prefs.equipment,
-              dislikes: t.prefs.dislikes,
-              currentExerciseIds: items.map(x => x.exerciseId),
-            }).map(x => x.id);
-          })()}
+          offer={Training.replacementsFor(items[swapping] || {}, {
+            style: block && block.style, custom: t.custom,
+            equipment: gym ? Training.gymEquipment(gym).equipment : t.prefs.equipment,
+            dislikes: t.prefs.dislikes,
+            currentExerciseIds: items.map(x => x.exerciseId),
+          })}
           onPick={(id) => { swapExercise(swapping, id); setSwapping(null); }}
           onClose={() => setSwapping(null)} />
       )}
@@ -1081,7 +1126,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {swapScope && (() => {
         const from = Training.byId(swapScope.from, t.custom), to = Training.byId(swapScope.to, t.custom);
         return (
-          <ActionSheet kicker="Swap" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+          <ActionSheet kicker="Replace" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
               { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
@@ -1456,29 +1501,61 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-6">
-        {/* What the plan itself says to use instead. A written programme lists a substitution or two
-            against each movement, and those are a better answer than anything a search can rank:
-            the author picked them for this slot. Only shown before you start searching, because once
-            you are typing you have something else in mind. */}
-        {!q && (offer || []).length > 0 && (
-          <div className="mb-3">
-            <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>What the plan suggests</div>
-            {(offer || []).map(id => {
-              const ex = Training.byId(id, t.custom);
-              if (!ex) return null;
-              return (
-                <button key={id} onClick={() => onPick(id)} className="w-full text-left pixel-box p-3 mb-2 flex items-center gap-2" style={{ background: 'var(--surface2)' }}>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-semibold truncate">{ex.name}</span>
-                    <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>
-                      {(ex.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ')} · {ex.equipment}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* What to replace this movement with, before any searching happens. A written programme
+            names a substitution or two against each movement, and those beat anything a search can
+            rank because the author picked them for this slot; the rest is worked out from the muscle
+            and the movement pattern. The two are drawn apart rather than blended into one list: "your
+            plan says you can do this instead" and "this looks similar to us" are different claims,
+            and somebody deciding at a busy machine deserves to know which one they are reading.
+
+            Only shown before you start typing. Once you are searching you have something else in
+            mind, and a list of our ideas is then just in the way. */}
+        {!q && (offer || []).length > 0 && (() => {
+          const rows = (offer || []).map(o => (typeof o === 'string' ? { id: o, kind: 'plan' } : o))
+            .map(o => ({ o, ex: Training.byId(o.id, t.custom) })).filter(r => r.ex);
+          const written = rows.filter(r => r.o.kind !== 'suggested');
+          const worked = rows.filter(r => r.o.kind === 'suggested');
+          /* The plan's own answers are tinted and our worked-out ones are not, which is the same
+             device the "Ways to do this one" panel below already uses to mark a set of options as
+             the authoritative one. Two headings over two identical stacks of cards put the whole
+             distinction on a line of 8px type that anybody scrolling goes straight past - and it
+             also left no way to see where the short curated list ended and the library began. */
+          const row = ({ o, ex }) => (
+            <button key={o.id} onClick={() => onPick(o.id)} className="w-full text-left pixel-box p-3 mb-2 flex items-center gap-2"
+              style={{ background: o.kind === 'suggested' ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold truncate">{ex.name}</span>
+                <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>
+                  {(ex.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ')} · {ex.equipment}
+                </span>
+              </span>
+              {/* The one option that is not an alternative at all: it is the movement the plan asked
+                  for in the first place, and saying so is what makes a replacement undoable. */}
+              {o.kind === 'original' && (
+                <span className="pf text-[7px] uppercase shrink-0 px-1.5 py-1"
+                  style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>As written</span>
+              )}
+            </button>
+          );
+          return (
+            <div className="mb-3">
+              {written.length > 0 && (
+                <>
+                  <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
+                  {written.map(row)}
+                </>
+              )}
+              {worked.length > 0 && (
+                <>
+                  <div className="pf text-[8px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
+                    {written.length ? 'Or something that does the same job' : 'Does the same job'}
+                  </div>
+                  {worked.map(row)}
+                </>
+              )}
+            </div>
+          );
+        })()}
         {/* The commonest reason a movement is not in the library is that it is a variation of one
             that is: a grip, a stance, an attachment. Making it from its parent inherits what it
             trains, which is the part nobody standing at a machine wants to fill in. */}

@@ -910,7 +910,12 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({ daysPerWeek: 4, weeks: 4 }))));
-  const [week, setWeek] = useState(1);
+  const [week, setWeek] = useState(() => {
+    const b = draft || saved;
+    if (!b || !b.startISO) return 1;
+    const p = Training.blockProgress(b, Store.todayISO());
+    return p.done ? 1 : Math.min(p.week, b.weeks || 1);
+  });
   const [picking, setPicking] = useState(null);   // { sessionId }
   const [name, setName] = useState(block.name);
   const [startISO, setStartISO] = useState(block.startISO || Store.todayISO());
@@ -926,6 +931,9 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   const logBySession = Training.completion(block, tdb(db).logs).logBySession;
   // The block being edited decides which landmarks it is judged against, not the wizard's last answer.
   const targets = trainTargets(db, block ? block.style : undefined);
+  // Where a running block has got to. Null for one that has not started, which is the case with no
+  // trained weeks to protect and so no floor on what an edit may touch.
+  const prog = block && block.startISO ? Training.blockProgress(block, Store.todayISO()) : null;
   const isNew = !saved;
 
   const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -945,6 +953,44 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   }
   function removeItem(sessionId, itemId) {
     edit(b => { const s = b.sessions.filter(x => x.id === sessionId)[0]; s.exercises = s.exercises.filter(x => x.id !== itemId); });
+  }
+  /* Replacing a movement on the block screen changes the PLAN, which is what this screen is for, so
+     it moves every week rather than asking the mid-block question about tonight. What it must not do
+     is move weeks that have already happened. This editor opens on running blocks as well as new
+     ones - the save button on it says in as many words that changes apply to the weeks you have not
+     trained yet - so a block already three weeks in gets the same floor every other route uses, and
+     only a block that has not started moves the lot.
+
+     It matches on the MOVEMENT, not the row that was tapped, exactly as a mid-block swap does: the
+     same lift can appear twice in a day (a heavy set and a back-off) and on more than one day, and
+     replacing it in one place while leaving it in the others is how a plan quietly stops making
+     sense.
+
+     It says nothing when it works, which is how everything else on this screen behaves: adding a
+     movement and taking one out are both silent, because the edit is in front of you and none of it
+     is written until the button at the bottom of the page says so. The one case worth a word is a
+     replacement that could not move anything. */
+  function replaceItem(sessionId, itemId, exId) {
+    setPicking(null);
+    const s0 = (block.sessions || []).filter(x => x.id === sessionId)[0];
+    const row = s0 && (s0.exercises || []).filter(x => x.id === itemId)[0];
+    if (!row || row.exerciseId === exId) return;
+    const fromId = row.exerciseId;
+    // Null only for a block that has not begun. A running one is floored at the week it is on, so
+    // the weeks behind it stay a record of what was actually lifted.
+    const from = prog ? prog.week : null;
+    // Counted before the edit, because afterwards there is nothing left to count.
+    const reach = Training.swapReach(block, fromId, from);
+    // Nothing left to change: every appearance of this movement is behind the week you are on, and
+    // those are a record of what was lifted rather than a plan to edit. Saying "replaced" over a
+    // block that did not move is worse than saying nothing.
+    if (!reach) {
+      const fromEx = Training.byId(fromId, t.custom);
+      showToast && showToast((fromEx ? fromEx.name : 'That movement')
+        + ' only appears in weeks you have already trained, so nothing changed.');
+      return;
+    }
+    edit(b => { Training.swapInBlock(b, fromId, exId, from); });
   }
   function addItem(sessionId, exId) {
     setPicking(null);
@@ -1140,8 +1186,14 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                     <button key={id} onClick={() => edit(b => { Training.applyChoice(b, c.key, id); })}
                       className="pixel-box px-2.5 text-[11px]" style={{
                         minHeight: 44,
-                        background: on ? 'var(--good)' : 'var(--surface2)',
-                        color: on ? '#05140a' : 'var(--text2)',
+                        // The picked one wears the app's one "this is the chosen thing" treatment:
+                        // the accent as a FILL with --on-accent as its ink, exactly as the picker's
+                        // own selected chip does. It used to be a hardcoded #05140a - the DARK
+                        // theme's ink - sitting on the light theme's teal, which measured 3.84:1
+                        // and is the same fill-instead-of-ink slip design-plans/20-ui-review.md
+                        // found on the macro figures.
+                        background: on ? 'var(--accent)' : 'var(--surface2)',
+                        color: on ? 'var(--on-accent)' : 'var(--text2)',
                       }}>
                       {ex ? ex.name : id}
                     </button>
@@ -1205,13 +1257,25 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                   <div key={it.id} className="py-3" style={{ borderTop: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>
                     <div className="flex items-start gap-2">
                       <span className="pf text-[9px] shrink-0 mt-0.5 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[ei]}</span>
-                      <span className="flex-1 min-w-0 text-[13px] font-semibold leading-tight">
-                        <ExerciseName id={it.exerciseId} custom={t.custom} />
-                        {it.choice && (
-                          <span className="pf text-[7px] uppercase ml-1.5 px-1 py-0.5 align-middle"
-                            style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>Your call</span>
-                        )}
-                      </span>
+                      <button onClick={() => setPicking({ sessionId: s.id, itemId: it.id })}
+                        aria-label={'Replace ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement')}
+                        className="flex-1 min-w-0 text-left text-[13px] font-semibold leading-tight">
+                        <span className="block min-w-0">
+                          <ExerciseName id={it.exerciseId} custom={t.custom} />
+                          {it.choice && (
+                            <span className="pf text-[7px] uppercase ml-1.5 px-1 py-0.5 align-middle"
+                              style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>Your call</span>
+                          )}
+                          {/* Replaced, and by whose hand. Without this a block you edited three weeks
+                              ago reads exactly like one you did not, and the movement the programme
+                              actually asked for is nowhere on the screen. */}
+                          {it.baseExerciseId && (
+                            <span className="block text-[10.5px] font-normal mt-1" style={{ color: 'var(--muted2)' }}>
+                              instead of <ExerciseName id={it.baseExerciseId} custom={t.custom} />
+                            </span>
+                          )}
+                        </span>
+                      </button>
                       <button onClick={() => removeItem(s.id, it.id)} aria-label="Remove" className="px-1 text-[15px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
                     </div>
                     <div className="flex items-center gap-2 mt-2 pl-8">
@@ -1227,7 +1291,10 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                     </div>
                   </div>
                 ))}
-                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-3" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
+                <div className="text-[10.5px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
+                  Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
+                </div>
+                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
                 {onStart && !log && (
                   <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                     Start this session
@@ -1278,7 +1345,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             Save changes
           </button>
         )}
-        <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+        <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
           {isNew
             ? 'Saving for later puts it on your shelf without starting it. Nothing is running until you say so.'
             : 'Changes apply to the weeks you have not trained yet. Sessions you already logged stay as they were.'}
@@ -1293,7 +1360,23 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         </div>
       )}
 
-      {picking && <ExercisePicker db={db} update={update} onPick={(id) => addItem(picking.sessionId, id)} onClose={() => setPicking(null)} />}
+      {picking && (() => {
+        const s0 = picking.itemId && (block.sessions || []).filter(x => x.id === picking.sessionId)[0];
+        const row = (s0 && (s0.exercises || []).filter(x => x.id === picking.itemId)[0]) || null;
+        const sameDay = s0 ? (s0.exercises || []).map(x => x.exerciseId) : [];
+        return (
+          <ExercisePicker db={db} update={update}
+            title={row ? 'Replace movement' : 'Add a movement'}
+            basedOn={row ? row.exerciseId : null}
+            offer={row ? Training.replacementsFor(row, {
+              style: block.style, custom: t.custom,
+              equipment: t.prefs.equipment, dislikes: t.prefs.dislikes,
+              currentExerciseIds: sameDay,
+            }) : null}
+            onPick={(id) => (row ? replaceItem(picking.sessionId, picking.itemId, id) : addItem(picking.sessionId, id))}
+            onClose={() => setPicking(null)} />
+        );
+      })()}
       {confirmDelete && <ConfirmDialog title="Delete this block?" body="The sessions you already logged are kept. Only the plan goes."
         onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
       {confirmSwitch && (() => {
@@ -1396,7 +1479,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       if (scope === 'block') Training.swapInBlock(b, fromId, exId, prog ? prog.week : 1);
       else {
         const it = (s.exercises || []).filter(x => x.id === itemId)[0];
-        if (it) it.exerciseId = exId;
+        if (it) Training.replaceExercise(it, exId);
       }
     });
     const to = Training.byId(exId, t.custom);
@@ -1431,6 +1514,11 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
           </span>
           {/* What you did last time is the number you actually want before you set off. */}
+          {it.baseExerciseId && (
+            <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>
+              instead of {(Training.byId(it.baseExerciseId, t.custom) || {}).name || 'what the plan said'}
+            </span>
+          )}
           {last && last.weightKg > 0 && (
             <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
               {refFrom ? 'On ' + refFrom + ' ' : 'Last time '}
@@ -1547,10 +1635,10 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           )}
           {/* Name the gesture. A chevron says "this opens something", never "this is how you change
               it", and the whole point of the screen is lost on somebody who does not tap a row. */}
-          <div className="text-[11px] leading-snug mb-4 text-center" style={{ color: 'var(--muted2)' }}>
+          <div className="text-[11px] leading-snug mb-4 text-center" style={{ color: 'var(--muted)' }}>
             {log
               ? 'Tap a movement to change it. You already logged this one, so edits change the plan for the week rather than what you did.'
-              : 'Tap a movement to swap it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.'}
+              : 'Tap a movement to replace it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.'}
           </div>
         </>
       )}
@@ -1560,7 +1648,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       {item && (
         <ActionSheet kicker="Movement" title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
           actions={[
-            { label: 'Swap it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
+            { label: 'Replace it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
             { label: 'Sets and reps', sub: item.target.sets + ' x ' + item.target.repLow + '-' + item.target.repHigh + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
             {
               label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
@@ -1586,8 +1674,13 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
       {picking && (
         <ExercisePicker db={db} update={update}
-          title={picking.mode === 'swap' ? 'Swap movement' : 'Add a movement'}
+          title={picking.mode === 'swap' ? 'Replace movement' : 'Add a movement'}
           basedOn={picking.mode === 'swap' ? (items.filter(x => x.id === picking.itemId)[0] || {}).exerciseId : null}
+          offer={picking.mode === 'swap' ? Training.replacementsFor(items.filter(x => x.id === picking.itemId)[0] || {}, {
+            style: block && block.style, custom: t.custom,
+            equipment: t.prefs.equipment, dislikes: t.prefs.dislikes,
+            currentExerciseIds: items.map(x => x.exerciseId),
+          }) : null}
           onPick={(exId) => {
             if (picking.mode === 'add') {
               edit(s => Training.addExerciseToSession(s, exId, t.custom, exId + '_' + trainUid()));
@@ -1615,7 +1708,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         const to = Training.byId(swapScope.exId, t.custom);
         const sc = swapScope;
         return (
-          <ActionSheet kicker="Swap" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+          <ActionSheet kicker="Replace" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
               { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),

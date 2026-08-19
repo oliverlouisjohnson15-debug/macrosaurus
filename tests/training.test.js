@@ -2893,6 +2893,241 @@ test('the question knows how many sessions it is asking about', () => {
   assert.equal(T.swapReach(block, 'not_in_here', 1), 0, 'nothing to ask about');
 });
 
+// ---- what a movement can be replaced with ---------------------------------------------------------
+
+test('the plan\'s own substitutions come first, and say so', () => {
+  // The author picked these for this slot. Nothing a search can rank beats that, so they lead the
+  // list and they are labelled differently from anything the app worked out for itself.
+  const out = T.replacementsFor({
+    exerciseId: 'bb_incline', alts: ['smith_machine_incline_press', 'machine_incline', 'db_incline'],
+  }, {});
+  assert.deepEqual(out.slice(0, 3).map(o => o.id),
+    ['smith_machine_incline_press', 'machine_incline', 'db_incline']);
+  assert.ok(out.slice(0, 3).every(o => o.kind === 'plan'), 'the author wrote these, and the screen must be able to say so');
+  assert.ok(out.every(o => o.id !== 'bb_incline'), 'the movement you are replacing is not a replacement for it');
+});
+
+test('a thin list is topped up, and the top-ups are not passed off as the plan', () => {
+  // One substitution is a short menu when the movement you wanted is unavailable and so is it. The
+  // rest comes from the library's own pairs and then from a working-out, each marked as what it is.
+  const out = T.replacementsFor({ exerciseId: 'bb_incline', alts: ['db_incline'] }, { limit: 4 });
+  assert.equal(out.length, 4);
+  assert.equal(out[0].kind, 'plan', 'the author goes first');
+  assert.ok(out.slice(1).every(o => o.kind !== 'plan'), 'and nothing else wears the plan\'s badge');
+  assert.ok(out.some(o => o.kind === 'sameJob'), 'the library knows some of these pairs for certain');
+  const kinds = out.map(o => o.kind);
+  assert.ok(kinds.lastIndexOf('sameJob') < kinds.indexOf('suggested') || kinds.indexOf('suggested') === -1,
+    'what is known comes before what is guessed');
+});
+
+test('an open slot offers its own options rather than a guess', () => {
+  const out = T.replacementsFor({
+    exerciseId: 'back_squat',
+    choice: { key: 'squat', options: ['back_squat', 'front_squat', 'hack_squat', 'belt_squat'] },
+  }, { limit: 3 });
+  assert.deepEqual(out.map(o => o.id), ['front_squat', 'hack_squat', 'belt_squat']);
+  assert.ok(out.every(o => o.kind === 'plan'));
+});
+
+test('an empty slot falls through to the substitutions written beside it', () => {
+  // An empty array is truthy, so a `choice` that lost its options would have taken `alts` down with
+  // it and left the movement with nothing but guesses.
+  const out = T.replacementsFor({
+    exerciseId: 'bb_incline', choice: { key: 'press', options: [] }, alts: ['machine_incline'],
+  }, { limit: 2 });
+  assert.equal(out[0].id, 'machine_incline');
+  assert.equal(out[0].kind, 'plan');
+});
+
+test('a replacement is never offered something already in the session', () => {
+  // Replacing one of a day\'s two chest movements with the other one leaves you doing it twice.
+  const out = T.replacementsFor({ exerciseId: 'bb_incline', alts: ['db_incline', 'machine_incline'] },
+    { currentExerciseIds: ['bb_incline', 'db_incline'], limit: 5 });
+  assert.ok(out.every(o => o.id !== 'db_incline'), 'it is already on the card');
+  assert.ok(out.some(o => o.id === 'machine_incline'), 'the other substitution still stands');
+});
+
+test('replacing a movement leaves a way back to what the plan asked for', () => {
+  // `alts` lists what to do INSTEAD of the original, so overwriting the original used to delete it
+  // from its own list: the only route back was remembering the name and searching for it.
+  const row = { exerciseId: 'bb_incline', alts: ['smith_machine_incline_press', 'db_incline'] };
+  assert.equal(T.replaceExercise(row, 'smith_machine_incline_press'), true);
+  assert.equal(row.exerciseId, 'smith_machine_incline_press');
+  assert.equal(row.baseExerciseId, 'bb_incline');
+  const back = T.replacementsFor(row, {});
+  assert.equal(back[0].id, 'bb_incline', 'what the plan asked for leads the list');
+  assert.equal(back[0].kind, 'original', 'and it is not dressed up as an alternative');
+});
+
+test('replacing twice still points back at the plan, not at the last thing you tried', () => {
+  const row = { exerciseId: 'bb_incline', alts: ['smith_machine_incline_press', 'db_incline'] };
+  T.replaceExercise(row, 'smith_machine_incline_press');
+  T.replaceExercise(row, 'db_incline');
+  assert.equal(row.baseExerciseId, 'bb_incline', 'the original is the original, however many hops later');
+});
+
+test('going back to the plan\'s movement clears the replacement, notes and all', () => {
+  const row = { exerciseId: 'db_y_raise_incline', alts: ['cable_y_raise'], planNote: 'Use a 30 degree bench.' };
+  T.replaceExercise(row, 'cable_y_raise');
+  assert.equal(row.planNote, undefined, 'a note about a bench does not belong under a cable movement');
+  T.replaceExercise(row, 'db_y_raise_incline');
+  assert.equal(row.exerciseId, 'db_y_raise_incline');
+  assert.equal(row.baseExerciseId, undefined, 'nothing was replaced any more');
+  assert.equal(row.planNote, 'Use a 30 degree bench.', 'the plan\'s own words come back with the plan\'s own movement');
+});
+
+test('a replacement across the block carries the same bookkeeping as one made for a day', () => {
+  const block = blockWithRows();
+  T.swapInBlock(block, 'tbar_row', 'cu_wide', 1);
+  const rows = block.sessions.reduce((a, s) => a.concat((s.exercises || []).filter(e => e.exerciseId === 'cu_wide')), []);
+  assert.equal(rows.length, 8);
+  assert.ok(rows.every(r => r.baseExerciseId === 'tbar_row'), 'every week must know its way back, not just the first');
+});
+
+test('answering an open slot is not a replacement and never claims to be', () => {
+  // "Squat (Your Choice)" is a question, and the movement sitting in it beforehand is a placeholder,
+  // not a prescription. A first pick that announced "Front squat instead of Back squat" would be
+  // describing something the plan never asked for - and it threw the slot's own note away doing it.
+  const row = { exerciseId: 'back_squat', planNote: 'This can be a Back Squat, Front Squat, ...',
+    choice: { key: 'squat', label: 'Squat', options: ['back_squat', 'front_squat'] } };
+  T.applyChoice({ sessions: [{ week: 1, exercises: [row] }] }, 'squat', 'front_squat');
+  assert.equal(row.exerciseId, 'front_squat');
+  assert.equal(row.baseExerciseId, undefined, 'nothing was replaced: a question was answered');
+  assert.equal(row.planNote, 'This can be a Back Squat, Front Squat, ...', 'and the slot still explains itself');
+});
+
+test('answering a slot from the movement\'s own Replace list reads the same as from the chips', () => {
+  // Two controls, one act. Tapping the movement and picking the front squat is answering "Squat
+  // (Your Choice)", not standing something in for a back squat nobody was prescribed.
+  const row = { exerciseId: 'back_squat', planNote: 'This can be a Back Squat, Front Squat, ...',
+    choice: { key: 'squat', label: 'Squat', options: ['back_squat', 'front_squat'] } };
+  assert.equal(T.replaceExercise(row, 'front_squat'), true);
+  assert.equal(row.exerciseId, 'front_squat');
+  assert.equal(row.baseExerciseId, undefined, 'a slot answered is not a movement replaced');
+  assert.equal(row.planNote, 'This can be a Back Squat, Front Squat, ...', 'and the slot still explains itself');
+});
+
+test('a movement the library is sure about actually trains the same thing', () => {
+  // The whole promise of the hand-written tier is that these pairs are safe without checking. One
+  // wrong entry - an upper-back pull filed against a hamstring hinge - and replacing a movement
+  // silently empties a muscle out of the session.
+  const REGIONS = { rdl: 'ha', db_rdl: 'ha', back_squat: 'qu', hack_squat: 'qu', leg_press: 'qu',
+    db_y_raise_incline: 'sd', cable_y_raise: 'sd', db_lateral: 'sd', bb_incline: 'ch',
+    bb_bench: 'ch', machine_press: 'ch', bb_curl: 'bi', triceps_pressdown: 'tr', standing_calf: 'ca' };
+  Object.keys(REGIONS).forEach(id => {
+    T.sameJobFor(id).forEach(other => {
+      const ex = T.byId(other);
+      const trains = (ex.primary || []).concat(ex.secondary || []);
+      assert.ok(trains.includes(REGIONS[id]),
+        ex.name + ' is offered for ' + T.byId(id).name + ' but does not train ' + REGIONS[id]);
+    });
+  });
+});
+
+test('the library keeps its opinions to what is actually in the gym', () => {
+  // The author's own substitutions are shown whatever the kit, because they are the author's words.
+  // A pair the app volunteers has no such excuse.
+  const out = T.replacementsFor({ exerciseId: 'bb_bench' },
+    { equipment: ['dumbbell'], dislikes: ['smith_bench'], limit: 4 });
+  assert.ok(!out.some(o => o.id === 'smith_bench'), 'they said they do not want it');
+  assert.ok(!out.some(o => o.kind === 'sameJob' && o.id === 'machine_press'),
+    'and there is no machine in this gym');
+  assert.ok(out.some(o => o.id === 'db_bench'), 'the dumbbells are there, though');
+});
+
+test('picking an open slot back to its own movement leaves no phantom replacement', () => {
+  // Replace from the movement screen, then re-pick the original from the block screen's "Your call"
+  // chips. Setting the id by hand there left the row claiming to be "instead of" the very thing it
+  // had just been set back to, with the slot's note gone for good.
+  const row = { exerciseId: 'back_squat', planNote: 'Any squat you like.',
+    choice: { key: 'squat', label: 'Squat', options: ['back_squat', 'hack_squat'] } };
+  T.replaceExercise(row, 'hack_squat');
+  T.applyChoice({ sessions: [{ week: 1, exercises: [row] }] }, 'squat', 'back_squat');
+  assert.equal(row.exerciseId, 'back_squat');
+  assert.equal(row.baseExerciseId, undefined, 'nothing is standing in for anything any more');
+  assert.equal(row.planNote, 'Any squat you like.', 'and the slot\'s own note is back');
+});
+
+test('the library\'s own pairs go both ways', () => {
+  // A table written by hand gets edited by hand. A pair listed one way but not the other is a
+  // movement you can leave and never get back to.
+  ['bb_incline', 'machine_incline', 'smith_machine_incline_press', 'db_incline',
+   'db_y_raise_incline', 'cable_y_raise', 'prone_y_raise'].forEach(id => {
+    T.sameJobFor(id).forEach(other => {
+      assert.ok(T.sameJobFor(other).includes(id), other + ' does not offer ' + id + ' back');
+    });
+  });
+});
+
+test('every movement the library pairs up actually exists', () => {
+  // A typo here does not throw: the pair just silently vanishes from the picker.
+  ['bb_incline', 'bb_bench', 'bb_ohp', 'back_squat', 'rdl', 'lat_pulldown', 'pullup',
+   'seated_cable_row', 'bb_curl', 'triceps_pressdown', 'standing_calf', 'db_lateral',
+   'db_y_raise_incline'].forEach(id => {
+    const pairs = T.sameJobFor(id);
+    assert.ok(pairs.length, id + ' should have at least one movement that does its job');
+    pairs.forEach(o => assert.ok(T.byId(o), o + ' is not in the library'));
+  });
+});
+
+test('the plan\'s own word always outranks the library\'s opinion', () => {
+  const out = T.replacementsFor({ exerciseId: 'bb_incline', alts: ['db_incline'] }, { limit: 4 });
+  assert.equal(out[0].id, 'db_incline');
+  assert.equal(out[0].kind, 'plan');
+  assert.ok(out.some(o => o.id === 'machine_incline' && o.kind === 'sameJob'),
+    'and ours follows it rather than replacing it');
+});
+
+test('a replacement survives the block being packed away and read back', () => {
+  // Blocks are stored week-1-plus-differences rather than in full, and anything the packer does not
+  // carry is silently gone by the next time the app opens. The way back to the plan's own movement
+  // is exactly the kind of small field that gets lost that way.
+  const { template } = T.importTemplate({ days: [{ name: 'D1', exercises: [{ name: 'Incline Barbell Press', sets: 2 }] }] });
+  const block = T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets: T.defaultTargets() });
+  T.swapInBlock(block, 'bb_incline', 'machine_incline', null);
+  const back = T.unpackBlock(JSON.parse(JSON.stringify(T.packBlock(JSON.parse(JSON.stringify(block))))));
+  assert.equal(back.sessions.length, 4);
+  back.sessions.forEach(s => {
+    assert.equal(s.exercises[0].exerciseId, 'machine_incline');
+    assert.equal(s.exercises[0].baseExerciseId, 'bb_incline', 'every week keeps its way back');
+  });
+});
+
+test('replacing a movement with itself changes nothing at all', () => {
+  const row = { exerciseId: 'bb_incline', planNote: 'Pause at the bottom.' };
+  assert.equal(T.replaceExercise(row, 'bb_incline'), false);
+  assert.equal(row.baseExerciseId, undefined, 'a no-op must not invent a history');
+  assert.equal(row.planNote, 'Pause at the bottom.');
+});
+
+test('the default block offers a real alternative for every movement it prescribes', () => {
+  // The two the feature was built for, and the guarantee behind them: a substitution the library
+  // does not have is a dead row in the picker.
+  const rows = [];
+  T.PROGRAMMES.forEach(p => p.template.forEach(d => d.exercises.forEach(e => rows.push(e))));
+  assert.ok(rows.length, 'there is a default block to check');
+  // The two movements this feature was built around. What the author wrote stays exactly as the
+  // author wrote it - the programme data is a transcription and tools/verify-programmes.mjs holds it
+  // to the source sheet - so anything we think should also be on the list arrives as OUR claim.
+  const incline = rows.filter(e => e.exerciseId === 'bb_incline')[0];
+  assert.ok(incline, 'the incline press is in the shipped programmes');
+  const inclineOut = T.replacementsFor(incline, {});
+  assert.deepEqual(inclineOut.filter(o => o.kind === 'plan').map(o => o.id),
+    ['smith_machine_incline_press', 'db_incline'], 'the author\'s two, untouched');
+  assert.ok(inclineOut.some(o => o.id === 'machine_incline' && o.kind === 'sameJob'),
+    'and the machine version, offered as ours rather than smuggled into the plan');
+
+  const yraise = rows.filter(e => e.exerciseId === 'db_y_raise_incline')[0];
+  assert.ok(yraise, 'the Y-raise is in the shipped programmes');
+  const yOut = T.replacementsFor(yraise, {});
+  assert.ok(yOut.some(o => o.id === 'cable_y_raise'), 'the cable Y-raise does the same job');
+  assert.ok(!yOut.some(o => o.id === 'prone_y_raise' && o.kind === 'sameJob'),
+    'and the prone version, which the library reads as a rear-delt movement, is not sold as a sure thing');
+  rows.forEach(e => {
+    (e.alts || []).forEach(a => assert.ok(T.byId(a), 'substitution ' + a + ' is missing from the library'));
+  });
+});
+
 // ---- bringing an older block up to date -----------------------------------------------------------
 // A block built before a rule existed does not get the rule retroactively.
 
