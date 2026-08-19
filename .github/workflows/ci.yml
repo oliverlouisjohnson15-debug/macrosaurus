@@ -20,5 +20,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      # Without this the run is not testing what it looks like it is testing. Most of the suite is
+      # pure and needs nothing installed, so `npm test` on a bare checkout goes green on well over a
+      # thousand assertions - while tests/render.test.js, which needs jsdom, React and Babel to
+      # render the real screens, fails to load and counts as a single failure. Every screen test in
+      # the project was in that file, so none of them have ever actually run here.
+      - name: Install dependencies
+        run: npm ci
       - name: Run tests
         run: npm test
