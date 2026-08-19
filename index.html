@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.left-2\.5{left:.625rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.z-\[97\]{z-index:97}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.-my-2{margin-top:-.5rem;margin-bottom:-.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[5px\]{gap:5px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-auto{overflow:auto}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0{padding-top:0;padding-bottom:0}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-11{padding-left:2.75rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.pt-\[13px\]{padding-top:13px}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-middle{vertical-align:middle}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[20px\]{font-size:20px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7\.5px\]{font-size:7.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.last\:mb-0:last-child{margin-bottom:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.left-2\.5{left:.625rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.z-\[97\]{z-index:97}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.-my-2{margin-top:-.5rem;margin-bottom:-.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-\[2\]{flex:2}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[5px\]{gap:5px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-auto{overflow:auto}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0{padding-top:0;padding-bottom:0}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-11{padding-left:2.75rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.pt-\[13px\]{padding-top:13px}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-middle{vertical-align:middle}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[20px\]{font-size:20px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7\.5px\]{font-size:7.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.last\:mb-0:last-child{margin-bottom:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ============ MACROSAURUS · PAPER TERRARIUM DESIGN SYSTEM ============ */
@@ -56293,6 +56293,7 @@ function BlockWizard({
   const t = tdb(db);
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
+  const [wizStep, setWizStep] = useState(1); // 1 style + optional import, 2 schedule, 3 volume, 4 kit and build
   // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
   // and five days is the shape it is written for, so that is the day count it arrives on.
   const [style, setStyle] = useState(plannedStyle(t.prefs));
@@ -56766,6 +56767,15 @@ function BlockWizard({
       clearDraft: draftDays > 0
     });
   }
+  const STEP_TITLE = {
+    1: 'Style',
+    2: 'Schedule',
+    3: 'Volume',
+    4: 'Kit & build'
+  };
+  // The answer so far, read straight off state rather than kept as a second copy of it, so it can
+  // never say something the questions below it disagree with.
+  const soFar = [Training.STYLES[style].label, days + ' days', preview ? '~' + preview.minutesEach + ' min' : null, preview ? preview.movesEach + ' movements' : null].filter(Boolean).join(' · ');
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -56783,12 +56793,45 @@ function BlockWizard({
     }
   }, "about ", preview.minutesEach, " min a session")), /*#__PURE__*/React.createElement("h1", {
     className: "pf text-lg mt-2 mb-1"
-  }, "Build a block"), /*#__PURE__*/React.createElement(BlockPreview, {
+  }, "Build a block"), /*#__PURE__*/React.createElement("div", {
+    className: "mb-1 flex items-center gap-1"
+  }, [1, 2, 3, 4].map(n => /*#__PURE__*/React.createElement("div", {
+    key: n,
+    className: "flex-1",
+    style: {
+      height: 6,
+      background: n <= wizStep ? 'var(--accent)' : 'var(--track)',
+      border: '2px solid var(--border)'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Step ", wizStep, " of 4 · ", STEP_TITLE[wizStep]), wizStep > 1 && /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Style ✓ ", Training.STYLES[style].label)), /*#__PURE__*/React.createElement(BlockPreview, {
     preview: preview,
     changeLine: changeLine,
     brought: draftDays > 0,
     sourceCount: draftDays
-  }), /*#__PURE__*/React.createElement(Card, {
+  }), wizStep > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 px-3 py-2.5",
+    style: {
+      background: 'var(--surface2)',
+      borderLeft: '3px solid var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase block mb-1",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "So far"), soFar, ". Redraws as you answer."), wizStep === 1 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -57001,7 +57044,14 @@ function BlockWizard({
       background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))',
       color: 'var(--text2)'
     }
-  }, style === 'minmax' ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.' : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'), /*#__PURE__*/React.createElement(TrainField, {
+  }, style === 'minmax' ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.' : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(2),
+    className: "pixel-btn w-full h-14 font-bold mb-2",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "Next · Schedule ›")), wizStep === 2 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(TrainField, {
     label: "Days a week",
     effect: preview ? preview.sessions.length + ' sessions' : '',
     hint: draftDays > 0 && asBrought ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.' : style === 'minmax' ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.' : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'
@@ -57032,7 +57082,22 @@ function BlockWizard({
       v: 100,
       l: '100 min'
     }]
-  })), /*#__PURE__*/React.createElement(TrainField, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(1),
+    className: "pixel-box flex-1 h-14 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "‹ Back"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(3),
+    className: "pixel-btn flex-1 h-14 font-bold",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "Next · Volume ›"))), wizStep === 3 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(TrainField, {
     label: "Where you are",
     effect: preview ? preview.weekSets + ' sets' : '',
     hint: "Sets your starting volume. Movable later."
@@ -57100,7 +57165,37 @@ function BlockWizard({
       v: 'as-written',
       l: 'As brought'
     }])
-  })), /*#__PURE__*/React.createElement(Field, {
+  })), /*#__PURE__*/React.createElement(TrainField, {
+    label: "Anything to bring up",
+    effect: emphasis.length ? emphasis.length + ' picked' : '',
+    hint: "Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it."
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap"
+  }, Training.MUSCLES.map(m => /*#__PURE__*/React.createElement("button", {
+    key: m,
+    onClick: () => setEmphasis(emphasis.indexOf(m) !== -1 ? emphasis.filter(x => x !== m) : emphasis.concat([m])),
+    className: "pixel-box px-2.5 text-[11px]",
+    style: {
+      minHeight: 44,
+      background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)',
+      color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)'
+    }
+  }, Training.MUSCLE_LABEL[m])))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(2),
+    className: "pixel-box flex-1 h-14 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "‹ Back"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(4),
+    className: "pixel-btn flex-1 h-14 font-bold",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "Next · Kit & build ›"))), wizStep === 4 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
     label: "Where you will train it",
     hint: "Changes which movements the block reaches for."
   }, /*#__PURE__*/React.createElement("button", {
@@ -57125,35 +57220,28 @@ function BlockWizard({
       color: 'var(--muted2)',
       flexShrink: 0
     }
-  }))), /*#__PURE__*/React.createElement(TrainField, {
-    label: "Anything to bring up",
-    effect: emphasis.length ? emphasis.length + ' picked' : '',
-    hint: "Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it."
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 flex-wrap"
-  }, Training.MUSCLES.map(m => /*#__PURE__*/React.createElement("button", {
-    key: m,
-    onClick: () => setEmphasis(emphasis.indexOf(m) !== -1 ? emphasis.filter(x => x !== m) : emphasis.concat([m])),
-    className: "pixel-box px-2.5 text-[11px]",
-    style: {
-      minHeight: 44,
-      background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)',
-      color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)'
-    }
-  }, Training.MUSCLE_LABEL[m])))), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+  }))), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3 leading-snug",
     style: {
       color: 'var(--muted)'
     }
-  }, asBrought ? 'Building the ' + draftDays + ' ' + (draftDays === 1 ? 'day' : 'days') + ' you brought exactly as written, for four weeks.' : 'Building you ' + days + ' sessions a week from what you brought: their movements, rep ranges and tempos, laid out ' + 'across ' + days + ' days and built up against your own volume landmarks.', !asBrought && preview && preview.brought > 0 && (preview.spare.length ? ' All ' + (preview.brought - preview.spare.length) + ' of your ' + preview.brought + ' movements are in it, except ' + preview.spare.slice(0, 3).join(', ') + (preview.spare.length > 3 ? ' and ' + (preview.spare.length - 3) + ' more' : '') + ' - no room, or kit this gym has not got.' : ' All ' + preview.brought + ' of the movements you brought are in it.')), /*#__PURE__*/React.createElement("button", {
+  }, asBrought ? 'Building the ' + draftDays + ' ' + (draftDays === 1 ? 'day' : 'days') + ' you brought exactly as written, for four weeks.' : 'Building you ' + days + ' sessions a week from what you brought: their movements, rep ranges and tempos, laid out ' + 'across ' + days + ' days and built up against your own volume landmarks.', !asBrought && preview && preview.brought > 0 && (preview.spare.length ? ' All ' + (preview.brought - preview.spare.length) + ' of your ' + preview.brought + ' movements are in it, except ' + preview.spare.slice(0, 3).join(', ') + (preview.spare.length > 3 ? ' and ' + (preview.spare.length - 3) + ' more' : '') + ' - no room, or kit this gym has not got.' : ' All ' + preview.brought + ' of the movements you brought are in it.')), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(3),
+    className: "pixel-box flex-1 h-14 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "‹ Back"), /*#__PURE__*/React.createElement("button", {
     onClick: build,
     disabled: busy,
-    className: "pixel-btn w-full h-14 font-bold mt-2",
+    className: "pixel-btn flex-[2] h-14 font-bold",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, busy ? 'Building...' : draftDays > 0 ? asBrought ? 'Build it exactly as brought' : 'Build my ' + days + '-day version' : 'Build it'), gymPick && /*#__PURE__*/React.createElement(GymPicker, {
+  }, busy ? 'Building...' : draftDays > 0 ? asBrought ? 'Build it exactly as brought' : 'Build my ' + days + '-day version' : 'Build it'))), gymPick && /*#__PURE__*/React.createElement(GymPicker, {
     db: db,
     update: update,
     onClose: () => setGymPick(false),
@@ -57198,6 +57286,7 @@ function BlockBuilder({
   const [confirmSwitch, setConfirmSwitch] = useState(null);
   const skipSwitchCheck = useRef(false);
   const [openDay, setOpenDay] = useState(null);
+  const [openRegion, setOpenRegion] = useState(null);
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
   const logBySession = Training.completion(block, tdb(db).logs).logBySession;
@@ -57390,9 +57479,74 @@ function BlockBuilder({
     style: {
       color: cov.gaps.length || cov.overs.length ? 'var(--warn)' : 'var(--good)'
     }
-  }, cov.totalSets, " sets · ", cov.overs.length ? cov.overs.length + ' past recovery' : cov.gaps.length ? cov.gaps.length + ' short' : 'all covered')), /*#__PURE__*/React.createElement(CoverageBars, {
-    coverage: cov
-  })), techniques > 0 && /*#__PURE__*/React.createElement("div", {
+  }, cov.totalSets, " sets · ", cov.overs.length ? cov.overs.length + ' past recovery' : cov.gaps.length ? cov.gaps.length + ' short' : 'all covered')), (() => {
+    const GROUPS = [{
+      key: 'legs',
+      label: 'Legs',
+      regions: ['legs']
+    }, {
+      key: 'back',
+      label: 'Back',
+      regions: ['back']
+    }, {
+      key: 'chest',
+      label: 'Chest & shoulders',
+      regions: ['chest', 'delts']
+    }, {
+      key: 'rest',
+      label: 'Arms, core & the rest',
+      regions: ['arms', 'core']
+    }];
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col gap-2"
+    }, GROUPS.map(g => {
+      const rows = cov.rows.filter(r => g.regions.indexOf(Training.REGION[r.muscle]) !== -1);
+      if (!rows.length) return null;
+      const regionSets = rows.reduce((a, r) => a + r.sets, 0);
+      const short = rows.filter(r => r.sets < r.mev).length;
+      const over = rows.filter(r => r.sets > r.mrv).length;
+      const open = openRegion === g.key;
+      return /*#__PURE__*/React.createElement("div", {
+        key: g.key,
+        className: "pixel-box",
+        style: {
+          background: 'var(--surface2)'
+        }
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => setOpenRegion(open ? null : g.key),
+        className: "w-full flex items-center justify-between gap-2 p-3 text-left"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "min-w-0"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "block text-[13px] font-semibold"
+      }, g.label), /*#__PURE__*/React.createElement("span", {
+        className: "block text-[10.5px] mt-0.5 truncate",
+        style: {
+          color: 'var(--muted2)'
+        }
+      }, rows.map(r => r.label.toLowerCase()).join(', '))), /*#__PURE__*/React.createElement("span", {
+        className: "shrink-0 text-[11.5px] tnum flex items-center gap-2",
+        style: {
+          color: over ? 'var(--warn-ink)' : short ? 'var(--muted)' : 'var(--good-ink)'
+        }
+      }, regionSets, " sets", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: 'var(--muted2)',
+          transform: open ? 'rotate(90deg)' : 'none',
+          transition: 'transform .12s'
+        }
+      }, /*#__PURE__*/React.createElement(Icon.chevron, {
+        width: "16",
+        height: "16"
+      })))), open && /*#__PURE__*/React.createElement("div", {
+        className: "px-3 pb-3 flex flex-col gap-2.5"
+      }, rows.map(r => /*#__PURE__*/React.createElement(CoverageRow, {
+        key: r.muscle,
+        row: r,
+        compact: true
+      }))));
+    }));
+  })()), techniques > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-4 leading-snug px-3 py-3",
     style: {
       background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))',
@@ -57437,21 +57591,51 @@ function BlockBuilder({
         color: on ? '#05140a' : 'var(--text2)'
       }
     }, ex ? ex.name : id);
-  }))))), sessions.map(s => {
+  }))))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3 mb-4"
+  }, sessions.map(s => {
+    const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
+    const log = logBySession[s.id];
+    const open = openDay === s.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: s.id,
+      onClick: () => setOpenDay(open ? null : s.id),
+      className: "pixel-box p-3 text-left",
+      style: {
+        background: open ? 'color-mix(in srgb, var(--accent) 14%, var(--card))' : 'var(--card)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "flex items-start justify-between gap-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block text-[13px] font-bold leading-tight"
+    }, s.name), log && /*#__PURE__*/React.createElement("span", {
+      className: "shrink-0 w-5 h-5 flex items-center justify-center",
+      style: {
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
+      }
+    }, /*#__PURE__*/React.createElement(Tick, {
+      size: 10
+    }))), /*#__PURE__*/React.createElement("span", {
+      className: "block text-[10.5px] mt-1.5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1), " · ", ordered.length, " mv · ", ordered.reduce((a, e) => a + e.target.sets, 0), " sets"));
+  })), sessions.filter(s => openDay === s.id).map(s => {
     const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
     const codes = Training.sessionCodes(ordered.map(e => ({
       superset: e.supersetGroup || null
     })));
     const log = logBySession[s.id];
-    const open = openDay === s.id;
+    const open = true;
     return /*#__PURE__*/React.createElement("div", {
       key: s.id,
       className: "pixel-box mb-4",
       style: {
         background: 'var(--card)'
       }
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setOpenDay(open ? null : s.id),
+    }, /*#__PURE__*/React.createElement("div", {
       className: "w-full flex items-center gap-2 p-4 text-left"
     }, /*#__PURE__*/React.createElement("span", {
       className: "min-w-0 flex-1"
@@ -57462,24 +57646,19 @@ function BlockBuilder({
       style: {
         color: 'var(--muted)'
       }
-    }, WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1), " · ", ordered.length, " movements · ", ordered.reduce((a, e) => a + e.target.sets, 0), " sets")), log ? /*#__PURE__*/React.createElement("span", {
-      className: "shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold",
+    }, WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1), " · ", ordered.length, " movements · ", ordered.reduce((a, e) => a + e.target.sets, 0), " sets")), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setOpenDay(null),
+      "aria-label": "Close",
+      className: "shrink-0 hit",
       style: {
-        background: 'var(--accent)',
-        color: 'var(--on-accent)'
-      }
-    }, /*#__PURE__*/React.createElement(Tick, {
-      size: 12
-    })) : /*#__PURE__*/React.createElement("span", {
-      className: "shrink-0",
-      style: {
-        color: 'var(--muted2)',
-        transform: open ? 'rotate(90deg)' : 'none',
-        transition: 'transform .12s'
+        color: 'var(--muted2)'
       }
     }, /*#__PURE__*/React.createElement(Icon.chevron, {
       width: "16",
-      height: "16"
+      height: "16",
+      style: {
+        transform: 'rotate(90deg)'
+      }
     }))), open && /*#__PURE__*/React.createElement("div", {
       className: "px-4 pb-4"
     }, ordered.map((it, ei) => /*#__PURE__*/React.createElement("div", {
@@ -57739,59 +57918,12 @@ function SessionPreview({
   const itemIndex = item ? items.indexOf(item) : -1;
   const itemEx = item ? Training.byId(item.exerciseId, t.custom) : null;
   const tuneRow = tuning ? items.filter(x => x.id === tuning)[0] : null;
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in pb-28"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    className: "pf text-[9px] uppercase mb-4 hit",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "‹ Train"), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'), /*#__PURE__*/React.createElement("h1", {
-    className: "text-[19px] font-bold leading-tight mb-2"
-  }, live.name), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 tnum",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, items.length, " movements · ", sets, " sets · about ", mins, " min", live.deload ? ' · deload week' : ''), editable && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setDayPick(true),
-    className: "w-full pixel-box p-4 mb-4 flex items-center justify-between gap-3 text-left",
-    style: {
-      background: 'var(--card)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase block",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Day"), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[13.5px] font-semibold mt-1"
-  }, WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'), prog && /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11px] mt-0.5",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "This week only. Later weeks stay as they are.")), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase shrink-0",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "Move")), log && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4",
-    style: {
-      background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] leading-snug"
-  }, "You logged this one ", relativeDay(log.dateISO, Store.todayISO()).toLowerCase(), ", ", (log.sets || []).filter(s => s.done).length, " sets. Opening it again picks up where you left off.")), items.map((it, i) => {
+  const mainItems = items.filter(it => Training.roleOf(Training.byId(it.exerciseId, t.custom)) !== 'accessory');
+  const accItems = items.filter(it => mainItems.indexOf(it) === -1);
+
+  // One body, wherever a movement lives, so a main lift opened as a full card and an accessory read
+  // as a single line still say the same things about themselves in the same words.
+  function movementBody(it) {
     const ex = Training.byId(it.exerciseId, t.custom);
     // A grip you have never used has no history of its own, and a blank row on the way into a
     // session is worse than useless when the number you want is sitting under the movement it
@@ -57799,12 +57931,12 @@ function SessionPreview({
     const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
     const last = ref && ref.best;
     const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
-    const body = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "pf text-[10px] shrink-0 w-6 mt-0.5",
       style: {
         color: 'var(--accent-ink)'
       }
-    }, codes[i]), /*#__PURE__*/React.createElement("span", {
+    }, codes[items.indexOf(it)]), /*#__PURE__*/React.createElement("span", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("span", {
       className: "block text-[13.5px] font-bold leading-tight"
@@ -57819,12 +57951,85 @@ function SessionPreview({
         color: 'var(--muted2)'
       }
     }, refFrom ? 'On ' + refFrom + ' ' : 'Last time ', toDisplayWeight(last.weightKg, units), unitLabel(units), " x ", last.repsAtBest, refFrom ? ' · new to this one' : '')));
+  }
+  // The one-line form an accessory takes: name, and its prescription as a chip. Eight heavy boxed
+  // cards read as eight decisions; five accessory ROWS read as a list you skim once and trust, which
+  // is closer to how anybody actually treats the last five things on a leg day.
+  function accessoryRow(it) {
+    const ex = Training.byId(it.exerciseId, t.custom);
+    return /*#__PURE__*/React.createElement("span", {
+      className: "flex items-center justify-between gap-3 min-w-0 flex-1"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "min-w-0 truncate text-[13px] font-semibold"
+    }, ex ? ex.name : it.exerciseId), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[10px] tnum shrink-0 px-2 py-1",
+      style: {
+        border: '2px solid var(--border)',
+        background: 'var(--surface2)'
+      }
+    }, it.target.sets, " x ", it.target.repLow, "-", it.target.repHigh));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in pb-28"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "pf text-[9px] uppercase mb-4 hit",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "‹ Train"), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'), /*#__PURE__*/React.createElement("h1", {
+    className: "text-[19px] font-bold leading-tight mb-1"
+  }, live.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 tnum",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, items.length, " movements · ", sets, " sets · about ", mins, " min", live.deload ? ' · deload week' : ''), editable && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] mb-4",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, WEEKDAYS_FULL[live.dayOfWeek] || 'Not set', " · this week only ·", ' ', /*#__PURE__*/React.createElement("button", {
+    onClick: () => setDayPick(true),
+    className: "hit",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "move ›")), log && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4",
+    style: {
+      background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] leading-snug"
+  }, "You logged this one ", relativeDay(log.dateISO, Store.todayISO()).toLowerCase(), ", ", (log.sets || []).filter(s => s.done).length, " sets. Opening it again picks up where you left off.")), /*#__PURE__*/React.createElement("button", {
+    onClick: onStart,
+    className: "pixel-btn w-full h-14 font-bold mb-5",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.play, {
+    width: "16"
+  }), " ", log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]), mainItems.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.08em'
+    }
+  }, "Main lifts"), mainItems.map((it, i) => {
+    const ex = Training.byId(it.exerciseId, t.custom);
     if (!editable) return /*#__PURE__*/React.createElement(Card, {
       key: it.id || i,
       className: "p-4 mb-3"
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-start gap-3"
-    }, body));
+    }, movementBody(it)));
     return /*#__PURE__*/React.createElement("button", {
       key: it.id || i,
       onClick: () => setMenuFor(it.id),
@@ -57833,7 +58038,7 @@ function SessionPreview({
       style: {
         background: 'var(--card)'
       }
-    }, body, /*#__PURE__*/React.createElement("span", {
+    }, movementBody(it), /*#__PURE__*/React.createElement("span", {
       className: "shrink-0 mt-1",
       style: {
         color: 'var(--muted2)'
@@ -57842,7 +58047,29 @@ function SessionPreview({
       width: "16",
       height: "16"
     })));
-  }), editable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+  }), accItems.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2 mt-1",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.08em'
+    }
+  }, "Accessories · ", accItems.length), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 mb-3 overflow-hidden"
+  }, accItems.map((it, i) => editable ? /*#__PURE__*/React.createElement("button", {
+    key: it.id || i,
+    onClick: () => setMenuFor(it.id),
+    "aria-label": 'Change ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement'),
+    className: "w-full text-left px-4 py-3 flex items-center gap-3",
+    style: i ? {
+      borderTop: '2px solid var(--border)'
+    } : null
+  }, accessoryRow(it)) : /*#__PURE__*/React.createElement("div", {
+    key: it.id || i,
+    className: "px-4 py-3 flex items-center gap-3",
+    style: i ? {
+      borderTop: '2px solid var(--border)'
+    } : null
+  }, accessoryRow(it))))), editable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setPicking({
       mode: 'add'
     }),
@@ -57862,14 +58089,7 @@ function SessionPreview({
     style: {
       color: 'var(--muted2)'
     }
-  }, log ? 'Tap a movement to change it. You already logged this one, so edits change the plan for the week rather than what you did.' : 'Tap a movement to swap it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.')), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
-    onClick: onStart,
-    className: "pixel-btn w-full h-14 font-bold",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
-    }
-  }, log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0])), item && /*#__PURE__*/React.createElement(ActionSheet, {
+  }, log ? 'Tap a movement to change it. You already logged this one, so edits change the plan for the week rather than what you did.' : 'Tap a movement to swap it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.')), item && /*#__PURE__*/React.createElement(ActionSheet, {
     kicker: "Movement",
     title: itemEx ? itemEx.name : 'This movement',
     onClose: () => setMenuFor(null),

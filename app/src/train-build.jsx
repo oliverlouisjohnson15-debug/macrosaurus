@@ -236,6 +236,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const t = tdb(db);
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
+  const [wizStep, setWizStep] = useState(1);   // 1 style + optional import, 2 schedule, 3 volume, 4 kit and build
   // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
   // and five days is the shape it is written for, so that is the day count it arrives on.
   const [style, setStyle] = useState(plannedStyle(t.prefs));
@@ -583,6 +584,16 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     onDraft(block, { clearDraft: draftDays > 0 });
   }
 
+  const STEP_TITLE = { 1: 'Style', 2: 'Schedule', 3: 'Volume', 4: 'Kit & build' };
+  // The answer so far, read straight off state rather than kept as a second copy of it, so it can
+  // never say something the questions below it disagree with.
+  const soFar = [
+    Training.STYLES[style].label,
+    days + ' days',
+    preview ? '~' + preview.minutesEach + ' min' : null,
+    preview ? preview.movesEach + ' movements' : null,
+  ].filter(Boolean).join(' · ');
+
   return (
     <div className="fade-in">
       <div className="flex items-baseline justify-between gap-2">
@@ -591,13 +602,35 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       </div>
       <h1 className="pf text-lg mt-2 mb-1">Build a block</h1>
 
+      {/* Four steps rather than one endless scroll of every question a block could ask. Step 1 is
+          the one nothing can go ahead of, because it decides what every later answer MEANS: four
+          sets reads differently depending on which style you picked. The progress bar and the live
+          "so far" line both read the same plain state the questions do. */}
+      <div className="mb-1 flex items-center gap-1">
+        {[1, 2, 3, 4].map(n => (
+          <div key={n} className="flex-1" style={{ height: 6, background: n <= wizStep ? 'var(--accent)' : 'var(--track)', border: '2px solid var(--border)' }} />
+        ))}
+      </div>
+      <div className="flex items-baseline justify-between gap-2 mb-4">
+        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Step {wizStep} of 4 · {STEP_TITLE[wizStep]}</span>
+        {wizStep > 1 && <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Style ✓ {Training.STYLES[style].label}</span>}
+      </div>
+
       {/* The block, drawn, while you are still answering. */}
       <BlockPreview preview={preview} changeLine={changeLine} brought={draftDays > 0} sourceCount={draftDays} />
 
-      {/* Bringing something beats describing it, and describing it beats filling in a form - so this
-          sits first, and it is entirely optional: skip straight to the questions below for a block
-          built from nothing. Whatever comes in here is INSPIRATION, not a photocopy: the engine
-          still owns the numbers, at the shape and intensity chosen further down. */}
+      {wizStep > 1 && (
+        <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
+          <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>So far</span>
+          {soFar}. Redraws as you answer.
+        </div>
+      )}
+
+      {/* Bringing something beats describing it, and describing it beats filling in a form, so it is
+          step 1's optional branch: entirely skippable for a block built from nothing, and out of the
+          way on every step after this one. Whatever comes in here is INSPIRATION, not a photocopy -
+          the engine still owns the numbers, at the shape and intensity chosen further on. */}
+      {wizStep === 1 && (<>
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
@@ -725,7 +758,12 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'}
         </div>
       )}
+      <button onClick={() => setWizStep(2)} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+        Next · Schedule ›
+      </button>
+      </>)}
 
+      {wizStep === 2 && (<>
       <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
         hint={draftDays > 0 && asBrought
           ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.'
@@ -740,6 +778,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           : 'Decides how many movements fit.'}>
         <Seg value={minutes} onChange={setMinutes} options={[{ v: 40, l: '40 min' }, { v: 60, l: '60 min' }, { v: 80, l: '80 min' }, { v: 100, l: '100 min' }]} />
       </TrainField>
+      <div className="flex gap-2 mb-2">
+        <button onClick={() => setWizStep(1)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>‹ Back</button>
+        <button onClick={() => setWizStep(3)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Next · Volume ›</button>
+      </div>
+      </>)}
+
+      {wizStep === 3 && (<>
       <TrainField label="Where you are" effect={preview ? preview.weekSets + ' sets' : ''}
         hint="Sets your starting volume. Movable later.">
         <Seg value={experience} onChange={setExperience} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
@@ -774,18 +819,6 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           : [{ v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' }]
         ).concat([{ v: 'as-written', l: 'As brought' }])} />
       </TrainField>
-      {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
-          which is why it replaced the nine tick boxes that used to live here. */}
-      <Field label="Where you will train it" hint="Changes which movements the block reaches for.">
-        <button onClick={() => setGymPick(true)} className="w-full text-left pixel-box p-4 flex items-center justify-between gap-2" style={{ background: 'var(--surface2)' }}>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold truncate">{gym ? gym.name : 'Choose a gym'}</span>
-            <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gym ? gymSummary(gym) : 'Nothing saved yet'}</span>
-          </span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-        </button>
-      </Field>
-
       {/* Seventeen chips and a forty-five word justification, for a field whose own label says
           "Optional". They were nearly half the controls on this screen and the first thing you met
           before the button that actually builds the block. Folded behind the same inline disclosure
@@ -813,6 +846,25 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </TrainField>
 
+      <div className="flex gap-2 mb-2">
+        <button onClick={() => setWizStep(2)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>‹ Back</button>
+        <button onClick={() => setWizStep(4)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Next · Kit &amp; build ›</button>
+      </div>
+      </>)}
+
+      {wizStep === 4 && (<>
+      {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
+          which is why it replaced the nine tick boxes that used to live here. */}
+      <Field label="Where you will train it" hint="Changes which movements the block reaches for.">
+        <button onClick={() => setGymPick(true)} className="w-full text-left pixel-box p-4 flex items-center justify-between gap-2" style={{ background: 'var(--surface2)' }}>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold truncate">{gym ? gym.name : 'Choose a gym'}</span>
+            <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gym ? gymSummary(gym) : 'Nothing saved yet'}</span>
+          </span>
+          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+        </button>
+      </Field>
+
       {/* What is about to happen to what they brought, in one line, next to the button that does it.
           The day count is the person's answer, not the source's: a plan that arrived across eight
           screenshots is eight photographs, not an eight-day week, and picking five used to be
@@ -835,9 +887,13 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           )}
         </div>
       )}
-      <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        {busy ? 'Building...' : draftDays > 0 ? (asBrought ? 'Build it exactly as brought' : 'Build my ' + days + '-day version') : 'Build it'}
-      </button>
+      <div className="flex gap-2">
+        <button onClick={() => setWizStep(3)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>‹ Back</button>
+        <button onClick={build} disabled={busy} className="pixel-btn flex-[2] h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+          {busy ? 'Building...' : draftDays > 0 ? (asBrought ? 'Build it exactly as brought' : 'Build my ' + days + '-day version') : 'Build it'}
+        </button>
+      </div>
+      </>)}
 
       {gymPick && <GymPicker db={db} update={update} onClose={() => setGymPick(false)}
         onPicked={(g) => { setGym(g); setGymPick(false); }} />}
@@ -864,6 +920,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   const [confirmSwitch, setConfirmSwitch] = useState(null);
   const skipSwitchCheck = useRef(false);
   const [openDay, setOpenDay] = useState(null);
+  const [openRegion, setOpenRegion] = useState(null);
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
   const logBySession = Training.completion(block, tdb(db).logs).logBySession;
@@ -995,6 +1052,10 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
           says more is better, and the entire point of this panel is that there is a top to the range
           as well as a bottom. The legend is there because a shaded band and a marker mean nothing
           until somebody says once what they are. */}
+      {/* Four body-region groups rather than all seventeen muscles laid open at once. The headline -
+          "all covered", or how many are short - answers the only question most visits are asking; a
+          region only needs opening when something in it wants a look, and each muscle inside is
+          still drawn as a POSITION on its own MEV-to-MRV band, never a bar filling up. */}
       <Card className="p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 mb-2">
           <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Week {week} volume</div>
@@ -1002,7 +1063,48 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             {cov.totalSets} sets · {cov.overs.length ? cov.overs.length + ' past recovery' : cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
           </div>
         </div>
-        <CoverageBars coverage={cov} />
+        {(() => {
+          const GROUPS = [
+            { key: 'legs', label: 'Legs', regions: ['legs'] },
+            { key: 'back', label: 'Back', regions: ['back'] },
+            { key: 'chest', label: 'Chest & shoulders', regions: ['chest', 'delts'] },
+            { key: 'rest', label: 'Arms, core & the rest', regions: ['arms', 'core'] },
+          ];
+          return (
+            <div className="flex flex-col gap-2">
+              {GROUPS.map(g => {
+                const rows = cov.rows.filter(r => g.regions.indexOf(Training.REGION[r.muscle]) !== -1);
+                if (!rows.length) return null;
+                const regionSets = rows.reduce((a, r) => a + r.sets, 0);
+                const short = rows.filter(r => r.sets < r.mev).length;
+                const over = rows.filter(r => r.sets > r.mrv).length;
+                const open = openRegion === g.key;
+                return (
+                  <div key={g.key} className="pixel-box" style={{ background: 'var(--surface2)' }}>
+                    <button onClick={() => setOpenRegion(open ? null : g.key)} className="w-full flex items-center justify-between gap-2 p-3 text-left">
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-semibold">{g.label}</span>
+                        <span className="block text-[10.5px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>
+                          {rows.map(r => r.label.toLowerCase()).join(', ')}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[11.5px] tnum flex items-center gap-2"
+                        style={{ color: over ? 'var(--warn-ink)' : short ? 'var(--muted)' : 'var(--good-ink)' }}>
+                        {regionSets} sets
+                        <span style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="16" height="16" /></span>
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="px-3 pb-3 flex flex-col gap-2.5">
+                        {rows.map(r => <CoverageRow key={r.muscle} row={r} compact />)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </Card>
 
       {/* What a second min-max block adds, since it adds nothing else: no extra sets, no extra
@@ -1054,24 +1156,48 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
           movement, then sets / reps / tempo on one line. Reading the plan and running the plan
           should not look like two different apps. */}
-      {sessions.map(s => {
+      {/* Two-up rather than a full-width stack: a session summary is a name, a day and a count -
+          three short facts that do not need the whole width - and a five-day block ran five cards
+          deep before you reached the save buttons. Tapping either card opens its detail full-width
+          below the grid, since a half-width column is nowhere to put a set stepper. */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {sessions.map(s => {
+          const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
+          const log = logBySession[s.id];
+          const open = openDay === s.id;
+          return (
+            <button key={s.id} onClick={() => setOpenDay(open ? null : s.id)}
+              className="pixel-box p-3 text-left" style={{ background: open ? 'color-mix(in srgb, var(--accent) 14%, var(--card))' : 'var(--card)' }}>
+              <span className="flex items-start justify-between gap-1.5">
+                <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
+                {log && <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>}
+              </span>
+              <span className="block text-[10.5px] mt-1.5" style={{ color: 'var(--muted)' }}>
+                {WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1)} · {ordered.length} mv · {ordered.reduce((a, e) => a + e.target.sets, 0)} sets
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {sessions.filter(s => openDay === s.id).map(s => {
         const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
         const codes = Training.sessionCodes(ordered.map(e => ({ superset: e.supersetGroup || null })));
         const log = logBySession[s.id];
-        const open = openDay === s.id;
+        const open = true;
         return (
           <div key={s.id} className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
-            <button onClick={() => setOpenDay(open ? null : s.id)} className="w-full flex items-center gap-2 p-4 text-left">
+            <div className="w-full flex items-center gap-2 p-4 text-left">
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-bold leading-tight">{s.name}</span>
                 <span className="block text-[11px] mt-2" style={{ color: 'var(--muted)' }}>
                   {WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1)} · {ordered.length} movements · {ordered.reduce((a, e) => a + e.target.sets, 0)} sets
                 </span>
               </span>
-              {log
-                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={12} /></span>
-                : <span className="shrink-0" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="16" height="16" /></span>}
-            </button>
+              <button onClick={() => setOpenDay(null)} aria-label="Close" className="shrink-0 hit" style={{ color: 'var(--muted2)' }}>
+                <Icon.chevron width="16" height="16" style={{ transform: 'rotate(90deg)' }} />
+              </button>
+            </div>
 
             {open && (
               <div className="px-4 pb-4">
@@ -1266,31 +1392,76 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const itemEx = item ? Training.byId(item.exerciseId, t.custom) : null;
   const tuneRow = tuning ? items.filter(x => x.id === tuning)[0] : null;
 
+  const mainItems = items.filter(it => Training.roleOf(Training.byId(it.exerciseId, t.custom)) !== 'accessory');
+  const accItems = items.filter(it => mainItems.indexOf(it) === -1);
+
+  // One body, wherever a movement lives, so a main lift opened as a full card and an accessory read
+  // as a single line still say the same things about themselves in the same words.
+  function movementBody(it) {
+    const ex = Training.byId(it.exerciseId, t.custom);
+    // A grip you have never used has no history of its own, and a blank row on the way into a
+    // session is worse than useless when the number you want is sitting under the movement it
+    // came from. Borrowed numbers say whose they are; the personal best stays per lift.
+    const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
+    const last = ref && ref.best;
+    const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
+    return (
+      <>
+        <span className="pf text-[10px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[items.indexOf(it)]}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
+          <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+            {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
+            {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
+          </span>
+          {/* What you did last time is the number you actually want before you set off. */}
+          {last && last.weightKg > 0 && (
+            <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+              {refFrom ? 'On ' + refFrom + ' ' : 'Last time '}
+              {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
+              {refFrom ? ' · new to this one' : ''}
+            </span>
+          )}
+        </span>
+      </>
+    );
+  }
+  // The one-line form an accessory takes: name, and its prescription as a chip. Eight heavy boxed
+  // cards read as eight decisions; five accessory ROWS read as a list you skim once and trust, which
+  // is closer to how anybody actually treats the last five things on a leg day.
+  function accessoryRow(it) {
+    const ex = Training.byId(it.exerciseId, t.custom);
+    return (
+      <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
+        <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
+        <span className="pf text-[10px] tnum shrink-0 px-2 py-1" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          {it.target.sets} x {it.target.repLow}-{it.target.repHigh}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
         {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
       </div>
-      <h1 className="text-[19px] font-bold leading-tight mb-2">{live.name}</h1>
+      <h1 className="text-[19px] font-bold leading-tight mb-1">{live.name}</h1>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min
         {live.deload ? ' · deload week' : ''}
       </div>
 
-      {/* Which day this one falls on, and a tap to move it. Real weeks do not run in order: the gym
-          is shut, Wednesday moved, legs went to Thursday. Moving it here changes THIS week only,
-          because every week carries its own copy, which is what somebody rearranging one week means. */}
+      {/* The day, and a tap to move it, as one line under the header rather than its own tappable
+          panel above the content people came to read. Real weeks do not run in order: the gym is
+          shut, Wednesday moved, legs went to Thursday. Moving it changes THIS week only, because
+          every week carries its own copy. */}
       {editable && (
-        <button onClick={() => setDayPick(true)}
-          className="w-full pixel-box p-4 mb-4 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--card)' }}>
-          <span className="min-w-0">
-            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>Day</span>
-            <span className="block text-[13.5px] font-semibold mt-1">{WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'}</span>
-            {prog && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>This week only. Later weeks stay as they are.</span>}
-          </span>
-          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Move</span>
-        </button>
+        <div className="text-[11.5px] mb-4" style={{ color: 'var(--muted)' }}>
+          {WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'} · this week only ·{' '}
+          <button onClick={() => setDayPick(true)} className="hit" style={{ color: 'var(--accent-ink)' }}>move ›</button>
+        </div>
       )}
 
       {log && (
@@ -1301,44 +1472,49 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         </Card>
       )}
 
-      {items.map((it, i) => {
+      {/* The page's one action, above the fold. It used to sit below every movement card, so on an
+          eight-movement day you scrolled the whole session to reach the button that starts it - the
+          thing most people open this screen to do. */}
+      <button onClick={onStart} className="pixel-btn w-full h-14 font-bold mb-5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+        <Icon.play width="16" /> {log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]}
+      </button>
+
+      {mainItems.length > 0 && (
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Main lifts</div>
+      )}
+      {mainItems.map((it, i) => {
         const ex = Training.byId(it.exerciseId, t.custom);
-        // A grip you have never used has no history of its own, and a blank row on the way into a
-        // session is worse than useless when the number you want is sitting under the movement it
-        // came from. Borrowed numbers say whose they are; the personal best stays per lift.
-        const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
-        const last = ref && ref.best;
-        const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
-        const body = (
-          <>
-            <span className="pf text-[10px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
-              <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-                {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
-                {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
-              </span>
-              {/* What you did last time is the number you actually want before you set off. */}
-              {last && last.weightKg > 0 && (
-                <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
-                  {refFrom ? 'On ' + refFrom + ' ' : 'Last time '}
-                  {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
-                  {refFrom ? ' · new to this one' : ''}
-                </span>
-              )}
-            </span>
-          </>
-        );
-        if (!editable) return <Card key={it.id || i} className="p-4 mb-3"><div className="flex items-start gap-3">{body}</div></Card>;
+        if (!editable) return <Card key={it.id || i} className="p-4 mb-3"><div className="flex items-start gap-3">{movementBody(it)}</div></Card>;
         return (
           <button key={it.id || i} onClick={() => setMenuFor(it.id)}
             aria-label={'Change ' + (ex ? ex.name : 'this movement')}
             className="w-full text-left pixel-box p-4 mb-3 flex items-start gap-3" style={{ background: 'var(--card)' }}>
-            {body}
+            {movementBody(it)}
             <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)' }}><Icon.chevron width="16" height="16" /></span>
           </button>
         );
       })}
+
+      {accItems.length > 0 && (
+        <>
+          <div className="pf text-[9px] uppercase mb-2 mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Accessories · {accItems.length}</div>
+          <Card className="p-0 mb-3 overflow-hidden">
+            {accItems.map((it, i) => (
+              editable ? (
+                <button key={it.id || i} onClick={() => setMenuFor(it.id)}
+                  aria-label={'Change ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement')}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
+                  {accessoryRow(it)}
+                </button>
+              ) : (
+                <div key={it.id || i} className="px-4 py-3 flex items-center gap-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
+                  {accessoryRow(it)}
+                </div>
+              )
+            ))}
+          </Card>
+        </>
+      )}
 
       {editable && (
         <>
@@ -1362,12 +1538,6 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           </div>
         </>
       )}
-
-      <StickyAction>
-        <button onClick={onStart} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          {log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]}
-        </button>
-      </StickyAction>
 
       {/* One movement's options. Same sheet, same order, same words as the session player's, because
           it is the same job asked in a different room. */}
