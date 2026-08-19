@@ -1004,7 +1004,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   }
 
   return (
-    <div className="fade-in pb-24">
+    <div className="fade-in pb-2">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-4">{isNew ? 'Your new block' : 'Edit block'}</h1>
 
@@ -1239,25 +1239,6 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         );
       })}
 
-      <StickyAction>
-        {/* Two exits on a new block, because building one and beginning one are separate decisions.
-            Keeping it is the quieter of the two and sits on the left. */}
-        {isNew ? (
-          <div className="flex gap-2">
-            <button onClick={() => save(true)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
-              Save for later
-            </button>
-            <button onClick={() => save(false)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-              Start it now
-            </button>
-          </div>
-        ) : (
-          <button onClick={() => save(false)} className="pixel-btn w-full py-4 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            Save changes
-          </button>
-        )}
-      </StickyAction>
-
       {/* Sharing publishes ONE WEEK, not your logged sessions and nothing about you. Worth saying
           plainly right next to the switch, because "share my block" could reasonably be read as
           "share my training diary". */}
@@ -1273,8 +1254,43 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         </span>
       </button>
 
+      {/* ---- the commit, in the flow at the end of the block rather than floating over it ----
+          A pinned bar is right for a screen with one action and a short page. This screen is neither:
+          it is a block you read down - name, volume, every day - and deciding at the end is the whole
+          shape of it. Pinned, the loudest thing on screen was permanently "Start it now" sitting on
+          top of the block you had not finished reading, and because the bar reserved no space it
+          covered the last day card as well.
+
+          Two exits on a new block, because building one and beginning one are separate decisions:
+          keeping it is the quieter of the two and sits on the left. */}
+      <div className="mt-5">
+        {isNew ? (
+          <div className="flex gap-2">
+            <button onClick={() => save(true)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+              Save for later
+            </button>
+            <button onClick={() => save(false)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+              Start it now
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => save(false)} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            Save changes
+          </button>
+        )}
+        <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+          {isNew
+            ? 'Saving for later puts it on your shelf without starting it. Nothing is running until you say so.'
+            : 'Changes apply to the weeks you have not trained yet. Sessions you already logged stay as they were.'}
+        </div>
+      </div>
+
+      {/* Deleting is not one of the two things above, so it does not sit against them: a tap that
+          lands one row low on "Save changes" must not find "Delete". Ruled off and quiet, at the end. */}
       {!isNew && (
-        <button onClick={() => setConfirmDelete(true)} className="w-full py-3 text-[12px] mt-2" style={{ color: 'var(--danger)' }}>Delete this block</button>
+        <div className="mt-8 pt-4 text-center" style={{ borderTop: '2px solid var(--border)' }}>
+          <button onClick={() => setConfirmDelete(true)} className="py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete this block</button>
+        </div>
       )}
 
       {picking && <ExercisePicker db={db} update={update} onPick={(id) => addItem(picking.sessionId, id)} onClose={() => setPicking(null)} />}
@@ -1442,7 +1458,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   }
 
   return (
-    <div className="fade-in pb-28">
+    <div className="fade-in pb-2">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
         {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}

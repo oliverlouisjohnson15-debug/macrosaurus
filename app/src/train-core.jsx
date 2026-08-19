@@ -269,6 +269,17 @@ function gapSentence(gap) {
 // it drops back into the flow.
 function StickyAction({ children, clearsNav = true }) {
   return (
+    <>
+      {/* The bar is FIXED, so it takes no room in the flow, so the last of the content scrolled
+          underneath it - on every screen that used one. Each page was left to guess its own bottom
+          padding and all five guessed short. This reserves the difference instead, so a page can
+          never get it wrong again.
+          Sized to the bar's whole footprint, measured rather than reasoned: its own 80px, the 104px
+          it is held off the bottom to clear the nav and the floating plus, and a hair over so the
+          last card is not kissing it. Trying to be clever here and subtract the shell's own pb-36
+          put the content straight back under the bar, because the shell's padding is consumed by the
+          nav it was put there for. Hidden on lg, where the bar is static and in the flow already. */}
+      <div aria-hidden="true" className="lg:hidden" style={{ height: clearsNav ? 184 : 96 }} />
     <div className="fixed inset-x-0 max-w-md mx-auto px-3 pt-3 lg:static lg:p-0 lg:max-w-none z-30"
       style={{
         // The tab bar is 64px and the centre Add button floats about 40px above it, so a bar that
@@ -280,6 +291,7 @@ function StickyAction({ children, clearsNav = true }) {
       }}>
       {children}
     </div>
+    </>
   );
 }
 

@@ -403,7 +403,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
     setBusy(false);
   }
   return (
-    <div className="fade-in pb-24">
+    <div className="fade-in pb-2">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">How it went</h1>
       <div className="text-[12px] mb-6" style={{ color: 'var(--muted)' }}>{block.name}</div>
@@ -705,7 +705,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
 
   const LABEL = { sets: 'More work', add: 'Missing' };
   return (
-    <div className="fade-in pb-28">
+    <div className="fade-in pb-2">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
       <h1 className="pf text-lg mb-1">Run it again</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{rot.headline}</div>
@@ -1906,7 +1906,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
     /* pb-28 clears the StickyAction bar, which is fixed 104px off the bottom and stands about 170px
        tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
        button, and the last thing on this screen is how you throw the draft away. */
-    <div className="fade-in pb-28">
+    <div className="fade-in pb-2">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       {/* "Draft block" named the object; "What I read" names what you are here to do, which is check
           the app's reading of somebody else's plan before four weeks get built on top of it. */}
