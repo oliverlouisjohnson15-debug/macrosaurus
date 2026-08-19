@@ -571,3 +571,150 @@ test('with evening out off, every day of an even week is the target itself', () 
   assert.deepEqual(new Set(kcals).size, 1, 'nothing is shaping anything: ' + kcals.join(', '));
   assert.equal(kcals[0], 2135);
 });
+
+
+// ---- going away --------------------------------------------------------------------------------
+
+// A plausible account with no windows in it: mid-cut, a target set a month ago, last check-in
+// yesterday, so the next weigh-in lands after a window declared for the coming week and the settle
+// span is real rather than degenerate.
+function awayAccount() {
+  const db = A.Store.defaultState();
+  const today = A.Store.todayISO();
+  db.profile = {
+    sex: 'male', age: 32, heightCm: 178, weightKg: 84, bodyFatPct: 22,
+    activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced',
+    carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
+    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+  };
+  db.targets = [{ id: 't1', effective_date: A.shiftISO(today, -30), kcal: 2000, protein_g: 170, carbs_g: 180, fat_g: 60 }];
+  db.last_checkin = A.shiftISO(today, -1);
+  return db;
+}
+const window_ = (o) => Object.assign({
+  id: 'p1', kind: 'travel', label: 'Away', hold: false, acceptRateKgPerWeek: 0.25,
+  eating: 'more', moving: 'more', data: 'sparse', highDays: [], deltaPct: 0.25, createdAt: 1, outcome: null,
+}, o);
+const plansScreen = (db) => render(A.WeekPlansScreen, { db, update() {}, onBack() {}, showToast() {}, isPremium: true });
+
+// The last screen of the flow is headed "what it comes to", and it was pricing the window a
+// different way from the app: without the settle span, every big day was paid for by the days AWAY
+// alone, so the ordinary days of a trip were quoted ~60 kcal below what they actually ran at. What
+// you are shown before you commit has to be what you get.
+test('the numbers on the last screen of the flow are the numbers you get', () => {
+  const db = awayAccount();
+  const m = mount(A.WeekAheadFlow, { db, update: (fn) => fn(db), showToast() {}, isPremium: true, compact: true, onDone() {} });
+  try {
+    m.click("Yes, something's on").click('Away or travelling').click("That's the one").click('Half pace');
+    const first = m.text.match(/(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+$|(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+/);
+    assert.ok(first, 'the big-day picker should list the days: ' + m.text.slice(0, 200));
+    m.click(first[0]).click("That's them");                       // one big day in the window
+    const shown = (m.text.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*(\d{4})/g) || []).map(x => +x.match(/(\d{4})/)[1]);
+    assert.equal(shown.length, 7, 'seven days should be priced: ' + m.text.slice(0, 300));
+    m.click('Sounds good');
+    assert.equal((db.week_plans || []).length, 1, 'the window should have been saved');
+    const w = db.week_plans[0];
+    const got = A.datesBetween(w.start, w.end).map(d => Math.round(A.effectiveTarget(db, d).eff.kcal));
+    assert.deepEqual(shown, got, 'the confirmation screen quoted ' + shown.join(',') + ' and the app gives ' + got.join(','));
+    assert.ok(new Set(got).size > 1, 'the fixture needs a big day in it to be worth testing');
+  } finally { m.unmount(); }
+});
+
+test('a running window states the rate it is actually running at', () => {
+  // `hold` beats the rate in Engine.planRate, so a window carrying both was running at maintenance
+  // while the card promised half a kilo a week.
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, -1), end: A.shiftISO(today, 3), hold: true, acceptRateKgPerWeek: 0.5 })];
+  const r = plansScreen(db);
+  assert.ok(r.has('Holding steady'), 'a hold window should say so: ' + r.text.slice(0, 300));
+  assert.ok(!/Aiming at 0.5/.test(r.text), 'and must not promise a rate it is not running');
+  const banner = render(A.WeekPlanBanner, { db, update() {}, showToast() {}, onOpen() {} });
+  assert.ok(banner.has('Holding steady'), 'the dashboard strip says the same thing: ' + banner.text.slice(0, 200));
+  // A window saved with no rate at all falls back to the profile's, rather than rendering "null".
+  db.week_plans = [window_({ start: A.shiftISO(today, -1), end: A.shiftISO(today, 3), acceptRateKgPerWeek: null })];
+  assert.ok(!/null/.test(plansScreen(db).text), 'a rate-less window rendered "Aiming at null kg a week"');
+  assert.ok(plansScreen(db).has('Aiming at 0.5 kg a week'), 'it should fall back to the normal rate');
+});
+
+test('a running window will not let its start date be moved', () => {
+  // Moving it re-scores the days already eaten under it, which is why the rate is locked too. The
+  // end stays open: staying longer has no past in it.
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, -1), end: A.shiftISO(today, 3) })];
+  const r = plansScreen(db);
+  assert.ok(/value="[^"]*"[^>]*disabled/.test(r.html) || /disabled[^>]*value="/.test(r.html), 'the From field should be disabled: ' + r.html.slice(0, 400));
+  assert.ok(r.html.indexOf('min="' + today + '"') !== -1, 'and the To field should not accept a date in the past');
+  assert.ok(/I&#x27;m back|I'm back/.test(r.html), 'with the safe way to end it still offered');
+  // Before it starts, both dates are still yours to change.
+  db.week_plans = [window_({ start: A.shiftISO(today, 2), end: A.shiftISO(today, 6) })];
+  assert.ok(!/disabled/.test(plansScreen(db).html), 'nothing has run yet, so nothing is locked');
+});
+
+test('cancelling a window that has already run says what it really does', () => {
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, -2), end: A.shiftISO(today, 3) })];
+  const m = mount(A.WeekPlansScreen, { db, update: (fn) => fn(db), onBack() {}, showToast() {}, isPremium: true });
+  try {
+    m.click('×');
+    assert.ok(!m.has('Nothing you have already logged changes'),
+      'the old dialog promised the past was untouched while wiping the targets it was judged against');
+    assert.ok(m.has('keep the numbers they ran under') || m.has('nothing you have already logged changes'),
+      'it should say the days away are kept: ' + m.text.slice(0, 400));
+    m.click('End it today');
+    assert.equal(db.week_plans.length, 1, 'a window that has run is ended, not deleted');
+    assert.equal(db.week_plans[0].end, A.shiftISO(today, -1), 'and it stops at yesterday');
+  } finally { m.unmount(); }
+});
+
+test('a window that has not run a day is still a plain cancel', () => {
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, 2), end: A.shiftISO(today, 6) })];
+  const m = mount(A.WeekPlansScreen, { db, update: (fn) => fn(db), onBack() {}, showToast() {}, isPremium: true });
+  try {
+    m.click('×');
+    assert.ok(m.has('has not run a day yet'), 'the dialog should say so: ' + m.text.slice(0, 300));
+    m.click('Cancel it');
+    assert.equal(db.week_plans.length, 0, 'nothing ran under it, so it goes');
+  } finally { m.unmount(); }
+});
+
+test('a trip that has not started is not described as if you were on it', () => {
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, 3), end: A.shiftISO(today, 7) })];
+  const r = render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} });
+  assert.ok(!/You&#x27;re away|You're away/.test(r.html), 'present tense, three days early: ' + r.text.slice(0, 300));
+  assert.ok(/You&#x27;ll be away|You'll be away/.test(r.html), 'it should say when: ' + r.text.slice(0, 300));
+  assert.ok(!/opacity-50/.test(r.html), 'the weekday rhythm is what is driving the days before the trip, so it is not greyed out');
+  assert.ok(!/Not in force while/.test(r.text), 'nor described as not in force');
+  // While one is actually running, all three of those flip back.
+  db.week_plans = [window_({ start: A.shiftISO(today, -1), end: A.shiftISO(today, 3) })];
+  const live = render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} });
+  assert.ok(/Not in force while/.test(live.text), 'a running trip IS the shape: ' + live.text.slice(0, 300));
+  assert.ok(/opacity-50/.test(live.html));
+});
+
+test('the big-day boost only appears once there is a big day', () => {
+  const db = awayAccount();
+  assert.ok(!/High-day boost/.test(render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} }).text),
+    'a slider that moves nothing should not be sitting on an even week');
+  db.profile.cycling = { enabled: true, highDays: [new Date(A.Store.todayISO() + 'T00:00:00').getDay()], deltaPct: 0.15 };
+  assert.ok(/High-day boost/.test(render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} }).text),
+    'and it has to be there the moment it means something');
+});
+
+test('a day away is judged complete against the plan it actually ran under', () => {
+  const db = awayAccount();
+  const today = A.Store.todayISO();
+  db.week_plans = [window_({ start: A.shiftISO(today, -3), end: A.shiftISO(today, 2) })];
+  const d = A.shiftISO(today, -2);
+  db.log_entries = [{ id: 'e1', date: d, computed_macros: { kcal: 1300 } }];
+  const ran = Math.round(A.effectiveTarget(db, d).eff.kcal);
+  assert.equal(A.plannedKcalOn(db, d), ran, 'the bar and the target have to be the same number');
+  assert.equal(A.isCompleteDayOn(db, d), false,
+    '1300 kcal against a ' + ran + ' plan is not a complete day, whatever it is against the unbent one');
+});

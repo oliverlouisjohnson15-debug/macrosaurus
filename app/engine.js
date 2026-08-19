@@ -1250,7 +1250,10 @@
   //                                                      day of the cycle, so the carryover ledger
   //                                                      scores a trip day against the target it
   //                                                      actually ran under. `base` already carries
-  //                                                      it for `date` itself.
+  //                                                      it for `date` itself. A NUMBER (0 included)
+  //                                                      means a window shapes that day, and the
+  //                                                      weekday rhythm does not; null means no
+  //                                                      window does and the rhythm stands.
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -1275,10 +1278,20 @@
     // before it gets here and the ledger only ever reconstructed cycling. Eating exactly to a 2,655
     // travel target booked an 1,155 kcal "surplus", which dispersed carryover then clawed straight
     // back off the rest of the trip: the plan quietly took itself apart the moment it was followed.
+    // ONE shape per day, in the ledger exactly as on the day itself. A day inside a window (or one
+    // of the days settling it up) is composed with the weekday rhythm switched OFF - the window is
+    // the shape - so reconstructing that day as rhythm PLUS window invents a target it never ran
+    // under. A cut with a high Saturday, and a Saturday spent abroad, was scored against a bar
+    // carrying both bumps, and the phantom deficit that made was handed back over the days after
+    // the trip. Which is why this asks whether a window shapes the day at all rather than adding
+    // its number: `null` (or no function) means nothing does and the rhythm stands, and a NUMBER
+    // means a window does - zero included, because a window that bends nothing still displaces the
+    // rhythm.
     var windowDeltaOn = opts.windowDeltaOn || null;
     function planDelta(iso) {
-      return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor)
-        + (windowDeltaOn ? (+windowDeltaOn(iso) || 0) : 0);
+      var w = windowDeltaOn ? windowDeltaOn(iso) : null;
+      if (w != null) return +w || 0;
+      return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor);
     }
     // The day being composed already carries its window bend inside `base` (the caller applies it,
     // so the floor and the macro split see it), so only the LEDGER's past days need it added back.

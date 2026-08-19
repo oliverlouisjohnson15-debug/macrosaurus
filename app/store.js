@@ -184,7 +184,9 @@
     // eaten under the rate it actually had, and restating those is what the rest of this file exists
     // to prevent: the carryover ledger reconstructs a past day from the plan as it stands, so moving
     // the rate under it would read those days as surpluses and claw the difference back off the days
-    // that are left. Those are corrected by hand, from the rate control on What's coming up.
+    // that are left. A running window's rate is fixed on What's coming up for the same reason, so the
+    // way to correct one is to end it there ("I'm back", which keeps every day already run) and
+    // declare a new one for what is left.
     var planToday = todayISO();
     (s.week_plans || []).forEach(function (w) {
       if (!w || !w.start || w.start <= planToday) return;

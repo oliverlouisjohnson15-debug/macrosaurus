@@ -262,9 +262,35 @@ test('without the window the ledger is unchanged for everybody else', () => {
   });
   const a = E.composeDayTarget(opts());
   const b = E.composeDayTarget(Object.assign(opts(), { windowDeltaOn: null }));
-  const c = E.composeDayTarget(Object.assign(opts(), { windowDeltaOn: () => 0 }));
+  const c = E.composeDayTarget(Object.assign(opts(), { windowDeltaOn: () => null }));
   assert.deepEqual(b, a, 'an explicit null must match an absent key');
-  assert.deepEqual(c, a, 'and a window that bends nothing must change nothing');
+  assert.deepEqual(c, a, 'and so must a function that says no window shapes these days');
+});
+
+test('a day inside a window is scored by the window, never by the window AND the rhythm', () => {
+  // ONE shape per day: effectiveTarget switches the weekday rhythm off inside a window, so the
+  // ledger has to reconstruct those days the same way. Scored as rhythm + window, a Saturday spent
+  // abroad was measured against a bar carrying both bumps, and the deficit that invented was handed
+  // back over the days after the trip. The days themselves are the fixture: Saturday the 15th is a
+  // high day of the rhythm AND inside the window.
+  const opts = (windowDeltaOn) => ({
+    base: { kcal: 2000, protein_g: 180, fat_g: 60, carbs_g: 150 },
+    date: '2026-08-17', floorKcal: 1200,
+    cycling: { enabled: true, highDays: [6], deltaPct: 0.15 }, cyclingHistory: null,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycleStart: '2026-08-15', eatenByDate: { '2026-08-15': 2200, '2026-08-16': 2200 },
+    targets: [{ effective_date: '2026-07-01', kcal: 2000, protein_g: 180, fat_g: 60, carbs_g: 150 }],
+    windowDeltaOn: windowDeltaOn,
+  });
+  // A window covering both eaten days that bends them by +200, and eating exactly to it.
+  const inWindow = E.composeDayTarget(opts(() => 200));
+  assert.equal(inWindow.carryDetail.balance, 0,
+    'eating exactly to the window must book nothing either way, got ' + inWindow.carryDetail.balance);
+  // The rhythm's +300 Saturday must not be added on top of the window's +200.
+  const doubled = 2000 + 200 + E.cyclingDelta({ enabled: true, highDays: [6], deltaPct: 0.15 }, 6, 2000, 1200);
+  assert.ok(doubled > 2400, 'the fixture needs a real Saturday bump to be worth testing, got ' + doubled);
+  assert.notEqual(inWindow.carryDetail.days[0].delta, doubled - 2200,
+    'the Saturday was scored against the rhythm and the window at once');
 });
 
 // ---- editing the shape of a window while it runs ---------------------------------------------

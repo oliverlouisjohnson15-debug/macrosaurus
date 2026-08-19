@@ -3156,6 +3156,12 @@ function plannedKcalOn(db, dISO) {
   // already eaten was judged against.
   const t = E.targetOn(db.targets, dISO) || currentTargets(db); if (!t) return 0;
   const p = db.profile || {};
+  // ...and the plan shaping it is the one that was actually shaping it: ONE shape per day, the same
+  // rule effectiveTarget composes by. This used to add the weekday rhythm and nothing else, so a day
+  // away was judged against the bar it would have had at home - 1,300 kcal on a day the app had set
+  // to 2,275 counted as a full day's honest log, because it cleared 60% of 2,000.
+  const sh = shapingPlanOn(db, dISO);
+  if (sh.plan) return t.kcal + E.planDayDelta(sh.plan, p, dISO, t.kcal, E.kcalFloor(p), sh.settleEnd);
   return t.kcal + E.cyclingDeltaOn(p.cycling, p.cyclingHistory, dISO, t.kcal, E.kcalFloor(p));
 }
 // The plan history as it would read after saving `next` today, with the rebalance that change owes
@@ -3489,7 +3495,9 @@ function effectiveTarget(db, date) {
   // straddle the start or the end of a trip.
   const windowDeltaOn = (iso) => {
     const s = shapingPlanOn(db, iso);
-    return s.plan ? E.planDayDelta(s.plan, p, iso, (E.targetOn(db.targets, iso) || unbent).kcal, E.kcalFloor(p), s.settleEnd) : 0;
+    // null, not 0: 0 is a window that bends nothing, which still switches the rhythm off for that
+    // day, and the two must not read the same (see composeDayTarget.planDelta).
+    return s.plan ? E.planDayDelta(s.plan, p, iso, (E.targetOn(db.targets, iso) || unbent).kcal, E.kcalFloor(p), s.settleEnd) : null;
   };
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
@@ -5186,7 +5194,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   const suggested = lastOfKind
     ? (lastOfKind.outcome === 'off_plan' ? 0
       : lastOfKind.outcome === 'roughly' ? Math.round(Math.abs(p.rateKgPerWeek || 0.5) * 50) / 100
-      : lastOfKind.acceptRateKgPerWeek)
+      : E.planRate(lastOfKind, p))
     : null;
   // `hold` is what they ANSWERED, not what the preset guessed. planRate reads hold before it reads
   // the rate, so carrying the preset's default onto the saved plan threw the answer away: picking
@@ -5337,7 +5345,13 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   </div>);
 
   // 6. What it comes to, before committing.
-  const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
+  // Priced the way the app will actually price it, settle span included. Left off, the preview
+  // spread every big day over the days AWAY alone, while the saved window spreads it as far as the
+  // weigh-in - so the screen headed "what it comes to" quoted 2,025 for the ordinary days of a trip
+  // the app then ran at 2,086, always harsher than the real thing, on the last screen before you
+  // commit to it.
+  const draftSettleEnd = draft ? settleEndFor(db, draft) : null;
+  const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p), draftSettleEnd)) : null;
   return (<div className="fade-in">
     <Bubble from="you">{high.length ? high.length + ' big day' + (high.length === 1 ? '' : 's') : 'No big days'}</Bubble>
     <Bubble>
@@ -5404,6 +5418,10 @@ function WeekPlanBanner({ db, update, showToast, onOpen }) {
   const ctx = E.weekPlanContext(db.week_plans, today);
   const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
+  // Through Engine.planRate, like everywhere else. Read straight off the field, this said "Aiming at
+  // 0.5 kg a week" over a window `hold` was running at maintenance, and "Aiming at null kg a week"
+  // over one saved without a rate at all.
+  const planRate = E.planRate(pl, db.profile);
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return (<div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
     <button onClick={onOpen} className="w-full text-left">
@@ -5411,7 +5429,7 @@ function WeekPlanBanner({ db, update, showToast, onOpen }) {
       <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
       {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
       <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
-        ? (pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.')
+        ? (planRate === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + planRate + ' kg a week while this runs, as agreed.')
         : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.'
         : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')}</div>
     </button>
@@ -15378,15 +15396,32 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
   const plans = (db.week_plans || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1));
   const upcoming = plans.filter(w => w.end >= today);
   const past = plans.filter(w => w.end < today).slice(0, 5);
-  const cancel = (w) => { update(d => { tombstone(d, [w.id]); d.week_plans = (d.week_plans || []).filter(x => x.id !== w.id); }); showToast && showToast('Cancelled ' + w.label); };
+  // Cancelling a window that has RUN is not a delete. Those days were really spent away: they were
+  // eaten against eased targets, and wiping the window re-scores them against the plain one, so
+  // three days followed exactly booked an 825 kcal surplus the ledger then took back off the days
+  // ahead - under a dialog promising that nothing already logged would change. A window that has not
+  // run a day has no such days, so that one really is a delete. Which of the two it is is
+  // Engine.planHomeEarly's call, and this shares the one writer with "I'm back", so a window cannot
+  // be ended two different ways from two buttons on the same card.
+  const cancel = (w) => endWindowEarly(update, showToast, w, today);
   const OUTCOME = { went_well: 'Went well', roughly: 'Roughly stuck to it', off_plan: 'Went off plan', didnt_happen: "Didn't happen" };
   // Dates you cannot change are dates you have to cancel and retype, and until now that was the only
   // way: a window got its range once, at the moment it was created, and a range that came out wrong
   // (see parseFree, which used to skip the confirmation step) was stuck. Shortening one drops the big
   // days that fall outside it, since a big day nobody is away for is not a big day.
   const setDates = (w, patch) => {
-    const start = patch.start || w.start;
+    // Once a window is running its START is fixed, for exactly the reason its rate is: the days
+    // behind it were eaten against the targets it set, and moving it re-scores them. Nudging "From"
+    // on a running trip forward by one day took today from 2,275 to 2,220, and kept going. Ending it
+    // early is a real thing to want and has its own safe door ("I'm back"), which keeps every day
+    // already away; what it will not do is reach back over them.
+    const started = w.start <= today;
+    const start = started ? w.start : (patch.start || w.start);
     let end = patch.end || w.end;
+    if (started && end < today) {
+      showToast && showToast('Use "I\'m back" to end it today, so the days you were away keep their numbers');
+      return;
+    }
     if (end < start) end = start;
     // Never let an edit swallow another window; the create flow refuses an overlap for the same
     // reason, and says so rather than just snapping the field back at you.
@@ -15420,32 +15455,36 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
     {adding
       ? <WeekAheadFlow db={db} update={update} showToast={showToast} compact isPremium={isPremium} onDone={() => setAdding(false)} />
       : <>
-        {upcoming.length ? <div className="space-y-2.5 mb-4">{upcoming.map(w => (
+        {upcoming.length ? <div className="space-y-2.5 mb-4">{upcoming.map(w => { const started = w.start <= today, rate = E.planRate(w, p); return (
           <div key={w.id} className="pixel-box p-3.5" style={{ background: 'var(--card)' }}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">{w.label}</div>
                 <div className="text-[11.5px] text-[#8A8A90] mt-0.5">{fmtRange(w.start, w.end)} &middot; {datesBetween(w.start, w.end).length} days</div>
-                <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent-ink)' }}>{w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week'}</div>
+                <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent-ink)' }}>{rate === 0 ? 'Holding steady' : 'Aiming at ' + rate + ' kg a week'}</div>
               </div>
               <button onClick={() => setConfirmDel(w)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Cancel">&times;</button>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2.5">
-              <Field label="From"><input type="date" className={inputCls} value={w.start} onChange={e => setDates(w, { start: e.target.value })} /></Field>
-              <Field label="To"><input type="date" className={inputCls} value={w.end} min={w.start} onChange={e => setDates(w, { end: e.target.value })} /></Field>
+              <Field label="From"><input type="date" className={inputCls} value={w.start} disabled={started}
+                style={started ? { opacity: 0.55 } : null} onChange={e => setDates(w, { start: e.target.value })} /></Field>
+              {/* Staying longer is a change with no past in it, so it stays open while the window
+                  runs; coming home early goes through "I'm back" below. */}
+              <Field label="To"><input type="date" className={inputCls} value={w.end} min={started ? today : w.start}
+                onChange={e => setDates(w, { end: e.target.value })} /></Field>
             </div>
-            {w.start > today
+            {!started
               ? <Field label="Aiming at">
                   <Dropdown value={String(w.acceptRateKgPerWeek)} onChange={v => setRate(w, +v)}
                     options={acceptOptions(p, null).map(o => ({ v: String(o.v), l: o.l }))} />
                 </Field>
               : <>
-                  <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.</div>
+                  <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its start and its rate are fixed now: the days you have already eaten keep what they ran under. You can still push the end date back if you're staying longer. If it needs to change more than that, end it here and declare a new one.</div>
                   {/* Home early. Cancelling would wipe the days you were genuinely away and mark you
                       down for them; this keeps them and stops the window here. */}
                   <Btn kind="ghost" className="w-full mt-2.5" onClick={() => setConfirmHome(w)}>I'm back</Btn>
                 </>}
-          </div>))}</div>
+          </div>); })}</div>
           : <div className="text-[12px] text-[#8A8A90] mb-4">Nothing coming up. Your plan runs as normal.</div>}
         <Btn kind="accent" className="w-full" onClick={() => setAdding(true)}>Tell me what's coming up</Btn>
         {past.length > 0 && <div className="mt-6">
@@ -15457,7 +15496,15 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
             </div>))}</div>
         </div>}
       </>}
-    {confirmDel && <ConfirmDialog title={'Cancel ' + confirmDel.label + '?'} body="Your normal targets come back for those days. Nothing you have already logged changes." confirmLabel="Cancel it" onConfirm={() => cancel(confirmDel)} onClose={() => setConfirmDel(null)} />}
+    {/* Which of the two acts this is, said out loud: one drops a plan nothing has happened under,
+        the other stops a trip that is already under way and keeps every day of it. */}
+    {confirmDel && (() => {
+      const gone = confirmDel.start >= today;
+      return <ConfirmDialog title={(gone ? 'Cancel ' : 'End ') + confirmDel.label + '?'}
+        body={gone ? 'It has not run a day yet, so there is nothing to keep: your normal targets stand for those dates.' : endWindowBody(confirmDel, today)}
+        confirmLabel={gone ? 'Cancel it' : 'End it today'} confirmKind={gone ? undefined : 'accent'}
+        onConfirm={() => cancel(confirmDel)} onClose={() => setConfirmDel(null)} />;
+    })()}
     {confirmHome && <ConfirmDialog title={'Back from ' + confirmHome.label.toLowerCase() + '?'} body={endWindowBody(confirmHome, today)}
       confirmLabel="I'm back" confirmKind="accent"
       onConfirm={() => endWindowEarly(update, showToast, confirmHome, today)} onClose={() => setConfirmHome(null)} />}
@@ -15506,6 +15553,12 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   // number twice. The days that come back down are the settling days themselves, which are already
   // in the row; the two after them are just the target, unshaped, said again. Capped at a fortnight
   // so a month away is two readable rows rather than five.
+  // ...and whether it is actually SHAPING TODAY, which is not the same question. A trip three days
+  // out belongs in the row - those are its days and its numbers - but the days before it are still
+  // the weekday rhythm's, so a screen that greys the rhythm out, says it is "not in force while
+  // you're away" and calls you away in the present tense is describing the wrong week to somebody
+  // sitting at home.
+  const windowLive = !!stripWindow && stripWindow.start <= today;
   const settleEnd = stripWindow ? settleEndFor(db, stripWindow) : null;
   const stripEnd = stripWindow
     ? [settleEnd || stripWindow.end, shiftISO(today, 13)].sort()[0]
@@ -15545,10 +15598,12 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         up while the days below it answered to the trip's dates, and tapping a preset changed
         nothing on screen. They stay reachable, because setting up the rhythm you are coming back to
         is a fair thing to do from here; they just no longer pretend to be in charge of the row. */}
-    <div className={`grid grid-cols-2 gap-2${stripWindow ? ' opacity-50' : ''}`}>{PLAN_PRESETS.map(pr => (
+    <div className={`grid grid-cols-2 gap-2${windowLive ? ' opacity-50' : ''}`}>{PLAN_PRESETS.map(pr => (
       <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>))}</div>
     {stripWindow && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
-      Not in force while you're away: your trip is the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}. This is the rhythm you come back to.
+      {windowLive
+        ? <>Not in force while you're away: your trip is the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}. This is the rhythm you come back to.</>
+        : <>In force until {fmtShortDay(stripWindow.start)}, when your trip takes over as the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}.</>}
     </div>}
     {/* ONE strip for the week, always. A day is shaped either by the standing rhythm or by a declared
         window, and which one is a detail of the maths, not something to make somebody hold in their
@@ -15656,7 +15711,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
-          {stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
+          {stripWindow ? (windowLive ? ' You\'re ' : ' You\'ll be ') + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
             + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week')
             + ', and the bill for any big day can be spread as far as your weigh-in on '
             + new Date(shiftISO((settleEnd || stripWindow.end), 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + '.' : ''}
@@ -15692,18 +15747,25 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
               : 'Even it out: no big days, every day of the trip the same ›'}
           </button>;
         })()}
-        <div className="mt-3">
-          <Field label={`${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`}>
+        {/* A slider for how big the big days are, on a week with no big days in it, moved nothing:
+            it sat there reading "+21%" above an even row and was one of the reasons that row looked
+            shaped by something. It appears when there is a day for it to act on, which is also the
+            moment it starts meaning anything. (Dragging it before then also wrote a dated
+            plan-change record for a rhythm that was not running - see applyCycling.) */}
+        {strip.some(isHigh) && <div className="mt-3">
+          <Field label={`${stripWindow ? (windowLive ? 'Big-day boost while you\'re away' : 'Big-day boost on your trip') : 'High-day boost'}: +${boostPct}%`}>
             <input type="range" min="5" max="35" value={boostPct} onChange={e => setBoost(+e.target.value)} className="w-full accent-[#4A9EEB]" />
           </Field>
           {capPct != null && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--fat-ink)' }}>
             Landing at +{capPct}%: that is everything the other days have left to give before they hit the floor. Drop a big day, or spread them out, to buy more.
           </div>}
-        </div>
+        </div>}
         <div className="text-[11px] text-[#8A8A90] leading-snug">
-          {stripWindow
+          {windowLive
             ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
-            : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
+            : stripWindow
+              ? 'The days before it run on your normal rhythm; from ' + fmtShortDay(stripWindow.start) + ' the trip is the shape, through to the days that settle it up. A big day in it is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
+              : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
           {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div>
       </div>);
