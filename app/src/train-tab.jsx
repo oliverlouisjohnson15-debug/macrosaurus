@@ -304,49 +304,49 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             </div>
           )}
 
-          {/* This week, as a list you can start any of. Each row says what it is, whether it is done,
-              and roughly how long it will take, which is the question people actually ask before
-              deciding whether tonight is a gym night. */}
-          <div className="mb-4">
-            {thisWeek.map(({ session, log }, i) => {
-              const done = !!log;
-              const isNext = next && session.id === next.session.id;
-              const sets = (session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0);
-              const mins = sessionMins(session.exercises);
-              return (
-                <button key={session.id} onClick={() => onOpen(session, block)}
-                  className="w-full flex items-center gap-3 py-3 text-left"
-                  style={{ borderTop: i ? '2px solid var(--border)' : 'none' }}>
-                  <span className="w-7 h-7 shrink-0 flex items-center justify-center text-[13px] font-bold pixel-box"
-                    style={{ background: done ? 'var(--good)' : isNext ? 'var(--surface2)' : 'transparent', color: done ? '#05140a' : 'var(--muted2)', borderWidth: done || isNext ? undefined : 0 }}>
-                    {done ? <Tick /> : i + 1}
+          {/* The week used to be four full-width rows, one per day, whether or not there was
+              anything left to say about them: a done day and an untouched one took the same amount
+              of screen. Three of those four rows carry exactly one fact - done - so they are folded
+              into a single line of names, each still its own button into that day's plan. Only the
+              week's total set count earns a number of its own, on the right where the old per-row
+              set counts used to scatter. */}
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap text-[12.5px]">
+              {thisWeek.map(({ session, log }, i) => {
+                const done = !!log;
+                const isNext = next && session.id === next.session.id;
+                return (
+                  <span key={session.id} className="flex items-center gap-1.5">
+                    {i > 0 && <span style={{ color: 'var(--muted2)' }}>·</span>}
+                    <button onClick={() => onOpen(session, block)} className="hit"
+                      style={{ color: done ? 'var(--muted)' : isNext ? 'var(--text)' : 'var(--muted)', fontWeight: isNext ? 600 : 400 }}>
+                      {session.name.split(' - ')[0]}{done ? ' ✓' : ''}
+                    </button>
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13.5px] font-semibold truncate" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>{session.name}</span>
-                    <span className="block text-[10.5px] tnum" style={{ color: 'var(--muted2)' }}>
-                      {WEEKDAYS[session.dayOfWeek] || '?'} · {done ? (log.sets || []).filter(s => s.done).length + ' sets done' : sets + ' sets · about ' + mins + ' min'}
-                    </span>
-                  </span>
-                  {isNext && <span className="pf text-[7px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Next</span>}
-                  <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
+            <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
+              {thisWeek.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets
+            </span>
           </div>
 
           {next ? (
-            /* Opens the plan; the Start on that screen begins the session. This button used to start
-               it outright on the grounds that pressing "Start" is itself the confirmation, which is
-               true but beside the point: the thing people do most often on this screen is check what
-               tonight is, and there is now exactly one control in the app that begins a session. A
-               session is not a page you visited, it is a timer and a log, and it should take saying
-               so. The cost is one tap on the way in. */
-            <>
-              {/* What you are about to lift, before you commit to lifting it. The tab could tell you
-                  how many sessions were left and how long the next one takes but not what was IN it,
-                  which is the thing anybody deciding whether tonight is a gym night actually wants -
-                  and on a style whose whole psychology is "one set, make it count", the opener and
-                  what it asks for is worth reading before you are standing in front of it. */}
+            /* One nested card now, not a boxed "Opening with" panel plus a floating sentence plus a
+               hint nobody needed once the roll-up above made every day tappable by name. NEXT · DAY
+               names when, the day's own name and its cost sit on one row, and what it opens with is
+               one sentence rather than a mini exercise card of its own - the whole point of the fold
+               is that this is a preview, not the session. */
+            <div className="mb-3 px-3 py-3" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
+              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>
+                Next · {WEEKDAYS[next.session.dayOfWeek] || ''}
+              </div>
+              <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                <span className="text-[14px] font-bold">{next.session.name.split(' - ')[0]}</span>
+                <span className="text-[11px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
+                  {(next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0)} sets · about {sessionMins(next.session.exercises)} min
+                </span>
+              </div>
               {(() => {
                 const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
                 if (!items.length) return null;
@@ -359,42 +359,25 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                     : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
                   : lead.target.rir + ' RIR';
                 return (
-                  <div className="mb-3 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
-                    <div className="pf text-[7.5px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Opening with</div>
-                    <div className="text-[12.5px] font-semibold leading-tight">
-                      {leadEx ? leadEx.name : lead.exerciseId}
-                    </div>
-                    <div className="text-[11px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
-                      {lead.target.sets} × {lead.target.repLow}–{lead.target.repHigh} · {effort}
-                      {lead.technique ? ' · ' + lead.technique.toLowerCase() : ''}
-                    </div>
-                    {items.length > 1 && (
-                      <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: 'var(--muted2)' }}>
-                        then {items.slice(1, 3).map(e => (Training.byId(e.exerciseId, t.custom) || {}).name).filter(Boolean).join(', ')}
-                        {items.length > 3 ? ' and ' + (items.length - 3) + ' more' : ''}
-                      </div>
-                    )}
+                  <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+                    Opens with {leadEx ? leadEx.name : lead.exerciseId} {lead.target.sets}×{lead.target.repLow}-{lead.target.repHigh} · {effort}
+                    {items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.'}
+                    {restDays.length > 0 && restDays.length < 7 ? ' Rest ' + restDays.map(d => WEEKDAYS[d]).join('-') + '.' : ''}
                   </div>
                 );
               })()}
-
-              {/* The page's one primary action, so it wears the accent rather than a hardcoded white
-                  slab - which was also the last control in Train that stayed daylight at night. */}
-              <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-                <Icon.play width="16" /> Open {next.session.name.split(' - ')[0]}
-              </button>
-              {/* Naming it is the whole of the discoverability. Opening a day has always been how you
-                  read it; that it is also how you CHANGE it is not something a chevron can say, and
-                  the alternative was people starting a session they did not want to start in order
-                  to swap one movement. */}
-              <div className="text-[11px] text-center mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
-                Open any day above to see it, swap a movement or move it to another day. None of that starts a session.
-              </div>
-            </>
+            </div>
           ) : (
             <div className="text-[12.5px] text-center py-3" style={{ color: 'var(--good)' }}>
               Week {prog.week} done. That is the whole week, in the bag.
             </div>
+          )}
+          {/* The page's one primary action, so it wears the accent rather than a hardcoded white
+              slab - which was also the last control in Train that stayed daylight at night. */}
+          {next && (
+            <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+              <Icon.play width="16" /> Open {next.session.name.split(' - ')[0]}
+            </button>
           )}
           </div>
         </Card>
@@ -483,38 +466,26 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         /* LAST SESSION is a titled panel too, with WHEN on the bar in accent - the design puts the
            recency there because "yesterday" is the thing that makes the card worth a glance, and it
            frees the interior to carry the session and its numbers instead of a three-line stack. */
-        <Card className="p-0 mb-4 overflow-hidden">
-          <CardHead title="Last session" right={relativeDay(lastLog.dateISO, today)} onRight={() => go('history')} />
-          {/* The design turns the session's numbers into three read-at-a-glance tiles rather than a
-              run-on line of text, which is what makes this card scannable: you see 24 / 11.3T / 58M
-              without parsing a sentence. Tonnage is abbreviated to tonnes so the figure stays short
-              enough to sit under its own label. */}
-          <button onClick={() => go('history')} className="w-full text-left px-3.5 py-3">
-            <div className="flex items-baseline justify-between gap-3 mb-2.5">
-              <span className="text-[15px] font-semibold truncate">{lastLog.name || 'Session'}</span>
-              <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
+        <button onClick={() => go('history')} className="pixel-box w-full text-left px-3.5 py-3 mb-4 flex items-center justify-between gap-3"
+          style={{ background: 'var(--card)' }}>
+          {/* Recognition, not a second dashboard. This used to be a titled card with three stat
+              tiles under it - a whole panel to say "yes, you trained yesterday". One line does the
+              same job: which session, when, what it cost, and a way in if you want more. */}
+          <span className="min-w-0">
+            <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--muted2)', letterSpacing: '0.08em' }}>
+              Last · {(lastLog.name || 'Session').split(' - ')[0]} · {relativeDay(lastLog.dateISO, today).toLowerCase()}
+            </span>
+            <span className="text-[13px] tnum" style={{ color: 'var(--text)' }}>
               {(() => {
                 const sets = (lastLog.sets || []).filter(s => s.done).length;
                 const kg = toDisplayWeight(Training.tonnage(lastLog), units);
-                const vol = kg >= 1000 ? (Math.round(kg / 100) / 10) + 'T' : Math.round(kg) + unitLabel(units);
-                /* THREE tiles, always. The design's row is a fixed trio, and dropping Time when a
-                   session has no recorded duration left a two-up grid whose cells were half as wide
-                   again as every other card's - the row stopped looking like the same component. An
-                   unrecorded duration shows a dash, which is the honest answer and keeps the shape. */
-                const secs = lastLog.durationSec || lastLog.duration_sec || (lastLog.endedAt && lastLog.startedAt ? (lastLog.endedAt - lastLog.startedAt) / 1000 : 0);
-                const mins = secs > 0 ? Math.round(secs / 60) + 'M' : '–';
-                return [['Sets', sets], ['Volume', vol], ['Time', mins]].map(([l, v]) => (
-                  <div key={l} className="flex flex-col items-center gap-1 py-2 px-1" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
-                    <span className="pf uppercase" style={{ fontSize: 8, letterSpacing: '0.1em', color: 'var(--muted)' }}>{l}</span>
-                    <span className="pf tnum" style={{ fontSize: 15, color: 'var(--good-ink)' }}>{v}</span>
-                  </div>
-                ));
+                const vol = kg >= 1000 ? (Math.round(kg / 100) / 10) + 't' : Math.round(kg) + unitLabel(units);
+                return <><b>{sets}</b> sets · <b>{vol}</b> moved</>;
               })()}
-            </div>
-          </button>
-        </Card>
+            </span>
+          </span>
+          <span className="pf text-[10px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>view ›</span>
+        </button>
       )}
 
       {/* ---- a draft in progress is a promise you made yourself, so it gets a real card ---- */}
@@ -537,39 +508,43 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </div>
       )}
 
-      {/* ---- where new blocks come from. One route in now: bringing a source (a reel, a PDF, a
-              screenshot) and building from scratch are the same wizard, not a choice between two
-              screens - the wizard itself asks whether you have something to bring. ---- */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
-          Browse<br />blocks
-        </button>
-        <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
-          Build<br />a block
-        </button>
+      {/* ---- where new blocks come from, when there is nothing running to browse or build past.
+              One route in: bringing a source (a reel, a PDF, a screenshot) and building from scratch
+              are the same wizard, not a choice between two screens. Once a block IS running, both of
+              these are one tap further away inside "Blocks" - showing them here too was two routes
+              to the same place for the case that matters least. ---- */}
+      {!block && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
+            Browse<br />blocks
+          </button>
+          <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
+            Build<br />a block
+          </button>
+        </div>
+      )}
+
+      {/* ---- quick links, as three real buttons rather than four text links in a row. Text links
+              this close together and this low-contrast were the least discoverable controls in the
+              app; a button is a button whether it says HISTORY or OPEN LOWER B. "Your blocks" is
+              renamed to fit a one-word button and match the block card's own name for itself. ---- */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <button onClick={() => go('history')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>History</button>
+        <button onClick={() => go('stats')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Stats</button>
+        <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
       </div>
 
-      {/* ---- secondary routes ----
-              "Empty session" used to sit here as an equal to History and Stats, which oversold it.
-              It is for the days that are not in the plan: a class, a holiday gym, a bit of arms on
-              the way past. That is worth having and not worth advertising, so it lives with the
-              block it is an exception to, and only shows once there is a block to be an exception
-              to at all. ---- */}
-      <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-2 py-2 pf text-[10px] uppercase" style={{ letterSpacing: '0.08em' }}>
-        <button onClick={() => go('history')} style={{ color: 'var(--accent-ink)' }}>History</button>
-        <span style={{ color: 'var(--muted2)' }}>·</span>
-        <button onClick={() => go('stats')} style={{ color: 'var(--accent-ink)' }}>Stats</button>
-        {/* The only route to a block that is not the one running: an archived one, a finished one, or
-            one built by mistake that you want gone. */}
-        {t.blocks.length > 0 && <span style={{ color: 'var(--muted2)' }}>·</span>}
-        {t.blocks.length > 0 && (
-          <button onClick={() => go('blocks')} style={{ color: 'var(--accent-ink)' }}>Your blocks</button>
-        )}
-        {block && !blockDone && <span style={{ color: 'var(--muted2)' }}>·</span>}
-        {block && !blockDone && (
-          <button onClick={() => setWhyEmpty(true)} style={{ color: 'var(--accent-ink)' }}>Empty session</button>
-        )}
-      </div>
+      {/* "Empty session" is for the days that are not in the plan: a class, a holiday gym, a bit of
+          arms on the way past. Worth having, not worth a fourth button - it lives as a quiet link
+          under the three real ones, and only shows once there is a block for it to be an exception
+          to at all. */}
+      {block && !blockDone && (
+        <div className="text-center mb-4">
+          <button onClick={() => setWhyEmpty(true)} className="pf text-[10px] uppercase" style={{ color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>
+            Empty session
+          </button>
+        </div>
+      )}
 
       {/* Pricing copy, so it is for people who have not bought yet. A subscriber being told what is
           free and what is Premium is being sold something they already own. */}

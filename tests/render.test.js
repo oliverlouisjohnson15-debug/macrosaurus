@@ -28,8 +28,11 @@ test('the tab describes the block it is actually running', () => {
   assert.ok(r.has('Week 1 of 6'), 'a six-week block should say six: ' + r.text.slice(0, 80));
   assert.ok(r.has('Rest on Wed and Sun'), 'rest days are prescribed and should be named');
   assert.ok(/Intro week/.test(r.text), 'the easy first week should say it is meant to be easy');
-  assert.ok(r.has('Opening with'), 'the tab should say what you are about to lift');
-  assert.ok(/Chest press machine|Hack squat|Lat pulldown/.test(r.text), 'and name it: ' + r.text.slice(0, 200));
+  assert.ok(r.has('Opens with'), 'the tab should say what you are about to lift');
+  // The lead exercise is named; what follows it is a count now, not a second and third name (the
+  // roll-up above already says which days are done, so listing the next two movements as well was
+  // repeating information the continuation line does not need to carry).
+  assert.ok(/Machine chest press|Hack squat|Lat pulldown/.test(r.text), 'and name it: ' + r.text.slice(0, 200));
 });
 
 test('a volume-model block is described in its own terms', () => {
