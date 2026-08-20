@@ -1,0 +1,497 @@
+<title>Train Module Teardown</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #F3F0E7;
+    --card:       #FBFAF5;
+    --ink:        #1B1822;
+    --ink-soft:   #4A4458;
+    --muted:      #726C82;
+    --rule:       #DBD5C8;
+    --purple:     #5B4FA6;
+    --purple-ink: #4A3F90;
+    --gold:       #B57A05;
+    --gold-bg:    #FFF2D2;
+    --good:       #2E6F52;
+    --good-bg:    #E2F0E7;
+    --warn:       #A8500E;
+    --warn-bg:    #FBEBDC;
+    --crit:       #A63A32;
+    --crit-bg:    #FAE4E1;
+    --shadow:     rgba(27, 24, 34, .09);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #16141C;
+      --card:       #1E1B26;
+      --ink:        #EFECF5;
+      --ink-soft:   #C3BDD2;
+      --muted:      #948DA6;
+      --rule:       #332E40;
+      --purple:     #A99AF0;
+      --purple-ink: #C0B4FF;
+      --gold:       #F0C25E;
+      --gold-bg:    #3A2F14;
+      --good:       #6FD3A2;
+      --good-bg:    #14301F;
+      --warn:       #F0A868;
+      --warn-bg:    #37220F;
+      --crit:       #F08A80;
+      --crit-bg:    #38191A;
+      --shadow:     rgba(0, 0, 0, .4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #16141C;
+    --card:       #1E1B26;
+    --ink:        #EFECF5;
+    --ink-soft:   #C3BDD2;
+    --muted:      #948DA6;
+    --rule:       #332E40;
+    --purple:     #A99AF0;
+    --purple-ink: #C0B4FF;
+    --gold:       #F0C25E;
+    --gold-bg:    #3A2F14;
+    --good:       #6FD3A2;
+    --good-bg:    #14301F;
+    --warn:       #F0A868;
+    --warn-bg:    #37220F;
+    --crit:       #F08A80;
+    --crit-bg:    #38191A;
+    --shadow:     rgba(0, 0, 0, .4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .prose { max-width: 65ch; }
+
+  h1, h2, h3 { font-family: Fraunces, Georgia, serif; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 800; line-height: 1.02; letter-spacing: -.02em; }
+  h2 { font-size: clamp(1.55rem, 3.4vw, 2.05rem); font-weight: 600; line-height: 1.12; }
+  h3 { font-size: 1.16rem; font-weight: 600; line-height: 1.3; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .705rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .17em; color: var(--muted);
+  }
+  code, .mono, td.num { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  code {
+    font-size: .855em; background: var(--gold-bg); color: var(--ink);
+    padding: .1em .34em; border-radius: 2px;
+  }
+  a { color: var(--purple-ink); text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2.5px solid var(--purple); outline-offset: 3px; }
+
+  /* ---- masthead ---- */
+  header.mast { padding: 68px 0 30px; border-bottom: 3px solid var(--ink); }
+  header.mast p.lede {
+    font-size: 1.16rem; color: var(--ink-soft); max-width: 60ch; margin: 20px 0 0;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .74rem;
+  }
+  .meta span {
+    border: 1.5px solid var(--rule); padding: 4px 10px; color: var(--muted);
+    background: var(--card);
+  }
+
+  /* ---- section rhythm ---- */
+  section { padding-top: 58px; }
+  section > .eyebrow { display: block; margin-bottom: 10px; }
+  section > p, section > .prose > p, section > ul, section > .prose > ul { color: var(--ink-soft); }
+  p { margin: 1em 0; }
+
+  /* ---- stat strip ---- */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 2px; background: var(--rule); border: 2px solid var(--ink); margin: 30px 0 8px;
+  }
+  .stats div { background: var(--card); padding: 16px 15px; }
+  .stats b {
+    display: block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 1.85rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+    color: var(--purple-ink);
+  }
+  .stats span { display: block; margin-top: 7px; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; margin: 26px 0; border: 2px solid var(--ink); background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: .885rem; }
+  th, td { padding: 10px 13px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--card);
+    background: var(--ink); border-bottom: none; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.name { font-weight: 600; white-space: nowrap; }
+  .dim { color: var(--muted); }
+
+  /* ---- chips ---- */
+  .chip {
+    display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+    padding: 2.5px 7px; white-space: nowrap; border: 1.5px solid currentColor;
+  }
+  .c-crit { color: var(--crit); background: var(--crit-bg); }
+  .c-warn { color: var(--warn); background: var(--warn-bg); }
+  .c-ok   { color: var(--good); background: var(--good-bg); }
+  .c-keep { color: var(--purple-ink); background: var(--card); }
+
+  /* ---- finding blocks ---- */
+  .finding {
+    border: 2px solid var(--ink); background: var(--card); margin: 24px 0;
+    box-shadow: 4px 4px 0 var(--shadow);
+  }
+  .finding > .head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 15px 18px; border-bottom: 2px solid var(--ink);
+  }
+  .finding > .head h3 { flex: 1 1 240px; }
+  .finding > .body { padding: 4px 18px 18px; }
+  .finding .body > :first-child { margin-top: 12px; }
+  .verdict {
+    margin-top: 16px; padding: 13px 15px; border-left: 4px solid var(--purple);
+    background: var(--paper); font-size: .93rem;
+  }
+  .verdict b { color: var(--purple-ink); }
+
+  /* ---- guide steps ---- */
+  .step { border-left: 3px solid var(--rule); padding: 2px 0 2px 22px; margin: 30px 0; }
+  .step h3 { margin-bottom: 4px; }
+  .step .path {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .755rem;
+    color: var(--muted); margin: 3px 0 10px;
+  }
+  .step p { margin: .7em 0; font-size: .95rem; color: var(--ink-soft); }
+
+  ul { padding-left: 1.15em; }
+  li { margin: .42em 0; }
+  li::marker { color: var(--muted); }
+
+  hr { border: none; border-top: 2px solid var(--ink); margin: 62px 0 0; }
+  footer { padding-top: 22px; font-size: .82rem; color: var(--muted); }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; padding: 0 15px 70px; }
+    header.mast { padding-top: 44px; }
+    .finding { box-shadow: 3px 3px 0 var(--shadow); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Macrosaurus · design-plans/29</div>
+  <h1>Train Module Teardown</h1>
+  <p class="lede">Every screen in Train, what it is for, and where two screens are doing one screen's
+  job — measured against Hevy, which solves the same problem with a quarter of the surface area.</p>
+  <div class="meta">
+    <span>16 routes</span>
+    <span>14 screens mounted</span>
+    <span>149 controls counted</span>
+    <span>main @ 277398b</span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">Method</div>
+  <h2>Counted, not eyeballed</h2>
+  <div class="prose">
+    <p>Every number here comes from mounting the real components in jsdom through the project's own
+    test harness and enumerating what they draw — the same technique <code>train-buttons.test.js</code>
+    uses to find dead controls. A "control" is a leaf button, input or select: a card that merely
+    contains buttons is not counted, so these are things a thumb can actually land on.</p>
+    <p>The Hevy comparison is drawn from its public help centre and feature pages, linked at each
+    claim. Where Hevy simply has no equivalent, that is stated rather than counted as a win for
+    either side.</p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">The shape of the problem</div>
+  <h2>Train is sixteen destinations</h2>
+
+  <div class="stats">
+    <div><b>16</b><span>routes in the Train router</span></div>
+    <div><b>149</b><span>controls across 14 of them</span></div>
+    <div><b>4</b><span>screens answering "how am I doing"</span></div>
+    <div><b>5</b><span>doors to getting a plan</span></div>
+  </div>
+
+  <div class="prose">
+    <p>Hevy runs the entire app — social feed, logging, history, statistics, exercise library — on
+    <strong>four tabs</strong>. Training lives in two of them: <em>Workout</em> holds routines and
+    starts sessions, <em>Profile</em> holds history, statistics and the exercise list
+    (<a href="https://www.hevyapp.com/features/best-way-to-track-workouts/">how Hevy organises logged
+    workouts</a>, <a href="https://www.hevyapp.com/features/exercise-library/">the exercise
+    library</a>).</p>
+    <p>Our Train tab alone is sixteen. Some of that is real: we generate and audit programmes, and
+    Hevy does not. But four of the sixteen answer the same question, and five are ways of arriving at
+    the same object.</p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Screen</th><th>Controls</th><th>What it is for</th><th>Hevy equivalent</th></tr></thead>
+      <tbody>
+        <tr><td class="name">SessionPlayer</td><td class="num">23</td><td>Logging sets, live</td><td>Active workout</td></tr>
+        <tr><td class="name">HowItWorks</td><td class="num">19</td><td>19 accordion rows of training doctrine</td><td class="dim">none</td></tr>
+        <tr><td class="name">BlockBuilder</td><td class="num">16</td><td>Edit a saved block</td><td>Edit routine</td></tr>
+        <tr><td class="name">TrainSettings</td><td class="num">15</td><td>Units, experience, gyms, timers, volume bands</td><td>Settings → Workouts</td></tr>
+        <tr><td class="name">TrainHome</td><td class="num">12</td><td>This week, and the way into everything else</td><td>Workout tab</td></tr>
+        <tr><td class="name">SessionPreview</td><td class="num">12</td><td>Read and edit one day before starting it</td><td>Routine detail</td></tr>
+        <tr><td class="name">BlockWizard</td><td class="num">11</td><td>Import or generate a block</td><td class="dim">none</td></tr>
+        <tr><td class="name">BlockLibrary</td><td class="num">11</td><td>Browse shared blocks</td><td>Explore routines</td></tr>
+        <tr><td class="name">CoverageScreen</td><td class="num">11</td><td>Hard sets per muscle, per week</td><td class="dim">none</td></tr>
+        <tr><td class="name">BlockList</td><td class="num">8</td><td>Your saved blocks</td><td>My Routines / folders</td></tr>
+        <tr><td class="name">TrainHistory</td><td class="num">4</td><td>Best per lift, and past sessions</td><td>Profile → history</td></tr>
+        <tr><td class="name">BlockReviewScreen</td><td class="num">3</td><td>How the finished block went</td><td class="dim">none</td></tr>
+        <tr><td class="name">BlockDraft</td><td class="num">3</td><td>A half-finished import</td><td class="dim">none</td></tr>
+        <tr><td class="name">StatSheet</td><td class="num">1</td><td>One overall strength number</td><td>Profile → Statistics</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose dim" style="font-size:.87rem"><code>rerun</code> and <code>exercise</code> are the two
+  routes not mounted here; both are single-purpose detail screens reached from one place each.</p>
+</section>
+
+<hr>
+
+<section>
+  <div class="eyebrow">Part one</div>
+  <h2>The user guide</h2>
+  <div class="prose">
+    <p>What the module actually does, in the order you meet it. This is the sequence a new block
+    travels: get a plan, run it, tune it.</p>
+  </div>
+
+  <h3 style="margin-top:38px; font-size:1.35rem; color:var(--purple-ink)">Getting a plan</h3>
+
+  <div class="step">
+    <h3>Macrosaurus programmes</h3>
+    <div class="path">TrainHome → a programme card → BlockBuilder</div>
+    <p>Two written four-week programmes, taken off the shelf whole. The fastest route to training
+    on a Monday morning: no questions, the movements the programme leaves open stay open. Tapping one
+    opens the builder on it, where you save or start it.</p>
+  </div>
+
+  <div class="step">
+    <h3>Build a block</h3>
+    <div class="path">TrainHome → "Build a … block" → BlockWizard → BlockBuilder</div>
+    <p>The generator. Asks how many days, what shape, min-max or volume, then writes the block against
+    your gym's equipment and your volume bands. Can also read a plan you already follow — from a
+    file, a link, pasted text, or screenshots — and adapt it to your day count.</p>
+  </div>
+
+  <div class="step">
+    <h3>Browse blocks</h3>
+    <div class="path">TrainHome → "Browse blocks" → BlockLibrary</div>
+    <p>Blocks other people have shared, filterable by days per week and split. Adopting one drops
+    you in the builder with it as a draft.</p>
+  </div>
+
+  <div class="step">
+    <h3>Your blocks</h3>
+    <div class="path">TrainHome → "Blocks" → BlockList</div>
+    <p>Everything saved, running or archived. From here a block can be opened for editing, started,
+    deleted, or inspected two ways: <em>What it covers</em> (CoverageScreen) and its review.</p>
+  </div>
+
+  <h3 style="margin-top:44px; font-size:1.35rem; color:var(--purple-ink)">Running it</h3>
+
+  <div class="step">
+    <h3>The week</h3>
+    <div class="path">TrainHome → the block card</div>
+    <p>The week you are in: a meter, a sentence, and one chip per session carrying its day and its
+    state. Any chip starts that session today — the gold button is a recommendation, not the only
+    offer. The week switcher above reads any week of the block without entering the editor.</p>
+  </div>
+
+  <div class="step">
+    <h3>The day, before you start it</h3>
+    <div class="path">a day chip → SessionPreview</div>
+    <p>Every movement, its sets, reps, tempo and effort target. Editable here: sets and reps, order,
+    add, remove, and swap — with swaps asking whether they are for today or for the whole block.
+    Moving a session to another weekday also lives here.</p>
+  </div>
+
+  <div class="step">
+    <h3>The session</h3>
+    <div class="path">"Start …" → SessionPlayer</div>
+    <p>One movement open at a time, the rest folded into <em>Up next</em>. Tick a set and the rest
+    timer starts. The header carries the back link, your buddy, the session name, <strong>More</strong>,
+    and the spine — one cell per movement, filling as you work through it.</p>
+    <p>Each movement's own menu offers eight actions: replace it, sets and reps, log warm-up sets,
+    superset with the next, break the superset, move earlier, move later, remove.</p>
+    <p><strong>More</strong> holds the whole-session actions: add a movement, session notes, rest
+    timer on or off, finish, and <em>step out for now</em> — which keeps the session open so you can
+    look at anything else and come back to it.</p>
+  </div>
+
+  <h3 style="margin-top:44px; font-size:1.35rem; color:var(--purple-ink)">Looking back, and tuning</h3>
+
+  <div class="step">
+    <h3>History, Stats, Coverage, Review</h3>
+    <div class="path">TrainHome → History / Stats · BlockList → a block → covers / review</div>
+    <p>Four screens. <em>History</em> is your best per lift plus past sessions. <em>Stats</em> is one
+    overall strength number against bodyweight. <em>Coverage</em> is hard sets per muscle per week,
+    planned or last-7-days. <em>Review</em> is how a finished block actually went against what it
+    promised. See finding 1 — these overlap.</p>
+  </div>
+
+  <div class="step">
+    <h3>Training settings</h3>
+    <div class="path">TrainHome → gear icon → TrainSettings</div>
+    <p>Weight units. Experience level, which sets the volume bands your coverage is judged against.
+    The gyms you train at, each with its equipment. Three in-session toggles including the rest
+    timer. The 17-muscle volume band table. And a link to <em>How your plan is built</em> — nineteen
+    rows of training doctrine.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="eyebrow">Part two</div>
+  <h2>Where two screens do one job</h2>
+  <div class="prose">
+    <p>Ranked by how much simplification is available, not by how broken anything is. Nothing here is
+    a bug; all of it is surface area.</p>
+  </div>
+
+  <div class="finding">
+    <div class="head">
+      <span class="chip c-crit">Finding 1</span>
+      <h3>Four screens answer "how am I doing"</h3>
+    </div>
+    <div class="body">
+      <p><strong>Stats</strong>, <strong>History</strong>, <strong>Coverage</strong> and
+      <strong>Review</strong> are four destinations for one question. Two of them render the
+      <em>same metric in the same format</em>: sets per muscle against a band.</p>
+      <ul>
+        <li>Coverage draws <code>Lats 8 / 4-8</code>, <code>Glutes 8 / 4-8</code></li>
+        <li>Review draws <code>Chest 0 / 4-8</code>, <code>Front delts 0 / 2-6</code></li>
+      </ul>
+      <p>Same table, different date window — Coverage shows planned or last-7-days, Review shows the
+      block's actual average. And <strong>StatSheet is a whole route for a single number</strong>: it
+      has exactly one control, the back link.</p>
+      <p>Hevy puts all of this in one place: Profile holds the dashboard, statistics and the workout
+      history list together (<a href="https://www.hevyapp.com/features/gym-performance/">gym
+      performance tracking</a>).</p>
+      <div class="verdict">
+        <b>Do:</b> fold Stats into History as a header band — it is one number and needs no route.
+        Make Coverage a date-window switch on one screen rather than two screens with the same table.
+        Reach both from the same place; today two are on home and two are buried behind
+        <em>Blocks → a block</em>, which is why they feel undiscoverable.
+      </div>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head">
+      <span class="chip c-warn">Finding 2</span>
+      <h3>Five doors, one object</h3>
+    </div>
+    <div class="body">
+      <p>Programme cards, Library, Wizard, Draft and Builder are five entrances that all end in the
+      same place — a block in <code>BlockBuilder</code>. Two of them appear twice: <em>Browse
+      blocks</em> and <em>Build a block</em> render both on the empty-state grid and in the block
+      card's footer.</p>
+      <p>Hevy has two: <strong>New Routine</strong> and <strong>Explore</strong>
+      (<a href="https://help.hevyapp.com/hc/en-us/articles/34953606698903-Build-a-Workout-Program-Create-Organize-Routines">building
+      a program</a>).</p>
+      <div class="verdict">
+        <b>Do:</b> one "New block" entry that opens a chooser — write me one / bring my own / take one
+        off the shelf. The Draft card stays, because an unfinished import is a promise you made
+        yourself and deserves to be visible. This is presentation, not deletion: every generator path
+        survives, behind one door instead of five.
+      </div>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head">
+      <span class="chip c-warn">Finding 3</span>
+      <h3>Settings mixes preferences with algorithm tuning</h3>
+    </div>
+    <div class="body">
+      <p>Hevy's workout settings are fourteen mechanical preferences — timer volume, keep awake,
+      plate calculator, plate and dumbbell rounding, warm-up calculator, units, RPE tracking, PR
+      notifications, calendar start day, smart superset scrolling
+      (<a href="https://help.hevyapp.com/hc/en-us/articles/33882110558743-Workout-Settings-Preferences-Timer-Warm-up-calculator-Plate-Calculator-Smart-Superset-Scrolling">the
+      full list</a>). Every one changes how logging feels.</p>
+      <p>Ours mixes those with <strong>experience level</strong> and a <strong>17-muscle volume band
+      table</strong>. Those are not preferences — they configure the model that writes your plans,
+      and they sit at the same visual weight as kg/lb.</p>
+      <div class="verdict">
+        <b>Do:</b> split the card. Preferences (units, timers, gyms) stay. Experience and the bands
+        become "How your plans get written", grouped with the doctrine screen they explain — which is
+        where somebody looking to change them would actually go.
+      </div>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="head">
+      <span class="chip c-ok">Finding 4</span>
+      <h3>HowItWorks is a manual, not a screen</h3>
+    </div>
+    <div class="body">
+      <p>Nineteen accordion rows of training doctrine — "Reps before weight", "Stalling is a movement
+      problem, not a volume problem", "Half a set for helping" — behind Settings, at the end of the
+      module. It is the second-most-controlled screen in Train and the least likely to be found.</p>
+      <p>Hevy has no equivalent because it has no opinion to explain; the app doesn't write your
+      plan. Ours does, so the doctrine has to live somewhere.</p>
+      <div class="verdict">
+        <b>Do:</b> keep every word, but surface the rows where they apply — the RIR explanation next
+        to an RIR target, the stalling rule next to a stalled lift. What survives as a screen is the
+        index. This is the cheapest big win in the module: the content is already written and
+        currently nobody reads it.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Part three</div>
+  <h2>What not to simplify</h2>
+  <div class="prose">
+    <p>An audit that only subtracts would take the product with it. Three things Train does that Hevy
+    has no equivalent for, and that the surface-area count should not be used against:</p>
+    <ul>
+      <li><strong>Generation.</strong> Hevy's routines are templates you write. Ours are written for
+      you, against your gym, your days and your recovery. The wizard is the product.</li>
+      <li><strong>Coverage.</strong> Nothing in Hevy tells you a muscle is under its band. The screen
+      should be consolidated, not removed.</li>
+      <li><strong>Autoregulation.</strong> The readiness prompt at the top of a session — run it as
+      written, trim it, ease off — reads your sleep. Hevy cannot; it has no such data.</li>
+    </ul>
+    <p>The <strong>SessionPlayer's 23 controls</strong> also stay. It is the busiest screen in Train
+    and that is correct: most of the count is per-set weight and rep inputs, which is the job. Hevy's
+    active workout is comparably dense for the same reason.</p>
+  </div>
+</section>
+
+<hr>
+<footer>
+  Counted against <code>main @ 277398b</code> by mounting each screen through <code>tests/helpers/app.js</code>.
+  Hevy behaviour cited from its public help centre and feature pages, current at the time of writing.
+</footer>
+
+</div>
