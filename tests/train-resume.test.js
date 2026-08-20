@@ -203,35 +203,45 @@ test('a second empty session in one day is its own session', () => {
 
 // ---- 5. the session runner's own instruments ----------------------------------------------------
 
-test('the spine draws one cell per set, and the gold one is the set you are on', () => {
-  // It used to group the cells by movement and paint the WHOLE current movement gold, so a session
-  // with nothing logged opened with two gold cells above the words "0 / 16 sets": the bar saying
-  // started and the count saying not started, on the same line.
+test('the spine draws one cell per movement, and the gold one is the movement you are on', () => {
+  // It used to group its cells by movement AND paint the whole current movement gold, so a session
+  // with nothing logged opened with two gold cells above the words "0 / 16 sets": the bar reading
+  // started and the count reading not started, on the same line.
   const block = minmax();
   const db = accountWith(block);
   const session = T.weekSessions(block, 1)[0];
+  const planned = (session.exercises || []).slice().sort((a, b) => a.order - b.order);
+  // Everything up to a movement finished, and one set into that one - so the bar has a full cell, a
+  // part-filled cell and an untouched one in it, which is the whole picture it is meant to draw.
+  const partIdx = planned.findIndex((e, i) => i > 0 && (e.target.sets || 2) > 1);
+  assert.ok(partIdx > 0, 'the fixture needs a multi-set movement to be part-way through');
   const sets = [];
-  (session.exercises || []).slice().sort((a, b) => a.order - b.order).forEach(e => {
+  planned.forEach((e, mi) => {
     for (let si = 0; si < (e.target.sets || 2); si++) {
+      const done = mi < partIdx || (mi === partIdx && si === 0);
       sets.push({ exerciseId: e.exerciseId, itemId: e.id, setIndex: si, type: 'work',
-        weightKg: sets.length < 3 ? 60 : 0, reps: sets.length < 3 ? 8 : null, done: sets.length < 3 });
+        weightKg: done ? 60 : 0, reps: done ? 8 : null, done: done });
     }
   });
-  const total = sets.length;
   db.training.logs = [Object.assign(logFor(session, { blockId: block.id }), { sets: sets })];
   const ui = mount(A.SessionPlayer, {
     db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
   });
   try {
-    // The spine is the row of cells above the count; each is an <i> with a background.
     const cells = Array.from(ui.host.querySelectorAll('i')).filter(el => (el.getAttribute('style') || '').indexOf('height: 10px') !== -1);
-    assert.equal(cells.length, total, 'one cell per working set of the whole session, flat');
+    assert.equal(cells.length, planned.length, 'one cell per movement of the session, not per set');
     const bg = (el) => (el.getAttribute('style').match(/background:\s*([^;]+)/) || [])[1] || '';
-    const gold = cells.filter(el => bg(el).indexOf('--accent') !== -1);
-    assert.equal(gold.length, 1, 'exactly one cell is the set you are on');
-    assert.equal(cells.indexOf(gold[0]), 3, 'and it is the first one not yet ticked');
-    assert.equal(cells.filter(el => bg(el).indexOf('--good') !== -1).length, 3, 'three behind it are done');
-    assert.ok(ui.has('3 / ' + total + ' sets'), 'and the count agrees with the picture');
+    assert.ok(bg(cells[0]).indexOf('--good') !== -1 && bg(cells[0]).indexOf('gradient') === -1,
+      'a finished movement is solid green: ' + bg(cells[0]));
+    // The one being trained is gold, and part-filled with the set already ticked inside it.
+    const part = cells[partIdx], ahead = cells[cells.length - 1];
+    assert.ok(bg(part).indexOf('--accent') !== -1, 'the movement you are on is gold: ' + bg(part));
+    assert.ok(bg(part).indexOf('gradient') !== -1 && bg(part).indexOf('--good') !== -1,
+      'and shows how far into it you are: ' + bg(part));
+    assert.equal(cells.filter(el => bg(el).indexOf('--accent') !== -1).length, 1, 'exactly one is gold');
+    assert.ok(bg(ahead).indexOf('--track') !== -1 && bg(ahead).indexOf('--good') === -1,
+      'and one you have not reached is empty');
+    assert.ok(ui.has(partIdx + ' / ' + planned.length + ' done'), 'the count counts the same things the cells draw: ' + ui.text.slice(0, 120));
   } finally { ui.unmount(); }
 });
 

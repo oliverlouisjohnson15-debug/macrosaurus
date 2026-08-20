@@ -543,14 +543,25 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
   const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
   const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup').length, 0);
-  // Every working set of the session, flat, in the order they will be done - the spine at the top is
-  // this list and nothing else, so what it draws and what the count says cannot disagree. Warm-ups
-  // are left out here exactly as they are left out of both counts.
-  const spine = items.reduce((a, it) => a.concat(it.sets.filter(s => (s.type || 'work') !== 'warmup')
-    .map(s => ({ done: !!s.done }))), []);
-  // The set you are ON: the first one still unticked. Rows get ticked in any order, so this is a
-  // search rather than a counter, and when everything is done there is no set to be on.
-  const spineAt = spine.findIndex(x => !x.done);
+  /* The session as its MOVEMENTS: one cell each, in the order they will be done.
+   *
+   * Each cell fills left to right with its own sets, so the set you are on is still visible inside
+   * the movement you are on - eight cells that each know how far through they are, rather than
+   * sixteen that know nothing about which lift they belong to. Warm-ups are left out here exactly as
+   * they are left out of both counts. */
+  const spine = items.map(it => {
+    const w = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+    const d = w.filter(s => s.done).length;
+    return { total: w.length, done: d, complete: w.length > 0 && d === w.length, frac: w.length ? d / w.length : 0 };
+  }).filter(x => x.total > 0);
+  // The movement you are ON: the one open in front of you if it still has work in it, and otherwise
+  // the first one not finished. When everything is done there is no movement to be on.
+  const spineAt = (() => {
+    const first = spine.findIndex(x => !x.complete);
+    if (first < 0) return -1;
+    return (spine[focus] && !spine[focus].complete) ? focus : first;
+  })();
+  const doneMovements = spine.filter(x => x.complete).length;
   const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const allWorkDone = totalSets > 0 && doneSets === totalSets;
   const codes = Training.sessionCodes(items);
@@ -589,26 +600,39 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             style={{ minHeight: 38, background: 'var(--cardhead-bg)', border: '2px solid var(--border)', color: 'var(--header-text)', letterSpacing: '0.1em' }}>More</button>
         </div>
         {/* ---- the spine ----
-            The session as its SETS: one cell each, evenly spaced, in the order you will do them.
-            Green behind you, gold for the one you are on, empty ahead.
+            One cell per MOVEMENT, evenly spaced, in the order you will do them: green once it is
+            finished, gold for the one you are on, empty ahead. Each cell fills left to right with
+            its own sets, so where you are inside the movement is in the same picture without the
+            bar having to be sixteen anonymous cells.
 
-            It used to group the cells by movement and paint the whole current movement gold, which
-            put two gold cells above the words "0 / 16 sets" on a session where nothing had been
-            logged at all - the bar saying done and the count saying not started, on the same line.
-            Gold now means one thing, the set in front of you, and it is one cell.
+            It used to group cells by movement AND paint the whole current movement gold, which put
+            two gold cells above the words "0 / 16 sets" on a session where nothing had been logged
+            at all - the bar reading started and the count reading not started, on the same line.
+            Gold means one thing now, the movement in front of you, and the count beside it counts
+            the same things the cells do.
 
             Deliberately not tappable: the movement headers are the navigation, and two ways to jump
             around was the confusion this screen already had. */}
         <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--card)', borderTop: '3px solid var(--border)' }}>
-          <div className="flex gap-[3px] flex-1 min-w-0" aria-hidden="true">
-            {spine.map((cell, i) => (
-              <i key={i} className="flex-1 min-w-0" style={{
-                height: 10, border: '2px solid var(--border)', transition: 'background .18s',
-                background: cell.done ? 'var(--good)' : (i === spineAt ? 'var(--accent)' : 'var(--track)'),
-              }} />
-            ))}
+          <div className="flex gap-[4px] flex-1 min-w-0" aria-hidden="true">
+            {spine.map((cell, i) => {
+              // What is left of the cell once its finished sets are filled in: gold on the movement
+              // you are on, nothing on one you have not reached.
+              const rest = i === spineAt ? 'var(--accent)' : 'var(--track)';
+              const pct = Math.round(cell.frac * 100);
+              return (
+                <i key={i} className="flex-1 min-w-0" style={{
+                  height: 10, border: '2px solid var(--border)', transition: 'background .18s',
+                  background: cell.complete ? 'var(--good)'
+                    : pct > 0 ? 'linear-gradient(to right, var(--good) 0 ' + pct + '%, ' + rest + ' ' + pct + '% 100%)'
+                      : rest,
+                }} />
+              );
+            })}
           </div>
-          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--muted)' }}>{doneSets} / {totalSets} sets</span>
+          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
+            {doneMovements} / {spine.length} done
+          </span>
         </div>
       </div>
 
