@@ -840,7 +840,7 @@ function recentSleepShort(db) {
 // up a lift is something you do standing in front of a rack. So a search box comes first, every
 // movement you have ever trained is one keystroke away with its best beside it, and the sessions
 // list is the second tab rather than the whole page.
-function TrainHistory({ db, update, onBack, onOpenExercise }) {
+function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -981,6 +981,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
                 </div>
                 <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>
                   {(l.sets || []).filter(s => s.done).length} sets · {toDisplayWeight(Training.tonnage(l), units)}{unitLabel(units)} moved
+                  {liveLog(l, Store.todayISO()) && <span style={{ color: 'var(--warn)' }}> · still open</span>}
                 </div>
                 {sessionPRs.length > 0 && (
                   <div className="text-[11px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
@@ -994,7 +995,20 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
                   {exIds.map(id => (Training.byId(id, t.custom) || {}).name || id).join(', ')}
                 </div>
                 {l.notes && <div className="text-[11px] mt-2 italic" style={{ color: 'var(--muted)' }}>{l.notes}</div>}
-                <button onClick={() => setConfirm(l.id)} className="text-[10px] mt-2" style={{ color: 'var(--muted2)' }}>Delete</button>
+                {/* A session you have already done is a thing you can go back into, not just a
+                    receipt with a Delete under it. You mistyped 100 for 10, you forgot to tick the
+                    last two sets, you walked out half-way and finished the session at home: every
+                    one of those wanted the session opened again, and the only thing this card
+                    offered was throwing the whole night away and starting it from nothing. It opens
+                    in the same runner it was logged in, on ITS day rather than today. */}
+                <div className="flex items-center gap-3 mt-2">
+                  {onOpenSession && (
+                    <button onClick={() => onOpenSession(l)} className="pixel-box px-3 py-2 text-[11.5px]" style={{ background: 'var(--surface2)' }}>
+                      {liveLog(l, Store.todayISO()) ? 'Carry on with it' : 'Open & edit'}
+                    </button>
+                  )}
+                  <button onClick={() => setConfirm(l.id)} className="text-[10px]" style={{ color: 'var(--muted2)' }}>Delete</button>
+                </div>
               </Card>
             );
           })}

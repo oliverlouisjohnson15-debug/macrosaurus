@@ -235,7 +235,6 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   useBackClose(onBack);
   const t = tdb(db);
   const draftDays = ((t.draft && t.draft.days) || []).length;
-  const [whyEmpty, setWhyEmpty] = useState(false);
   const [wizStep, setWizStep] = useState(1);   // 1 style + optional import, 2 schedule, 3 volume, 4 kit and build
   // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
   // and five days is the shape it is written for, so that is the day count it arrives on.
@@ -1295,9 +1294,13 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                   Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
                 </div>
                 <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
-                {onStart && !log && (
+                {/* A session with a log against it used to lose this button altogether, which meant
+                    the one screen that could put you back into a session you had walked out of was
+                    the one screen that hid the way in. Started-and-not-finished carries on; finished
+                    can be run again, and says so rather than pretending it cannot be. */}
+                {onStart && (
                   <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-                    Start this session
+                    {!log ? 'Start this session' : liveLog(log, Store.todayISO()) ? 'Carry on with it' : log.dateISO === Store.todayISO() ? 'Open today\u2019s session' : 'Do this session again'}
                   </button>
                 )}
               </div>
@@ -1431,7 +1434,13 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const codes = Training.sessionCodes(items);
   const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
   const mins = sessionMins(items);
-  const log = t.logs.filter(l => l.sessionId === live.id)[0];
+  // The most recent log against this session, and whether it is one you are still IN. The screen
+  // used to take any log at all as "carry on where you left off" and then hand you a brand-new empty
+  // session for today, because the runner only ever resumes a log from today. Two different things,
+  // said as two different things.
+  const log = t.logs.filter(l => l.sessionId === live.id).slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
+  const openNow = liveLog(log, Store.todayISO());              // started today, not finished
+  const sameDay = !!(log && log.dateISO === Store.todayISO()); // today's, finished or not: the button edits it
   const prog = block ? Training.blockProgress(block, Store.todayISO()) : null;
   const editable = !!(block && update);
 
@@ -1571,7 +1580,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       {log && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
           <div className="text-[12px] leading-snug">
-            You logged this one {relativeDay(log.dateISO, Store.todayISO()).toLowerCase()}, {(log.sets || []).filter(s => s.done).length} sets. Opening it again picks up where you left off.
+            You logged this one {relativeDay(log.dateISO, Store.todayISO()).toLowerCase()}, {(log.sets || []).filter(s => s.done).length} sets.{' '}
+            {openNow
+              ? 'It is still open, so this picks up exactly where you left off.'
+              : sameDay
+                ? 'Opening it again goes back into today\u2019s session, so you can correct it or add to it.'
+                : 'Starting it now logs a new session against today. To change that one, open it from History.'}
           </div>
         </Card>
       )}
@@ -1580,7 +1594,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           eight-movement day you scrolled the whole session to reach the button that starts it - the
           thing most people open this screen to do. */}
       <button onClick={onStart} className="pixel-btn w-full h-14 font-bold mb-5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        <Icon.play width="16" /> {log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]}
+        <Icon.play width="16" /> {openNow ? 'Carry on with it' : sameDay ? 'Open today\u2019s session' : log ? 'Do it again' : 'Start ' + live.name.split(' - ')[0]}
       </button>
 
       {mainItems.length > 0 && (

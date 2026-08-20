@@ -52846,10 +52846,31 @@ function sessionMins(exercises) {
 }
 function weekPlan(block, week, logs) {
   const comp = Training.completion(block, logs);
-  return Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek).map(s => ({
-    session: s,
-    log: comp.logBySession[s.id] || null
-  }));
+  const today = Store.todayISO();
+  return Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek).map(s => {
+    const log = comp.logBySession[s.id] || null;
+    return {
+      session: s,
+      log: log,
+      live: liveLog(log, today)
+    };
+  });
+}
+
+/* Started and not finished YET, as opposed to done.
+ *
+ * A log row is written the moment the first set is ticked, and until this existed every reader
+ * treated the existence of one as "that session is done". Walk out of the gym mid-session - or
+ * simply switch to another tab, which unmounts the whole Train tab - and the week came back with
+ * the session ticked off, the next one queued behind it and no way in to the half you had left.
+ * "It all ended" is exactly what that looks like.
+ *
+ * `endedAt` is written by Finish and by nothing else, so its absence is the signal. It is only
+ * trusted for TODAY: logs written before the field existed have no `endedAt` either, and a session
+ * you walked away from on Tuesday should read as the work it was rather than reopening itself all
+ * week. Anything older is edited from History instead, where every session can now be opened. */
+function liveLog(log, todayISO) {
+  return !!(log && !log.endedAt && log.dateISO === (todayISO || Store.todayISO()));
 }
 
 // ---- shared bits ------------------------------------------------------------------------------
@@ -53145,6 +53166,22 @@ function TrainTab({
       blockId: blk ? blk.id : null
     });
   }
+  // A session that is not in the plan: a class, a holiday gym, ten minutes of arms on the way past.
+  // It goes through the same gym question as a planned one, because standing somewhere with no
+  // barbell matters just as much when nobody wrote the session down.
+  function startFreeform() {
+    if (gymsOf(db).length > 1) {
+      setPendingStart({
+        sessionId: null,
+        blockId: null,
+        freeform: true
+      });
+      return;
+    }
+    go('player', {
+      freeform: true
+    });
+  }
   // Looking is not starting. A tap on a day opens the plan; the button on that screen begins it.
   function previewSession(session, blk) {
     go('preview', {
@@ -53157,9 +53194,25 @@ function TrainTab({
   // use: centred, 20px gutters, room at the bottom for the tab bar. Without it these screens ran
   // edge to edge while every other tab was inset, which is the kind of inconsistency you feel before
   // you can name it. The session player gets a tighter bottom pad because it hides the tab bar.
-  const page = (node, focused) => /*#__PURE__*/React.createElement("div", {
+  //
+  // The gym question rides along with EVERY screen, not just home. It used to be rendered beside the
+  // home screen alone, and `startSession` is called from the preview and from the builder as well:
+  // on an account with two gyms saved, tapping "Start" or "Carry on with it" set the pending start
+  // and then rendered nothing at all, because the only thing that draws the picker had already been
+  // returned past. The button that begins a session did nothing, on the two screens most people
+  // begin one from.
+  const page = (node, focused) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: 'max-w-md lg:max-w-2xl mx-auto px-5 pt-6 ' + (focused ? 'pb-6' : 'pb-36 lg:pb-12')
-  }, node);
+  }, node), pendingStart && /*#__PURE__*/React.createElement(GymPicker, {
+    db: db,
+    update: update,
+    onClose: () => setPendingStart(null),
+    onPicked: () => {
+      const p = pendingStart;
+      setPendingStart(null);
+      go('player', p);
+    }
+  }));
   if (screen.name === 'player') {
     return page(/*#__PURE__*/React.createElement(SessionPlayer, {
       db: db,
@@ -53169,8 +53222,9 @@ function TrainTab({
       sessionId: screen.sessionId,
       blockId: screen.blockId,
       freeform: screen.freeform,
+      openLogId: screen.logId,
       gym: currentGym(db),
-      onExit: () => go('home')
+      onExit: () => go(screen.from || 'home')
     }), true);
   }
   if (screen.name === 'preview') {
@@ -53184,6 +53238,7 @@ function TrainTab({
       onUpgrade: onUpgrade,
       block: block,
       onOpen: previewSession,
+      onFreeform: startFreeform,
       go: go
     }));
     return page(/*#__PURE__*/React.createElement(SessionPreview, {
@@ -53378,6 +53433,12 @@ function TrainTab({
       onBack: () => go('home'),
       onOpenExercise: id => go('exercise', {
         exerciseId: id
+      }),
+      onOpenSession: log => go('player', {
+        logId: log.id,
+        sessionId: log.sessionId || null,
+        blockId: log.blockId || null,
+        from: 'history'
       })
     }));
   }
@@ -53408,7 +53469,7 @@ function TrainTab({
       onBack: () => go('home')
     }));
   }
-  const homeScreen = page(/*#__PURE__*/React.createElement(TrainHome, {
+  return page(/*#__PURE__*/React.createElement(TrainHome, {
     db: db,
     update: update,
     showToast: showToast,
@@ -53416,17 +53477,8 @@ function TrainTab({
     onUpgrade: onUpgrade,
     block: block,
     onOpen: previewSession,
+    onFreeform: startFreeform,
     go: go
-  }));
-  return /*#__PURE__*/React.createElement("div", null, homeScreen, pendingStart && /*#__PURE__*/React.createElement(GymPicker, {
-    db: db,
-    update: update,
-    onClose: () => setPendingStart(null),
-    onPicked: () => {
-      const p = pendingStart;
-      setPendingStart(null);
-      go('player', p);
-    }
   }));
 }
 
@@ -53500,6 +53552,7 @@ function TrainHome({
   onUpgrade,
   block,
   onOpen,
+  onFreeform,
   go
 }) {
   const t = tdb(db);
@@ -53511,11 +53564,15 @@ function TrainHome({
   const targets = trainTargets(db, block ? block.style : undefined);
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
-  const doneThisWeek = thisWeek.filter(x => x.log).length;
-  // The next session is the first one this week without a log against it. Every OTHER session stays
-  // tappable too: real weeks do not run in order, and an app that only lets you do "the next one"
-  // makes you fight it the first time you swap legs to Thursday.
-  const next = thisWeek.filter(x => !x.log)[0];
+  // A session started this morning and left half-way is NOT one of the week's done sessions, and
+  // counting it as one was how walking out of the gym read as the week ticking itself off.
+  const doneThisWeek = thisWeek.filter(x => x.log && !x.live).length;
+  // The next session is the one you are in the middle of, if there is one, and otherwise the first
+  // this week with nothing logged against it. Every OTHER session stays tappable too: real weeks do
+  // not run in order, and an app that only lets you do "the next one" makes you fight it the first
+  // time you swap legs to Thursday.
+  const live = thisWeek.filter(x => x.live)[0];
+  const next = live || thisWeek.filter(x => !x.log)[0];
   // Coverage is deliberately NOT computed here any more. See the note further down: a volume gap is
   // a question for the build screens, and this one is about the week you are actually running.
   const blockDone = prog && prog.done;
@@ -53584,7 +53641,7 @@ function TrainHome({
     style: {
       color: 'var(--muted)'
     }
-  }, doneThisWeek >= thisWeek.length ? 'That is the whole week done.' : thisWeek.length - doneThisWeek + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.'), restDays.length > 0 && restDays.length < 7 && /*#__PURE__*/React.createElement("span", {
+  }, doneThisWeek >= thisWeek.length ? 'That is the whole week done.' : thisWeek.length - doneThisWeek + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.'), restDays.length > 0 && restDays.length < 7 && /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--muted2)'
     }
@@ -53614,9 +53671,10 @@ function TrainHome({
     className: "flex items-center gap-1.5 flex-wrap text-[12.5px]"
   }, thisWeek.map(({
     session,
-    log
+    log,
+    live: inPlay
   }, i) => {
-    const done = !!log;
+    const done = !!log && !inPlay;
     const isNext = next && session.id === next.session.id;
     return /*#__PURE__*/React.createElement("span", {
       key: session.id,
@@ -53632,7 +53690,7 @@ function TrainHome({
         color: done ? 'var(--muted)' : isNext ? 'var(--text)' : 'var(--muted)',
         fontWeight: isNext ? 600 : 400
       }
-    }, session.name.split(' - ')[0], done ? ' ✓' : ''));
+    }, session.name.split(' - ')[0], done ? ' ✓' : inPlay ? ' …' : ''));
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] tnum shrink-0",
     style: {
@@ -53657,7 +53715,7 @@ function TrainHome({
       color: 'var(--accent-ink)',
       letterSpacing: '0.1em'
     }
-  }, "Next · ", WEEKDAYS[next.session.dayOfWeek] || ''), /*#__PURE__*/React.createElement("div", {
+  }, live ? 'In progress' : 'Next', " · ", WEEKDAYS[next.session.dayOfWeek] || ''), /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline justify-between gap-2 mb-1.5"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[14px] font-bold"
@@ -53669,6 +53727,17 @@ function TrainHome({
   }, (next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0), " sets · about ", sessionMins(next.session.exercises), " min")), (() => {
     const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
     if (!items.length) return null;
+    // Half-way through it, so what it OPENS with is not the useful sentence any more.
+    if (live) {
+      const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
+      const planned = items.reduce((a, e) => a + (e.target.sets || 0), 0);
+      return /*#__PURE__*/React.createElement("div", {
+        className: "text-[12px] leading-snug",
+        style: {
+          color: 'var(--text2)'
+        }
+      }, "You are ", ticked, " set", ticked === 1 ? '' : 's', " into this one", planned ? ' of ' + planned : '', ". Everything you ticked is saved - carrying on picks it up where you left it.");
+    }
     const style = Training.styleOf(block.style);
     const lead = items[0];
     const leadEx = Training.byId(lead.exerciseId, t.custom);
@@ -53694,7 +53763,7 @@ function TrainHome({
     }
   }, /*#__PURE__*/React.createElement(Icon.play, {
     width: "16"
-  }), " Open ", next.session.name.split(' - ')[0]))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
+  }), " ", live ? 'Carry on with ' : 'Open ', next.session.name.split(' - ')[0]))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4",
     style: {
       background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
@@ -53896,7 +53965,7 @@ function TrainHome({
     style: {
       background: 'var(--surface2)'
     }
-  }, "Blocks")), block && !blockDone && /*#__PURE__*/React.createElement("div", {
+  }, "Blocks")), block && !blockDone && onFreeform && /*#__PURE__*/React.createElement("div", {
     className: "text-center mb-4"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setWhyEmpty(true),
@@ -53905,7 +53974,14 @@ function TrainHome({
       color: 'var(--accent-ink)',
       letterSpacing: '0.08em'
     }
-  }, "Empty session")), !isPremium && t.logs.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Empty session")), whyEmpty && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Start an empty session?",
+    body: "Nothing prescribed - you add the movements as you go. It is for the days that are not in your block: a class, a holiday gym, a bit of arms on the way past. It still counts towards your volume and your records, and it does not touch the week's plan.",
+    confirmLabel: "Start one",
+    confirmKind: "accent",
+    onConfirm: onFreeform,
+    onClose: () => setWhyEmpty(false)
+  }), !isPremium && t.logs.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] leading-snug mt-4 text-center",
     style: {
       color: 'var(--muted2)'
@@ -53990,6 +54066,7 @@ function SessionPlayer({
   sessionId,
   blockId,
   freeform,
+  openLogId,
   onExit,
   onFocusMode,
   gym
@@ -54006,8 +54083,23 @@ function SessionPlayer({
   const preOpts = {
     style: block && block.style
   };
-  const existing = t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId))[0];
+
+  // Which log this screen is writing to. Opened from History it is a NAMED one, which is what makes
+  // a session from three weeks ago something you can go back into and correct rather than a receipt
+  // you can only delete. Opened the ordinary way it is today's log for this session, if there is
+  // one, which is how coming back to a session you walked out of resumes it.
+  const opened = openLogId ? t.logs.filter(l => l.id === openLogId)[0] : null;
+  // Today's log for this session, if there is one: reopening a planned session on the day you ran it
+  // is editing that session, not starting a second copy of it. An EMPTY session is the exception -
+  // it has no plan to be the same session as, so once one has been finished a new one is a new one
+  // rather than the morning's reopening itself.
+  const existing = opened || t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId && !l.endedAt))[0];
   const [logId] = useState(() => existing ? existing.id : trainUid());
+  // The day the WORK happened, which is only today for a session being run now. Editing Tuesday's
+  // session on Friday must not move Tuesday's sets to Friday: every write, every record check and
+  // the sign-off all read this rather than the clock.
+  const dateISO = existing ? existing.dateISO || today : today;
+  const past = dateISO !== today;
   const [items, setItems] = useState(() => {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
@@ -54211,10 +54303,10 @@ function SessionPlayer({
       const i = tr.logs.findIndex(l => l.id === logId);
       const row = {
         id: logId,
-        dateISO: today,
-        blockId: blockId || null,
-        sessionId: sessionId || null,
-        name: session ? session.name : 'Empty session',
+        dateISO: dateISO,
+        blockId: blockId || existing && existing.blockId || null,
+        sessionId: sessionId || existing && existing.sessionId || null,
+        name: session && session.name || existing && existing.name || 'Empty session',
         startedAt: i >= 0 && tr.logs[i].startedAt || new Date(startedAt).toISOString(),
         notes: nextNotes == null ? notes : nextNotes,
         exerciseNotes: nextExNotes || exNotes,
@@ -54302,7 +54394,7 @@ function SessionPlayer({
     // Warm-ups and drop sets are excluded, so a light back-off set cannot claim one.
     const setType = items[ii].sets[si].type || 'work';
     if (setType === 'work' && filled && filled.reps > 0 && filled.weightKg > 0) {
-      const best = Training.bestBefore(t.logs, items[ii].exerciseId, today, logId);
+      const best = Training.bestBefore(t.logs, items[ii].exerciseId, dateISO, logId);
       items[ii].sets.forEach((prev, pi) => {
         if (pi >= si || !prev.done || (prev.type || 'work') !== 'work') return;
         const pe = Training.e1rm(prev.weightKg, prev.reps);
@@ -54533,7 +54625,7 @@ function SessionPlayer({
     const doneSets = items.reduce((a, it) => a + work(it).length, 0);
     const log = {
       id: logId,
-      dateISO: today,
+      dateISO: dateISO,
       sets: items.reduce((a, it) => a.concat(it.sets.filter(s => s.done).map(s => Object.assign({}, s, {
         exerciseId: it.exerciseId
       }))), [])
@@ -54549,7 +54641,7 @@ function SessionPlayer({
       weekOf = 0,
       finishedBlock = false;
     if (block) {
-      const prog = Training.blockProgress(block, today);
+      const prog = Training.blockProgress(block, dateISO);
       const wk = Training.weekSessions(block, prog.week);
       const loggedIds = {};
       prior.forEach(l => {
@@ -54570,7 +54662,7 @@ function SessionPlayer({
       weekDone,
       weekOf,
       blockFinished: finishedBlock,
-      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
+      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, dateISO) < 7).length + 1,
       name: session && session.name || 'Session',
       blockName: block ? block.name : null,
       // The receipt. The send-off used to be praise and three numbers, which is a lovely moment and
@@ -54613,6 +54705,13 @@ function SessionPlayer({
     // you have just pressed.
     if (!facts.sets) {
       showToast && showToast('Nothing logged, so nothing saved.');
+      onExit();
+      return;
+    }
+    // Correcting a session from last Tuesday is not a session ending, and the buddy congratulating
+    // you on a workout you finished a week ago would be nonsense. It saves and gets out of the way.
+    if (past) {
+      showToast && showToast('Session updated.');
       onExit();
       return;
     }
@@ -54665,13 +54764,13 @@ function SessionPlayer({
         color: 'var(--header-text)',
         letterSpacing: '0.09em'
       }
-    }, session ? session.name : 'Empty session', session && session.week ? ' · Week ' + session.week : ''), /*#__PURE__*/React.createElement("div", {
+    }, session && session.name || existing && existing.name || 'Empty session', session && session.week ? ' · Week ' + session.week : ''), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[7.5px] uppercase tnum mt-1",
       style: {
         color: 'var(--on-header-accent)',
         letterSpacing: '0.11em'
       }
-    }, fmtClock(elapsed), " elapsed")), /*#__PURE__*/React.createElement("button", {
+    }, past ? 'Editing · ' + relativeDay(dateISO, today).toLowerCase() : fmtClock(elapsed) + ' elapsed')), /*#__PURE__*/React.createElement("button", {
       onClick: () => setSessionMenu(true),
       "aria-label": "Session options",
       className: "pf text-[7.5px] uppercase shrink-0 px-2.5",
@@ -55389,12 +55488,16 @@ function SessionPlayer({
           if (!on) setRest(null);
           showToast && showToast(on ? 'Rest timer on.' : 'Rest timer off.');
         }
-      }, {
+      }, past ? {
+        label: 'Save and close',
+        sub: doneSets + (doneSets === 1 ? ' set' : ' sets') + ' on this session',
+        onClick: () => setConfirmEnd(true)
+      } : {
         label: 'Finish the session',
         sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved',
         onClick: () => setConfirmEnd(true)
       }, {
-        label: 'Leave without finishing',
+        label: past ? 'Close' : 'Leave without finishing',
         sub: 'Everything ticked is already saved. Come back to it later.',
         onClick: onExit
       }]
@@ -55492,9 +55595,9 @@ function SessionPlayer({
         }]
       });
     })(), confirmEnd && /*#__PURE__*/React.createElement(ConfirmDialog, {
-      title: "Finish this session?",
+      title: past ? 'Save these changes?' : 'Finish this session?',
       body: doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.',
-      confirmLabel: "Finish",
+      confirmLabel: past ? 'Save' : 'Finish',
       confirmKind: "primary",
       onConfirm: finish,
       onClose: () => setConfirmEnd(false)
@@ -56711,7 +56814,6 @@ function BlockWizard({
   useBackClose(onBack);
   const t = tdb(db);
   const draftDays = (t.draft && t.draft.days || []).length;
-  const [whyEmpty, setWhyEmpty] = useState(false);
   const [wizStep, setWizStep] = useState(1); // 1 style + optional import, 2 schedule, 3 volume, 4 kit and build
   // Min-max is the house method now, so it is what a new block is unless somebody says otherwise -
   // and five days is the shape it is written for, so that is the day count it arrives on.
@@ -58217,14 +58319,14 @@ function BlockBuilder({
       style: {
         background: 'var(--surface2)'
       }
-    }, "+ Add movement"), onStart && !log && /*#__PURE__*/React.createElement("button", {
+    }, "+ Add movement"), onStart && /*#__PURE__*/React.createElement("button", {
       onClick: () => onStart(s, block),
       className: "pixel-btn w-full h-12 font-bold mt-2",
       style: {
         background: 'var(--accent)',
         color: 'var(--on-accent)'
       }
-    }, "Start this session")));
+    }, !log ? 'Start this session' : liveLog(log, Store.todayISO()) ? 'Carry on with it' : log.dateISO === Store.todayISO() ? 'Open today\u2019s session' : 'Do this session again')));
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShare(!share),
     className: "w-full flex items-center justify-between gap-3 pixel-box p-4 mb-4 text-left",
@@ -58373,7 +58475,13 @@ function SessionPreview({
   const codes = Training.sessionCodes(items);
   const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
   const mins = sessionMins(items);
-  const log = t.logs.filter(l => l.sessionId === live.id)[0];
+  // The most recent log against this session, and whether it is one you are still IN. The screen
+  // used to take any log at all as "carry on where you left off" and then hand you a brand-new empty
+  // session for today, because the runner only ever resumes a log from today. Two different things,
+  // said as two different things.
+  const log = t.logs.filter(l => l.sessionId === live.id).slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
+  const openNow = liveLog(log, Store.todayISO()); // started today, not finished
+  const sameDay = !!(log && log.dateISO === Store.todayISO()); // today's, finished or not: the button edits it
   const prog = block ? Training.blockProgress(block, Store.todayISO()) : null;
   const editable = !!(block && update);
 
@@ -58528,7 +58636,7 @@ function SessionPreview({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] leading-snug"
-  }, "You logged this one ", relativeDay(log.dateISO, Store.todayISO()).toLowerCase(), ", ", (log.sets || []).filter(s => s.done).length, " sets. Opening it again picks up where you left off.")), /*#__PURE__*/React.createElement("button", {
+  }, "You logged this one ", relativeDay(log.dateISO, Store.todayISO()).toLowerCase(), ", ", (log.sets || []).filter(s => s.done).length, " sets.", ' ', openNow ? 'It is still open, so this picks up exactly where you left off.' : sameDay ? 'Opening it again goes back into today\u2019s session, so you can correct it or add to it.' : 'Starting it now logs a new session against today. To change that one, open it from History.')), /*#__PURE__*/React.createElement("button", {
     onClick: onStart,
     className: "pixel-btn w-full h-14 font-bold mb-5",
     style: {
@@ -58537,7 +58645,7 @@ function SessionPreview({
     }
   }, /*#__PURE__*/React.createElement(Icon.play, {
     width: "16"
-  }), " ", log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]), mainItems.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), " ", openNow ? 'Carry on with it' : sameDay ? 'Open today\u2019s session' : log ? 'Do it again' : 'Start ' + live.name.split(' - ')[0]), mainItems.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
     style: {
       color: 'var(--muted)',
@@ -60038,7 +60146,8 @@ function TrainHistory({
   db,
   update,
   onBack,
-  onOpenExercise
+  onOpenExercise,
+  onOpenSession
 }) {
   useBackClose(onBack);
   const t = tdb(db);
@@ -60227,7 +60336,11 @@ function TrainHistory({
       style: {
         color: 'var(--muted)'
       }
-    }, (l.sets || []).filter(s => s.done).length, " sets · ", toDisplayWeight(Training.tonnage(l), units), unitLabel(units), " moved"), sessionPRs.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, (l.sets || []).filter(s => s.done).length, " sets · ", toDisplayWeight(Training.tonnage(l), units), unitLabel(units), " moved", liveLog(l, Store.todayISO()) && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--warn)'
+      }
+    }, " · still open")), sessionPRs.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] mb-2 leading-snug",
       style: {
         color: 'var(--accent-ink)'
@@ -60249,13 +60362,21 @@ function TrainHistory({
       style: {
         color: 'var(--muted)'
       }
-    }, l.notes), /*#__PURE__*/React.createElement("button", {
+    }, l.notes), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3 mt-2"
+    }, onOpenSession && /*#__PURE__*/React.createElement("button", {
+      onClick: () => onOpenSession(l),
+      className: "pixel-box px-3 py-2 text-[11.5px]",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, liveLog(l, Store.todayISO()) ? 'Carry on with it' : 'Open & edit'), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirm(l.id),
-      className: "text-[10px] mt-2",
+      className: "text-[10px]",
       style: {
         color: 'var(--muted2)'
       }
-    }, "Delete"));
+    }, "Delete")));
   })), confirm && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Delete this session?",
     body: "It comes out of your volume and your records too.",

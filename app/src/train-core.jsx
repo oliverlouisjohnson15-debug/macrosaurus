@@ -174,9 +174,29 @@ function sessionMins(exercises) {
 
 function weekPlan(block, week, logs) {
   const comp = Training.completion(block, logs);
+  const today = Store.todayISO();
   return Training.weekSessions(block, week)
     .slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-    .map(s => ({ session: s, log: comp.logBySession[s.id] || null }));
+    .map(s => {
+      const log = comp.logBySession[s.id] || null;
+      return { session: s, log: log, live: liveLog(log, today) };
+    });
+}
+
+/* Started and not finished YET, as opposed to done.
+ *
+ * A log row is written the moment the first set is ticked, and until this existed every reader
+ * treated the existence of one as "that session is done". Walk out of the gym mid-session - or
+ * simply switch to another tab, which unmounts the whole Train tab - and the week came back with
+ * the session ticked off, the next one queued behind it and no way in to the half you had left.
+ * "It all ended" is exactly what that looks like.
+ *
+ * `endedAt` is written by Finish and by nothing else, so its absence is the signal. It is only
+ * trusted for TODAY: logs written before the field existed have no `endedAt` either, and a session
+ * you walked away from on Tuesday should read as the work it was rather than reopening itself all
+ * week. Anything older is edited from History instead, where every session can now be opened. */
+function liveLog(log, todayISO) {
+  return !!(log && !log.endedAt && log.dateISO === (todayISO || Store.todayISO()));
 }
 
 // ---- shared bits ------------------------------------------------------------------------------

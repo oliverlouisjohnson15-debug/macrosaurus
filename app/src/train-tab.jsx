@@ -34,6 +34,13 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     }
     go('player', { sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
   }
+  // A session that is not in the plan: a class, a holiday gym, ten minutes of arms on the way past.
+  // It goes through the same gym question as a planned one, because standing somewhere with no
+  // barbell matters just as much when nobody wrote the session down.
+  function startFreeform() {
+    if (gymsOf(db).length > 1) { setPendingStart({ sessionId: null, blockId: null, freeform: true }); return; }
+    go('player', { freeform: true });
+  }
   // Looking is not starting. A tap on a day opens the plan; the button on that screen begins it.
   function previewSession(session, blk) {
     go('preview', { sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
@@ -43,20 +50,33 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   // use: centred, 20px gutters, room at the bottom for the tab bar. Without it these screens ran
   // edge to edge while every other tab was inset, which is the kind of inconsistency you feel before
   // you can name it. The session player gets a tighter bottom pad because it hides the tab bar.
+  //
+  // The gym question rides along with EVERY screen, not just home. It used to be rendered beside the
+  // home screen alone, and `startSession` is called from the preview and from the builder as well:
+  // on an account with two gyms saved, tapping "Start" or "Carry on with it" set the pending start
+  // and then rendered nothing at all, because the only thing that draws the picker had already been
+  // returned past. The button that begins a session did nothing, on the two screens most people
+  // begin one from.
   const page = (node, focused) => (
-    <div className={'max-w-md lg:max-w-2xl mx-auto px-5 pt-6 ' + (focused ? 'pb-6' : 'pb-36 lg:pb-12')}>{node}</div>
+    <div>
+      <div className={'max-w-md lg:max-w-2xl mx-auto px-5 pt-6 ' + (focused ? 'pb-6' : 'pb-36 lg:pb-12')}>{node}</div>
+      {pendingStart && (
+        <GymPicker db={db} update={update} onClose={() => setPendingStart(null)}
+          onPicked={() => { const p = pendingStart; setPendingStart(null); go('player', p); }} />
+      )}
+    </div>
   );
 
   if (screen.name === 'player') {
     return page(<SessionPlayer db={db} update={update} showToast={showToast} onFocusMode={onFocusMode}
-      sessionId={screen.sessionId} blockId={screen.blockId} freeform={screen.freeform}
-      gym={currentGym(db)} onExit={() => go('home')} />, true);
+      sessionId={screen.sessionId} blockId={screen.blockId} freeform={screen.freeform} openLogId={screen.logId}
+      gym={currentGym(db)} onExit={() => go(screen.from || 'home')} />, true);
   }
   if (screen.name === 'preview') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : null;
     const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
     if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      block={block} onOpen={previewSession} go={go} />);
+      block={block} onOpen={previewSession} onFreeform={startFreeform} go={go} />);
     return page(<SessionPreview db={db} update={update} showToast={showToast} session={sess} block={blk}
       onBack={() => go('home')} onStart={() => startSession(sess, blk)} />);
   }
@@ -134,7 +154,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
       onNext={(draft) => go('builder', { draft })} />);
   }
   if (screen.name === 'history') {
-    return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onOpenExercise={(id) => go('exercise', { exerciseId: id })} />);
+    return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onOpenExercise={(id) => go('exercise', { exerciseId: id })}
+      onOpenSession={(log) => go('player', { logId: log.id, sessionId: log.sessionId || null, blockId: log.blockId || null, from: 'history' })} />);
   }
   if (screen.name === 'exercise') {
     return page(<ExerciseDetail db={db} exerciseId={screen.exerciseId} onBack={() => go('history')} />);
@@ -148,17 +169,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'stats') {
     return page(<StatSheet db={db} onBack={() => go('home')} />);
   }
-  const homeScreen = page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-    block={block} onOpen={previewSession} go={go} />);
-  return (
-    <div>
-      {homeScreen}
-      {pendingStart && (
-        <GymPicker db={db} update={update} onClose={() => setPendingStart(null)}
-          onPicked={() => { const p = pendingStart; setPendingStart(null); go('player', p); }} />
-      )}
-    </div>
-  );
+  return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
+    block={block} onOpen={previewSession} onFreeform={startFreeform} go={go} />);
 }
 
 // ---- home -------------------------------------------------------------------------------------
@@ -210,7 +222,7 @@ function ProgrammeCards({ db, onPick, className }) {
   );
 }
 
-function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, go }) {
+function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onFreeform, go }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -220,11 +232,15 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const targets = trainTargets(db, block ? block.style : undefined);
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
-  const doneThisWeek = thisWeek.filter(x => x.log).length;
-  // The next session is the first one this week without a log against it. Every OTHER session stays
-  // tappable too: real weeks do not run in order, and an app that only lets you do "the next one"
-  // makes you fight it the first time you swap legs to Thursday.
-  const next = thisWeek.filter(x => !x.log)[0];
+  // A session started this morning and left half-way is NOT one of the week's done sessions, and
+  // counting it as one was how walking out of the gym read as the week ticking itself off.
+  const doneThisWeek = thisWeek.filter(x => x.log && !x.live).length;
+  // The next session is the one you are in the middle of, if there is one, and otherwise the first
+  // this week with nothing logged against it. Every OTHER session stays tappable too: real weeks do
+  // not run in order, and an app that only lets you do "the next one" makes you fight it the first
+  // time you swap legs to Thursday.
+  const live = thisWeek.filter(x => x.live)[0];
+  const next = live || thisWeek.filter(x => !x.log)[0];
   // Coverage is deliberately NOT computed here any more. See the note further down: a volume gap is
   // a question for the build screens, and this one is about the week you are actually running.
   const blockDone = prog && prog.done;
@@ -275,7 +291,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
               {doneThisWeek >= thisWeek.length
                 ? 'That is the whole week done.'
-                : (thisWeek.length - doneThisWeek) + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
+                : (thisWeek.length - doneThisWeek) + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (live
+                  ? '. ' + live.session.name.split(' - ')[0] + ' is still open.'
+                  : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
               {restDays.length > 0 && restDays.length < 7 && (
                 <span style={{ color: 'var(--muted2)' }}> Rest on {restDays.map(d => WEEKDAYS[d]).join(' and ')}.</span>
               )}
@@ -312,15 +330,15 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               set counts used to scatter. */}
           <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 flex-wrap text-[12.5px]">
-              {thisWeek.map(({ session, log }, i) => {
-                const done = !!log;
+              {thisWeek.map(({ session, log, live: inPlay }, i) => {
+                const done = !!log && !inPlay;
                 const isNext = next && session.id === next.session.id;
                 return (
                   <span key={session.id} className="flex items-center gap-1.5">
                     {i > 0 && <span style={{ color: 'var(--muted2)' }}>·</span>}
                     <button onClick={() => onOpen(session, block)} className="hit"
                       style={{ color: done ? 'var(--muted)' : isNext ? 'var(--text)' : 'var(--muted)', fontWeight: isNext ? 600 : 400 }}>
-                      {session.name.split(' - ')[0]}{done ? ' ✓' : ''}
+                      {session.name.split(' - ')[0]}{done ? ' ✓' : inPlay ? ' …' : ''}
                     </button>
                   </span>
                 );
@@ -339,7 +357,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                is that this is a preview, not the session. */
             <div className="mb-3 px-3 py-3" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
               <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>
-                Next · {WEEKDAYS[next.session.dayOfWeek] || ''}
+                {live ? 'In progress' : 'Next'} · {WEEKDAYS[next.session.dayOfWeek] || ''}
               </div>
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
                 <span className="text-[14px] font-bold">{next.session.name.split(' - ')[0]}</span>
@@ -350,6 +368,16 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               {(() => {
                 const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
                 if (!items.length) return null;
+                // Half-way through it, so what it OPENS with is not the useful sentence any more.
+                if (live) {
+                  const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
+                  const planned = items.reduce((a, e) => a + (e.target.sets || 0), 0);
+                  return (
+                    <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+                      You are {ticked} set{ticked === 1 ? '' : 's'} into this one{planned ? ' of ' + planned : ''}. Everything you ticked is saved - carrying on picks it up where you left it.
+                    </div>
+                  );
+                }
                 const style = Training.styleOf(block.style);
                 const lead = items[0];
                 const leadEx = Training.byId(lead.exerciseId, t.custom);
@@ -376,7 +404,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               slab - which was also the last control in Train that stayed daylight at night. */}
           {next && (
             <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-              <Icon.play width="16" /> Open {next.session.name.split(' - ')[0]}
+              <Icon.play width="16" /> {live ? 'Carry on with ' : 'Open '}{next.session.name.split(' - ')[0]}
             </button>
           )}
           </div>
@@ -538,12 +566,21 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           arms on the way past. Worth having, not worth a fourth button - it lives as a quiet link
           under the three real ones, and only shows once there is a block for it to be an exception
           to at all. */}
-      {block && !blockDone && (
+      {block && !blockDone && onFreeform && (
         <div className="text-center mb-4">
           <button onClick={() => setWhyEmpty(true)} className="pf text-[10px] uppercase" style={{ color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>
             Empty session
           </button>
         </div>
+      )}
+
+      {/* This used to set a piece of state that nothing rendered, so the link was a dead button: the
+          one way into a session outside the plan, and it did nothing at all. */}
+      {whyEmpty && (
+        <ConfirmDialog title="Start an empty session?"
+          body="Nothing prescribed - you add the movements as you go. It is for the days that are not in your block: a class, a holiday gym, a bit of arms on the way past. It still counts towards your volume and your records, and it does not touch the week's plan."
+          confirmLabel="Start one" confirmKind="accent"
+          onConfirm={onFreeform} onClose={() => setWhyEmpty(false)} />
       )}
 
       {/* Pricing copy, so it is for people who have not bought yet. A subscriber being told what is

@@ -21,7 +21,7 @@ const SET_TYPES = [
 ];
 const SET_TYPE_TONE = { work: null, warmup: 'var(--warn)', drop: 'var(--carb-ink)', failure: 'var(--danger)' };
 
-function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, onExit, onFocusMode, gym }) {
+function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, openLogId, onExit, onFocusMode, gym }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -33,8 +33,22 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const style = Training.styleOf(block && block.style);
   const preOpts = { style: block && block.style };
 
-  const existing = t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId))[0];
+  // Which log this screen is writing to. Opened from History it is a NAMED one, which is what makes
+  // a session from three weeks ago something you can go back into and correct rather than a receipt
+  // you can only delete. Opened the ordinary way it is today's log for this session, if there is
+  // one, which is how coming back to a session you walked out of resumes it.
+  const opened = openLogId ? t.logs.filter(l => l.id === openLogId)[0] : null;
+  // Today's log for this session, if there is one: reopening a planned session on the day you ran it
+  // is editing that session, not starting a second copy of it. An EMPTY session is the exception -
+  // it has no plan to be the same session as, so once one has been finished a new one is a new one
+  // rather than the morning's reopening itself.
+  const existing = opened || t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : (!l.sessionId && !l.endedAt)))[0];
   const [logId] = useState(() => (existing ? existing.id : trainUid()));
+  // The day the WORK happened, which is only today for a session being run now. Editing Tuesday's
+  // session on Friday must not move Tuesday's sets to Friday: every write, every record check and
+  // the sign-off all read this rather than the clock.
+  const dateISO = existing ? (existing.dateISO || today) : today;
+  const past = dateISO !== today;
   const [items, setItems] = useState(() => {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
@@ -194,8 +208,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     trainUpdate(update, (tr) => {
       const i = tr.logs.findIndex(l => l.id === logId);
       const row = {
-        id: logId, dateISO: today, blockId: blockId || null, sessionId: sessionId || null,
-        name: session ? session.name : 'Empty session',
+        id: logId, dateISO: dateISO,
+        blockId: blockId || (existing && existing.blockId) || null,
+        sessionId: sessionId || (existing && existing.sessionId) || null,
+        name: (session && session.name) || (existing && existing.name) || 'Empty session',
         startedAt: (i >= 0 && tr.logs[i].startedAt) || new Date(startedAt).toISOString(),
         notes: nextNotes == null ? notes : nextNotes,
         exerciseNotes: nextExNotes || exNotes,
@@ -269,7 +285,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     // Warm-ups and drop sets are excluded, so a light back-off set cannot claim one.
     const setType = items[ii].sets[si].type || 'work';
     if (setType === 'work' && filled && filled.reps > 0 && filled.weightKg > 0) {
-      const best = Training.bestBefore(t.logs, items[ii].exerciseId, today, logId);
+      const best = Training.bestBefore(t.logs, items[ii].exerciseId, dateISO, logId);
       items[ii].sets.forEach((prev, pi) => {
         if (pi >= si || !prev.done || (prev.type || 'work') !== 'work') return;
         const pe = Training.e1rm(prev.weightKg, prev.reps);
@@ -413,7 +429,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   function signOffFacts() {
     const work = it => it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup');
     const doneSets = items.reduce((a, it) => a + work(it).length, 0);
-    const log = { id: logId, dateISO: today, sets: items.reduce((a, it) => a.concat(it.sets.filter(s => s.done).map(s => Object.assign({}, s, { exerciseId: it.exerciseId }))), []) };
+    const log = { id: logId, dateISO: dateISO, sets: items.reduce((a, it) => a.concat(it.sets.filter(s => s.done).map(s => Object.assign({}, s, { exerciseId: it.exerciseId }))), []) };
     // Previous sessions only: prsInLog already excludes this log by id, and the averages must not be
     // dragged toward the session they are being compared against.
     const prior = t.logs.filter(l => l.id !== logId);
@@ -423,7 +439,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     // only fire on the session that actually closed it.
     let weekDone = 0, weekOf = 0, finishedBlock = false;
     if (block) {
-      const prog = Training.blockProgress(block, today);
+      const prog = Training.blockProgress(block, dateISO);
       const wk = Training.weekSessions(block, prog.week);
       const loggedIds = {};
       prior.forEach(l => { if (l.sessionId) loggedIds[l.sessionId] = 1; });
@@ -440,7 +456,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       tonnageKg: Training.tonnage(log),
       avgTonnageKg: priorTon.length >= 3 ? priorTon.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, priorTon.length) : 0,
       weekDone, weekOf, blockFinished: finishedBlock,
-      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
+      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, dateISO) < 7).length + 1,
       name: (session && session.name) || 'Session',
       blockName: block ? block.name : null,
       // The receipt. The send-off used to be praise and three numbers, which is a lovely moment and
@@ -482,6 +498,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     // numbers, and a line about what actually happened, rather than a toast sliding past the button
     // you have just pressed.
     if (!facts.sets) { showToast && showToast('Nothing logged, so nothing saved.'); onExit(); return; }
+    // Correcting a session from last Tuesday is not a session ending, and the buddy congratulating
+    // you on a workout you finished a week ago would be nonsense. It saves and gets out of the way.
+    if (past) { showToast && showToast('Session updated.'); onExit(); return; }
     setSignOff(facts);
   }
 
@@ -512,9 +531,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           <SessionBuddy db={db} pattern={items[focus] && (Training.byId(items[focus].exerciseId, t.custom) || {}).pattern} trigger={lift.n} />
           <div className="flex-1 min-w-0">
             <div className="pf text-[9.5px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.09em' }}>
-              {session ? session.name : 'Empty session'}{session && session.week ? ' · Week ' + session.week : ''}
+              {(session && session.name) || (existing && existing.name) || 'Empty session'}{session && session.week ? ' · Week ' + session.week : ''}
             </div>
-            <div className="pf text-[7.5px] uppercase tnum mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{fmtClock(elapsed)} elapsed</div>
+            {/* A session being RUN shows its clock. One being corrected afterwards shows the day it
+                happened, because the hour since you opened it is not a fact about that session. */}
+            <div className="pf text-[7.5px] uppercase tnum mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>
+              {past ? 'Editing · ' + relativeDay(dateISO, today).toLowerCase() : fmtClock(elapsed) + ' elapsed'}
+            </div>
           </div>
           <button onClick={() => setSessionMenu(true)} aria-label="Session options"
             className="pf text-[7.5px] uppercase shrink-0 px-2.5"
@@ -1087,8 +1110,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 showToast && showToast(on ? 'Rest timer on.' : 'Rest timer off.');
               },
             },
-            { label: 'Finish the session', sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved', onClick: () => setConfirmEnd(true) },
-            { label: 'Leave without finishing', sub: 'Everything ticked is already saved. Come back to it later.', onClick: onExit },
+            past
+              ? { label: 'Save and close', sub: doneSets + (doneSets === 1 ? ' set' : ' sets') + ' on this session', onClick: () => setConfirmEnd(true) }
+              : { label: 'Finish the session', sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved', onClick: () => setConfirmEnd(true) },
+            { label: past ? 'Close' : 'Leave without finishing', sub: 'Everything ticked is already saved. Come back to it later.', onClick: onExit },
           ]} />
       )}
 
@@ -1145,9 +1170,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         );
       })()}
       {confirmEnd && (
-        <ConfirmDialog title="Finish this session?"
+        <ConfirmDialog title={past ? 'Save these changes?' : 'Finish this session?'}
           body={doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.'}
-          confirmLabel="Finish" confirmKind="primary"
+          confirmLabel={past ? 'Save' : 'Finish'} confirmKind="primary"
           onConfirm={finish} onClose={() => setConfirmEnd(false)} />
       )}
     </div>
