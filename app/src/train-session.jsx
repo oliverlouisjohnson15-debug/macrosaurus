@@ -543,6 +543,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
   const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
   const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup').length, 0);
+  // Every working set of the session, flat, in the order they will be done - the spine at the top is
+  // this list and nothing else, so what it draws and what the count says cannot disagree. Warm-ups
+  // are left out here exactly as they are left out of both counts.
+  const spine = items.reduce((a, it) => a.concat(it.sets.filter(s => (s.type || 'work') !== 'warmup')
+    .map(s => ({ done: !!s.done }))), []);
+  // The set you are ON: the first one still unticked. Rows get ticked in any order, so this is a
+  // search rather than a counter, and when everything is done there is no set to be on.
+  const spineAt = spine.findIndex(x => !x.done);
   const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const allWorkDone = totalSets > 0 && doneSets === totalSets;
   const codes = Training.sessionCodes(items);
@@ -580,29 +588,25 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             className="pf text-[7.5px] uppercase shrink-0 px-2.5"
             style={{ minHeight: 38, background: 'var(--cardhead-bg)', border: '2px solid var(--border)', color: 'var(--header-text)', letterSpacing: '0.1em' }}>More</button>
         </div>
-        {/* ---- the spine, per `Session in progress.dc.html` ----
-            Orientation without a word: one pip per working set, grouped by movement, so the shape of
-            the whole session and where you are inside it are the same picture. The bar it replaces
-            was 24 identical segments that knew nothing about movements, so a session with three sets
-            left in the last exercise looked the same as one with three left spread across three.
+        {/* ---- the spine ----
+            The session as its SETS: one cell each, evenly spaced, in the order you will do them.
+            Green behind you, gold for the one you are on, empty ahead.
+
+            It used to group the cells by movement and paint the whole current movement gold, which
+            put two gold cells above the words "0 / 16 sets" on a session where nothing had been
+            logged at all - the bar saying done and the count saying not started, on the same line.
+            Gold now means one thing, the set in front of you, and it is one cell.
+
             Deliberately not tappable: the movement headers are the navigation, and two ways to jump
             around was the confusion this screen already had. */}
         <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--card)', borderTop: '3px solid var(--border)' }}>
-          <div className="flex gap-[5px] flex-1 min-w-0" aria-hidden="true">
-            {items.map((it, ii) => {
-              const w = it.sets.filter(s => (s.type || 'work') !== 'warmup');
-              if (!w.length) return null;
-              return (
-                <div key={ii} className="flex gap-[2px]" style={{ flex: w.length }}>
-                  {w.map((s, si) => (
-                    <i key={si} className="flex-1" style={{
-                      height: 10, border: '2px solid var(--border)', transition: 'background .18s',
-                      background: s.done ? 'var(--good)' : (ii === focus ? 'var(--accent)' : 'var(--track)'),
-                    }} />
-                  ))}
-                </div>
-              );
-            })}
+          <div className="flex gap-[3px] flex-1 min-w-0" aria-hidden="true">
+            {spine.map((cell, i) => (
+              <i key={i} className="flex-1 min-w-0" style={{
+                height: 10, border: '2px solid var(--border)', transition: 'background .18s',
+                background: cell.done ? 'var(--good)' : (i === spineAt ? 'var(--accent)' : 'var(--track)'),
+              }} />
+            ))}
           </div>
           <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--muted)' }}>{doneSets} / {totalSets} sets</span>
         </div>
@@ -723,7 +727,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em',
                 }}>
                   {open
-                    ? 'Set ' + Math.min(work.length, (work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length
+                    ? (work.every(s => s.done)
+                      // Open and finished: "Set 2 of 2" reads as one still to do, on a card whose
+                      // every row is already green.
+                      ? 'All ' + work.length + ' sets logged'
+                      : 'Set ' + ((work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length)
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
                       : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
@@ -890,11 +898,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                             {type === 'work' ? workIndex : (SET_TYPES.find(x => x.v === type) || {}).label}
                           </span>
                         </button>
+                        {/* The placeholder is what you lifted last time, as a suggestion. Where
+                            there is no last time the box stays EMPTY rather than offering "0": the
+                            column is headed KG, and a nought sitting in it reads as a weight
+                            somebody has already entered rather than as an invitation to type one. */}
                         <input type="number" inputMode="decimal" className={'flex-1 ' + cell} style={cellStyle}
                           value={s.weightKg ? toDisplayWeight(s.weightKg, units) : ''}
                           onFocus={e => { try { e.target.select(); } catch (_) {} }}
                           onChange={e => setField(ii, si, 'weightKg', fromDisplayWeight(e.target.value, units))}
-                          placeholder={s.lastTime ? String(toDisplayWeight(s.lastTime.weightKg, units)) : '0'} />
+                          placeholder={s.lastTime ? String(toDisplayWeight(s.lastTime.weightKg, units)) : ''} />
                         <input type="number" inputMode="numeric" className={'flex-1 ' + cell} style={cellStyle}
                           value={s.reps == null ? '' : s.reps}
                           onFocus={e => { try { e.target.select(); } catch (_) {} }}
@@ -922,7 +934,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                             // competed with Finish for the loudest colour on the screen.
                             background: s.done ? 'var(--good)' : 'var(--surface2)',
                             color: s.done ? '#ffffff' : 'var(--muted2)',
-                            opacity: s.done ? 1 : 0.85,
+                            // Faint enough to read as an outline of what the button does rather than
+                            // as a set already ticked. At 0.85 a card of untouched sets looked like a
+                            // card of finished ones, which is the worst thing this screen can lie
+                            // about - and it lied about it hardest on the very first set of a block.
+                            opacity: s.done ? 1 : 0.32,
                             transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)',
                           }}>
                           <Tick size={12} />
@@ -976,7 +992,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 <div className="flex gap-2 mt-3">
                   <ToolBtn on={noteOpen === it.exerciseId || !!exNotes[it.exerciseId]}
                     onClick={() => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)}>Note</ToolBtn>
-                  <ToolBtn disabled={!hist.length} onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>
+                  {/* Only where there is something to show. A movement you have never trained had a
+                      greyed-out third button sitting there, which reads as a broken control rather
+                      than as an empty one - and on a first session that was every card. */}
+                  {hist.length > 0 && <ToolBtn onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>}
                   <ToolBtn on={menuOpen === ii} onClick={() => setMenuOpen(ii)}>More</ToolBtn>
                 </div>
 
@@ -1028,18 +1047,24 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
       <button onClick={() => setPicking(true)} className="pixel-box w-full h-12 text-[13px] mb-4" style={{ background: 'var(--surface2)' }}>+ Add an exercise</button>
 
+      {/* The count that used to sit here said "0 of 16 sets logged so far" three inches under the
+          spine, which says the same thing permanently and in view. What is worth putting at the foot
+          of the session is the one moment the main action changes: every set ticked, nothing left to
+          do but finish. Finish otherwise stays in the header's MORE, where it belongs - it is an
+          end-of-session tool and this is the end of the session. */}
+      {allWorkDone && (
+        <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 font-bold mb-2 fade-in"
+          style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+          That is every set · finish
+        </button>
+      )}
+
       {/* Session notes and finishing both used to live here, at the bottom of the scroll: a titled
           panel and a full-width button sitting under every set on the way past. Both are
           end-of-session tools rather than mid-set ones, so both moved into the header's MORE sheet -
           "Session notes" opens the same field, and "Finish the session" was already there. What is
           worth keeping on the main screen is a plain word of where you stand, which used to be the
           finish button's second job. */}
-      {!allWorkDone && (
-        <div className="text-[11px] text-center mb-2" style={{ color: 'var(--muted2)' }}>
-          {doneSets} of {totalSets} sets logged so far.
-        </div>
-      )}
-
       {/* ---- THE REST BAR ----
           Now the only thing pinned to the bottom, and only while it is running. The clock is big
           because it is read across a gym at arm's length, and the line beside it says what the rest

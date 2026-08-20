@@ -200,3 +200,85 @@ test('a second empty session in one day is its own session', () => {
     assert.ok(!ui.has('Dumbbell curl'), 'the finished one is not reopened: ' + ui.text.slice(0, 300));
   } finally { ui.unmount(); }
 });
+
+// ---- 5. the session runner's own instruments ----------------------------------------------------
+
+test('the spine draws one cell per set, and the gold one is the set you are on', () => {
+  // It used to group the cells by movement and paint the WHOLE current movement gold, so a session
+  // with nothing logged opened with two gold cells above the words "0 / 16 sets": the bar saying
+  // started and the count saying not started, on the same line.
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const sets = [];
+  (session.exercises || []).slice().sort((a, b) => a.order - b.order).forEach(e => {
+    for (let si = 0; si < (e.target.sets || 2); si++) {
+      sets.push({ exerciseId: e.exerciseId, itemId: e.id, setIndex: si, type: 'work',
+        weightKg: sets.length < 3 ? 60 : 0, reps: sets.length < 3 ? 8 : null, done: sets.length < 3 });
+    }
+  });
+  const total = sets.length;
+  db.training.logs = [Object.assign(logFor(session, { blockId: block.id }), { sets: sets })];
+  const ui = mount(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
+  });
+  try {
+    // The spine is the row of cells above the count; each is an <i> with a background.
+    const cells = Array.from(ui.host.querySelectorAll('i')).filter(el => (el.getAttribute('style') || '').indexOf('height: 10px') !== -1);
+    assert.equal(cells.length, total, 'one cell per working set of the whole session, flat');
+    const bg = (el) => (el.getAttribute('style').match(/background:\s*([^;]+)/) || [])[1] || '';
+    const gold = cells.filter(el => bg(el).indexOf('--accent') !== -1);
+    assert.equal(gold.length, 1, 'exactly one cell is the set you are on');
+    assert.equal(cells.indexOf(gold[0]), 3, 'and it is the first one not yet ticked');
+    assert.equal(cells.filter(el => bg(el).indexOf('--good') !== -1).length, 3, 'three behind it are done');
+    assert.ok(ui.has('3 / ' + total + ' sets'), 'and the count agrees with the picture');
+  } finally { ui.unmount(); }
+});
+
+test('the set count is not said twice on the same screen', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const ui = mount(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
+  });
+  try {
+    assert.ok(!/sets logged so far/.test(ui.text),
+      'the spine says it, permanently and in view, so the foot of the page does not repeat it');
+  } finally { ui.unmount(); }
+});
+
+test('a movement you have never trained does not offer a dead History button', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const ui = mount(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
+  });
+  try {
+    assert.ok(!ui.has('History'), 'nothing to show, so no greyed-out third button');
+    assert.ok(ui.has('Note'), 'the two that do something are still there');
+    assert.ok(ui.has('More'));
+  } finally { ui.unmount(); }
+});
+
+test('every set ticked puts finishing in front of you', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const sets = [];
+  (session.exercises || []).forEach(e => {
+    for (let si = 0; si < (e.target.sets || 2); si++) {
+      sets.push({ exerciseId: e.exerciseId, itemId: e.id, setIndex: si, type: 'work', weightKg: 60, reps: 8, done: true });
+    }
+  });
+  db.training.logs = [Object.assign(logFor(session, { blockId: block.id }), { sets: sets })];
+  const ui = mount(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
+  });
+  try {
+    assert.ok(ui.has('That is every set'), 'the one thing left to do is on screen: ' + ui.text.slice(-200));
+    assert.ok(ui.has('All ') && /All \d+ sets logged/.test(ui.text),
+      'and a finished movement does not claim to have a set outstanding');
+  } finally { ui.unmount(); }
+});
