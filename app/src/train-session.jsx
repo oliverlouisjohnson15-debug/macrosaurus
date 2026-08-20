@@ -580,8 +580,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           It is now the ONLY bar here - `App` hides the brand header for the duration - so it is one
           purple block with one rule under it, rather than two purple blocks with the page showing
           between them. Its `top-0` needs no safe-area inset for the same reason the brand header
-          never did: `theme-color` paints the status bar and the web view begins below it. */}
-      <div className="sticky top-0 z-20 -mx-5 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+          never did: `theme-color` paints the status bar and the web view begins below it.
+
+          `-mt-6` cancels the page wrapper's `pt-6` exactly as `-mx-5` already cancels its `px-5`.
+          That 24px of paper is the gutter that used to sit BETWEEN the two purple bars; with the
+          brand bar gone it was left stranded above this one, a cream strip along the top edge of the
+          screen at scroll 0. It is not visible once you scroll, which is precisely why a bar that is
+          only ever seen mid-scroll can carry a fault like this for months. */}
+      <div className="sticky top-0 z-20 -mx-5 -mt-6 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-2">
           <button onClick={onExit} aria-label="Back to Train" className="hit shrink-0 flex items-center" style={{ color: 'var(--nav-off)' }}>
             <Icon.chevron width="16" height="16" style={{ transform: 'rotate(180deg)' }} />

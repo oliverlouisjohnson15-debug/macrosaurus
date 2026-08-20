@@ -200,3 +200,38 @@ Test changes, which are the part worth reviewing:
   with no navigation at all. Nothing covered it before.
 
 1280 tests pass. `sw.js` bumped to 345 so the change reaches installed PWAs.
+
+
+## Verified in a browser
+
+Chromium at 393x852, `?demo`, driven into Lower B's runner. Chrome above the first exercise card,
+measured off the live `getBoundingClientRect()`:
+
+| | old | new |
+|---|---|---|
+| session bar top edge | 87px | **0px** |
+| session bar bottom edge (first card starts) | 179px | **81px** |
+
+**179px -> 81px, a 98px saving — 55% of the chrome, and 11.5% of the viewport handed back.**
+
+Running it turned up one thing the estimate and the test suite both missed: with the brand bar gone,
+the page wrapper's `pt-6` was left stranded, putting a 24px cream strip along the top edge of the
+screen at scroll 0. That 24px IS the "strip of paper" from the evidence chain — it did not go away
+when the brand bar did, it just moved to the top. Fixed with `-mt-6` on the sticky container, which
+cancels `pt-6` exactly as the existing `-mx-5` cancels the wrapper's `px-5`.
+
+## Found while verifying, NOT fixed here
+
+**The session bar does not actually stick.** At `scrollY: 600` its top edge is at `-163px` — it has
+scrolled clean off the screen, despite `sticky top-0`. This reproduces identically on `main`
+(`-174px`), so it is **pre-existing and not caused by this change**.
+
+The cause is almost certainly `html, body { overflow-x: hidden }` (`app/src/styles.css:198`): an
+ancestor with a clipped overflow is the classic thing that silently turns `position: sticky` into
+`position: relative`.
+
+It is worth its own change, because it undoes a good part of the reason this bar exists — the spine
+is meant to be the thing you glance at between sets, and today it is only visible if you happen to be
+scrolled to the top. It is deliberately out of scope here: the fix is a global change to how the
+document handles horizontal overflow, and it could reintroduce sideways scroll anywhere in the app.
+That wants its own pass and its own screenshots, not a rider on a chrome change.
