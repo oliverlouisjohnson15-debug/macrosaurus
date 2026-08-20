@@ -2948,6 +2948,36 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         ? [{ effective_date: null, enabled: false, highDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
     }
+    /* Saved gyms with the same name are the same gym, as far as anybody reading the list can tell.
+     *
+     * Leaving "Call it" blank when you save a gym names it after its KIND, so a second unnamed
+     * commercial gym was also called "Bodybuilding gym", and a seventh was too. Nothing else on a
+     * commercial gym's record differs from another's - no bench flag, no kit list - so once the names
+     * matched there was nothing left to tell them apart, not in settings and not in the picker that
+     * asks which one you are standing in. `uniqueGymName` stops new ones colliding; this settles the
+     * ones already saved, once, on the next load.
+     *
+     * Only ever adds a number to a DUPLICATE, and only from the second one on: the first keeps the
+     * name it had, a gym you named yourself is untouched unless you gave two of them the same name,
+     * and nothing is deleted or merged - two gyms really might both be called "Home". Renaming is a
+     * label change; ids, equipment and `currentGymId` are not touched, so nothing that points at a
+     * gym stops pointing at it. */
+    var gymList = (s.training && s.training.gyms) || [];
+    if (gymList.length > 1) {
+      var seenNames = {};
+      gymList.forEach(function (g) {
+        if (!g) return;
+        var nm = (g.name || '').trim();
+        if (!nm) return;
+        var key = nm.toLowerCase();
+        if (!seenNames[key]) { seenNames[key] = 1; return; }
+        var n = seenNames[key] + 1;
+        while (seenNames[(nm + ' ' + n).toLowerCase()]) n++;
+        seenNames[key] = n;
+        g.name = nm + ' ' + n;
+        seenNames[g.name.toLowerCase()] = 1;
+      });
+    }
     // A back-filled change lands mid-window exactly as a live one does, and owes that window the same
     // rebalance (see Engine.cyclingSpread). The back-fill above cannot write one: it recovers the
     // shape of the plan, not what the change owed, so the entry it leaves is the only one the app can
@@ -61065,10 +61095,13 @@ function TrainSettings({
   function saveGym(g) {
     trainUpdate(update, tr => {
       tr.gyms = tr.gyms || [];
-      const i = tr.gyms.findIndex(x => x.id === g.id);
-      if (i >= 0) tr.gyms[i] = g;else tr.gyms.push(g);
+      const named = Object.assign({}, g, {
+        name: uniqueGymName(tr.gyms, g.name, g.id)
+      });
+      const i = tr.gyms.findIndex(x => x.id === named.id);
+      if (i >= 0) tr.gyms[i] = named;else tr.gyms.push(named);
       if (!tr.prefs.currentGymId) tr.prefs = Object.assign({}, tr.prefs, {
-        currentGymId: g.id
+        currentGymId: named.id
       });
     });
     setGymEdit(null);
@@ -61166,12 +61199,12 @@ function TrainSettings({
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("span", {
     className: "block text-[13px] font-semibold truncate"
-  }, g.name), /*#__PURE__*/React.createElement("span", {
+  }, g.name), (gymSummary(g) || t.prefs.currentGymId === g.id) && /*#__PURE__*/React.createElement("span", {
     className: "block text-[11px]",
     style: {
       color: 'var(--muted)'
     }
-  }, gymSummary(g))), /*#__PURE__*/React.createElement(Icon.chevron, {
+  }, [t.prefs.currentGymId === g.id ? 'Where you are now' : '', gymSummary(g)].filter(Boolean).join(' · '))), /*#__PURE__*/React.createElement(Icon.chevron, {
     width: "16",
     height: "16",
     style: {
@@ -62670,15 +62703,41 @@ function currentGym(db) {
   if (!list.length) return null;
   return list.filter(g => g.id === t.prefs.currentGymId)[0] || list[0];
 }
+/* The line UNDER a gym's name, so it must never be the name again.
+ *
+ * A gym saved without a name takes its KIND as its name (see `uniqueGymName`), and this used to open
+ * with that same kind - so every unnamed gym in the list read "Bodybuilding gym" over "Bodybuilding
+ * gym", and seven saved gyms looked like the same one drawn seven times. The kind is worth saying
+ * only when the name has not already said it. Every caller draws `g.name` directly above this. */
 function gymSummary(g) {
   if (!g) return 'Not set';
   const base = Training.GYMS[g.type] || Training.GYMS.custom;
-  const bits = [base.label];
+  const bits = [];
+  const named = (g.name || '').trim().toLowerCase();
+  if (named !== base.label.trim().toLowerCase()) bits.push(base.label);
   if (g.type === 'home' || g.type === 'minimal') {
     bits.push(g.bench === false ? 'no bench' : 'bench');
     bits.push(g.pullupBar === false ? 'no bar' : 'pull-up bar');
   }
   return bits.join(' · ');
+}
+
+/* A name that is not already taken.
+ *
+ * Saving a gym with the "Call it" field blank falls back to the kind's label, which is fine once and
+ * indistinguishable twice: a second unnamed commercial gym was also called "Bodybuilding gym", and a
+ * seventh was too. Nothing about a commercial gym's record differs from another's, so once the names
+ * match there is no way left to tell them apart - not in settings, and not in the picker that asks
+ * which one you are standing in. Numbered from the second one on; the first keeps the plain label. */
+function uniqueGymName(list, name, selfId) {
+  const taken = (list || []).filter(g => g.id !== selfId).map(g => (g.name || '').trim().toLowerCase());
+  const base = (name || '').trim();
+  if (!base || taken.indexOf(base.toLowerCase()) === -1) return base;
+  for (let n = 2; n < 99; n++) {
+    const t = base + ' ' + n;
+    if (taken.indexOf(t.toLowerCase()) === -1) return t;
+  }
+  return base;
 }
 
 // Create or edit one gym. The two follow-ups for a home setup are not optional detail: a bench
@@ -62812,10 +62871,13 @@ function GymPicker({
   function save(g) {
     trainUpdate(update, tr => {
       tr.gyms = tr.gyms || [];
-      const i = tr.gyms.findIndex(x => x.id === g.id);
-      if (i >= 0) tr.gyms[i] = g;else tr.gyms.push(g);
+      const named = Object.assign({}, g, {
+        name: uniqueGymName(tr.gyms, g.name, g.id)
+      });
+      const i = tr.gyms.findIndex(x => x.id === named.id);
+      if (i >= 0) tr.gyms[i] = named;else tr.gyms.push(named);
       tr.prefs = Object.assign({}, tr.prefs, {
-        currentGymId: g.id
+        currentGymId: named.id
       });
     });
     setEditing(null);
@@ -62858,7 +62920,7 @@ function GymPicker({
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("span", {
     className: "block text-[13.5px] font-semibold truncate"
-  }, g.name), /*#__PURE__*/React.createElement("span", {
+  }, g.name), !!gymSummary(g) && /*#__PURE__*/React.createElement("span", {
     className: "block text-[11px]",
     style: {
       color: 'var(--muted)'

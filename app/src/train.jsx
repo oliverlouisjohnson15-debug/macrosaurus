@@ -1142,9 +1142,10 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
   function saveGym(g) {
     trainUpdate(update, (tr) => {
       tr.gyms = tr.gyms || [];
-      const i = tr.gyms.findIndex(x => x.id === g.id);
-      if (i >= 0) tr.gyms[i] = g; else tr.gyms.push(g);
-      if (!tr.prefs.currentGymId) tr.prefs = Object.assign({}, tr.prefs, { currentGymId: g.id });
+      const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
+      const i = tr.gyms.findIndex(x => x.id === named.id);
+      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      if (!tr.prefs.currentGymId) tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setGymEdit(null);
   }
@@ -1191,7 +1192,16 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
             <button key={g.id} onClick={() => setGymEdit(g)} className="w-full text-left flex items-center justify-between gap-2 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
               <span className="min-w-0">
                 <span className="block text-[13px] font-semibold truncate">{g.name}</span>
-                <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>
+                {/* Only when there is something left to say. On an unnamed commercial gym the kind IS
+                    the name, so the second line would repeat the first - which is what made a list of
+                    saved gyms read as one gym over and over. The picker marks which one you are set
+                    to; so does this, because on a row of same-kind gyms it is the only thing that
+                    tells one from another. */}
+                {(gymSummary(g) || t.prefs.currentGymId === g.id) && (
+                  <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>
+                    {[t.prefs.currentGymId === g.id ? 'Where you are now' : '', gymSummary(g)].filter(Boolean).join(' · ')}
+                  </span>
+                )}
               </span>
               <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
             </button>
@@ -2191,15 +2201,41 @@ function currentGym(db) {
   if (!list.length) return null;
   return list.filter(g => g.id === t.prefs.currentGymId)[0] || list[0];
 }
+/* The line UNDER a gym's name, so it must never be the name again.
+ *
+ * A gym saved without a name takes its KIND as its name (see `uniqueGymName`), and this used to open
+ * with that same kind - so every unnamed gym in the list read "Bodybuilding gym" over "Bodybuilding
+ * gym", and seven saved gyms looked like the same one drawn seven times. The kind is worth saying
+ * only when the name has not already said it. Every caller draws `g.name` directly above this. */
 function gymSummary(g) {
   if (!g) return 'Not set';
   const base = Training.GYMS[g.type] || Training.GYMS.custom;
-  const bits = [base.label];
+  const bits = [];
+  const named = (g.name || '').trim().toLowerCase();
+  if (named !== base.label.trim().toLowerCase()) bits.push(base.label);
   if (g.type === 'home' || g.type === 'minimal') {
     bits.push(g.bench === false ? 'no bench' : 'bench');
     bits.push(g.pullupBar === false ? 'no bar' : 'pull-up bar');
   }
   return bits.join(' · ');
+}
+
+/* A name that is not already taken.
+ *
+ * Saving a gym with the "Call it" field blank falls back to the kind's label, which is fine once and
+ * indistinguishable twice: a second unnamed commercial gym was also called "Bodybuilding gym", and a
+ * seventh was too. Nothing about a commercial gym's record differs from another's, so once the names
+ * match there is no way left to tell them apart - not in settings, and not in the picker that asks
+ * which one you are standing in. Numbered from the second one on; the first keeps the plain label. */
+function uniqueGymName(list, name, selfId) {
+  const taken = (list || []).filter(g => g.id !== selfId).map(g => (g.name || '').trim().toLowerCase());
+  const base = (name || '').trim();
+  if (!base || taken.indexOf(base.toLowerCase()) === -1) return base;
+  for (let n = 2; n < 99; n++) {
+    const t = base + ' ' + n;
+    if (taken.indexOf(t.toLowerCase()) === -1) return t;
+  }
+  return base;
 }
 
 // Create or edit one gym. The two follow-ups for a home setup are not optional detail: a bench
@@ -2293,9 +2329,10 @@ function GymPicker({ db, update, onClose, onPicked }) {
   function save(g) {
     trainUpdate(update, (tr) => {
       tr.gyms = tr.gyms || [];
-      const i = tr.gyms.findIndex(x => x.id === g.id);
-      if (i >= 0) tr.gyms[i] = g; else tr.gyms.push(g);
-      tr.prefs = Object.assign({}, tr.prefs, { currentGymId: g.id });
+      const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
+      const i = tr.gyms.findIndex(x => x.id === named.id);
+      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setEditing(null);
     onPicked && onPicked(g);
@@ -2315,7 +2352,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
             style={{ background: t.prefs.currentGymId === g.id ? 'color-mix(in srgb, var(--good) 16%, var(--surface2))' : 'var(--surface2)' }}>
             <span className="min-w-0">
               <span className="block text-[13.5px] font-semibold truncate">{g.name}</span>
-              <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>
+              {!!gymSummary(g) && <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>}
             </span>
             <span onClick={(e) => { e.stopPropagation(); setEditing(g); }} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Edit</span>
           </button>

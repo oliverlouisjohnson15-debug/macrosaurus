@@ -201,3 +201,43 @@ test('a band somebody actually moved is still counted', () => {
   const r = render(A.TrainSettings, { db, update: noop2, showToast: noop2, onBack: noop2, onHowItWorks: noop2 });
   assert.ok(/1 changed from default/.test(r.text), 'one, and only one: ' + r.text.slice(0, 200));
 });
+
+/* ---- a saved gym must not read as its own subtitle -----------------------------------------------
+   Reported from a real account: "Where you train" listing seven gyms, six of them called
+   "Bodybuilding gym" over a second line also reading "Bodybuilding gym". The name falls back to the
+   gym's KIND when you save without typing one, and the summary line opened with that same kind. */
+
+test('an unnamed gym does not print its own name twice', () => {
+  const noop2 = () => {};
+  const db = accountWith(minmax());
+  // Exactly what saving with the name field blank produces: named after its kind.
+  const label = A.Training.GYMS.commercial.label;
+  db.training.gyms = [{ id: 'g1', name: label, type: 'commercial' }];
+  db.training.prefs.currentGymId = 'g1';
+  const r = render(A.TrainSettings, { db, update: noop2, showToast: noop2, onBack: noop2, onHowItWorks: noop2 });
+  const i = r.text.indexOf('Where you train');
+  const row = r.text.slice(i, i + 120);
+  const hits = row.split(label).length - 1;
+  assert.equal(hits, 1, 'the kind is said once, not once as the name and again under it: ' + row);
+});
+
+test('a named gym still says what kind of place it is', () => {
+  const noop2 = () => {};
+  const db = accountWith(minmax());
+  db.training.gyms = [{ id: 'g1', name: 'Ultra flex West', type: 'commercial' }];
+  const r = render(A.TrainSettings, { db, update: noop2, showToast: noop2, onBack: noop2, onHowItWorks: noop2 });
+  assert.ok(r.text.indexOf('Ultra flex West') !== -1, 'the name');
+  assert.ok(r.text.indexOf(A.Training.GYMS.commercial.label) !== -1, 'and the kind, which is not the name here');
+});
+
+test('the gym you are set to is marked, because same-kind gyms have nothing else to tell them apart', () => {
+  const noop2 = () => {};
+  const db = accountWith(minmax());
+  db.training.gyms = [
+    { id: 'g1', name: 'Bodybuilding gym', type: 'commercial' },
+    { id: 'g2', name: 'Bodybuilding gym 2', type: 'commercial' },
+  ];
+  db.training.prefs.currentGymId = 'g2';
+  const r = render(A.TrainSettings, { db, update: noop2, showToast: noop2, onBack: noop2, onHowItWorks: noop2 });
+  assert.ok(/Where you are now/.test(r.text), 'one of them says which: ' + r.text.slice(r.text.indexOf('Where you train'), r.text.indexOf('Where you train') + 160));
+});

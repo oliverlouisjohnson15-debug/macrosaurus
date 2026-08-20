@@ -139,6 +139,36 @@
         ? [{ effective_date: null, enabled: false, highDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
     }
+    /* Saved gyms with the same name are the same gym, as far as anybody reading the list can tell.
+     *
+     * Leaving "Call it" blank when you save a gym names it after its KIND, so a second unnamed
+     * commercial gym was also called "Bodybuilding gym", and a seventh was too. Nothing else on a
+     * commercial gym's record differs from another's - no bench flag, no kit list - so once the names
+     * matched there was nothing left to tell them apart, not in settings and not in the picker that
+     * asks which one you are standing in. `uniqueGymName` stops new ones colliding; this settles the
+     * ones already saved, once, on the next load.
+     *
+     * Only ever adds a number to a DUPLICATE, and only from the second one on: the first keeps the
+     * name it had, a gym you named yourself is untouched unless you gave two of them the same name,
+     * and nothing is deleted or merged - two gyms really might both be called "Home". Renaming is a
+     * label change; ids, equipment and `currentGymId` are not touched, so nothing that points at a
+     * gym stops pointing at it. */
+    var gymList = (s.training && s.training.gyms) || [];
+    if (gymList.length > 1) {
+      var seenNames = {};
+      gymList.forEach(function (g) {
+        if (!g) return;
+        var nm = (g.name || '').trim();
+        if (!nm) return;
+        var key = nm.toLowerCase();
+        if (!seenNames[key]) { seenNames[key] = 1; return; }
+        var n = seenNames[key] + 1;
+        while (seenNames[(nm + ' ' + n).toLowerCase()]) n++;
+        seenNames[key] = n;
+        g.name = nm + ' ' + n;
+        seenNames[g.name.toLowerCase()] = 1;
+      });
+    }
     // A back-filled change lands mid-window exactly as a live one does, and owes that window the same
     // rebalance (see Engine.cyclingSpread). The back-fill above cannot write one: it recovers the
     // shape of the plan, not what the change owed, so the entry it leaves is the only one the app can

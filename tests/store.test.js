@@ -632,3 +632,37 @@ test('a user with no week plans is untouched by any of it', () => {
   assert.deepStrictEqual(migPlans([]), []);
   assert.ok(Array.isArray(Store.migrate({ profile: { goalType: 'cut' } }).week_plans));
 });
+
+/* ---- saved gyms that all read the same ---------------------------------------------------------
+   Reported from a real account: seven gyms in "Where you train", six of them called "Bodybuilding
+   gym" over a second line also reading "Bodybuilding gym". Saving with the name field blank names a
+   gym after its kind, and nothing else on a commercial gym's record differs, so the list read as one
+   gym drawn seven times - and so did the picker that asks which one you are standing in. */
+
+const gymState = (names) => ({ training: { gyms: names.map((n, i) => ({ id: 'g' + i, name: n, type: 'commercial' })) } });
+const gymNames = (st) => Store.migrate(st).training.gyms.map(g => g.name);
+
+test('duplicate gym names are numbered from the second one on', () => {
+  const out = gymNames(gymState(['Bodybuilding gym', 'Ultra flex West', 'Bodybuilding gym', 'Bodybuilding gym']));
+  assert.deepEqual(out, ['Bodybuilding gym', 'Ultra flex West', 'Bodybuilding gym 2', 'Bodybuilding gym 3'],
+    'the first keeps its name, the rest are told apart');
+});
+
+test('gyms you named yourself are left alone', () => {
+  const names = ['Home', 'Ultra flex West', 'The shed'];
+  assert.deepEqual(gymNames(gymState(names)), names, 'nothing to disambiguate, nothing renamed');
+});
+
+test('renaming a duplicate never merges or drops one', () => {
+  const st = gymState(['Home', 'Home', 'Home']);
+  const out = Store.migrate(st).training.gyms;
+  assert.equal(out.length, 3, 'three gyms in, three out');
+  assert.deepEqual(out.map(g => g.id), ['g0', 'g1', 'g2'], 'and the ids nothing else points at are untouched');
+  assert.equal(new Set(out.map(g => g.name)).size, 3, 'with three names you can tell apart');
+});
+
+test('a name that would collide with an existing number keeps going', () => {
+  // Somebody already has a "Home 2", so the second "Home" cannot become one.
+  const out = gymNames(gymState(['Home', 'Home 2', 'Home']));
+  assert.equal(new Set(out.map(n => n.toLowerCase())).size, 3, 'still three distinct names: ' + JSON.stringify(out));
+});
