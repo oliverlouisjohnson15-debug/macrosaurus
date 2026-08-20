@@ -272,3 +272,42 @@ anything else here.
   any week of the running block, and that `CardHead`'s `right` slot must carry a verb when it is a
   link. The last of these is a rule about a shared component and belongs alongside the chevron rule
   already stated at `train-tab.jsx:235`.
+
+
+---
+
+## Shipped 20 Aug 2026
+
+All four changes are built, tested and on `claude/mobile-header-ui-redesign-9kii27`. Recorded in
+`TRAIN_MODULE_PLAN.md` under "Found in gym use". Four places the build deviated from the plan above:
+
+1. **The resume banner is narrower than specified.** The plan called for a banner whenever a session
+   was open. In practice the block card already draws exactly that for a planned session in the
+   current week - "In progress", how many sets you are in, and a button reading "Carry on with
+   Lower B" - so an unconditional banner put two controls for one session on the page, which is the
+   complaint the change exists to answer. It now renders only for what that card cannot see: a
+   freeform session, an account with no block running, and while another week is being read. It also
+   requires at least one ticked set: opening a session, ticking nothing and stepping out leaves a
+   pointer but no work, and "Still open - nothing ticked yet" is not worth a card.
+
+2. **Auto-reopen was gated, not removed.** The plan said mount should land on `home` whenever a
+   record exists. That would have cost the genuinely useful case - the phone killing the PWA
+   mid-set, or a reload - so the record carries a `steppedOut` mark instead. Taken out of the player
+   by something that was not a decision, you go back where you were; step out on purpose and you get
+   the tab, with the session waiting on it. `openRecord` reads the record for the banner,
+   `openScreen` gates on the mark for the router.
+
+3. **The dead-pointer sweep had to be made explicit.** Not foreseen by the plan, and caught by
+   `train-continuity.test.js:146`: the old effect deleted `training.open` whenever the player closed,
+   which cleaned up pointers at deleted blocks as a side effect. Keeping valid records means invalid
+   ones must now be swept deliberately.
+
+4. **One change the plan did not contain.** On the home screen the primary button for a live session
+   read "Carry on with Lower B" and opened `SessionPreview`, so resuming a workout you were standing
+   in the middle of cost two taps and a screen you did not need. `TrainHome` takes an `onResume`
+   route and a live session goes straight into the player. Found by the test written for change 4,
+   which clicked the wrong "carry on" and landed on the preview.
+
+The **Verify** item about `SessionPreview` reached with a future week's session was checked: its CTA
+reads `Start <name>` and logs against today, which is correct for a plan that already lets you train
+out of order. Left as it is.

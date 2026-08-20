@@ -177,6 +177,35 @@ The next honest piece of work is not on a list yet: nothing here has been run by
 
 ---
 
+## Found in gym use
+
+Written 20 Aug 2026. The list above ends by saying "nothing here has been run by a person in a gym."
+It has been now, and three reports came back: stuck in live sessions, no way to read a week other
+than this one, and too many buttons to find the right one. All three were navigation, not features.
+The audit and the plan behind the fix are in `design-plans/28-train-navigation-remap.md`.
+
+- **Stepping out of a session is not ending it.** `training.open` used to be deleted whenever the
+  player closed, so leaving threw away the record that you were mid-session - and while the record
+  existed, `openScreen` pulled you back into the player on every mount, which made Train home
+  unreachable during a session. `SessionPlayer` now takes both `onExit` (step out, keep it) and
+  `onFinish` (end it, clear it); the record carries a `steppedOut` mark, and `openScreen` auto-opens
+  only a session you did NOT choose to leave. `openRecord` is the ungated reader the tab's resume
+  banner uses. The dead-pointer sweep that leaving used to perform by accident is now explicit in the
+  effect - without it a pointer at a deleted block would sit in the store forever.
+- **`TrainHome` can show any week of the running block**, using the same week picker the builder
+  draws. Reading ahead no longer means opening the editor that rewrites the whole programme. The week
+  you are IN keeps the Next card, the start button and the deload/intro/rest notes; a week that has
+  not happened reports its session count instead of `0 / 4 done` over an empty meter.
+- **`CardHead`'s `right` slot must carry a verb when it is a link.** It draws with no chevron, so
+  `"2 / 4 done"` with an `onRight` was a progress readout that silently navigated - to a screen the
+  labelled `Blocks` button on the same page already reached. This belongs with the chevron rule
+  already stated at `train-tab.jsx:235`.
+- **A live session on the home screen opens the player, not the preview.** "Looking is not starting"
+  is right for a session you have not begun; a session you are standing in the middle of is not
+  looking, and routing it through the preview cost two taps to resume.
+
+---
+
 ## Not on the list, deliberately
 
 - **Rewriting the exercise library as data.** It is a pipe-delimited table in `training.js` and it
