@@ -52329,7 +52329,7 @@ function App() {
       mealId: meals[0].id
     }),
     onOpenPlay: () => setDexOpen(true)
-  }), /*#__PURE__*/React.createElement(MobileHeader, {
+  }), !focusMode && /*#__PURE__*/React.createElement(MobileHeader, {
     onOpenPlay: () => setDexOpen(true),
     onOpenYou: () => setView('more'),
     streak: appStreak,
@@ -54992,16 +54992,16 @@ function SessionPlayer({
         color: 'var(--header-text)',
         letterSpacing: '0.09em'
       }
-    }, session && session.name || existing && existing.name || 'Empty session', session && session.week ? ' · Week ' + session.week : ''), /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[7.5px] uppercase tnum mt-1",
+    }, session && session.name || existing && existing.name || 'Empty session', session && session.week ? ' · Week ' + session.week : ''), past && /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase mt-1",
       style: {
         color: 'var(--on-header-accent)',
         letterSpacing: '0.11em'
       }
-    }, past ? 'Editing · ' + relativeDay(dateISO, today).toLowerCase() : fmtClock(elapsed) + ' elapsed')), /*#__PURE__*/React.createElement("button", {
+    }, "Editing · ", relativeDay(dateISO, today).toLowerCase())), /*#__PURE__*/React.createElement("button", {
       onClick: () => setSessionMenu(true),
       "aria-label": "Session options",
-      className: "pf text-[7.5px] uppercase shrink-0 px-2.5",
+      className: "pf text-[9px] uppercase shrink-0 px-2.5",
       style: {
         minHeight: 38,
         background: 'var(--cardhead-bg)',
@@ -55010,11 +55010,7 @@ function SessionPlayer({
         letterSpacing: '0.1em'
       }
     }, "More")), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2 px-3 py-2",
-      style: {
-        background: 'var(--card)',
-        borderTop: '3px solid var(--border)'
-      }
+      className: "flex items-center gap-2 px-3 pb-2"
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex gap-[4px] flex-1 min-w-0",
       "aria-hidden": "true"
@@ -55036,7 +55032,7 @@ function SessionPlayer({
     })), /*#__PURE__*/React.createElement("span", {
       className: "text-[10.5px] tnum shrink-0",
       style: {
-        color: 'var(--muted)'
+        color: 'var(--nav-off)'
       }
     }, doneMovements, " / ", spine.length, " done"))), adjust && /*#__PURE__*/React.createElement(Card, {
       className: "p-4 mb-4",
@@ -55697,7 +55693,7 @@ function SessionPlayer({
         }
       })
     }), sessionMenu && /*#__PURE__*/React.createElement(ActionSheet, {
-      kicker: "Session",
+      kicker: past ? 'Session · editing' : 'Session · ' + fmtClock(elapsed) + ' elapsed',
       title: session ? session.name : 'Empty session',
       onClose: () => setSessionMenu(false),
       actions: [{

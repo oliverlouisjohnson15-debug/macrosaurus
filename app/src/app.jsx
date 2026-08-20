@@ -20026,7 +20026,14 @@ function App() {
   return (
     <div className="lg:pl-56">
       <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
-      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
+      {/* Hidden while a workout is being logged, for the same reason the tab bar is (see BottomNav
+          below): a session is a focused mode. Its three controls - Play, the streak, You - all LEAVE
+          the session, none of them is reachable-for mid-set, and it painted the SAME `--header`
+          purple as the session's own bar 60px underneath it. Because the session bar is `-mx-5`
+          inside the padded body and this one is full-bleed, a strip of paper sat between two
+          identical purple bands, which read as a rendering fault rather than as two levels of
+          hierarchy. The session bar takes this slot instead: same `top-0`, same purple, one bar. */}
+      {!focusMode && <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />}
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>

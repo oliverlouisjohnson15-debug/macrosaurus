@@ -155,7 +155,13 @@ test('a session opened from history is edited on its own day, not moved to today
   });
   try {
     assert.ok(ui.has('Editing'), 'the screen says what it is: ' + ui.text.slice(0, 200));
+    // The clock lives in the More sheet now rather than in the header, so this has to open the
+    // sheet to be worth anything: a session being corrected reports the day, never an hour counted
+    // from the moment you opened it.
+    ui.click('More');
+    assert.ok(ui.has('Session · editing'), 'the sheet says editing: ' + ui.text.slice(0, 200));
     assert.ok(!/elapsed/.test(ui.text), 'and does not run a clock on a session that finished days ago');
+    ui.click('Session notes');
     ui.click('Add set');
   } finally { ui.unmount(); }
   const out = db.training.logs.filter(l => l.sessionId === session.id);
@@ -291,4 +297,26 @@ test('every set ticked puts finishing in front of you', () => {
     assert.ok(ui.has('All ') && /All \d+ sets logged/.test(ui.text),
       'and a finished movement does not claim to have a set outstanding');
   } finally { ui.unmount(); }
+});
+
+/* The runner announces focus mode, and takes it back on the way out.
+ *
+ * `App` hangs two things off this one flag: the tab bar steps aside for a session, and so does the
+ * brand header (`{!focusMode && <MobileHeader/>}`). Both of those are the session getting the screen
+ * to itself for an hour. Neither is testable from here - App needs a session and a store - but the
+ * signal they both read is, and a signal that stopped firing, or stopped clearing, would leave
+ * somebody stranded on a screen with no navigation at all.
+ */
+test('a running session asks for the screen, and gives it back', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const seen = [];
+  const ui = mount(A.SessionPlayer, {
+    db, update(fn) { fn(db); }, showToast() {},
+    sessionId: session.id, blockId: block.id, onExit() {}, onFocusMode(on) { seen.push(on); },
+  });
+  assert.deepEqual(seen, [true], 'the session takes the screen as it opens: ' + JSON.stringify(seen));
+  ui.unmount();
+  assert.deepEqual(seen, [true, false], 'and hands the chrome back when it closes: ' + JSON.stringify(seen));
 });

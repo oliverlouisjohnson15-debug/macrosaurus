@@ -111,11 +111,14 @@ duplicate purple band, the paper gutter between the two bands, the duplicate din
 session-abandoning tap targets. `Play` and `You` remain exactly one tap away — via the back arrow the
 session bar already has.
 
-**Required with it:** the session bar becomes the topmost element, so it must take the safe area.
-`train-session.jsx:580` gains `paddingTop: 'env(safe-area-inset-top)'` on the sticky container, and
-its `top-0` is then correct. Without this the title sits under the clock and notch. Check the desktop
-path too — `Sidebar` is unaffected (`lg:` only), and `MobileHeader` is `lg:hidden`, so this is a
-mobile-only change by construction.
+~~**Required with it:** the session bar becomes the topmost element, so it must take the safe
+area.~~ **Checked when building it, and not required.** `index.html:8-9` declares
+`theme-color: #5B4FA6` (and `#4A3F90` after dark), which is the darker purple band behind the status
+bar in the report — the OS paints it and the web view begins below it. That is why `MobileHeader`
+sits flush at `top-0` today with no inset of its own, and any `sticky top-0` element taking its place
+inherits exactly the same behaviour. Adding `env(safe-area-inset-top)` would have opened a gap, not
+closed one. Desktop is unaffected by construction: `Sidebar` is `lg:` only and `MobileHeader` is
+`lg:hidden`.
 
 ### 2. Make the session bar one bar, not two stacked rows with a rule between them
 
@@ -162,3 +165,38 @@ prominent gold today (`--on-header-accent`), which is a deliberate choice, not a
 own comment at `train-session.jsx:573-579` names "the clock in gold" as part of the design. This plan
 argues it has been outgrown by the spine, which arrived later and reports the same thing better. If
 the clock stays, it goes to the right of the title row, not under it.
+
+
+---
+
+## Shipped
+
+All three, on `claude/mobile-header-ui-redesign-9kii27`. What differs from the plan above:
+
+- **The safe-area inset was not needed** — see the struck-through paragraph under step 1.
+- **`past` keeps its line.** Step 3 proposed emptying the second line of the title slot entirely. The
+  `Editing · yesterday` string stays, because it is the one thing the title cannot say for itself and
+  it is a *fixed short string* rather than a ticking number — which is exactly what
+  `TRAINING_UI_REVIEW.md` §2 says the pixel face is for. It went `7.5px → 9px` with everything else.
+- **The clock's new home is the More sheet's kicker** rather than a row inside it:
+  `Session · 5:54:29 elapsed`, or `Session · editing` on a session being corrected. One tap from the
+  header, and it stops competing with the spine.
+- **The count took `--nav-off`**, the token that exists for secondary type on the purple bar, now
+  that it no longer sits on `--card`.
+
+Test changes, which are the part worth reviewing:
+
+- Four assertions across `train-continuity` and `train-resume` used the word **"elapsed"** as their
+  "am I in the session runner?" probe. Three of those were *negative* (`!has('elapsed')`), so
+  removing the word from the header would have left them passing vacuously — green while asserting
+  nothing. They now go through one named `IN_SESSION` probe. It is deliberately **not** the spine's
+  `n / n done`: the Train tab's home draws the same shape for the week, which the first attempt at
+  this caught.
+- `train-resume`'s "does not run a clock on a session that finished days ago" now **opens the More
+  sheet** before asserting, since that is where the clock went.
+- New: `a running session asks for the screen, and gives it back` — asserts `SessionPlayer` fires
+  `onFocusMode(true)` on mount and `false` on unmount. `App` hangs both the tab bar and now the brand
+  header off that one flag, and a signal that stopped *clearing* would strand somebody on a screen
+  with no navigation at all. Nothing covered it before.
+
+1280 tests pass. `sw.js` bumped to 345 so the change reaches installed PWAs.

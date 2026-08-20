@@ -120,6 +120,12 @@ test('carrying on after midnight writes to the same log, on the night it started
 
 // ---- B. the tab keeps your place ----------------------------------------------------------------
 
+/* "Am I in the session runner?", asked of the rendered text. It used to be the word "elapsed", which
+   the runner's header no longer carries: the clock moved to the More sheet, because a spine reporting
+   the same session better sat directly under it. The marker is the runner's own footer instead. The
+   spine's "n / n done" is NOT usable here - the tab's home draws the same shape for the week. */
+const IN_SESSION = /Add an exercise/;
+
 test('the Train tab opens on the session that is still open', () => {
   // `{view === 'train' && <TrainTab/>}` unmounts this whole tab whenever you look at your macros,
   // and a reload does the same. The session pointer is what survives both.
@@ -132,7 +138,7 @@ test('the Train tab opens on the session that is still open', () => {
     db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
   });
   try {
-    assert.ok(ui.has('elapsed'), 'straight back into the session: ' + ui.text.slice(0, 200));
+    assert.ok(IN_SESSION.test(ui.text), 'straight back into the session: ' + ui.text.slice(0, 200));
     assert.ok(ui.has('More'), 'the runner, not the preview');
   } finally { ui.unmount(); }
 });
@@ -146,7 +152,7 @@ test('a pointer at something that is no longer there opens nothing', () => {
   });
   try {
     assert.ok(ui.has('Train'), 'it lands at home rather than on a screen it cannot draw');
-    assert.ok(!ui.has('elapsed'), 'and not in a session: ' + ui.text.slice(0, 200));
+    assert.ok(!IN_SESSION.test(ui.text), 'and not in a session: ' + ui.text.slice(0, 200));
   } finally { ui.unmount(); }
   assert.ok(!db.training.open, 'the dead pointer is cleared on the way past');
 });
@@ -160,7 +166,7 @@ test('yesterday\'s pointer is not today\'s session', () => {
     db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
   });
   try {
-    assert.ok(!ui.has('elapsed'), 'the app does not put you back into last night: ' + ui.text.slice(0, 200));
+    assert.ok(!IN_SESSION.test(ui.text), 'the app does not put you back into last night: ' + ui.text.slice(0, 200));
   } finally { ui.unmount(); }
 });
 

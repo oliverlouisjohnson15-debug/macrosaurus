@@ -572,11 +572,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     <div className="fade-in" style={{ paddingBottom: rest ? '132px' : '24px' }}>
       {/* ---- SESSION BAR, per `Session.dc.html` ----
           A live session is the one screen in the app that owns the phone for an hour, and the design
-          gives it its own chrome to say so: the header's purple, the session's name, the clock in
-          gold, and the whole session's progress drawn across the full width underneath with the two
-          counts that matter hanging off its ends. On the paper background this was a back link, a
-          title and a hairline, which read as a page heading rather than as an instrument you are
-          mid-way through. */}
+          gives it its own chrome to say so: the header's purple, the session's name, and the whole
+          session's progress drawn across the full width underneath with the count that matters
+          hanging off its end. On the paper background this was a back link, a title and a hairline,
+          which read as a page heading rather than as an instrument you are mid-way through.
+
+          It is now the ONLY bar here - `App` hides the brand header for the duration - so it is one
+          purple block with one rule under it, rather than two purple blocks with the page showing
+          between them. Its `top-0` needs no safe-area inset for the same reason the brand header
+          never did: `theme-color` paints the status bar and the web view begins below it. */}
       <div className="sticky top-0 z-20 -mx-5 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-2">
           <button onClick={onExit} aria-label="Back to Train" className="hit shrink-0 flex items-center" style={{ color: 'var(--nav-off)' }}>
@@ -589,14 +593,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             <div className="pf text-[9.5px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.09em' }}>
               {(session && session.name) || (existing && existing.name) || 'Empty session'}{session && session.week ? ' · Week ' + session.week : ''}
             </div>
-            {/* A session being RUN shows its clock. One being corrected afterwards shows the day it
-                happened, because the hour since you opened it is not a fact about that session. */}
-            <div className="pf text-[7.5px] uppercase tnum mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>
-              {past ? 'Editing · ' + relativeDay(dateISO, today).toLowerCase() : fmtClock(elapsed) + ' elapsed'}
-            </div>
+            {/* The running clock used to sit here in gold, directly above a spine that reports the
+                same session better. After five hours it is measuring how long the phone has been
+                unlocked, not how the session is going, and it was the more prominent of the two
+                numbers. It moved to the More sheet, which is where you go for a fact ABOUT the
+                session rather than for the next set.
+
+                What stays is the one thing the title cannot say for itself - that you are correcting
+                a past session rather than running one - and that is a fixed short string, not a
+                number that ticks, which is the only thing the pixel face should be asked to set. */}
+            {past && <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>
+              Editing · {relativeDay(dateISO, today).toLowerCase()}
+            </div>}
           </div>
           <button onClick={() => setSessionMenu(true)} aria-label="Session options"
-            className="pf text-[7.5px] uppercase shrink-0 px-2.5"
+            className="pf text-[9px] uppercase shrink-0 px-2.5"
             style={{ minHeight: 38, background: 'var(--cardhead-bg)', border: '2px solid var(--border)', color: 'var(--header-text)', letterSpacing: '0.1em' }}>More</button>
         </div>
         {/* ---- the spine ----
@@ -612,8 +623,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             the same things the cells do.
 
             Deliberately not tappable: the movement headers are the navigation, and two ways to jump
-            around was the confusion this screen already had. */}
-        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--card)', borderTop: '3px solid var(--border)' }}>
+            around was the confusion this screen already had.
+
+            It sits on the header's own purple with no rule above it, because it is the second LINE
+            of one bar and not a second bar. It used to open `--card` behind a 3px border, which is
+            what turned one header into two stacked ones. The cells carry their own 2px frames, so
+            they still read against the purple, and the count takes `--nav-off` - the token for
+            secondary type on this bar - now that it is no longer on card. */}
+        <div className="flex items-center gap-2 px-3 pb-2">
           <div className="flex gap-[4px] flex-1 min-w-0" aria-hidden="true">
             {spine.map((cell, i) => {
               // What is left of the cell once its finished sets are filled in: gold on the movement
@@ -630,7 +647,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               );
             })}
           </div>
-          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
+          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--nav-off)' }}>
             {doneMovements} / {spine.length} done
           </span>
         </div>
@@ -1188,9 +1205,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
       {/* The session's own options, off the header. Everything here is about the whole session
           rather than one movement, which is why it was homeless before: adding a movement was a
-          button at the bottom of the list and the rest had nowhere to live at all. */}
+          button at the bottom of the list and the rest had nowhere to live at all.
+
+          Its kicker carries the clock the header used to. A session being corrected says so instead:
+          the hour since you opened it is not a fact about the day it happened. */}
       {sessionMenu && (
-        <ActionSheet kicker="Session" title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
+        <ActionSheet kicker={past ? 'Session · editing' : 'Session · ' + fmtClock(elapsed) + ' elapsed'}
+          title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
           actions={[
             { label: 'Add a movement', sub: 'Something you did that is not in the plan', onClick: () => setPicking(true) },
             { label: 'Session notes', sub: notes ? 'Written' : 'How it felt, what to change next week', onClick: () => { setSessionMenu(false); setNotesOpen(true); } },
