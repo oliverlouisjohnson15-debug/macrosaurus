@@ -490,25 +490,62 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               into a single line of names, each still its own button into that day's plan. Only the
               week's total set count earns a number of its own, on the right where the old per-row
               set counts used to scatter. */}
-          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 flex-wrap text-[12.5px]">
-              {shownWeekPlan.map(({ session, log, live: inPlay }, i) => {
+          {/* ---- the week's days, as things you can actually hit ----
+              Which session you do today is a decision people make in the doorway of the gym: the
+              squat rack is taken, you are stiff, you have forty minutes rather than ninety. The plan
+              has always allowed it - `next` is a suggestion and every session stays startable, which
+              is why the roll-up was tappable at all - but it was drawn as a line of PROSE: four names
+              at 12.5px in muted grey, separated by middots, in 19px-tall targets against a 44px
+              minimum. It read as a caption under a sentence, and the only day with a real control was
+              the one the app had chosen for you, in full-width gold.
+
+              So the row says what it does. One chip per session, each a proper target, each carrying
+              its day and its state; the recommended one is marked rather than being the only one
+              offered, and the gold button below stays as the recommendation. This is the same shape
+              the module already uses for "Up next" inside the session player - and it keeps the whole
+              week visible at once, which is the one thing TrainHeroic's athletes ask for and its
+              day-by-day calendar does not give them. */}
+          <div className="mb-4">
+            {/* A GRID, not a wrapping flex row: with `flex-1` the last chip on a wrapped line
+                stretched to the full width, so a four-day week drew three 102px chips and one 319px
+                one - accidental emphasis on whichever day happened to wrap. Equal tracks instead.
+                Up to four days across; five or six wrap to three-a-row rather than shrinking past
+                the point a session name survives. */}
+            <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(' + (shownWeekPlan.length <= 4 ? Math.max(1, shownWeekPlan.length) : 3) + ', minmax(0, 1fr))' }}>
+              {shownWeekPlan.map(({ session, log, live: inPlay }) => {
                 const done = !!log && !inPlay;
-                const isNext = next && session.id === next.session.id;
+                const isNext = !viewingAhead && next && session.id === next.session.id;
                 return (
-                  <span key={session.id} className="flex items-center gap-1.5">
-                    {i > 0 && <span style={{ color: 'var(--muted2)' }}>·</span>}
-                    <button onClick={() => onOpen(session, block)} className="hit"
-                      style={{ color: done ? 'var(--muted)' : isNext ? 'var(--text)' : 'var(--muted)', fontWeight: isNext ? 600 : 400 }}>
-                      {session.name.split(' - ')[0]}{done ? ' ✓' : inPlay ? ' …' : ''}
-                    </button>
-                  </span>
+                  <button key={session.id}
+                    onClick={() => (inPlay && onResume ? onResume(session, block) : onOpen(session, block))}
+                    aria-label={session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[session.dayOfWeek] || 'not set')
+                      + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : '')}
+                    className="flex flex-col justify-center gap-0.5 px-2 py-2 text-left"
+                    style={{
+                      minHeight: 48,
+                      border: '2px solid ' + (isNext || inPlay ? 'var(--accent)' : 'var(--border)'),
+                      background: inPlay ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))'
+                        : done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+                          : 'var(--surface2)',
+                    }}>
+                    <span className="text-[12px] font-semibold leading-tight truncate"
+                      style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
+                      {session.name.split(' - ')[0]}
+                    </span>
+                    {/* The DAY always shows, whatever state the session is in - it is what you are
+                        choosing between, and a chip that swapped it for the word "Done" would drop
+                        the one label the row exists to carry. State rides alongside it as a mark,
+                        and on the chip's own border and face. */}
+                    <span className="pf text-[8px] uppercase truncate" style={{ letterSpacing: '0.08em', color: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent-ink)' : 'var(--muted2)' }}>
+                      {WEEKDAYS[session.dayOfWeek] || '--'}{done ? ' \u2713' : inPlay ? ' \u2026' : ''}
+                    </span>
+                  </button>
                 );
               })}
             </div>
-            <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
-              {shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets
-            </span>
+            <div className="text-[12px] tnum mt-2 text-right" style={{ color: 'var(--muted)' }}>
+              {shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets this week
+            </div>
           </div>
 
           {/* The next session, and the button that opens it, belong to the week you are IN. While you

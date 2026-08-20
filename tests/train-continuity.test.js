@@ -157,6 +157,61 @@ test('a pointer at something that is no longer there opens nothing', () => {
   assert.ok(!db.training.open, 'the dead pointer is cleared on the way past');
 });
 
+/* ---- every day of the week is a control you can hit -------------------------------------------
+   Which session you do today gets decided in the doorway of the gym: the rack is taken, you are
+   stiff, you have forty minutes. The plan has always ALLOWED it - `next` is a suggestion - but the
+   week was drawn as a line of prose, four names in muted grey inside 19px-tall targets, while the
+   one day the app had chosen wore a full-width button. Every session in the shown week now has a
+   chip of its own, whatever state it is in, and the day is on every one of them. */
+
+const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function weekChips(ui, block, week) {
+  const want = T.weekSessions(block, week).map(s => s.name.split(' - ')[0]);
+  const got = [];
+  ui.host.querySelectorAll('button[aria-label]').forEach(el => {
+    const a = el.getAttribute('aria-label') || '';
+    if (want.some(n => a.indexOf(n + ',') === 0) && DAYS_FULL.some(d => a.indexOf(d) !== -1)) got.push(a);
+  });
+  return got;
+}
+
+test('every session in the week is its own control, not just the next one', () => {
+  const block = minmax();                                    // five days a week
+  const db = accountWith(block);
+  const week = T.weekSessions(block, 1);
+  // Three of five already done, so the row has to carry done, next and not-yet at the same time.
+  db.training.logs = week.slice(0, 3).map(s => logFor(s, { blockId: block.id, endedAt: new Date().toISOString() }));
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    const chips = weekChips(ui, block, 1);
+    assert.equal(chips.length, week.length, 'one per session, not one for the next: ' + JSON.stringify(chips));
+    assert.ok(chips.some(a => /, done$/.test(a)), 'a finished day says so: ' + JSON.stringify(chips));
+    assert.ok(chips.some(a => /, up next$/.test(a)), 'and the recommended one is marked: ' + JSON.stringify(chips));
+    // The day is on every chip - it is what you are choosing between.
+    chips.forEach(a => assert.ok(DAYS_FULL.some(d => a.indexOf(d) !== -1), 'names its day: ' + a));
+  } finally { ui.unmount(); }
+});
+
+test('a day that is not the next one opens that day', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const week = T.weekSessions(block, 1);
+  const other = week[2];                                     // not next, not done
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    // The chip's own text: its name, then its day, with nothing between them.
+    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    ui.click(other.name.split(' - ')[0] + DAYS[other.dayOfWeek]);
+    assert.ok(ui.has(other.name.split(' - ')[0]), 'lands on that session');
+    assert.ok(ui.has('Start'), 'with the way to begin it: ' + ui.text.slice(0, 200));
+  } finally { ui.unmount(); }
+});
+
 /* ---- stepping out is not ending ----------------------------------------------------------------
    Leaving the player used to DELETE the session pointer, which made walking out to check a macro
    byte-for-byte the same act as abandoning the workout - and because the pointer was gone, the tab

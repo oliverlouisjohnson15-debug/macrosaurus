@@ -54014,37 +54014,47 @@ function TrainHome({
       color: 'var(--text2)'
     }
   }, /*#__PURE__*/React.createElement("b", null, "Today is a rest day."), " That is the plan, not a gap in it - the week is built around", restDays.length === 1 ? ' it' : ' these two', ". Next up is ", next ? next.session.name.split(' - ')[0] : 'the next session', "."), /*#__PURE__*/React.createElement("div", {
-    className: "mb-4 flex items-center justify-between gap-3 flex-wrap"
+    className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 flex-wrap text-[12.5px]"
+    className: "grid gap-1.5",
+    style: {
+      gridTemplateColumns: 'repeat(' + (shownWeekPlan.length <= 4 ? Math.max(1, shownWeekPlan.length) : 3) + ', minmax(0, 1fr))'
+    }
   }, shownWeekPlan.map(({
     session,
     log,
     live: inPlay
-  }, i) => {
+  }) => {
     const done = !!log && !inPlay;
-    const isNext = next && session.id === next.session.id;
-    return /*#__PURE__*/React.createElement("span", {
+    const isNext = !viewingAhead && next && session.id === next.session.id;
+    return /*#__PURE__*/React.createElement("button", {
       key: session.id,
-      className: "flex items-center gap-1.5"
-    }, i > 0 && /*#__PURE__*/React.createElement("span", {
+      onClick: () => inPlay && onResume ? onResume(session, block) : onOpen(session, block),
+      "aria-label": session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[session.dayOfWeek] || 'not set') + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : ''),
+      className: "flex flex-col justify-center gap-0.5 px-2 py-2 text-left",
       style: {
-        color: 'var(--muted2)'
+        minHeight: 48,
+        border: '2px solid ' + (isNext || inPlay ? 'var(--accent)' : 'var(--border)'),
+        background: inPlay ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : 'var(--surface2)'
       }
-    }, "·"), /*#__PURE__*/React.createElement("button", {
-      onClick: () => onOpen(session, block),
-      className: "hit",
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[12px] font-semibold leading-tight truncate",
       style: {
-        color: done ? 'var(--muted)' : isNext ? 'var(--text)' : 'var(--muted)',
-        fontWeight: isNext ? 600 : 400
+        color: done ? 'var(--muted)' : 'var(--text)'
       }
-    }, session.name.split(' - ')[0], done ? ' ✓' : inPlay ? ' …' : ''));
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "text-[12px] tnum shrink-0",
+    }, session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[8px] uppercase truncate",
+      style: {
+        letterSpacing: '0.08em',
+        color: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent-ink)' : 'var(--muted2)'
+      }
+    }, WEEKDAYS[session.dayOfWeek] || '--', done ? ' \u2713' : inPlay ? ' \u2026' : ''));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] tnum mt-2 text-right",
     style: {
       color: 'var(--muted)'
     }
-  }, shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0), " sets")), viewingAhead ? /*#__PURE__*/React.createElement("button", {
+  }, shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0), " sets this week")), viewingAhead ? /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setWeekAt(null);
       setWeekPick(false);
