@@ -39,6 +39,14 @@ function tdb(db) {
     // here, so leaving the key out of this object made every saved gym invisible: the picker never
     // fired and the kit swaps had nothing to offer.
     gyms: t.gyms || [],
+    // The session the player currently has open, so leaving the tab or reloading the app does not
+    // lose your place in it. A pointer only; see openScreen().
+    open: t.open || null,
+    // A rest countdown that is actually running: { endsAt, seconds, from, logId }. It is a clock, so
+    // it survives the screen being rebuilt the same way the session does - walking out of the player
+    // to check something used to throw the rest away, and the whole point of it is that you are not
+    // looking at the screen. Deliberately NOT `prefs.restTimer`, which is the on/off setting.
+    restRun: t.restRun || null,
     // Which movement became which, written when a block-end rotation is accepted. It is what lets a
     // rotated lift's history read as one run rather than two unrelated stubs.
     rotations: t.rotations || [],
@@ -173,8 +181,8 @@ function sessionMins(exercises) {
 }
 
 function weekPlan(block, week, logs) {
-  const comp = Training.completion(block, logs);
   const today = Store.todayISO();
+  const comp = Training.completion(block, logs, today, Date.now());
   return Training.weekSessions(block, week)
     .slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek)
     .map(s => {
@@ -191,12 +199,38 @@ function weekPlan(block, week, logs) {
  * the session ticked off, the next one queued behind it and no way in to the half you had left.
  * "It all ended" is exactly what that looks like.
  *
- * `endedAt` is written by Finish and by nothing else, so its absence is the signal. It is only
- * trusted for TODAY: logs written before the field existed have no `endedAt` either, and a session
- * you walked away from on Tuesday should read as the work it was rather than reopening itself all
- * week. Anything older is edited from History instead, where every session can now be opened. */
+ * The rule itself is `Training.sessionOpen`, so the engine and the screens cannot drift on what
+ * "still open" means; this is the app-side spelling that knows what day it is. */
 function liveLog(log, todayISO) {
-  return !!(log && !log.endedAt && log.dateISO === (todayISO || Store.todayISO()));
+  return Training.sessionOpen(log, todayISO || Store.todayISO(), Date.now());
+}
+
+/* The session that is open right now, as a screen to go back to.
+ *
+ * `training.open` is a pointer, not a copy: the sets themselves have been in `training.logs` since
+ * the first tick. It is written when the player opens and deleted when it closes, so it can only
+ * ever reopen a session somebody was taken out of - by a tab switch, a reload, an update, or the
+ * phone deciding the PWA had had enough - rather than one they walked away from on purpose.
+ *
+ * Checked against the world before it is trusted: the day has to be today, and whatever it points at
+ * has to still exist. A pointer at a block that was deleted underneath it must not put the app into
+ * a screen it cannot draw. */
+function openScreen(db) {
+  const t = tdb(db);
+  const o = t.open;
+  if (!o || o.atISO !== Store.todayISO()) return null;
+  if (o.logId && !t.logs.some(l => l.id === o.logId)) return null;
+  if (o.blockId) {
+    const b = t.blocks.filter(x => x.id === o.blockId)[0];
+    if (!b) return null;
+    if (o.sessionId && !(b.sessions || []).some(x => x.id === o.sessionId)) return null;
+  } else if (o.sessionId) {
+    return null;
+  } else if (!o.freeform && !o.logId) {
+    return null;
+  }
+  return { name: 'player', sessionId: o.sessionId || null, blockId: o.blockId || null,
+    logId: o.logId || null, freeform: !!o.freeform };
 }
 
 // ---- shared bits ------------------------------------------------------------------------------

@@ -905,7 +905,6 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
 // ---- block builder / editor -------------------------------------------------------------------
 function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearDraft, onBack, onStart }) {
-  useBackClose(onBack);
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({ daysPerWeek: 4, weeks: 4 }))));
@@ -925,9 +924,27 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   const skipSwitchCheck = useRef(false);
   const [openDay, setOpenDay] = useState(null);
   const [openRegion, setOpenRegion] = useState(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
+     week you are looking at. None of it is written until the button at the bottom says so, which is
+     the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
+     silently threw away a block you had just spent five minutes rebuilding, without a word. The
+     snapshot is taken once, on open, and compared with what is on screen. */
+  const opened = useRef(null);
+  const nowJSON = JSON.stringify({ b: block, n: name, s: startISO, sh: share });
+  if (opened.current === null) opened.current = nowJSON;
+  const dirty = opened.current !== nowJSON;
+  // A block that has never been saved is ALL unsaved work - the wizard's answers, the generator's
+  // run, or a programme you opened to make yours - so leaving it loses the lot whether or not you
+  // touched anything on the way past.
+  const leave = () => { if (dirty || isNew) setConfirmLeave(true); else onBack(); };
+  useBackClose(leave);
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
-  const logBySession = Training.completion(block, tdb(db).logs).logBySession;
+  // ... and which of those are still being written, so a session you are half-way through does not
+  // wear the same tick as one you finished. The start button below reads the same pair.
+  const comp = Training.completion(block, tdb(db).logs, Store.todayISO(), Date.now());
+  const logBySession = comp.logBySession;
   // The block being edited decides which landmarks it is judged against, not the wizard's last answer.
   const targets = trainTargets(db, block ? block.style : undefined);
   // Where a running block has got to. Null for one that has not started, which is the case with no
@@ -1006,7 +1023,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   // no question about switching, because nothing is being switched. Building a plan and running a
   // plan are separate decisions, and an app that can only do both at once makes you keep a coach's
   // programme in your camera roll until the week you are ready for it.
-  function save(later) {
+  function save(later, quiet) {
     // Abandoning a block halfway is the most common way people make no progress: nothing runs long
     // enough to tell you whether it worked. So starting a second one while the first is still going
     // asks once. It is a question, not a block: their training, their call.
@@ -1037,6 +1054,10 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
     // Publishing is fire and forget: it must never be able to fail the save of your own block.
     if (share) submitPublicBlock(out, tdb(db).prefs, tdb(db).custom);
     else if (saved && saved.shared) retractPublicBlock(out.id);
+    opened.current = JSON.stringify({ b: out, n: name, s: startISO, sh: share });
+    // Saved on the way into a session rather than on the way out of the screen: nothing to announce
+    // and nowhere to go.
+    if (quiet) return;
     showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.'
       : isNew ? 'Block saved. First session is ready.' : 'Block updated.');
     onBack();
@@ -1050,7 +1071,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={leave} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-4">{isNew ? 'Your new block' : 'Edit block'}</h1>
 
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
@@ -1221,7 +1242,9 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
               className="pixel-box p-3 text-left" style={{ background: open ? 'color-mix(in srgb, var(--accent) 14%, var(--card))' : 'var(--card)' }}>
               <span className="flex items-start justify-between gap-1.5">
                 <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
-                {log && <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>}
+                {log && (comp.openBySession[s.id]
+                  ? <span className="shrink-0 pf text-[8px]" style={{ color: 'var(--warn)' }}>OPEN</span>
+                  : <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>)}
               </span>
               <span className="block text-[10.5px] mt-1.5" style={{ color: 'var(--muted)' }}>
                 {WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1)} · {ordered.length} mv · {ordered.reduce((a, e) => a + e.target.sets, 0)} sets
@@ -1299,7 +1322,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                     the one screen that hid the way in. Started-and-not-finished carries on; finished
                     can be run again, and says so rather than pretending it cannot be. */}
                 {onStart && (
-                  <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+                  <button onClick={() => { if (dirty) save(false, true); onStart(s, block); }} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                     {!log ? 'Start this session' : liveLog(log, Store.todayISO()) ? 'Carry on with it' : log.dateISO === Store.todayISO() ? 'Open today\u2019s session' : 'Do this session again'}
                   </button>
                 )}
@@ -1354,6 +1377,15 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             : 'Changes apply to the weeks you have not trained yet. Sessions you already logged stay as they were.'}
         </div>
       </div>
+
+      {confirmLeave && (
+        <ConfirmDialog title={isNew ? 'Throw this block away?' : 'Leave without saving?'}
+          body={isNew
+            ? 'It has not been saved yet, so leaving loses it. "Save for later" puts it on your shelf without starting it.'
+            : 'The changes you have made to this block have not been written yet. Leaving now loses them.'}
+          confirmLabel={isNew ? 'Throw it away' : 'Discard changes'} confirmKind="danger"
+          onConfirm={onBack} onClose={() => setConfirmLeave(false)} />
+      )}
 
       {/* Deleting is not one of the two things above, so it does not sit against them: a tap that
           lands one row low on "Save changes" must not find "Delete". Ruled off and quiet, at the end. */}

@@ -114,6 +114,10 @@ function mount(component, props) {
     act(() => { root.render(React.createElement(component, props)); });
   } catch (e) { restore(); throw e; }
   const api = {
+    // The mounted DOM itself, for tests that walk the screen rather than reading it: the dead-control
+    // sweep enumerates every button on a screen and presses them one at a time, which needs the
+    // elements and not their words.
+    host: host,
     get text() { return host.textContent.replace(/\s+/g, ' ').trim(); },
     has: (s) => host.textContent.replace(/\s+/g, ' ').indexOf(s) !== -1,
     // Find a clickable by the words on it, the way somebody scanning the screen would.
@@ -126,6 +130,9 @@ function mount(component, props) {
       act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true })); });
       return api;
     },
+    // Press an element you already have a handle on, inside act() so effects and state settle the
+    // same way they do for click(label).
+    clickEl(el) { act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true })); }); return api; },
     unmount() {
       try { act(() => { root.unmount() }); } finally { host.remove(); restore(); }
     },

@@ -3289,6 +3289,55 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return out;
   }
 
+  /* Training logs, merged SET BY SET rather than row by row.
+   *
+   * A session is one long write: the log row is created on the first tick and rewritten on every one
+   * after it. Union by id alone takes the whole row from the higher-_rev copy, so a session touched
+   * on two devices - a phone in the gym and a tab left open at home, or the same session logged
+   * either side of a sync - kept one device's sets and dropped the other's wholesale.
+   *
+   * Sets are identified by the line of the plan they belong to and their position in it, which is
+   * exactly the pair the runner already writes for its own regrouping. Where both copies have the
+   * same set, the higher-_rev one wins, because that is the later edit. Where only one has it, it is
+   * kept: nobody's ticked set is ever dropped by a merge.
+   */
+  function mergeTrainingLog(newer, older) {
+    if (!newer) return older;
+    if (!older) return newer;
+    var out = Object.assign({}, older, newer);
+    // A session finished on either device is finished. The other copy simply had not seen it yet.
+    out.endedAt = newer.endedAt || older.endedAt || null;
+    out.startedAt = older.startedAt || newer.startedAt || null;
+    // Per-movement prescriptions and notes are keyed maps: union them, newer wins on a shared key.
+    out.itemTargets = Object.assign({}, older.itemTargets || {}, newer.itemTargets || {});
+    out.exerciseNotes = Object.assign({}, older.exerciseNotes || {}, newer.exerciseNotes || {});
+    var key = function (s) { return (s.itemId || s.exerciseId || '') + '#' + (s.setIndex == null ? '' : s.setIndex); };
+    var seen = {}, sets = [];
+    [newer.sets || [], older.sets || []].forEach(function (list) {
+      list.forEach(function (s) {
+        if (!s) return;
+        var k = key(s);
+        if (seen[k]) return;
+        seen[k] = 1; sets.push(s);
+      });
+    });
+    out.sets = sets;
+    return out;
+  }
+  function unionLogs(newer, older) {
+    var byId3 = {};
+    (older || []).forEach(function (l) { if (l && l.id != null) byId3[l.id] = l; });
+    var out = [], seen = {};
+    (newer || []).forEach(function (l) {
+      if (!l) return;
+      if (l.id == null) { out.push(l); return; }
+      seen[l.id] = 1;
+      out.push(byId3[l.id] ? mergeTrainingLog(l, byId3[l.id]) : l);
+    });
+    (older || []).forEach(function (l) { if (l && (l.id == null || !seen[l.id])) out.push(l); });
+    return out;
+  }
+
   // Conflict-free merge of two full states. The append-only collections (food log, weigh-ins,
   // check-ins, foods, saved meals, targets, catches, freezes, awards) are UNIONED so a save can
   // never lose an entry the other copy has. Scalar/derived fields come from the higher-_rev state.
@@ -3359,7 +3408,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // are settings, so the newer copy simply wins (the JSON clone above already did that).
     out.training = Object.assign({}, older.training || {}, newer.training || {});
     out.training.blocks = unionBy((newer.training || {}).blocks, (older.training || {}).blocks, byId);
-    out.training.logs   = unionBy((newer.training || {}).logs,   (older.training || {}).logs,   byId);
+    out.training.logs   = unionLogs((newer.training || {}).logs,   (older.training || {}).logs);
     out.training.custom = unionBy((newer.training || {}).custom, (older.training || {}).custom, byId);
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
     // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
@@ -8455,7 +8504,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
     // 3. Sessions being missed. Often the first thing to go when someone is cooked.
     if (block) {
-      var comp = completion(block, blockLogs);
+      var comp = completion(block, blockLogs, opts.todayISO);
       if (comp.total && comp.pct < 70) { score += 1; reasons.push({ key: 'missed', text: 'You got to ' + comp.pct + '% of the sessions.' }); }
     }
 
@@ -10546,20 +10595,66 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { week: Math.min(week, block.weeks), dayIndex: dayNo % 7, done: week > block.weeks, dayNo: dayNo };
   }
 
+  /* A session that is being written RIGHT NOW, as opposed to one that is done.
+   *
+   * A log row is written the moment the first set is ticked, so the existence of one says the
+   * session was started, not that it was finished. `endedAt` is written by the runner's Finish and
+   * by nothing else, which makes its absence the signal.
+   *
+   * It is only trusted for the day given: logs written before the field existed carry no `endedAt`
+   * either, and a session walked out of on Tuesday should read as the work it was rather than
+   * reopening itself for the rest of the week. Pass no date and nothing counts as open, which is
+   * what every caller with no clock to hand wants.
+   */
+  var OPEN_CARRY_MS = 8 * 3600 * 1000;
+  function sessionOpen(log, todayISO, nowMs) {
+    if (!log || log.endedAt || !todayISO) return false;
+    if (log.dateISO === todayISO) return true;
+    // Midnight is not the end of a session. Somebody who started at half past eleven and is still
+    // between sets at ten past twelve is in the same session, and splitting their log in two at the
+    // date line would put half a session on each of two days and tell them the first one is done.
+    // Only with a clock to hand, and only for a session that started within the last few hours.
+    if (!nowMs || !log.startedAt || !(log.dateISO < todayISO)) return false;
+    var started = Date.parse(log.startedAt);
+    return isFinite(started) && nowMs >= started && (nowMs - started) <= OPEN_CARRY_MS;
+  }
+
   // Sessions in a block that have a matching log. Used for "3 of 4 done this week".
-  function completion(block, logs) {
+  //
+  // A session run more than once has more than one log against it, so which one represents it has to
+  // be decided rather than left to array order: the one still open if there is one, and otherwise
+  // the most recent. Taking whatever happened to be last meant a repeat logged out of order showed
+  // the older attempt.
+  //
+  // `done` counts sessions that are FINISHED. A session you are in the middle of is not one of them,
+  // which is the difference between "3 of 4 done" and a week that ticks itself off the moment you
+  // tick your first set.
+  function completion(block, logs, todayISO, nowMs) {
     var byId2 = {};
-    (logs || []).forEach(function (l) { if (l.sessionId) byId2[l.sessionId] = l; });
-    var total = (block && block.sessions || []).length;
-    var done = (block && block.sessions || []).filter(function (s) { return byId2[s.id]; }).length;
-    return { done: done, total: total, pct: total ? Math.round((done / total) * 100) : 0, logBySession: byId2 };
+    (logs || []).forEach(function (l) {
+      if (!l || !l.sessionId) return;
+      var cur = byId2[l.sessionId];
+      if (!cur) { byId2[l.sessionId] = l; return; }
+      if (sessionOpen(cur, todayISO, nowMs)) return;
+      if (sessionOpen(l, todayISO, nowMs) || (l.dateISO || '') >= (cur.dateISO || '')) byId2[l.sessionId] = l;
+    });
+    var openById = {};
+    for (var sid in byId2) { if (sessionOpen(byId2[sid], todayISO, nowMs)) openById[sid] = byId2[sid]; }
+    var sessions = (block && block.sessions) || [];
+    var done = sessions.filter(function (s) { return byId2[s.id] && !openById[s.id]; }).length;
+    var total = sessions.length;
+    return {
+      done: done, total: total, pct: total ? Math.round((done / total) * 100) : 0,
+      logBySession: byId2, openBySession: openById,
+      open: Object.keys(openById).length,
+    };
   }
 
   // ---- block review --------------------------------------------------------------------------
   // The end-of-block payoff. Numbers only; the buddy's prose is written elsewhere from this shape.
-  function reviewBlock(block, logs, targets, custom) {
+  function reviewBlock(block, logs, targets, custom, todayISO) {
     var blockLogs = (logs || []).filter(function (l) { return l.blockId === block.id; });
-    var comp = completion(block, blockLogs);
+    var comp = completion(block, blockLogs, todayISO);
     var exIds = uniq(blockLogs.reduce(function (a, l) { return a.concat((l.sets || []).map(function (s) { return s.exerciseId; })); }, []));
     var lifts = exIds.map(function (id) {
       var h = exerciseHistory(blockLogs, id);
@@ -11536,7 +11631,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     mergeCustom: mergeCustom, remapDays: remapDays,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
-    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
+    blockProgress: blockProgress, completion: completion, sessionOpen: sessionOpen,
+    reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, targetChanges: targetChanges, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
     trainingDaysOfWeek: trainingDaysOfWeek, restDaysOfWeek: restDaysOfWeek, round: round,
   };
@@ -52666,6 +52762,14 @@ function tdb(db) {
     // here, so leaving the key out of this object made every saved gym invisible: the picker never
     // fired and the kit swaps had nothing to offer.
     gyms: t.gyms || [],
+    // The session the player currently has open, so leaving the tab or reloading the app does not
+    // lose your place in it. A pointer only; see openScreen().
+    open: t.open || null,
+    // A rest countdown that is actually running: { endsAt, seconds, from, logId }. It is a clock, so
+    // it survives the screen being rebuilt the same way the session does - walking out of the player
+    // to check something used to throw the rest away, and the whole point of it is that you are not
+    // looking at the screen. Deliberately NOT `prefs.restTimer`, which is the on/off setting.
+    restRun: t.restRun || null,
     // Which movement became which, written when a block-end rotation is accepted. It is what lets a
     // rotated lift's history read as one run rather than two unrelated stubs.
     rotations: t.rotations || [],
@@ -52845,8 +52949,8 @@ function sessionMins(exercises) {
   }, 0));
 }
 function weekPlan(block, week, logs) {
-  const comp = Training.completion(block, logs);
   const today = Store.todayISO();
+  const comp = Training.completion(block, logs, today, Date.now());
   return Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek).map(s => {
     const log = comp.logBySession[s.id] || null;
     return {
@@ -52865,12 +52969,43 @@ function weekPlan(block, week, logs) {
  * the session ticked off, the next one queued behind it and no way in to the half you had left.
  * "It all ended" is exactly what that looks like.
  *
- * `endedAt` is written by Finish and by nothing else, so its absence is the signal. It is only
- * trusted for TODAY: logs written before the field existed have no `endedAt` either, and a session
- * you walked away from on Tuesday should read as the work it was rather than reopening itself all
- * week. Anything older is edited from History instead, where every session can now be opened. */
+ * The rule itself is `Training.sessionOpen`, so the engine and the screens cannot drift on what
+ * "still open" means; this is the app-side spelling that knows what day it is. */
 function liveLog(log, todayISO) {
-  return !!(log && !log.endedAt && log.dateISO === (todayISO || Store.todayISO()));
+  return Training.sessionOpen(log, todayISO || Store.todayISO(), Date.now());
+}
+
+/* The session that is open right now, as a screen to go back to.
+ *
+ * `training.open` is a pointer, not a copy: the sets themselves have been in `training.logs` since
+ * the first tick. It is written when the player opens and deleted when it closes, so it can only
+ * ever reopen a session somebody was taken out of - by a tab switch, a reload, an update, or the
+ * phone deciding the PWA had had enough - rather than one they walked away from on purpose.
+ *
+ * Checked against the world before it is trusted: the day has to be today, and whatever it points at
+ * has to still exist. A pointer at a block that was deleted underneath it must not put the app into
+ * a screen it cannot draw. */
+function openScreen(db) {
+  const t = tdb(db);
+  const o = t.open;
+  if (!o || o.atISO !== Store.todayISO()) return null;
+  if (o.logId && !t.logs.some(l => l.id === o.logId)) return null;
+  if (o.blockId) {
+    const b = t.blocks.filter(x => x.id === o.blockId)[0];
+    if (!b) return null;
+    if (o.sessionId && !(b.sessions || []).some(x => x.id === o.sessionId)) return null;
+  } else if (o.sessionId) {
+    return null;
+  } else if (!o.freeform && !o.logId) {
+    return null;
+  }
+  return {
+    name: 'player',
+    sessionId: o.sessionId || null,
+    blockId: o.blockId || null,
+    logId: o.logId || null,
+    freeform: !!o.freeform
+  };
 }
 
 // ---- shared bits ------------------------------------------------------------------------------
@@ -53129,7 +53264,13 @@ function TrainTab({
   importUrl,
   onConsumeImport
 }) {
-  const [screen, setScreen] = useState({
+  // Which screen you are on is component state, and this component is unmounted every time you look
+  // at another tab - `{view === 'train' && <TrainTab/>}` in app.jsx - and again on every reload. A
+  // live session is the one screen in the app that owns the phone for an hour, and it was the one
+  // screen that could not survive a glance at your macros. It opens on whatever session is still
+  // open, if one is; leaving the player clears that, so this only ever reopens a session you did not
+  // choose to leave.
+  const [screen, setScreen] = useState(() => openScreen(db) || {
     name: 'home'
   });
   const [pendingStart, setPendingStart] = useState(null); // waiting on "which gym are you at?"
@@ -53138,6 +53279,24 @@ function TrainTab({
   const go = (name, props) => setScreen(Object.assign({
     name: name
   }, props || {}));
+
+  // Written when the player opens and cleared when it closes, so a reload or a tab switch lands back
+  // in the session rather than at home. Kept out of render: it is a store write.
+  useEffect(() => {
+    const want = screen.name === 'player' ? {
+      sessionId: screen.sessionId || null,
+      blockId: screen.blockId || null,
+      logId: screen.logId || null,
+      freeform: !!screen.freeform,
+      atISO: Store.todayISO()
+    } : null;
+    const have = tdb(db).open;
+    if (!want && !have) return;
+    if (want && have && have.sessionId === want.sessionId && have.blockId === want.blockId && have.logId === want.logId && have.freeform === want.freeform && have.atISO === want.atISO) return;
+    trainUpdate(update, tr => {
+      if (want) tr.open = want;else delete tr.open;
+    });
+  }, [screen.name, screen.sessionId, screen.blockId, screen.logId, screen.freeform]);
 
   // A link shared in from another app and routed here rather than to Cook. Open the importer with it
   // already filled in, so the share lands one tap from being read.
@@ -54093,13 +54252,20 @@ function SessionPlayer({
   // is editing that session, not starting a second copy of it. An EMPTY session is the exception -
   // it has no plan to be the same session as, so once one has been finished a new one is a new one
   // rather than the morning's reopening itself.
-  const existing = opened || t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : !l.sessionId && !l.endedAt))[0];
+  const mine = l => sessionId ? l.sessionId === sessionId : !l.sessionId && !l.endedAt;
+  const existing = opened || t.logs.filter(l => mine(l) && l.dateISO === today)[0]
+  // Still open from last night. `sessionOpen` owns the rule, so the runner, the tab and the
+  // history screen all agree on when a session that crossed midnight is still the session.
+  || t.logs.filter(l => mine(l) && liveLog(l, today))[0];
   const [logId] = useState(() => existing ? existing.id : trainUid());
   // The day the WORK happened, which is only today for a session being run now. Editing Tuesday's
   // session on Friday must not move Tuesday's sets to Friday: every write, every record check and
   // the sign-off all read this rather than the clock.
   const dateISO = existing ? existing.dateISO || today : today;
-  const past = dateISO !== today;
+  // Editing a session that is over, as opposed to running one. A session that started last night and
+  // is still going is on yesterday's date and is emphatically not being edited after the fact, so it
+  // is the log being FINISHED that decides this rather than the date on it.
+  const past = dateISO !== today && !liveLog(existing, today);
   const [items, setItems] = useState(() => {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
@@ -54212,7 +54378,38 @@ function SessionPlayer({
   }); // bumped on each tick, so the buddy does the rep too
   const [pr, setPr] = useState(null); // a record just set, showing its celebration
   const [plateFor, setPlateFor] = useState(null); // "exerciseIndex:setIndex" whose plate breakdown is open
-  const [rest, setRest] = useState(null);
+  // The rest clock. Held in component state because it ticks, and mirrored into the store because
+  // the player gets unmounted by things that are none of its business - a tab switch, a reload, an
+  // update landing - and a countdown you cannot see is not a countdown. Only picked back up if it
+  // belongs to THIS session and has not already run out.
+  const [rest, setRestState] = useState(() => {
+    const saved = t.restRun;
+    if (!saved || saved.logId !== logId || !(saved.endsAt > Date.now())) return null;
+    return {
+      endsAt: saved.endsAt,
+      seconds: saved.seconds,
+      from: saved.from || null,
+      alerted: false
+    };
+  });
+  function setRest(next) {
+    setRestState(prev => {
+      const val = typeof next === 'function' ? next(prev) : next;
+      // Only when the clock itself changes. `alerted` flips on the second it runs out and is no
+      // business of the store's.
+      if ((prev && prev.endsAt) !== (val && val.endsAt)) {
+        trainUpdate(update, tr => {
+          if (val) tr.restRun = {
+            endsAt: val.endsAt,
+            seconds: val.seconds,
+            from: val.from || null,
+            logId: logId
+          };else delete tr.restRun;
+        });
+      }
+      return val;
+    });
+  }
   const [tick, setTick] = useState(0);
   const [notes, setNotes] = useState(existing ? existing.notes || '' : '');
   const [exNotes, setExNotes] = useState(() => existing && existing.exerciseNotes || {});
@@ -54687,14 +54884,21 @@ function SessionPlayer({
   function finish() {
     const facts = signOffFacts();
     trainUpdate(update, (tr, d) => {
+      // The session is over, so the countdown into its next set is too.
+      if (tr.restRun && tr.restRun.logId === logId) delete tr.restRun;
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
         tr.logs[i].endedAt = new Date().toISOString();
-        tr.logs[i].sets = (tr.logs[i].sets || []).filter(s => s.done);
-        // Nothing ticked, so nothing to keep. Tombstoned, not just spliced: the sync unions training
-        // logs by id, so a row merely removed from this copy is handed straight back by the other one
-        // and the session returns looking like one you had started.
-        if (!tr.logs[i].sets.length) {
+        // The sets you did not tick used to be deleted here, which made an accidental Finish - or a
+        // set you simply forgot to tick - unrecoverable: the rows were gone, and with them what the
+        // session had actually asked for. They stay, unticked. Nothing counts them: every reader of
+        // a log, in the engine and on the screens alike, filters on `done`, and now that a finished
+        // session can be reopened from History, an untidy row is a set you can go back and tick.
+        //
+        // Nothing ticked at all is still nothing to keep. Tombstoned, not just spliced: the sync
+        // unions training logs by id, so a row merely removed from this copy is handed straight back
+        // by the other one and the session returns looking like one you had started.
+        if (!(tr.logs[i].sets || []).some(s => s.done)) {
           tr.logs.splice(i, 1);
           tombstone(d, [logId]);
         }
@@ -55321,7 +55525,11 @@ function SessionPlayer({
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-2.5"
-    }, /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(RestRing, {
+      left: restLeft,
+      total: rest.seconds,
+      db: db
+    }), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[20px] tnum shrink-0",
       role: "timer",
       style: {
@@ -55596,7 +55804,7 @@ function SessionPlayer({
       });
     })(), confirmEnd && /*#__PURE__*/React.createElement(ConfirmDialog, {
       title: past ? 'Save these changes?' : 'Finish this session?',
-      body: doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.',
+      body: doneSets ? doneSets + ' sets counted. Anything you did not tick stays on the session, unticked, so you can come back and tick it.' : 'You have not ticked any sets, so nothing will be saved.',
       confirmLabel: past ? 'Save' : 'Finish',
       confirmKind: "primary",
       onConfirm: finish,
@@ -57790,7 +57998,6 @@ function BlockBuilder({
   onBack,
   onStart
 }) {
-  useBackClose(onBack);
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({
@@ -57813,9 +58020,34 @@ function BlockBuilder({
   const skipSwitchCheck = useRef(false);
   const [openDay, setOpenDay] = useState(null);
   const [openRegion, setOpenRegion] = useState(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
+     week you are looking at. None of it is written until the button at the bottom says so, which is
+     the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
+     silently threw away a block you had just spent five minutes rebuilding, without a word. The
+     snapshot is taken once, on open, and compared with what is on screen. */
+  const opened = useRef(null);
+  const nowJSON = JSON.stringify({
+    b: block,
+    n: name,
+    s: startISO,
+    sh: share
+  });
+  if (opened.current === null) opened.current = nowJSON;
+  const dirty = opened.current !== nowJSON;
+  // A block that has never been saved is ALL unsaved work - the wizard's answers, the generator's
+  // run, or a programme you opened to make yours - so leaving it loses the lot whether or not you
+  // touched anything on the way past.
+  const leave = () => {
+    if (dirty || isNew) setConfirmLeave(true);else onBack();
+  };
+  useBackClose(leave);
   // Which days of this block already have a session logged against them, so a finished day reads as
   // finished here as well as on the Train tab.
-  const logBySession = Training.completion(block, tdb(db).logs).logBySession;
+  // ... and which of those are still being written, so a session you are half-way through does not
+  // wear the same tick as one you finished. The start button below reads the same pair.
+  const comp = Training.completion(block, tdb(db).logs, Store.todayISO(), Date.now());
+  const logBySession = comp.logBySession;
   // The block being edited decides which landmarks it is judged against, not the wizard's last answer.
   const targets = trainTargets(db, block ? block.style : undefined);
   // Where a running block has got to. Null for one that has not started, which is the case with no
@@ -57907,7 +58139,7 @@ function BlockBuilder({
   // no question about switching, because nothing is being switched. Building a plan and running a
   // plan are separate decisions, and an app that can only do both at once makes you keep a coach's
   // programme in your camera roll until the week you are ready for it.
-  function save(later) {
+  function save(later, quiet) {
     // Abandoning a block halfway is the most common way people make no progress: nothing runs long
     // enough to tell you whether it worked. So starting a second one while the first is still going
     // asks once. It is a question, not a block: their training, their call.
@@ -57938,6 +58170,15 @@ function BlockBuilder({
     });
     // Publishing is fire and forget: it must never be able to fail the save of your own block.
     if (share) submitPublicBlock(out, tdb(db).prefs, tdb(db).custom);else if (saved && saved.shared) retractPublicBlock(out.id);
+    opened.current = JSON.stringify({
+      b: out,
+      n: name,
+      s: startISO,
+      sh: share
+    });
+    // Saved on the way into a session rather than on the way out of the screen: nothing to announce
+    // and nowhere to go.
+    if (quiet) return;
     showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.' : isNew ? 'Block saved. First session is ready.' : 'Block updated.');
     onBack();
   }
@@ -57953,7 +58194,7 @@ function BlockBuilder({
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in pb-2"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
+    onClick: leave,
     className: "pf text-[9px] uppercase mb-4 hit",
     style: {
       color: 'var(--accent-ink)'
@@ -58180,7 +58421,12 @@ function BlockBuilder({
       className: "flex items-start justify-between gap-1.5"
     }, /*#__PURE__*/React.createElement("span", {
       className: "block text-[13px] font-bold leading-tight"
-    }, s.name), log && /*#__PURE__*/React.createElement("span", {
+    }, s.name), log && (comp.openBySession[s.id] ? /*#__PURE__*/React.createElement("span", {
+      className: "shrink-0 pf text-[8px]",
+      style: {
+        color: 'var(--warn)'
+      }
+    }, "OPEN") : /*#__PURE__*/React.createElement("span", {
       className: "shrink-0 w-5 h-5 flex items-center justify-center",
       style: {
         background: 'var(--accent)',
@@ -58188,7 +58434,7 @@ function BlockBuilder({
       }
     }, /*#__PURE__*/React.createElement(Tick, {
       size: 10
-    }))), /*#__PURE__*/React.createElement("span", {
+    })))), /*#__PURE__*/React.createElement("span", {
       className: "block text-[10.5px] mt-1.5",
       style: {
         color: 'var(--muted)'
@@ -58320,7 +58566,10 @@ function BlockBuilder({
         background: 'var(--surface2)'
       }
     }, "+ Add movement"), onStart && /*#__PURE__*/React.createElement("button", {
-      onClick: () => onStart(s, block),
+      onClick: () => {
+        if (dirty) save(false, true);
+        onStart(s, block);
+      },
       className: "pixel-btn w-full h-12 font-bold mt-2",
       style: {
         background: 'var(--accent)',
@@ -58378,7 +58627,14 @@ function BlockBuilder({
     style: {
       color: 'var(--muted)'
     }
-  }, isNew ? 'Saving for later puts it on your shelf without starting it. Nothing is running until you say so.' : 'Changes apply to the weeks you have not trained yet. Sessions you already logged stay as they were.')), !isNew && /*#__PURE__*/React.createElement("div", {
+  }, isNew ? 'Saving for later puts it on your shelf without starting it. Nothing is running until you say so.' : 'Changes apply to the weeks you have not trained yet. Sessions you already logged stay as they were.')), confirmLeave && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: isNew ? 'Throw this block away?' : 'Leave without saving?',
+    body: isNew ? 'It has not been saved yet, so leaving loses it. "Save for later" puts it on your shelf without starting it.' : 'The changes you have made to this block have not been written yet. Leaving now loses them.',
+    confirmLabel: isNew ? 'Throw it away' : 'Discard changes',
+    confirmKind: "danger",
+    onConfirm: onBack,
+    onClose: () => setConfirmLeave(false)
+  }), !isNew && /*#__PURE__*/React.createElement("div", {
     className: "mt-8 pt-4 text-center",
     style: {
       borderTop: '2px solid var(--border)'
@@ -59145,7 +59401,7 @@ function BlockList({
     className: "mb-4",
     onPick: key => onProgramme && onProgramme(key)
   }), blocks.map(block => {
-    const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id));
+    const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id), Store.todayISO());
     const running = block.id === liveId && !Training.blockProgress(block, today).done;
     const prog = Training.blockProgress(block, today);
     const pct = comp.total > 0 ? comp.done / comp.total : 0;
@@ -59279,7 +59535,7 @@ function BlockList({
     });
   })(), confirm && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirm.name + '"?',
-    body: (Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id)).done ? 'The sessions you already logged against it are kept, and still count towards your history. Only the plan goes. ' : 'Nothing has been logged against it, so nothing else goes with it. ') + 'This cannot be undone.',
+    body: (Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id), Store.todayISO()).done ? 'The sessions you already logged against it are kept, and still count towards your history. Only the plan goes. ' : 'Nothing has been logged against it, so nothing else goes with it. ') + 'This cannot be undone.',
     onConfirm: () => remove(confirm),
     onClose: () => setConfirm(null)
   }));
@@ -59557,7 +59813,7 @@ function BlockReviewScreen({
   }, "‹ Train"), /*#__PURE__*/React.createElement("div", {
     className: "mt-6 text-[13px]"
   }, "That block is gone."));
-  const review = Training.reviewBlock(block, t.logs, targets, t.custom);
+  const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
   async function writeUp() {
     if (!isPremium) {
       onUpgrade && onUpgrade('blockreview');
@@ -59621,6 +59877,7 @@ function BlockReviewScreen({
   }, unitLabel(units), " moved"))), (() => {
     const d = Training.deloadAdvice(block, t.logs, targets, {
       custom: t.custom,
+      todayISO: Store.todayISO(),
       inDeficit: !!(db.profile && db.profile.goalType === 'cut') && !db.paused,
       poorSleep: recentSleepShort(db)
     });
@@ -60307,8 +60564,10 @@ function TrainHistory({
     }
   }, "Nothing logged yet. Your first session will show up here.")), logs.map(l => {
     const exIds = [];
+    // What was actually LIFTED. A movement whose sets were all left unticked was not part of
+    // the session, and listing it here would put a lift you skipped in your history.
     (l.sets || []).forEach(s => {
-      if (exIds.indexOf(s.exerciseId) === -1) exIds.push(s.exerciseId);
+      if (s.done && exIds.indexOf(s.exerciseId) === -1) exIds.push(s.exerciseId);
     });
     const sessionPRs = prsBySession[l.id] || [];
     return /*#__PURE__*/React.createElement(Card, {
@@ -60592,8 +60851,14 @@ function TrainSettings({
   }
   // How many muscles' bands your own blocks have nudged away from the research defaults - the one
   // number that makes folding the seventeen-row table safe, because most visits the answer is none.
+  // Judged against the defaults for the STYLE being trained, not against the volume model's. Min-max
+  // lands nowhere near the volume bands by design - it is a different bet about how many hard sets a
+  // muscle wants - so measuring one against the other told everybody running the house method that
+  // all seventeen of their bands had been changed from default, on an account that had never touched
+  // one. The line exists to say "you have not moved anything", and it could never say it.
   const defaults = Training.defaultTargets({
-    experience: prefs.experience
+    experience: prefs.experience,
+    style: prefs.style
   });
   const changedCount = Training.MUSCLES.filter(m => targets[m].mav !== defaults[m].mav || targets[m].mrv !== defaults[m].mrv).length;
   const [bandsOpen, setBandsOpen] = useState(false);
@@ -61909,7 +62174,7 @@ function BlockDraft({
       style: {
         color: 'var(--muted2)'
       }
-    }, "from ", day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? day.sourceRef.name || 'a file' : 'text you pasted'), day.exercises.map((e, ei) => {
+    }, "from ", day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? day.sourceRef.name || 'a file' : 'text you pasted'), (day.exercises || []).map((e, ei) => {
       const lib = Training.byId(e.exerciseId, t.custom);
       const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
       // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is

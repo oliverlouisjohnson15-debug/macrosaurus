@@ -10,11 +10,31 @@
  * ------------------------------------------------------------------------------------- */
 // ---- the tab ----------------------------------------------------------------------------------
 function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, importUrl, onConsumeImport }) {
-  const [screen, setScreen] = useState({ name: 'home' });
+  // Which screen you are on is component state, and this component is unmounted every time you look
+  // at another tab - `{view === 'train' && <TrainTab/>}` in app.jsx - and again on every reload. A
+  // live session is the one screen in the app that owns the phone for an hour, and it was the one
+  // screen that could not survive a glance at your macros. It opens on whatever session is still
+  // open, if one is; leaving the player clears that, so this only ever reopens a session you did not
+  // choose to leave.
+  const [screen, setScreen] = useState(() => openScreen(db) || { name: 'home' });
   const [pendingStart, setPendingStart] = useState(null);  // waiting on "which gym are you at?"
   const t = tdb(db);
   const block = activeBlock(db);
   const go = (name, props) => setScreen(Object.assign({ name: name }, props || {}));
+
+  // Written when the player opens and cleared when it closes, so a reload or a tab switch lands back
+  // in the session rather than at home. Kept out of render: it is a store write.
+  useEffect(() => {
+    const want = screen.name === 'player'
+      ? { sessionId: screen.sessionId || null, blockId: screen.blockId || null,
+          logId: screen.logId || null, freeform: !!screen.freeform, atISO: Store.todayISO() }
+      : null;
+    const have = tdb(db).open;
+    if (!want && !have) return;
+    if (want && have && have.sessionId === want.sessionId && have.blockId === want.blockId
+      && have.logId === want.logId && have.freeform === want.freeform && have.atISO === want.atISO) return;
+    trainUpdate(update, (tr) => { if (want) tr.open = want; else delete tr.open; });
+  }, [screen.name, screen.sessionId, screen.blockId, screen.logId, screen.freeform]);
 
   // A link shared in from another app and routed here rather than to Cook. Open the importer with it
   // already filled in, so the share lands one tap from being read.

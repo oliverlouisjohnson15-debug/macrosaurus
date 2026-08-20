@@ -2471,7 +2471,7 @@
 
     // 3. Sessions being missed. Often the first thing to go when someone is cooked.
     if (block) {
-      var comp = completion(block, blockLogs);
+      var comp = completion(block, blockLogs, opts.todayISO);
       if (comp.total && comp.pct < 70) { score += 1; reasons.push({ key: 'missed', text: 'You got to ' + comp.pct + '% of the sessions.' }); }
     }
 
@@ -4562,20 +4562,66 @@
     return { week: Math.min(week, block.weeks), dayIndex: dayNo % 7, done: week > block.weeks, dayNo: dayNo };
   }
 
+  /* A session that is being written RIGHT NOW, as opposed to one that is done.
+   *
+   * A log row is written the moment the first set is ticked, so the existence of one says the
+   * session was started, not that it was finished. `endedAt` is written by the runner's Finish and
+   * by nothing else, which makes its absence the signal.
+   *
+   * It is only trusted for the day given: logs written before the field existed carry no `endedAt`
+   * either, and a session walked out of on Tuesday should read as the work it was rather than
+   * reopening itself for the rest of the week. Pass no date and nothing counts as open, which is
+   * what every caller with no clock to hand wants.
+   */
+  var OPEN_CARRY_MS = 8 * 3600 * 1000;
+  function sessionOpen(log, todayISO, nowMs) {
+    if (!log || log.endedAt || !todayISO) return false;
+    if (log.dateISO === todayISO) return true;
+    // Midnight is not the end of a session. Somebody who started at half past eleven and is still
+    // between sets at ten past twelve is in the same session, and splitting their log in two at the
+    // date line would put half a session on each of two days and tell them the first one is done.
+    // Only with a clock to hand, and only for a session that started within the last few hours.
+    if (!nowMs || !log.startedAt || !(log.dateISO < todayISO)) return false;
+    var started = Date.parse(log.startedAt);
+    return isFinite(started) && nowMs >= started && (nowMs - started) <= OPEN_CARRY_MS;
+  }
+
   // Sessions in a block that have a matching log. Used for "3 of 4 done this week".
-  function completion(block, logs) {
+  //
+  // A session run more than once has more than one log against it, so which one represents it has to
+  // be decided rather than left to array order: the one still open if there is one, and otherwise
+  // the most recent. Taking whatever happened to be last meant a repeat logged out of order showed
+  // the older attempt.
+  //
+  // `done` counts sessions that are FINISHED. A session you are in the middle of is not one of them,
+  // which is the difference between "3 of 4 done" and a week that ticks itself off the moment you
+  // tick your first set.
+  function completion(block, logs, todayISO, nowMs) {
     var byId2 = {};
-    (logs || []).forEach(function (l) { if (l.sessionId) byId2[l.sessionId] = l; });
-    var total = (block && block.sessions || []).length;
-    var done = (block && block.sessions || []).filter(function (s) { return byId2[s.id]; }).length;
-    return { done: done, total: total, pct: total ? Math.round((done / total) * 100) : 0, logBySession: byId2 };
+    (logs || []).forEach(function (l) {
+      if (!l || !l.sessionId) return;
+      var cur = byId2[l.sessionId];
+      if (!cur) { byId2[l.sessionId] = l; return; }
+      if (sessionOpen(cur, todayISO, nowMs)) return;
+      if (sessionOpen(l, todayISO, nowMs) || (l.dateISO || '') >= (cur.dateISO || '')) byId2[l.sessionId] = l;
+    });
+    var openById = {};
+    for (var sid in byId2) { if (sessionOpen(byId2[sid], todayISO, nowMs)) openById[sid] = byId2[sid]; }
+    var sessions = (block && block.sessions) || [];
+    var done = sessions.filter(function (s) { return byId2[s.id] && !openById[s.id]; }).length;
+    var total = sessions.length;
+    return {
+      done: done, total: total, pct: total ? Math.round((done / total) * 100) : 0,
+      logBySession: byId2, openBySession: openById,
+      open: Object.keys(openById).length,
+    };
   }
 
   // ---- block review --------------------------------------------------------------------------
   // The end-of-block payoff. Numbers only; the buddy's prose is written elsewhere from this shape.
-  function reviewBlock(block, logs, targets, custom) {
+  function reviewBlock(block, logs, targets, custom, todayISO) {
     var blockLogs = (logs || []).filter(function (l) { return l.blockId === block.id; });
-    var comp = completion(block, blockLogs);
+    var comp = completion(block, blockLogs, todayISO);
     var exIds = uniq(blockLogs.reduce(function (a, l) { return a.concat((l.sets || []).map(function (s) { return s.exerciseId; })); }, []));
     var lifts = exIds.map(function (id) {
       var h = exerciseHistory(blockLogs, id);
@@ -5552,7 +5598,8 @@
     mergeCustom: mergeCustom, remapDays: remapDays,
     INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
-    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
+    blockProgress: blockProgress, completion: completion, sessionOpen: sessionOpen,
+    reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, targetChanges: targetChanges, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
     trainingDaysOfWeek: trainingDaysOfWeek, restDaysOfWeek: restDaysOfWeek, round: round,
   };

@@ -42,13 +42,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   // is editing that session, not starting a second copy of it. An EMPTY session is the exception -
   // it has no plan to be the same session as, so once one has been finished a new one is a new one
   // rather than the morning's reopening itself.
-  const existing = opened || t.logs.filter(l => l.dateISO === today && (sessionId ? l.sessionId === sessionId : (!l.sessionId && !l.endedAt)))[0];
+  const mine = (l) => (sessionId ? l.sessionId === sessionId : (!l.sessionId && !l.endedAt));
+  const existing = opened
+    || t.logs.filter(l => mine(l) && l.dateISO === today)[0]
+    // Still open from last night. `sessionOpen` owns the rule, so the runner, the tab and the
+    // history screen all agree on when a session that crossed midnight is still the session.
+    || t.logs.filter(l => mine(l) && liveLog(l, today))[0];
   const [logId] = useState(() => (existing ? existing.id : trainUid()));
   // The day the WORK happened, which is only today for a session being run now. Editing Tuesday's
   // session on Friday must not move Tuesday's sets to Friday: every write, every record check and
   // the sign-off all read this rather than the clock.
   const dateISO = existing ? (existing.dateISO || today) : today;
-  const past = dateISO !== today;
+  // Editing a session that is over, as opposed to running one. A session that started last night and
+  // is still going is on yesterday's date and is emphatically not being edited after the fact, so it
+  // is the log being FINISHED that decides this rather than the date on it.
+  const past = dateISO !== today && !liveLog(existing, today);
   const [items, setItems] = useState(() => {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
@@ -136,7 +144,29 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [lift, setLift] = useState({ ii: -1, n: 0 });  // bumped on each tick, so the buddy does the rep too
   const [pr, setPr] = useState(null);              // a record just set, showing its celebration
   const [plateFor, setPlateFor] = useState(null);  // "exerciseIndex:setIndex" whose plate breakdown is open
-  const [rest, setRest] = useState(null);
+  // The rest clock. Held in component state because it ticks, and mirrored into the store because
+  // the player gets unmounted by things that are none of its business - a tab switch, a reload, an
+  // update landing - and a countdown you cannot see is not a countdown. Only picked back up if it
+  // belongs to THIS session and has not already run out.
+  const [rest, setRestState] = useState(() => {
+    const saved = t.restRun;
+    if (!saved || saved.logId !== logId || !(saved.endsAt > Date.now())) return null;
+    return { endsAt: saved.endsAt, seconds: saved.seconds, from: saved.from || null, alerted: false };
+  });
+  function setRest(next) {
+    setRestState(prev => {
+      const val = typeof next === 'function' ? next(prev) : next;
+      // Only when the clock itself changes. `alerted` flips on the second it runs out and is no
+      // business of the store's.
+      if ((prev && prev.endsAt) !== (val && val.endsAt)) {
+        trainUpdate(update, (tr) => {
+          if (val) tr.restRun = { endsAt: val.endsAt, seconds: val.seconds, from: val.from || null, logId: logId };
+          else delete tr.restRun;
+        });
+      }
+      return val;
+    });
+  }
   const [tick, setTick] = useState(0);
   const [notes, setNotes] = useState(existing ? existing.notes || '' : '');
   const [exNotes, setExNotes] = useState(() => (existing && existing.exerciseNotes) || {});
@@ -484,14 +514,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   function finish() {
     const facts = signOffFacts();
     trainUpdate(update, (tr, d) => {
+      // The session is over, so the countdown into its next set is too.
+      if (tr.restRun && tr.restRun.logId === logId) delete tr.restRun;
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
         tr.logs[i].endedAt = new Date().toISOString();
-        tr.logs[i].sets = (tr.logs[i].sets || []).filter(s => s.done);
-        // Nothing ticked, so nothing to keep. Tombstoned, not just spliced: the sync unions training
-        // logs by id, so a row merely removed from this copy is handed straight back by the other one
-        // and the session returns looking like one you had started.
-        if (!tr.logs[i].sets.length) { tr.logs.splice(i, 1); tombstone(d, [logId]); }
+        // The sets you did not tick used to be deleted here, which made an accidental Finish - or a
+        // set you simply forgot to tick - unrecoverable: the rows were gone, and with them what the
+        // session had actually asked for. They stay, unticked. Nothing counts them: every reader of
+        // a log, in the engine and on the screens alike, filters on `done`, and now that a finished
+        // session can be reopened from History, an untidy row is a set you can go back and tick.
+        //
+        // Nothing ticked at all is still nothing to keep. Tombstoned, not just spliced: the sync
+        // unions training logs by id, so a row merely removed from this copy is handed straight back
+        // by the other one and the session returns looking like one you had started.
+        if (!(tr.logs[i].sets || []).some(s => s.done)) { tr.logs.splice(i, 1); tombstone(d, [logId]); }
       }
     });
     // An empty session leaves as quietly as it arrived. A real one gets its moment: the buddy, the
@@ -1006,11 +1043,19 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       {/* ---- THE REST BAR ----
           Now the only thing pinned to the bottom, and only while it is running. The clock is big
           because it is read across a gym at arm's length, and the line beside it says what the rest
-          is for: a countdown that does not name the next set makes you go back up and find it. */}
+          is for: a countdown that does not name the next set makes you go back up and find it.
+
+          Your buddy gets its breath back with you inside the ring, which is what RestRing was
+          written for. The redesign that turned this into a bar took the ring off the screen and left
+          the component behind it in the tree, rendered by nothing: a minute and a half of every set
+          you rest, several times an hour, with the one animation in the app that was drawn for
+          exactly that moment sat in a file. The digits stay - a ring is a shape, and the seconds are
+          read across a gym. */}
       {rest && (
         <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-3"
           style={{ background: 'var(--cardhead-bg)', borderColor: 'var(--border)', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
           <div className="flex items-center gap-2.5">
+            <RestRing left={restLeft} total={rest.seconds} db={db} />
             <span className="pf text-[20px] tnum shrink-0" role="timer"
               style={{ color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--cardhead-text)' }}>
               {restLeft <= 0 ? 'GO' : fmtClock(restLeft)}
@@ -1171,7 +1216,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       })()}
       {confirmEnd && (
         <ConfirmDialog title={past ? 'Save these changes?' : 'Finish this session?'}
-          body={doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.'}
+          body={doneSets ? doneSets + ' sets counted. Anything you did not tick stays on the session, unticked, so you can come back and tick it.' : 'You have not ticked any sets, so nothing will be saved.'}
           confirmLabel={past ? 'Save' : 'Finish'} confirmKind="primary"
           onConfirm={finish} onClose={() => setConfirmEnd(false)} />
       )}

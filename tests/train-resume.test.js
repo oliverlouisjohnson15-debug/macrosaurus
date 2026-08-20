@@ -25,7 +25,10 @@ function logFor(session, opts) {
   return {
     id: o.id || 'log_' + session.id, dateISO: o.dateISO || A.Store.todayISO(),
     blockId: o.blockId || null, sessionId: session.id, name: session.name,
-    startedAt: new Date().toISOString(), endedAt: o.endedAt || null, sets: sets,
+    // Dated with the session it belongs to: a log from Tuesday was started on Tuesday, and the
+    // midnight-carry rule reads this to decide whether a session is still going.
+    startedAt: o.startedAt || new Date(Date.parse((o.dateISO || A.Store.todayISO()) + 'T00:30:00Z')).toISOString(),
+    endedAt: o.endedAt || null, sets: sets,
   };
 }
 

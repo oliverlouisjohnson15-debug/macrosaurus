@@ -106,7 +106,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
         onPick={(key) => onProgramme && onProgramme(key)} />
 
       {blocks.map(block => {
-        const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id));
+        const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id), Store.todayISO());
         const running = block.id === liveId && !Training.blockProgress(block, today).done;
         const prog = Training.blockProgress(block, today);
         const pct = comp.total > 0 ? comp.done / comp.total : 0;
@@ -203,7 +203,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       })()}
       {confirm && (
         <ConfirmDialog title={'Delete "' + confirm.name + '"?'}
-          body={(Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id)).done
+          body={(Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id), Store.todayISO()).done
             ? 'The sessions you already logged against it are kept, and still count towards your history. Only the plan goes. '
             : 'Nothing has been logged against it, so nothing else goes with it. ')
             + 'This cannot be undone.'}
@@ -393,7 +393,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!block) return <div className="fade-in"><button onClick={onBack} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button><div className="mt-6 text-[13px]">That block is gone.</div></div>;
-  const review = Training.reviewBlock(block, t.logs, targets, t.custom);
+  const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
 
   async function writeUp() {
     if (!isPremium) { onUpgrade && onUpgrade('blockreview'); return; }
@@ -427,7 +427,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
           This is where the decision gets made, so it sits above everything else. */}
       {(() => {
         const d = Training.deloadAdvice(block, t.logs, targets, {
-          custom: t.custom,
+          custom: t.custom, todayISO: Store.todayISO(),
           inDeficit: !!(db.profile && db.profile.goalType === 'cut') && !db.paused,
           poorSleep: recentSleepShort(db),
         });
@@ -964,7 +964,9 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
           )}
           {logs.map(l => {
             const exIds = [];
-            (l.sets || []).forEach(s => { if (exIds.indexOf(s.exerciseId) === -1) exIds.push(s.exerciseId); });
+            // What was actually LIFTED. A movement whose sets were all left unticked was not part of
+            // the session, and listing it here would put a lift you skipped in your history.
+            (l.sets || []).forEach(s => { if (s.done && exIds.indexOf(s.exerciseId) === -1) exIds.push(s.exerciseId); });
             const sessionPRs = prsBySession[l.id] || [];
             return (
               <Card key={l.id} className="p-4 mb-4">
@@ -1158,7 +1160,12 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
   }
   // How many muscles' bands your own blocks have nudged away from the research defaults - the one
   // number that makes folding the seventeen-row table safe, because most visits the answer is none.
-  const defaults = Training.defaultTargets({ experience: prefs.experience });
+  // Judged against the defaults for the STYLE being trained, not against the volume model's. Min-max
+  // lands nowhere near the volume bands by design - it is a different bet about how many hard sets a
+  // muscle wants - so measuring one against the other told everybody running the house method that
+  // all seventeen of their bands had been changed from default, on an account that had never touched
+  // one. The line exists to say "you have not moved anything", and it could never say it.
+  const defaults = Training.defaultTargets({ experience: prefs.experience, style: prefs.style });
   const changedCount = Training.MUSCLES.filter(m => targets[m].mav !== defaults[m].mav || targets[m].mrv !== defaults[m].mrv).length;
   const [bandsOpen, setBandsOpen] = useState(false);
 
@@ -2013,7 +2020,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
               from {day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? (day.sourceRef.name || 'a file') : 'text you pasted'}
             </div>
           )}
-          {day.exercises.map((e, ei) => {
+          {(day.exercises || []).map((e, ei) => {
             const lib = Training.byId(e.exerciseId, t.custom);
             const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
             // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is

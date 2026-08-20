@@ -480,6 +480,55 @@
     return out;
   }
 
+  /* Training logs, merged SET BY SET rather than row by row.
+   *
+   * A session is one long write: the log row is created on the first tick and rewritten on every one
+   * after it. Union by id alone takes the whole row from the higher-_rev copy, so a session touched
+   * on two devices - a phone in the gym and a tab left open at home, or the same session logged
+   * either side of a sync - kept one device's sets and dropped the other's wholesale.
+   *
+   * Sets are identified by the line of the plan they belong to and their position in it, which is
+   * exactly the pair the runner already writes for its own regrouping. Where both copies have the
+   * same set, the higher-_rev one wins, because that is the later edit. Where only one has it, it is
+   * kept: nobody's ticked set is ever dropped by a merge.
+   */
+  function mergeTrainingLog(newer, older) {
+    if (!newer) return older;
+    if (!older) return newer;
+    var out = Object.assign({}, older, newer);
+    // A session finished on either device is finished. The other copy simply had not seen it yet.
+    out.endedAt = newer.endedAt || older.endedAt || null;
+    out.startedAt = older.startedAt || newer.startedAt || null;
+    // Per-movement prescriptions and notes are keyed maps: union them, newer wins on a shared key.
+    out.itemTargets = Object.assign({}, older.itemTargets || {}, newer.itemTargets || {});
+    out.exerciseNotes = Object.assign({}, older.exerciseNotes || {}, newer.exerciseNotes || {});
+    var key = function (s) { return (s.itemId || s.exerciseId || '') + '#' + (s.setIndex == null ? '' : s.setIndex); };
+    var seen = {}, sets = [];
+    [newer.sets || [], older.sets || []].forEach(function (list) {
+      list.forEach(function (s) {
+        if (!s) return;
+        var k = key(s);
+        if (seen[k]) return;
+        seen[k] = 1; sets.push(s);
+      });
+    });
+    out.sets = sets;
+    return out;
+  }
+  function unionLogs(newer, older) {
+    var byId3 = {};
+    (older || []).forEach(function (l) { if (l && l.id != null) byId3[l.id] = l; });
+    var out = [], seen = {};
+    (newer || []).forEach(function (l) {
+      if (!l) return;
+      if (l.id == null) { out.push(l); return; }
+      seen[l.id] = 1;
+      out.push(byId3[l.id] ? mergeTrainingLog(l, byId3[l.id]) : l);
+    });
+    (older || []).forEach(function (l) { if (l && (l.id == null || !seen[l.id])) out.push(l); });
+    return out;
+  }
+
   // Conflict-free merge of two full states. The append-only collections (food log, weigh-ins,
   // check-ins, foods, saved meals, targets, catches, freezes, awards) are UNIONED so a save can
   // never lose an entry the other copy has. Scalar/derived fields come from the higher-_rev state.
@@ -550,7 +599,7 @@
     // are settings, so the newer copy simply wins (the JSON clone above already did that).
     out.training = Object.assign({}, older.training || {}, newer.training || {});
     out.training.blocks = unionBy((newer.training || {}).blocks, (older.training || {}).blocks, byId);
-    out.training.logs   = unionBy((newer.training || {}).logs,   (older.training || {}).logs,   byId);
+    out.training.logs   = unionLogs((newer.training || {}).logs,   (older.training || {}).logs);
     out.training.custom = unionBy((newer.training || {}).custom, (older.training || {}).custom, byId);
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
     // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
