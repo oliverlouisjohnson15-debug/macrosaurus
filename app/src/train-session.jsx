@@ -21,7 +21,12 @@ const SET_TYPES = [
 ];
 const SET_TYPE_TONE = { work: null, warmup: 'var(--warn)', drop: 'var(--carb-ink)', failure: 'var(--danger)' };
 
-function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, openLogId, onExit, onFocusMode, gym }) {
+/* `onExit` steps OUT of the session and leaves it open, so the tab can offer it straight back.
+   `onFinish` ends it. Two different things, and until now one control did both: leaving threw away
+   the record that you were mid-session, which is why walking out to check a macro felt identical to
+   giving up on the workout. Everything that genuinely ends a session calls onFinish; everything
+   that just leaves the screen calls onExit. */
+function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, openLogId, onExit, onFinish, onFocusMode, gym }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -534,10 +539,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // An empty session leaves as quietly as it arrived. A real one gets its moment: the buddy, the
     // numbers, and a line about what actually happened, rather than a toast sliding past the button
     // you have just pressed.
-    if (!facts.sets) { showToast && showToast('Nothing logged, so nothing saved.'); onExit(); return; }
+    if (!facts.sets) { showToast && showToast('Nothing logged, so nothing saved.'); onFinish(); return; }
     // Correcting a session from last Tuesday is not a session ending, and the buddy congratulating
     // you on a workout you finished a week ago would be nonsense. It saves and gets out of the way.
-    if (past) { showToast && showToast('Session updated.'); onExit(); return; }
+    if (past) { showToast && showToast('Session updated.'); onFinish(); return; }
     setSignOff(facts);
   }
 
@@ -589,8 +594,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           only ever seen mid-scroll can carry a fault like this for months. */}
       <div className="sticky top-0 z-20 -mx-5 -mt-6 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-2">
-          <button onClick={onExit} aria-label="Back to Train" className="hit shrink-0 flex items-center" style={{ color: 'var(--nav-off)' }}>
-            <Icon.chevron width="16" height="16" style={{ transform: 'rotate(180deg)' }} />
+          {/* The way back NAMES where it goes, like every other back control in the app
+              (`SubScreen`, app.jsx) - and unlike the bare chevron this replaces, which was the only
+              unlabelled navigation left in the module. It matters more here than anywhere: the brand
+              bar and the tab bar both step aside for a session, so this is the only navigation on
+              the screen. It no longer ends anything either - see `onExit` below. */}
+          <button onClick={onExit} aria-label="Back to Train"
+            className="pf text-[9px] uppercase hit shrink-0 flex items-center gap-1"
+            style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
+            <Icon.chevron width="12" height="12" style={{ transform: 'rotate(180deg)' }} />Train
           </button>
           {/* Your buddy is in the room with you for the whole hour, not only on the movement you have
               open. It is the same idle strip the header uses everywhere else, so it costs no new art. */}
@@ -1234,7 +1246,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             past
               ? { label: 'Save and close', sub: doneSets + (doneSets === 1 ? ' set' : ' sets') + ' on this session', onClick: () => setConfirmEnd(true) }
               : { label: 'Finish the session', sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved', onClick: () => setConfirmEnd(true) },
-            { label: past ? 'Close' : 'Leave without finishing', sub: 'Everything ticked is already saved. Come back to it later.', onClick: onExit },
+            // Now literally true: the session stays open and the Train tab carries it back.
+            { label: past ? 'Close' : 'Step out for now', sub: 'Everything ticked is already saved. The session stays open on the Train tab.', onClick: onExit },
           ]} />
       )}
 
@@ -1250,7 +1263,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       )}
 
       {pr && <PRFlash pr={pr} db={db} units={units} onClose={() => setPr(null)} />}
-      {signOff && <SessionSignOff db={db} facts={signOff} units={units} onDone={onExit} />}
+      {signOff && <SessionSignOff db={db} facts={signOff} units={units} onDone={onFinish} />}
       {help && <TrainHelp topic={help} db={db} onClose={() => setHelp(null)}
         onHideForGood={() => { trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { hideHelp: true }); }); setHelp(null); }} />}
       {pastFor && <PastSets db={db} exerciseId={pastFor} onClose={() => setPastFor(null)} />}

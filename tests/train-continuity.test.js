@@ -157,6 +157,65 @@ test('a pointer at something that is no longer there opens nothing', () => {
   assert.ok(!db.training.open, 'the dead pointer is cleared on the way past');
 });
 
+/* ---- stepping out is not ending ----------------------------------------------------------------
+   Leaving the player used to DELETE the session pointer, which made walking out to check a macro
+   byte-for-byte the same act as abandoning the workout - and because the pointer was gone, the tab
+   had nothing to offer back. Worse, while the pointer WAS there the router pulled you straight into
+   the player on every mount, so a live session made Train home unreachable. Two jobs, one control.
+   Now: `onExit` steps out and marks the record, `onFinish` clears it, and the router only auto-opens
+   a session you did not choose to leave. */
+
+test('stepping out of a session keeps it open', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id })];
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today() };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(IN_SESSION.test(ui.text), 'starts in the session');
+    ui.click('Train');                                            // the session bar's way back
+    assert.ok(!IN_SESSION.test(ui.text), 'and lands on the tab: ' + ui.text.slice(0, 200));
+    assert.ok(db.training.open, 'the session is still open');
+    assert.ok(db.training.open.steppedOut, 'and marked as one you left on purpose');
+  } finally { ui.unmount(); }
+});
+
+test('a session you stepped out of does not drag you back in', () => {
+  // The tab is unmounted every time you look at your macros. Coming back must land on the tab, or
+  // the session is a room with the door locked - which is exactly what was reported.
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id })];
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today(), steppedOut: true };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(!IN_SESSION.test(ui.text), 'the tab, not the runner: ' + ui.text.slice(0, 200));
+    assert.ok(db.training.open, 'and the session is still there to go back to');
+  } finally { ui.unmount(); }
+});
+
+test('carrying on with a session clears the mark', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id })];
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today(), steppedOut: true };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    ui.click('Carry on with');
+    assert.ok(IN_SESSION.test(ui.text), 'back in the runner: ' + ui.text.slice(0, 200));
+    assert.ok(!db.training.open.steppedOut, 'and no longer marked as stepped out');
+  } finally { ui.unmount(); }
+});
+
 test('yesterday\'s pointer is not today\'s session', () => {
   const block = minmax();
   const db = accountWith(block);

@@ -208,14 +208,20 @@ function liveLog(log, todayISO) {
 /* The session that is open right now, as a screen to go back to.
  *
  * `training.open` is a pointer, not a copy: the sets themselves have been in `training.logs` since
- * the first tick. It is written when the player opens and deleted when it closes, so it can only
- * ever reopen a session somebody was taken out of - by a tab switch, a reload, an update, or the
- * phone deciding the PWA had had enough - rather than one they walked away from on purpose.
+ * the first tick. It is written when the player opens, and it now survives you STEPPING OUT of the
+ * player - it is deleted only when the session is actually finished or turns out to have nothing in
+ * it.
+ *
+ * That split is the whole point. Leaving used to delete the record, so walking out to check a macro
+ * was byte-for-byte the same act as abandoning the session, and coming back to the Train tab dropped
+ * you straight into the player again because the record was still there - which meant that while a
+ * session was live, Train home could not be reached at all. One control was doing two jobs and
+ * neither of them well.
  *
  * Checked against the world before it is trusted: the day has to be today, and whatever it points at
  * has to still exist. A pointer at a block that was deleted underneath it must not put the app into
  * a screen it cannot draw. */
-function openScreen(db) {
+function openRecord(db) {
   const t = tdb(db);
   const o = t.open;
   if (!o || o.atISO !== Store.todayISO()) return null;
@@ -230,7 +236,18 @@ function openScreen(db) {
     return null;
   }
   return { name: 'player', sessionId: o.sessionId || null, blockId: o.blockId || null,
-    logId: o.logId || null, freeform: !!o.freeform };
+    logId: o.logId || null, freeform: !!o.freeform, steppedOut: !!o.steppedOut };
+}
+
+/* Where the Train tab should OPEN, which is not the same question as whether a session is open.
+ *
+ * Taken out of the player by something that was not a decision - a tab switch, a reload, an update,
+ * the phone deciding the PWA had had enough - and you go back where you were. Stepped out on
+ * purpose, and you get the tab, with the session waiting on it. `openRecord` answers the first
+ * question for the resume banner; this answers the second for the router. */
+function openScreen(db) {
+  const o = openRecord(db);
+  return o && !o.steppedOut ? o : null;
 }
 
 // ---- shared bits ------------------------------------------------------------------------------

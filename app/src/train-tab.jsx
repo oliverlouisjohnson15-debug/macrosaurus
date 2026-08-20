@@ -22,19 +22,44 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   const block = activeBlock(db);
   const go = (name, props) => setScreen(Object.assign({ name: name }, props || {}));
 
-  // Written when the player opens and cleared when it closes, so a reload or a tab switch lands back
-  // in the session rather than at home. Kept out of render: it is a store write.
+  /* Written while the player is open, and NOT cleared merely because you left it.
+   *
+   * Leaving used to delete this, which is why a live session felt like a room with the door locked:
+   * the one control that reached Train home also threw away the only record that you were mid
+   * session, so stepping out to check a macro and abandoning the workout were the same act. Now the
+   * record outlives the screen. `stepOut` marks it, `closeSession` clears it, and nothing else
+   * touches it. Kept out of render: it is a store write. */
   useEffect(() => {
-    const want = screen.name === 'player'
-      ? { sessionId: screen.sessionId || null, blockId: screen.blockId || null,
-          logId: screen.logId || null, freeform: !!screen.freeform, atISO: Store.todayISO() }
-      : null;
-    const have = tdb(db).open;
-    if (!want && !have) return;
-    if (want && have && have.sessionId === want.sessionId && have.blockId === want.blockId
-      && have.logId === want.logId && have.freeform === want.freeform && have.atISO === want.atISO) return;
-    trainUpdate(update, (tr) => { if (want) tr.open = want; else delete tr.open; });
+    if (screen.name === 'player') {
+      const want = { sessionId: screen.sessionId || null, blockId: screen.blockId || null,
+        logId: screen.logId || null, freeform: !!screen.freeform, atISO: Store.todayISO() };
+      const have = tdb(db).open;
+      if (have && !have.steppedOut && have.sessionId === want.sessionId && have.blockId === want.blockId
+        && have.logId === want.logId && have.freeform === want.freeform && have.atISO === want.atISO) return;
+      // Re-entering clears the mark as well as writing the pointer: you are back in it.
+      trainUpdate(update, (tr) => { tr.open = want; });
+      return;
+    }
+    /* Not in the player. A VALID record is left exactly where it is - carrying it out here is the
+       whole point of the change. A DEAD one is swept: yesterday's, or a pointer at a block or
+       session that has been deleted underneath it. That sweep used to happen by accident, because
+       leaving deleted the record either way; now it has to be asked for, or a pointer at something
+       that no longer exists would sit in the store forever offering to resume it. */
+    if (tdb(db).open && !openRecord(db)) trainUpdate(update, (tr) => { delete tr.open; });
   }, [screen.name, screen.sessionId, screen.blockId, screen.logId, screen.freeform]);
+
+  /* Out of the player, session intact. The record stays so the tab can offer it back, and is marked
+     so the router stops pulling you into it - see `openScreen` in train-core.jsx. */
+  function stepOut(to) {
+    trainUpdate(update, (tr) => { if (tr.open) tr.open = Object.assign({}, tr.open, { steppedOut: true }); });
+    go(to || 'home');
+  }
+  // Done with it - finished, signed off, or it turned out to have nothing in it. This is the only
+  // thing that throws the record away.
+  function closeSession(to) {
+    trainUpdate(update, (tr) => { delete tr.open; });
+    go(to || 'home');
+  }
 
   // A link shared in from another app and routed here rather than to Cook. Open the importer with it
   // already filled in, so the share lands one tap from being read.
@@ -90,13 +115,15 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'player') {
     return page(<SessionPlayer db={db} update={update} showToast={showToast} onFocusMode={onFocusMode}
       sessionId={screen.sessionId} blockId={screen.blockId} freeform={screen.freeform} openLogId={screen.logId}
-      gym={currentGym(db)} onExit={() => go(screen.from || 'home')} />, true);
+      gym={currentGym(db)}
+      onExit={() => stepOut(screen.from || 'home')}
+      onFinish={() => closeSession(screen.from || 'home')} />, true);
   }
   if (screen.name === 'preview') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : null;
     const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
     if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      block={block} onOpen={previewSession} onFreeform={startFreeform} go={go} />);
+      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
     return page(<SessionPreview db={db} update={update} showToast={showToast} session={sess} block={blk}
       onBack={() => go('home')} onStart={() => startSession(sess, blk)} />);
   }
@@ -190,7 +217,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<StatSheet db={db} onBack={() => go('home')} />);
   }
   return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-    block={block} onOpen={previewSession} onFreeform={startFreeform} go={go} />);
+    block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
 }
 
 // ---- home -------------------------------------------------------------------------------------
@@ -242,7 +269,7 @@ function ProgrammeCards({ db, onPick, className }) {
   );
 }
 
-function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onFreeform, go }) {
+function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onResume, onFreeform, go }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -252,9 +279,29 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const targets = trainTargets(db, block ? block.style : undefined);
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
+  /* ---- the week you are LOOKING at, which is not always the week you are IN ----
+     `null` means "follow the block", so the card opens on the current week every time and only
+     stays somewhere else while you are deliberately reading ahead.
+
+     Reading a future week used to mean the block BUILDER - three taps away, past the start-date
+     field and the volume editors, on a screen that edits the whole four-week programme rather than
+     answering "what is on Thursday". SessionPreview was built to be that answer and has always
+     accepted any session of any block; nothing ever handed it a day outside this week.
+
+     TrainHeroic's athletes ask for the opposite of a day-by-day calendar - "show what week I am on"
+     and "the whole week at once" - which is the shape this card already had. So this adds the one
+     thing it was missing, a way to MOVE between weeks, and changes nothing about how a week reads. */
+  const [weekAt, setWeekAt] = useState(null);
+  const [weekPick, setWeekPick] = useState(false);
+  const shownWeek = block && prog ? (weekAt || prog.week) : 1;
+  const viewingAhead = !!(block && prog && shownWeek !== prog.week);
+  // A week that has not happened yet has nothing to REPORT, only something to show. A past week you
+  // are looking back at does, so the two are not the same case.
+  const weekAhead = !!(block && prog && shownWeek > prog.week);
+  const shownWeekPlan = viewingAhead ? weekPlan(block, shownWeek, t.logs) : thisWeek;
+  const doneShown = shownWeekPlan.filter(x => x.log && !x.live).length;
   // A session started this morning and left half-way is NOT one of the week's done sessions, and
   // counting it as one was how walking out of the gym read as the week ticking itself off.
-  const doneThisWeek = thisWeek.filter(x => x.log && !x.live).length;
   // The next session is the one you are in the middle of, if there is one, and otherwise the first
   // this week with nothing logged against it. Every OTHER session stays tappable too: real weeks do
   // not run in order, and an app that only lets you do "the next one" makes you fight it the first
@@ -280,6 +327,35 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const [whyEmpty, setWhyEmpty] = useState(false);
   const [confirmDraft, setConfirmDraft] = useState(false);
 
+  /* ---- a session you stepped out of ----
+     Stepping out of the player no longer ends anything, so the tab has to carry the session back.
+     For a PLANNED session in the week you are looking at, the block card below already does exactly
+     that - "In progress", how many sets you are in, and a button reading "Carry on with Upper 1" -
+     and a second banner saying the same thing would be one more button to choose between, which is
+     the complaint this whole change is answering.
+
+     So this covers only what that card cannot see: a freeform session, a session on an account with
+     no block running, and the moments you are reading a different week.
+
+     And only when there is something to carry. Opening a session, ticking nothing and stepping back
+     out leaves a pointer but no work, and "Still open - nothing ticked yet" next to the block card's
+     own "Open Lower B" is two buttons for one session, which is the complaint this is answering. No
+     ticks, no banner: the ordinary way in is the right one. */
+  const openRec = openRecord(db);
+  const resumeCovered = !!(block && !blockDone && live && !viewingAhead);
+  const resume = openRec && !resumeCovered ? (() => {
+    const log = openRec.logId
+      ? t.logs.filter(l => l.id === openRec.logId)[0]
+      : t.logs.filter(l => openRec.sessionId ? l.sessionId === openRec.sessionId : !l.sessionId)
+        .slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
+    const blk = openRec.blockId ? t.blocks.filter(b => b.id === openRec.blockId)[0] : null;
+    const sess = blk && openRec.sessionId ? (blk.sessions || []).filter(x => x.id === openRec.sessionId)[0] : null;
+    const ticked = ((log && log.sets) || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
+    if (!ticked) return null;
+    const name = (sess && sess.name) || (log && log.name) || 'Empty session';
+    return { name: name.split(' - ')[0], ticked: ticked };
+  })() : null;
+
   return (
     <div className="fade-in">
       <div className="flex items-start justify-between gap-3 mb-6">
@@ -295,39 +371,105 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </button>
       </div>
 
+      {/* A session left open, on the screens where nothing else says so. Same shape as the draft
+          card further down - a thing in progress, what state it is in, and the way back into it -
+          because that is the same promise-to-yourself object. */}
+      {resume && (
+        <button onClick={() => go('player', { sessionId: openRec.sessionId, blockId: openRec.blockId, logId: openRec.logId, freeform: openRec.freeform })}
+          className="pixel-box w-full text-left p-4 mb-4 flex items-center justify-between gap-3"
+          style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--card))' }}>
+          <span className="min-w-0">
+            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Still open</span>
+            <span className="block text-[13px] font-semibold mt-1 truncate">{resume.name}</span>
+            <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+              {resume.ticked} set{resume.ticked === 1 ? '' : 's'} in, all saved
+            </span>
+          </span>
+          <span className="pf text-[10px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>carry on ›</span>
+        </button>
+      )}
+
       {/* ---- the block ---- */}
       {block && !blockDone && (
         /* The block, as a titled panel: its name on the ink bar with the week's progress in accent
            beside it, which is the pair the design puts there and the two facts you open this page
-           for. The name is still the way into the block itself (renaming it, deleting one built by
-           mistake) - that is what the bar's right-hand tap-through leads to. */
+           for.
+
+           The count used to be a BUTTON into the block list, which is the one route on this screen
+           that never said where it went: `CardHead` draws its right slot with no verb and no
+           chevron, so "2 / 4 done" was a progress readout that silently navigated - and the Blocks
+           button further down the same page already goes there, labelled. Two routes to one screen,
+           one of them disguised as a number. It is a number again. */
         <Card className="p-0 mb-4 overflow-hidden">
-          <CardHead title={block.name} right={doneThisWeek + ' / ' + thisWeek.length + ' done'} onRight={() => go('blocks')} />
+          <CardHead title={block.name} right={weekAhead
+            ? shownWeekPlan.length + (shownWeekPlan.length === 1 ? ' session' : ' sessions')
+            : doneShown + ' / ' + shownWeekPlan.length + ' done'} />
           {/* The week, as a meter and one sentence, in its own band above the sessions. The card used
               to open straight onto the list, which answered "what are the days" but never "where am I
               in the week" - the question the page is actually opened to settle. */}
           <div className="px-3 py-3 flex flex-col gap-2" style={{ borderBottom: '2px solid var(--border)' }}>
-            <PipLine pct={thisWeek.length ? (doneThisWeek / thisWeek.length) * 100 : 0} color="var(--accent)" height={11} cells={Math.max(1, thisWeek.length)} />
+            {/* Which week, and WHEN it runs. The same control the builder uses, in the same shape and
+                the same words, because a row of "W1 W2 W3 W4" tabs tells you which week and never
+                which dates - and reading ahead is exactly the moment you want the dates. Only drawn
+                on a block long enough to have somewhere to go. */}
+            {block.weeks > 1 && (<>
+              <button onClick={() => setWeekPick(!weekPick)} className="w-full flex items-center justify-between gap-2 text-left"
+                aria-label="Choose which week to look at">
+                <span className="min-w-0">
+                  <span className="pf text-[9px] uppercase" style={{ color: viewingAhead ? 'var(--accent-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>
+                    Week {shownWeek} of {block.weeks}{Training.weekSessions(block, shownWeek).some(x => x.deload) ? ' \u00b7 deload' : ''}{viewingAhead ? '' : ' \u00b7 now'}
+                  </span>
+                  <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>{weekRangeLabel(block.startISO, shownWeek)}</span>
+                </span>
+                <span className="shrink-0" style={{ color: 'var(--muted2)', transform: weekPick ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}>
+                  <Icon.chevron width="16" height="16" />
+                </span>
+              </button>
+              {weekPick && (
+                <div className="flex flex-col gap-1.5 mb-1">
+                  {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
+                    <button key={w} onClick={() => { setWeekAt(w === prog.week ? null : w); setWeekPick(false); }}
+                      className="w-full p-2.5 flex items-center justify-between gap-2 text-left"
+                      style={{ border: '2px solid var(--border)', background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : 'var(--surface2)' }}>
+                      <span className="pf text-[9px] uppercase" style={{ color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)', letterSpacing: '0.1em' }}>
+                        Week {w}{w === prog.week ? ' \u00b7 now' : ''}
+                      </span>
+                      <span className="text-[11px]" style={{ color: Training.weekSessions(block, w).some(x => x.deload) ? 'var(--warn)' : 'var(--muted)' }}>
+                        {Training.weekSessions(block, w).some(x => x.deload) ? 'deload' : weekRangeLabel(block.startISO, w)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>)}
+            {!weekAhead && <PipLine pct={shownWeekPlan.length ? (doneShown / shownWeekPlan.length) * 100 : 0} color="var(--accent)" height={11} cells={Math.max(1, shownWeekPlan.length)} />}
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
-              {doneThisWeek >= thisWeek.length
-                ? 'That is the whole week done.'
-                : (thisWeek.length - doneThisWeek) + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (live
-                  ? '. ' + live.session.name.split(' - ')[0] + ' is still open.'
-                  : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
-              {restDays.length > 0 && restDays.length < 7 && (
+              {/* Reading ahead is a different question from running the week, so it gets a different
+                  sentence. "2 sessions left" and "Next is Upper 1" are facts about the week you are
+                  IN; said over week 3 they would be the card telling you where you are while showing
+                  you somewhere else. */}
+              {viewingAhead
+                ? shownWeekPlan.length + ' session' + (shownWeekPlan.length === 1 ? '' : 's') + ' planned.'
+                  + (doneShown ? ' ' + doneShown + ' already done.' : '')
+                : doneShown >= shownWeekPlan.length
+                  ? 'That is the whole week done.'
+                  : (shownWeekPlan.length - doneShown) + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week' + (live
+                    ? '. ' + live.session.name.split(' - ')[0] + ' is still open.'
+                    : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
+              {!viewingAhead && restDays.length > 0 && restDays.length < 7 && (
                 <span style={{ color: 'var(--muted2)' }}> Rest on {restDays.map(d => WEEKDAYS[d]).join(' and ')}.</span>
               )}
             </span>
           </div>
           <div className="p-3.5">
 
-          {isDeload && (
+          {isDeload && !viewingAhead && (
             <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
               Deload week. Lighter on purpose, so the next block starts on a fresh body.
             </div>
           )}
 
-          {isIntro && !isDeload && (
+          {isIntro && !isDeload && !viewingAhead && (
             <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--accent-ink)' }}>
               Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the five after it.
             </div>
@@ -335,7 +477,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
           {/* A rest day is prescribed, not a day you failed to train. Saying so is the difference
               between a week that is going to plan and a week that looks like it is slipping. */}
-          {restToday && !trainingToday.length && (
+          {restToday && !trainingToday.length && !viewingAhead && (
             <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--text2)' }}>
               <b>Today is a rest day.</b> That is the plan, not a gap in it - the week is built around
               {restDays.length === 1 ? ' it' : ' these two'}. Next up is {next ? next.session.name.split(' - ')[0] : 'the next session'}.
@@ -350,7 +492,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               set counts used to scatter. */}
           <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 flex-wrap text-[12.5px]">
-              {thisWeek.map(({ session, log, live: inPlay }, i) => {
+              {shownWeekPlan.map(({ session, log, live: inPlay }, i) => {
                 const done = !!log && !inPlay;
                 const isNext = next && session.id === next.session.id;
                 return (
@@ -365,11 +507,20 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               })}
             </div>
             <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
-              {thisWeek.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets
+              {shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets
             </span>
           </div>
 
-          {next ? (
+          {/* The next session, and the button that opens it, belong to the week you are IN. While you
+              are reading ahead they step aside: a "Next · Thursday" card under week 3's day list
+              would be offering you this week's session off another week's page. Coming back to the
+              current week brings both back. */}
+          {viewingAhead ? (
+            <button onClick={() => { setWeekAt(null); setWeekPick(false); }}
+              className="pixel-box w-full py-3 text-[12px] mb-1" style={{ background: 'var(--surface2)' }}>
+              Back to week {prog.week}
+            </button>
+          ) : next ? (
             /* One nested card now, not a boxed "Opening with" panel plus a floating sentence plus a
                hint nobody needed once the roll-up above made every day tappable by name. NEXT · DAY
                names when, the day's own name and its cost sit on one row, and what it opens with is
@@ -422,8 +573,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           )}
           {/* The page's one primary action, so it wears the accent rather than a hardcoded white
               slab - which was also the last control in Train that stayed daylight at night. */}
-          {next && (
-            <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+          {/* "Looking is not starting" is the rule for a session you have not begun: the tap opens the
+              plan and the button on THAT screen starts it. A session you are already inside is not
+              looking, and sending it through the preview meant resuming a workout you were standing
+              in the middle of cost two taps and a screen you did not need. Live goes straight in. */}
+          {next && !viewingAhead && (
+            <button onClick={() => (live && onResume ? onResume(next.session, block) : onOpen(next.session, block))}
+              className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
               <Icon.play width="16" /> {live ? 'Carry on with ' : 'Open '}{next.session.name.split(' - ')[0]}
             </button>
           )}
