@@ -17434,7 +17434,26 @@ function localLoad(uid) { return idbGet('state:' + uid).then(unpackState); }
 function localSave(uid, data) { if (uid) idbSet('state:' + uid, packState(data)); }
 // A representative sample account for ?demo mode: a mid-cut male with a part-logged day, a fortnight
 // of weigh-ins trending down, a week of steps, and a hatched buddy, enough to show every surface.
+/* Built once per page, not once per call.
+
+   Every id in here is minted fresh on each run - block ids, session ids, the exercise-line ids the
+   set rows hang off - so two calls produce two states that agree about everything except which
+   objects are which. That never mattered while nothing pointed at anything by id. It matters now:
+   React invokes the seeding effect twice in development, the SECOND state is the one that ends up in
+   `db`, and anything captured from the FIRST - the Train tab reads its opening screen once, at mount
+   - is left holding ids that no longer exist. The open session pointed at a block that had been
+   replaced a tick earlier, so the router opened the player and the player could not find the session
+   it was running, which reads on screen as a session that has quietly lost its plan.
+
+   Cached and handed out as a fresh deep copy, so every caller gets its own object to mutate and they
+   all describe the same account. */
+let demoStateCache = null;
 function demoState() {
+  if (demoStateCache) return JSON.parse(JSON.stringify(demoStateCache));
+  demoStateCache = demoStateBuild();
+  return JSON.parse(JSON.stringify(demoStateCache));
+}
+function demoStateBuild() {
   const today = Store.todayISO();
   const s = Store.defaultState();
   // `?demo&premium` previews the subscriber's view, so it needs the subscription-start stamp that a
@@ -17640,6 +17659,13 @@ function demoState() {
       // steppedOut stays false, so the tab opens IN the session rather than next to it. Stepping out
       // once gets you the other half of this state: the block card reading "In progress".
       s.training.open = { atISO: today, blockId: blk.id, sessionId: sess.id, logId: 'demolog_live', freeform: false, steppedOut: false };
+      // The sample account is a kilo down, so Today fires its goal-milestone celebration on a fresh
+      // load and the running session opens underneath a full-screen overlay. Fine on plain ?demo,
+      // where the celebration is the thing being looked at, and one dismissal per reload on a flag
+      // whose whole point is landing in the session. Marking the interim kg milestones seen clears
+      // it without touching 'goal', so reaching the goal still celebrates.
+      s.profile = s.profile || {};
+      s.profile.milestonesShown = Array.from({ length: 20 }, (_, i) => 'm' + (i + 1));
     }
     // ?demo&draft  a half-read import sitting in the draft basket, exactly as a batch of screenshots
     // from a coaching app leaves it: the coach's own tag on every movement, kit the library has no
@@ -19394,7 +19420,10 @@ function App() {
   if (SPRITE_LAB) return <SpriteLab />;
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
-  const [view, setView] = useState('dashboard');
+  // `?demo&live` seeds a session already running and points t.open back at it, but t.open only
+  // routes WITHIN the Train tab, so without this the app still opens on Today and the running
+  // session is a tap away. A flag for landing mid-session should land you mid-session.
+  const [view, setView] = useState(DEMO && new URLSearchParams(window.location.search).has('live') ? 'train' : 'dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.
