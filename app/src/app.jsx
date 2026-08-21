@@ -17603,6 +17603,44 @@ function demoState() {
       blocks: [blk], logs: logs, custom: [], volumeTargets: {},
       prefs: { units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true },
     });
+    // ?demo&live  today's session already RUNNING: started half an hour ago, the first movement
+    // finished, the second part way through, and the app opening straight into the player. Every
+    // other seed leaves a session waiting to be pressed, which is the one state the runner itself is
+    // never in, so the live spine, the rest bar, the elapsed clock and the carry-on card could only
+    // be reached by lifting first. A log dated today carrying a startedAt and no endedAt is exactly
+    // what Training.sessionOpen reads as open, and t.open is what sends the router back into it.
+    if (new URLSearchParams(window.location.search).has('live')) {
+      const week = Training.weekSessions(blk, 2);
+      const sess = week[week.length - 1];
+      const sets = [];
+      sess.exercises.forEach((e, ei) => {
+        const ex = Training.byId(e.exerciseId);
+        const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+        const base = compound ? 62.5 + ei * 5 : 13 + ei * 2;
+        // Movement one is done, movement two is two sets in, nothing after it has been touched.
+        const doneCount = ei === 0 ? e.target.sets : (ei === 1 ? 2 : 0);
+        for (let i = 0; i < e.target.sets; i++) {
+          const on = i < doneCount;
+          sets.push({
+            exerciseId: e.exerciseId, itemId: e.id || null, setIndex: i, type: 'work',
+            weightKg: on ? base : 0,
+            reps: on ? e.target.repHigh - (i > 1 ? 1 : 0) : null,
+            rir: on ? e.target.rir : null,
+            done: on,
+          });
+        }
+      });
+      const itemTargets = {};
+      sess.exercises.forEach(e => { if (e.id && e.target) itemTargets[e.id] = e.target; });
+      s.training.logs.push({
+        id: 'demolog_live', dateISO: today, blockId: blk.id, sessionId: sess.id, name: sess.name,
+        startedAt: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
+        notes: '', exerciseNotes: {}, itemTargets: itemTargets, sets: sets,
+      });
+      // steppedOut stays false, so the tab opens IN the session rather than next to it. Stepping out
+      // once gets you the other half of this state: the block card reading "In progress".
+      s.training.open = { atISO: today, blockId: blk.id, sessionId: sess.id, logId: 'demolog_live', freeform: false, steppedOut: false };
+    }
     // ?demo&draft  a half-read import sitting in the draft basket, exactly as a batch of screenshots
     // from a coaching app leaves it: the coach's own tag on every movement, kit the library has no
     // version of, a line nothing could place, and a week label that says this is week four of
@@ -17653,7 +17691,11 @@ function demoState() {
   // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
   s.amber_ledger = [{ id: 'demo1', date: shiftISO(today, -2), delta: 60, reason: 'Weekly boss' }, { id: 'demo2', date: shiftISO(today, -1), delta: 15, reason: 'Daily Hunt' }, { id: 'demo3', date: today, delta: 15, reason: 'Daily Hunt' }];
   s.game_salt = 'demo-salt';
-  s.onboarding = { welcomed: true, sawDex: true, dismissed: true };
+  // eggPicked is what tells the router this is an established account. Without it the sample
+  // account, which has a named buddy and a fortnight of history, was handed the founding-member
+  // upgrade screen on every single load, so every demo link opened two taps away from the app.
+  // `?demo&egg` and `?demo&upgrade` force their own screens regardless, so both still preview.
+  s.onboarding = { welcomed: true, sawDex: true, dismissed: true, eggPicked: true };
   // ---- week-plan demo scenarios ---------------------------------------------------------------
   // ?demo&week     a trip that has just finished and never got reviewed, so opening the check-in
   //                walks the whole conversation: how was it, last week's recap, the numbers, then
