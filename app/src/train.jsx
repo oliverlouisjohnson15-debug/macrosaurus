@@ -2586,13 +2586,23 @@ function SessionSignOff({ db, facts, units, onDone }) {
           </div>
         ))}
 
-        {/* What you actually lifted, movement by movement. */}
+        {/* What you actually lifted, movement by movement.
+
+            STACKED, not two columns. It was a name on the left and every set on the right, and the
+            set list is the one thing here with no upper bound: four sets of a compound come to
+            "62.5kg x 10 · 62.5kg x 10 · 62.5kg x 9 · 62.5kg x 9", which is far wider than half a
+            phone. The number column was `shrink-0`, so it took the whole row and left the name a
+            column about one character wide - and because the app sets `overflow-wrap: break-word` on
+            this size, the name did not overflow, it WRAPPED, one letter per line, into a fifteen-line
+            tower with the weights running off the edge beside it. A row whose right-hand side has no
+            natural width cannot be a row; the two facts go one above the other, where each gets the
+            full width and the long one wraps like the sentence it is. */}
         {(facts.movements || []).length > 0 && (
           <div className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
             {facts.movements.map((m, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2.5" style={i ? { borderTop: '2px solid var(--track)' } : null}>
-                <span className="flex-1 min-w-0 text-[12px] leading-snug" style={{ color: m.logged ? 'var(--text2)' : 'var(--muted2)' }}>{m.name}</span>
-                <span className="text-[11px] tnum shrink-0 text-right" style={{ color: 'var(--muted)' }}>{m.detail}</span>
+              <div key={i} className="px-3 py-2.5" style={i ? { borderTop: '2px solid var(--track)' } : null}>
+                <div className="text-[12px] leading-snug font-bold" style={{ color: m.logged ? 'var(--text)' : 'var(--muted2)' }}>{m.name}</div>
+                <div className="text-[11px] tnum leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{m.detail}</div>
               </div>
             ))}
           </div>

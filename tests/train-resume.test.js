@@ -453,3 +453,42 @@ test('finishing a movement moves you to the next one with work left, not the nex
   // Nothing left anywhere is the end of the session, not a jump back to where you already are.
   assert.equal(A.nextUnfinished([set(true), set(true)], 0), -1, 'and it says so when there is nothing');
 });
+
+test('the receipt writes straight sets the way a lifter writes them', () => {
+  const kg = (n) => n + 'kg';
+  // The normal case is the one that was longest: four sets at one weight said the weight four times.
+  assert.equal(
+    A.setsSummary([{ weightKg: 62.5, reps: 10 }, { weightKg: 62.5, reps: 10 }, { weightKg: 62.5, reps: 9 }, { weightKg: 62.5, reps: 9 }], kg),
+    '62.5kg × 10, 10, 9, 9');
+  // A change of weight is the news, so it starts a new run rather than being folded away.
+  assert.equal(
+    A.setsSummary([{ weightKg: 60, reps: 8 }, { weightKg: 60, reps: 8 }, { weightKg: 45, reps: 12 }], kg),
+    '60kg × 8, 8 · 45kg × 12');
+  // Back UP to a weight already used is still a new run: the order is what happened.
+  assert.equal(
+    A.setsSummary([{ weightKg: 60, reps: 8 }, { weightKg: 45, reps: 12 }, { weightKg: 60, reps: 6 }], kg),
+    '60kg × 8 · 45kg × 12 · 60kg × 6');
+  // Bodyweight has no number to say, and a set ticked without reps must not read as zero reps.
+  assert.equal(A.setsSummary([{ weightKg: 0, reps: 12 }, { weightKg: 0, reps: 10 }], kg), 'BW × 12, 10');
+  assert.equal(A.setsSummary([{ weightKg: 0, reps: null }], kg), 'BW × –');
+  assert.equal(A.setsSummary([], kg), '');
+});
+
+test('there is a way to finish whether or not every set is ticked', () => {
+  // It used to appear only once everything was ticked, so the ordinary end of a session - the gym is
+  // closing and two movements are still open - reached the bottom of the screen and found no way to
+  // say it was over.
+  const part = partWayAccount({ done: [0] });
+  const ui = runner(part);
+  try {
+    assert.ok(ui.has('sets ticked'), 'the count is stated rather than a question asked: ' + ui.text.slice(-220));
+    assert.ok(!ui.has('That is every set'), 'and the committing version is held back while work is open');
+  } finally { ui.unmount(); }
+
+  // Everything ticked is a different KIND of object: the thing you came to do, so it takes the gold.
+  const all = partWayAccount({ done: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] });
+  const ui2 = runner(all);
+  try {
+    assert.ok(ui2.has('That is every set'), 'every set in gets the committing button: ' + ui2.text.slice(-220));
+  } finally { ui2.unmount(); }
+});

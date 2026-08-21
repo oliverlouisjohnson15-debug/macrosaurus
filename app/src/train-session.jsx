@@ -31,6 +31,28 @@ const SET_TYPE_TONE = { work: null, warmup: 'var(--warn)', drop: 'var(--carb-ink
  *
  * Its own function so the rule can be tested. Inside the tick handler it sits behind a 450ms timer
  * that lets the tick animation land, and a timer is not where a decision should be kept. */
+/* One movement's logged sets, written the way a lifter writes them.
+ *
+ * Set by set it came out as "62.5kg x 10 · 62.5kg x 10 · 62.5kg x 9 · 62.5kg x 9", which says the
+ * weight four times to tell you one thing: you did 62.5 for 10, 10, 9 and 9. Straight sets are the
+ * normal case, so the normal case was the longest possible way of putting it - and length is what
+ * broke the receipt row it sat in. Runs at the same weight collapse to one weight and their reps;
+ * a change of weight starts a new run, because that IS the news.
+ *
+ * `fmt` formats a weight, so the caller keeps ownership of units.
+ */
+function setsSummary(sets, fmt) {
+  const runs = [];
+  (sets || []).forEach(s => {
+    const kg = +s.weightKg > 0 ? +s.weightKg : 0;
+    const reps = s.reps == null ? '\u2013' : s.reps;
+    const last = runs[runs.length - 1];
+    if (last && last.kg === kg) last.reps.push(reps);
+    else runs.push({ kg: kg, reps: [reps] });
+  });
+  return runs.map(r => (r.kg > 0 ? fmt(r.kg) : 'BW') + ' \u00d7 ' + r.reps.join(', ')).join(' \u00b7 ');
+}
+
 function nextUnfinished(items, from) {
   const n = (items || []).length;
   for (let step = 1; step <= n; step++) {
@@ -637,7 +659,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         return {
           name: codes[ii] + ' · ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || it.exerciseId),
           detail: logged.length
-            ? logged.map(s => (s.weightKg > 0 ? toDisplayWeight(s.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + (s.reps == null ? '–' : s.reps)).join(' · ')
+            ? setsSummary(logged, kg => toDisplayWeight(kg, units) + unitLabel(units))
             : 'not logged',
           logged: logged.length > 0,
         };
@@ -1321,10 +1343,32 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           of the session is the one moment the main action changes: every set ticked, nothing left to
           do but finish. Finish otherwise stays in the header's MORE, where it belongs - it is an
           end-of-session tool and this is the end of the session. */}
-      {allWorkDone && (
+      {/* ---- the end of the session, at the end of the list ----
+          There is a way to finish here in BOTH states now. It used to appear only once every set was
+          ticked, so the ordinary end of a session - you got six of eight movements done and the gym
+          is closing - had nothing at the bottom of the screen at all, and the way out was a Finish
+          buried in the header's MORE sheet. Scrolling to the end of the work and finding no way to
+          say you are finished is the plainest kind of dead end.
+
+          The two states are different KINDS of object, not loud and quiet versions of one. Every set
+          ticked is a commit and takes the gold: it is the thing you came to do. Sets still open is a
+          secondary path, and a gold Finish sitting under a card of empty rows is an invitation to
+          stop early - so it gets the inset treatment and, more importantly, it states the score
+          rather than asking a question. "20 of 26 ticked" is a fact you can act on; "are you sure?"
+          on a button is a question asked before anybody has decided anything.
+
+          The asking belongs one step later, and already happens: the confirm dialog names how many
+          sets counted and promises that anything unticked stays on the session, which is the actual
+          worry - that finishing early throws the rest away. It does not. */}
+      {allWorkDone ? (
         <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 font-bold mb-2 fade-in"
           style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
           That is every set · finish
+        </button>
+      ) : (
+        <button onClick={() => setConfirmEnd(true)} className="pixel-box w-full h-12 text-[12.5px] mb-2"
+          style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+          {doneSets ? 'Finish here · ' + doneSets + ' of ' + totalSets + ' sets ticked' : 'Finish without logging anything'}
         </button>
       )}
 
