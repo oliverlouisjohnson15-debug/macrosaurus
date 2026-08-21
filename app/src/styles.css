@@ -20,6 +20,11 @@
   --border: #241f2e;         /* INK. The one border colour in the whole design. */
   --header: #5B4FA6;         /* top bar / bottom nav */
   --header-text: #fffdf7;
+  /* The brand bar's exact height (py-3 + a 36px row + its 3px rule), as a token because a
+     SECOND sticky bar has to pin directly underneath it and a hard-coded 63 in one file cannot
+     know when the other file changes. Not a colour, so it is deliberately outside the theme
+     overrides: both themes draw the same bar. */
+  --appbar-h: 63px;
   --hero: #2E7D6B;           /* big kcal number */
   --text: #241f2e;
   --text2: #4a4356;
@@ -195,7 +200,22 @@
 .hero-card { border-color: var(--hero-ring) !important; }
 .theme-dark .hero-card { box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
 
-html, body { background: var(--bg); overflow-x: hidden; }
+/* `overflow-x: hidden` belongs to the ROOT and only the root.
+   It was on both, and on `body` it is not a clamp, it is a scroll container: a box cannot be
+   `hidden` on one axis and `visible` on the other, so declaring it silently computes body's
+   `overflow-y` to `auto`. Body then becomes a scroller that never actually scrolls - the viewport
+   does - and every `position: sticky` descendant sticks to a scrollport that is not moving, which
+   is to say it does not stick at all. The brand bar, the session bar, the block builder's and the
+   library's headers had all been plain scrolling divs for as long as this rule has been here, which
+   is exactly the kind of fault that survives: nothing is misdrawn, a bar just fails to arrive.
+   On the root the declaration still does its job, because root overflow propagates to the viewport
+   and the sticky ancestor chain is unaffected. */
+/* The brand bar is `lg:hidden` - desktop gets the sidebar instead - so above that breakpoint there
+   is nothing to pin under and the offset has to go to zero, or every second-level sticky bar in the
+   app floats 63px down the page with a strip of paper above it. */
+@media (min-width: 1024px) { :root { --appbar-h: 0px; } }
+html { overflow-x: hidden; }
+html, body { background: var(--bg); }
 body {
   color: var(--text);
   background: var(--bg);

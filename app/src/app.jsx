@@ -17888,7 +17888,8 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
 }
 function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
   return (
-    <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+    <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 border-b-[3px]"
+      style={{ background: 'var(--header)', borderColor: 'var(--border)', height: 'var(--appbar-h)', boxSizing: 'border-box' }}>
       {/* The dino is your buddy: tap it to open the Play hub (Macrodex, egg, catches). */}
       <button onClick={onOpenPlay} aria-label="Open Play" className="flex items-center gap-2.5 text-left">
         <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
@@ -20107,14 +20108,17 @@ function App() {
   return (
     <div className="lg:pl-56">
       <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
-      {/* Hidden while a workout is being logged, for the same reason the tab bar is (see BottomNav
-          below): a session is a focused mode. Its three controls - Play, the streak, You - all LEAVE
-          the session, none of them is reachable-for mid-set, and it painted the SAME `--header`
-          purple as the session's own bar 60px underneath it. Because the session bar is `-mx-5`
-          inside the padded body and this one is full-bleed, a strip of paper sat between two
-          identical purple bands, which read as a rendering fault rather than as two levels of
-          hierarchy. The session bar takes this slot instead: same `top-0`, same purple, one bar. */}
-      {!focusMode && <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />}
+      {/* On EVERY screen, sessions included. It used to step aside for a session, which made the
+          player the one place in the app with no brand bar and no way to reach Play or You without
+          first leaving what you were doing. The tab bar still hides (see BottomNav below) and that
+          is the part that matters: hiding the TABS is what stops a session competing with four
+          sideways destinations, while hiding the app's own frame just made one screen a different
+          app. The original complaint was real but it was a drawing fault, not an argument for
+          removal - two identical purple bands with a strip of paper stranded between them. They are
+          contiguous now: the session bar pins directly under this one at `--appbar-h` with no gap,
+          which is the SubHeader relationship the rest of the app already uses for going INTO
+          something. */}
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>

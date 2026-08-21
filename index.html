@@ -63,6 +63,11 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --border: #241f2e;         /* INK. The one border colour in the whole design. */
   --header: #5B4FA6;         /* top bar / bottom nav */
   --header-text: #fffdf7;
+  /* The brand bar's exact height (py-3 + a 36px row + its 3px rule), as a token because a
+     SECOND sticky bar has to pin directly underneath it and a hard-coded 63 in one file cannot
+     know when the other file changes. Not a colour, so it is deliberately outside the theme
+     overrides: both themes draw the same bar. */
+  --appbar-h: 63px;
   --hero: #2E7D6B;           /* big kcal number */
   --text: #241f2e;
   --text2: #4a4356;
@@ -238,7 +243,22 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
 .hero-card { border-color: var(--hero-ring) !important; }
 .theme-dark .hero-card { box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
 
-html, body { background: var(--bg); overflow-x: hidden; }
+/* `overflow-x: hidden` belongs to the ROOT and only the root.
+   It was on both, and on `body` it is not a clamp, it is a scroll container: a box cannot be
+   `hidden` on one axis and `visible` on the other, so declaring it silently computes body's
+   `overflow-y` to `auto`. Body then becomes a scroller that never actually scrolls - the viewport
+   does - and every `position: sticky` descendant sticks to a scrollport that is not moving, which
+   is to say it does not stick at all. The brand bar, the session bar, the block builder's and the
+   library's headers had all been plain scrolling divs for as long as this rule has been here, which
+   is exactly the kind of fault that survives: nothing is misdrawn, a bar just fails to arrive.
+   On the root the declaration still does its job, because root overflow propagates to the viewport
+   and the sticky ancestor chain is unaffected. */
+/* The brand bar is `lg:hidden` - desktop gets the sidebar instead - so above that breakpoint there
+   is nothing to pin under and the offset has to go to zero, or every second-level sticky bar in the
+   app floats 63px down the page with a strip of paper above it. */
+@media (min-width: 1024px) { :root { --appbar-h: 0px; } }
+html { overflow-x: hidden; }
+html, body { background: var(--bg); }
 body {
   color: var(--text);
   background: var(--bg);
@@ -46854,10 +46874,12 @@ function MobileHeader({
   streak
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b-[3px]",
+    className: "lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 border-b-[3px]",
     style: {
       background: 'var(--header)',
-      borderColor: 'var(--border)'
+      borderColor: 'var(--border)',
+      height: 'var(--appbar-h)',
+      boxSizing: 'border-box'
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
@@ -52464,7 +52486,7 @@ function App() {
       mealId: meals[0].id
     }),
     onOpenPlay: () => setDexOpen(true)
-  }), !focusMode && /*#__PURE__*/React.createElement(MobileHeader, {
+  }), /*#__PURE__*/React.createElement(MobileHeader, {
     onOpenPlay: () => setDexOpen(true),
     onOpenYou: () => setView('more'),
     streak: appStreak,
@@ -54712,7 +54734,6 @@ function SessionPlayer({
     });
   });
   const [focus, setFocus] = useState(0);
-  const [queueExpanded, setQueueExpanded] = useState(false); // the "Up next" fold, past the first two
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null); // a swap that could apply to the rest of the block
@@ -55310,8 +55331,9 @@ function SessionPlayer({
         paddingBottom: rest ? '132px' : '24px'
       }
     }, /*#__PURE__*/React.createElement("div", {
-      className: "sticky top-0 z-20 -mx-5 -mt-6 border-b-[3px]",
+      className: "sticky z-20 -mx-5 -mt-6 mb-6 border-b-[3px]",
       style: {
+        top: 'var(--appbar-h)',
         background: 'var(--header)',
         borderColor: 'var(--border)'
       }
@@ -55336,14 +55358,20 @@ function SessionPlayer({
       pattern: items[focus] && (Training.byId(items[focus].exerciseId, t.custom) || {}).pattern,
       trigger: lift.n
     }), /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-0"
+      className: "flex-1 min-w-0 leading-tight"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[9.5px] uppercase truncate",
+      className: "pf text-[11px] uppercase truncate",
       style: {
         color: 'var(--header-text)',
-        letterSpacing: '0.09em'
+        letterSpacing: '0.08em'
       }
-    }, session && session.name || existing && existing.name || 'Empty session', session && session.week ? ' · Week ' + session.week : ''), past && /*#__PURE__*/React.createElement("div", {
+    }, session && session.name || existing && existing.name || 'Empty session'), /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase truncate mt-[3px]",
+      style: {
+        color: 'var(--nav-off)',
+        letterSpacing: '0.1em'
+      }
+    }, session && session.week ? 'Week ' + session.week + ' · ' : '', doneMovements, " of ", spine.length, " done"), past && /*#__PURE__*/React.createElement("div", {
       className: "pf text-[9px] uppercase mt-1",
       style: {
         color: 'var(--on-header-accent)',
@@ -55361,9 +55389,9 @@ function SessionPlayer({
         letterSpacing: '0.1em'
       }
     }, "More")), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2 px-3 pb-2"
+      className: "px-3 pb-2.5"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-[4px] flex-1 min-w-0",
+      className: "flex gap-[4px]",
       "aria-hidden": "true"
     }, spine.map((cell, i) => {
       // What is left of the cell once its finished sets are filled in: gold on the movement
@@ -55380,12 +55408,7 @@ function SessionPlayer({
           background: cell.complete ? 'var(--good)' : pct > 0 ? 'linear-gradient(to right, var(--good) 0 ' + pct + '%, ' + rest + ' ' + pct + '% 100%)' : rest
         }
       });
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "text-[10.5px] tnum shrink-0",
-      style: {
-        color: 'var(--nav-off)'
-      }
-    }, doneMovements, " / ", spine.length, " done"))), adjust && /*#__PURE__*/React.createElement(Card, {
+    })))), adjust && /*#__PURE__*/React.createElement(Card, {
       className: "p-4 mb-4",
       style: {
         background: 'color-mix(in srgb, var(--sleep) 14%, var(--surface2))'
@@ -55842,8 +55865,17 @@ function SessionPlayer({
       // right now (its full card), and what has not been touched yet. That last band used to be N
       // more full-width boxes - readable, but a leg day with six accessories after the lead lift was
       // six decisions' worth of weight for zero decisions actually pending. It becomes one "Up next"
-      // card: the next two named in full, the rest folded behind a count, because what is coming is a
-      // glance, not a list to read top to bottom.
+      // card of compact rows, which is what fixed that: the WEIGHT came from six framed boxes each
+      // with its own shadow, not from six names.
+      //
+      // Those rows are now all shown. Folding everything past the second behind "+ 5 more" was
+      // solving the same problem twice, and it cost more than it saved. What is left in a session is
+      // the single most common thing to want to know mid-set - whether to push the pace, whether the
+      // hard movement is still to come, whether to take the long rest - and the fold answered it
+      // with a number that names nothing. It was also a disclosure whose own label gave no clue what
+      // was behind it, and it hid the very rows it invited you to tap ("tap to jump"). Eight compact
+      // rows are about 300px of a page you are already scrolling; the cost of showing them is scroll,
+      // which is free, and the cost of hiding them was a decision.
       const doneRows = [],
         queueRows = [];
       items.forEach((it, ii) => {
@@ -55854,8 +55886,6 @@ function SessionPlayer({
           ii
         });
       });
-      const shownQueue = queueExpanded ? queueRows : queueRows.slice(0, 2);
-      const foldedQueue = queueRows.length - shownQueue.length;
       return /*#__PURE__*/React.createElement(React.Fragment, null, doneRows.map(({
         it,
         ii
@@ -55867,17 +55897,10 @@ function SessionPlayer({
       }, /*#__PURE__*/React.createElement(CardHead, {
         title: "Up next",
         right: String(queueRows.length)
-      }), shownQueue.map(({
+      }), queueRows.map(({
         it,
         ii
-      }) => renderRow(it, ii, true)), foldedQueue > 0 && /*#__PURE__*/React.createElement("button", {
-        onClick: () => setQueueExpanded(true),
-        className: "w-full text-left px-3 py-3 text-[12.5px]",
-        style: {
-          borderTop: '2px solid var(--border)',
-          color: 'var(--accent-ink)'
-        }
-      }, "+ ", foldedQueue, " more · tap to jump")));
+      }) => renderRow(it, ii, true))));
     })(), /*#__PURE__*/React.createElement("button", {
       onClick: () => setPicking(true),
       className: "pixel-box w-full h-12 text-[13px] mb-4",
@@ -55911,11 +55934,8 @@ function SessionPlayer({
         color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--cardhead-text)'
       }
     }, restLeft <= 0 ? 'GO' : fmtClock(restLeft)), /*#__PURE__*/React.createElement("span", {
-      className: "flex-1 min-w-0 text-[11px] leading-snug",
-      style: {
-        color: 'var(--nav-off)'
-      }
-    }, rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'), /*#__PURE__*/React.createElement("span", {
+      className: "flex-1"
+    }), /*#__PURE__*/React.createElement("span", {
       className: "sr-only",
       "aria-live": "assertive"
     }, restLeft <= 0 ? 'Rest over, next set' : ''), /*#__PURE__*/React.createElement("button", {
@@ -55951,7 +55971,12 @@ function SessionPlayer({
         letterSpacing: '0.06em'
       }
     }, "Skip")), /*#__PURE__*/React.createElement("div", {
-      className: "mt-2.5",
+      className: "mt-2 text-[12px] leading-snug truncate",
+      style: {
+        color: 'var(--nav-off)'
+      }
+    }, rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'), /*#__PURE__*/React.createElement("div", {
+      className: "mt-2",
       style: {
         height: 8,
         border: '2px solid var(--cardhead-text)',
@@ -57204,8 +57229,9 @@ function BlockPreview({
   // job; here it would bury the one or two that actually want a decision.
   const attention = cov.rows.filter(r => r.sets < r.mev || r.sets > r.mrv).sort((a, b) => (b.sets > b.mrv ? 1 : 0) - (a.sets > a.mrv ? 1 : 0)).slice(0, 3);
   return /*#__PURE__*/React.createElement("div", {
-    className: "sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3",
+    className: "sticky z-10 -mx-5 px-5 pb-2.5 mb-3",
     style: {
+      top: 'var(--appbar-h)',
       background: 'var(--bg)'
     }
   }, /*#__PURE__*/React.createElement(Card, {
@@ -62426,8 +62452,9 @@ function BlockDraft({
         color: 'var(--muted)'
       }
     }, draft.days.length, " ", draft.days.length === 1 ? 'day' : 'days', " read from your plan.", ' ', (Training.SHAPES[t.prefs.shape] || Training.SHAPES.build4).asWritten ? 'They will be built exactly as written, for four weeks.' : 'The movements and rep ranges are theirs; the ' + (t.prefs.daysPerWeek || 4) + ' sessions a week, the sets and how the ' + plannedWeeks(t.prefs) + ' weeks run come from the builder.'), /*#__PURE__*/React.createElement("div", {
-      className: "sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3",
+      className: "sticky z-10 -mx-5 px-5 pb-2.5 mb-3",
       style: {
+        top: 'var(--appbar-h)',
         background: 'var(--bg)'
       }
     }, /*#__PURE__*/React.createElement("div", {

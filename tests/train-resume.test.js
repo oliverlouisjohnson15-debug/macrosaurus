@@ -247,7 +247,10 @@ test('the spine draws one cell per movement, and the gold one is the movement yo
     assert.equal(cells.filter(el => bg(el).indexOf('--accent') !== -1).length, 1, 'exactly one is gold');
     assert.ok(bg(ahead).indexOf('--track') !== -1 && bg(ahead).indexOf('--good') === -1,
       'and one you have not reached is empty');
-    assert.ok(ui.has(partIdx + ' / ' + planned.length + ' done'), 'the count counts the same things the cells draw: ' + ui.text.slice(0, 120));
+    // The count reads "N of M done" and lives in the title now rather than on the spine's right,
+    // which is what gave the cells the full width of the bar. It still has to count MOVEMENTS, the
+    // same things the cells draw, which is the part of this that is not cosmetic.
+    assert.ok(ui.has(partIdx + ' of ' + planned.length + ' done'), 'the count counts the same things the cells draw: ' + ui.text.slice(0, 120));
   } finally { ui.unmount(); }
 });
 

@@ -1958,7 +1958,8 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           had dealt with them all was to scroll back up and count. This says it, and follows you.
           "Everything matched" is worth showing just as loudly: the fear with an importer is that it
           quietly dropped something, and the answer to that fear is a number, not silence. */}
-      <div className="sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3" style={{ background: 'var(--bg)' }}>
+      <div className="sticky z-10 -mx-5 px-5 pb-2.5 mb-3"
+        style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
         <div className="pixel-box flex items-center gap-2.5 px-2.5 py-2" style={{ background: 'var(--card)' }}>
           <span className="shrink-0 flex items-center justify-center pf text-[10px]"
             style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>

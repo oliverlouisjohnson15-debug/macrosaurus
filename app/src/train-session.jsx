@@ -136,7 +136,6 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     });
   });
   const [focus, setFocus] = useState(0);
-  const [queueExpanded, setQueueExpanded] = useState(false);   // the "Up next" fold, past the first two
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
@@ -592,7 +591,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           brand bar gone it was left stranded above this one, a cream strip along the top edge of the
           screen at scroll 0. It is not visible once you scroll, which is precisely why a bar that is
           only ever seen mid-scroll can carry a fault like this for months. */}
-      <div className="sticky top-0 z-20 -mx-5 -mt-6 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+      <div className="sticky z-20 -mx-5 -mt-6 mb-6 border-b-[3px]"
+        style={{ top: 'var(--appbar-h)', background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-2">
           {/* The way back NAMES where it goes, like every other back control in the app
               (`SubScreen`, app.jsx) - and unlike the bare chevron this replaces, which was the only
@@ -607,9 +607,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           {/* Your buddy is in the room with you for the whole hour, not only on the movement you have
               open. It is the same idle strip the header uses everywhere else, so it costs no new art. */}
           <SessionBuddy db={db} pattern={items[focus] && (Training.byId(items[focus].exerciseId, t.custom) || {}).pattern} trigger={lift.n} />
-          <div className="flex-1 min-w-0">
-            <div className="pf text-[9.5px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.09em' }}>
-              {(session && session.name) || (existing && existing.name) || 'Empty session'}{session && session.week ? ' · Week ' + session.week : ''}
+          {/* Two lines, because one could not hold it. The name, the week and the count were a single
+              9.5px pixel string competing with a back link, a sprite and a MORE button for 375px, and
+              the pixel face is about twice the width of the body face at the same size: "Lower B ·
+              Week 2" alone spent three quarters of what was left, and on a longer day name it
+              truncated to nothing. Splitting on the natural break makes the title BIGGER rather than
+              smaller, and gives the count somewhere to live that is not the end of the spine.
+
+              What each line answers is different, which is why they separate cleanly: line one is
+              WHICH session, line two is WHERE you are in it. */}
+          <div className="flex-1 min-w-0 leading-tight">
+            <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
+              {(session && session.name) || (existing && existing.name) || 'Empty session'}
+            </div>
+            <div className="pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
+              {session && session.week ? 'Week ' + session.week + ' · ' : ''}{doneMovements} of {spine.length} done
             </div>
             {/* The running clock used to sit here in gold, directly above a spine that reports the
                 same session better. After five hours it is measuring how long the phone has been
@@ -646,10 +658,16 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             It sits on the header's own purple with no rule above it, because it is the second LINE
             of one bar and not a second bar. It used to open `--card` behind a 3px border, which is
             what turned one header into two stacked ones. The cells carry their own 2px frames, so
-            they still read against the purple, and the count takes `--nav-off` - the token for
-            secondary type on this bar - now that it is no longer on card. */}
-        <div className="flex items-center gap-2 px-3 pb-2">
-          <div className="flex gap-[4px] flex-1 min-w-0" aria-hidden="true">
+            they still read against the purple.
+
+            It spans the full width now. The "3 / 8 done" count used to sit on its right, which cost
+            the bar a fixed 70px at exactly the moment it could least afford it: an eight-movement
+            leg day divided what was left into cells about 30px wide, and the one you are ON has to
+            be findable at a glance from arm's length. The count says the same thing as the cells, so
+            it is not lost by moving up into the title, where it also answers the question the title
+            line above it raises. */}
+        <div className="px-3 pb-2.5">
+          <div className="flex gap-[4px]" aria-hidden="true">
             {spine.map((cell, i) => {
               // What is left of the cell once its finished sets are filled in: gold on the movement
               // you are on, nothing on one you have not reached.
@@ -665,9 +683,6 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               );
             })}
           </div>
-          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--nav-off)' }}>
-            {doneMovements} / {spine.length} done
-          </span>
         </div>
       </div>
 
@@ -1073,16 +1088,23 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // right now (its full card), and what has not been touched yet. That last band used to be N
       // more full-width boxes - readable, but a leg day with six accessories after the lead lift was
       // six decisions' worth of weight for zero decisions actually pending. It becomes one "Up next"
-      // card: the next two named in full, the rest folded behind a count, because what is coming is a
-      // glance, not a list to read top to bottom.
+      // card of compact rows, which is what fixed that: the WEIGHT came from six framed boxes each
+      // with its own shadow, not from six names.
+      //
+      // Those rows are now all shown. Folding everything past the second behind "+ 5 more" was
+      // solving the same problem twice, and it cost more than it saved. What is left in a session is
+      // the single most common thing to want to know mid-set - whether to push the pace, whether the
+      // hard movement is still to come, whether to take the long rest - and the fold answered it
+      // with a number that names nothing. It was also a disclosure whose own label gave no clue what
+      // was behind it, and it hid the very rows it invited you to tap ("tap to jump"). Eight compact
+      // rows are about 300px of a page you are already scrolling; the cost of showing them is scroll,
+      // which is free, and the cost of hiding them was a decision.
       const doneRows = [], queueRows = [];
       items.forEach((it, ii) => {
         if (ii === focus) return;
         const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
         ((work.length > 0 && work.every(s => s.done)) ? doneRows : queueRows).push({ it, ii });
       });
-      const shownQueue = queueExpanded ? queueRows : queueRows.slice(0, 2);
-      const foldedQueue = queueRows.length - shownQueue.length;
 
       return (
         <>
@@ -1091,13 +1113,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           {queueRows.length > 0 && (
             <div className="pixel-box mb-4 overflow-hidden" style={{ background: 'var(--card)' }}>
               <CardHead title="Up next" right={String(queueRows.length)} />
-              {shownQueue.map(({ it, ii }) => renderRow(it, ii, true))}
-              {foldedQueue > 0 && (
-                <button onClick={() => setQueueExpanded(true)} className="w-full text-left px-3 py-3 text-[12.5px]"
-                  style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
-                  + {foldedQueue} more · tap to jump
-                </button>
-              )}
+              {queueRows.map(({ it, ii }) => renderRow(it, ii, true))}
             </div>
           )}
         </>
@@ -1138,15 +1154,22 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       {rest && (
         <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-3"
           style={{ background: 'var(--cardhead-bg)', borderColor: 'var(--border)', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
+          {/* Two rows, because the five things on this bar do not share one.
+              The ring, a 20px pixel clock and three 44px targets are all fixed-width and all
+              non-negotiable - the clock is read across a gym, and the buttons are pressed one-handed
+              with chalk on - which left the one flexible item, the line naming what is next, with
+              about fifteen pixels. It wrapped to four lines of two or three characters and made the
+              bar taller than the thing it was squeezing. Since the FLEX item is the one that has to
+              give, give it the whole width instead: controls on one row, the sentence on the next.
+              It is also the half of this bar you read rather than see, so a full-width line at a
+              readable size is what it wanted in the first place. */}
           <div className="flex items-center gap-2.5">
             <RestRing left={restLeft} total={rest.seconds} db={db} />
             <span className="pf text-[20px] tnum shrink-0" role="timer"
               style={{ color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--cardhead-text)' }}>
               {restLeft <= 0 ? 'GO' : fmtClock(restLeft)}
             </span>
-            <span className="flex-1 min-w-0 text-[11px] leading-snug" style={{ color: 'var(--nav-off)' }}>
-              {rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'}
-            </span>
+            <span className="flex-1" />
             {/* The timer finishing was announced by a beep and a colour, both of which are no use to
                 a screen reader. Only the transition is announced, never the count: a polite region
                 on a per-second value would read the whole two minutes out loud. */}
@@ -1160,7 +1183,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             <button onClick={() => setRest(null)} aria-label="Skip rest"
               className="shrink-0 h-11 px-3 pf text-[9px] uppercase" style={{ border: '2px solid var(--accent)', background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>Skip</button>
           </div>
-          <div className="mt-2.5" style={{ height: 8, border: '2px solid var(--cardhead-text)', background: 'rgba(255,253,247,0.14)' }}>
+          <div className="mt-2 text-[12px] leading-snug truncate" style={{ color: 'var(--nav-off)' }}>
+            {rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'}
+          </div>
+          <div className="mt-2" style={{ height: 8, border: '2px solid var(--cardhead-text)', background: 'rgba(255,253,247,0.14)' }}>
             <div style={{
               height: '100%', background: 'var(--accent)', transition: 'width 1s linear',
               width: (rest.seconds > 0 ? Math.max(0, restLeft / rest.seconds * 100) : 0) + '%',

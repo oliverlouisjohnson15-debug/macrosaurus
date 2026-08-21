@@ -108,7 +108,8 @@ function BlockPreview({ preview, changeLine, brought, sourceCount }) {
     .sort((a, b) => (b.sets > b.mrv ? 1 : 0) - (a.sets > a.mrv ? 1 : 0)).slice(0, 3);
 
   return (
-    <div className="sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3" style={{ background: 'var(--bg)' }}>
+    <div className="sticky z-10 -mx-5 px-5 pb-2.5 mb-3"
+        style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
       <Card className="p-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2.5" style={{ background: 'var(--cardhead-bg)' }}>
           <span className="pf text-[8px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
