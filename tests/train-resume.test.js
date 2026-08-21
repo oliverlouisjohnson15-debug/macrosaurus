@@ -323,3 +323,133 @@ test('a running session asks for the screen, and gives it back', () => {
   ui.unmount();
   assert.deepEqual(seen, [true, false], 'and hands the chrome back when it closes: ' + JSON.stringify(seen));
 });
+
+// ---- the session runner, after the "tick-first" pass -------------------------------------------
+
+// A session part-way through, plus a WEEK OF HISTORY behind it, which is what makes "last time" a
+// real number rather than a null. `done` sets are what the movement did today.
+function partWayAccount(opts) {
+  const o = opts || {};
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  const planned = (session.exercises || []).slice().sort((a, b) => a.order - b.order);
+  const today = A.Store.todayISO();
+  // Last week: every movement done at 60kg for 8, so every row has something to carry forward.
+  const before = {
+    id: 'log_prev', dateISO: shift(today, -7), blockId: block.id, sessionId: session.id,
+    name: session.name, startedAt: shift(today, -7) + 'T09:00:00.000Z', endedAt: shift(today, -7) + 'T10:00:00.000Z',
+    sets: planned.reduce((a, e) => a.concat(Array.from({ length: e.target.sets || 2 }, (_, si) => ({
+      exerciseId: e.exerciseId, itemId: e.id, setIndex: si, type: 'work',
+      weightKg: 60, reps: 8, rir: 1, done: true,
+    }))), []),
+  };
+  // Today: the movements named in `done` are finished, everything else is untouched and EMPTY -
+  // which is what the effort-not-load rule leaves in the weight box.
+  const doneIdx = o.done || [];
+  const now = {
+    id: 'log_live', dateISO: today, blockId: block.id, sessionId: session.id, name: session.name,
+    startedAt: today + 'T09:00:00.000Z', endedAt: null,
+    sets: planned.reduce((a, e, mi) => a.concat(Array.from({ length: e.target.sets || 2 }, (_, si) => ({
+      exerciseId: e.exerciseId, itemId: e.id, setIndex: si, type: 'work',
+      weightKg: doneIdx.indexOf(mi) >= 0 ? 62.5 : 0,
+      reps: doneIdx.indexOf(mi) >= 0 ? 8 : null,
+      rir: doneIdx.indexOf(mi) >= 0 ? 1 : null,
+      done: doneIdx.indexOf(mi) >= 0,
+    }))), []),
+  };
+  db.training.logs = o.noHistory ? [now] : [before, now];
+  return { db, block, session, planned };
+}
+
+function runner(fx, onWrite) {
+  let live = fx.db;
+  return mount(A.SessionPlayer, {
+    db: live, showToast() {}, onExit() {}, onFinish() {}, onFocusMode() {},
+    sessionId: fx.session.id, blockId: fx.block.id,
+    update(fn) { fn(live); onWrite && onWrite(live); },
+  });
+}
+
+test('resuming a session brings "last time" back with it', () => {
+  // `lastTime` is worked out from your history when a session is first laid out, and it was not
+  // rebuilt on the way back in - so every weight placeholder and every carry-forward vanished the
+  // moment a phone locked itself between sets, which is the NORMAL way to be in a session.
+  const fx = partWayAccount();
+  const ui = runner(fx);
+  try {
+    const kg = Array.from(ui.host.querySelectorAll('input[inputmode="decimal"]'));
+    assert.ok(kg.length, 'the runner drew its weight column');
+    assert.ok(kg.some(el => el.getAttribute('placeholder') === '60'),
+      'last week\'s 60kg is offered as the placeholder on a resumed session: '
+      + JSON.stringify(kg.map(el => el.getAttribute('placeholder'))));
+  } finally { ui.unmount(); }
+});
+
+test('a bare tick logs last time\'s weight, and never invents an RIR', () => {
+  // The box opens empty under the effort-not-load rule, so a tick with nothing typed used to log a
+  // set of NO weight: no tonnage, no e1RM, no record check. "The same as last time" is the one
+  // honest thing to write there. Effort is not - it is the one number only the lifter has.
+  const fx = partWayAccount();
+  let wrote = null;
+  const ui = runner(fx, (d) => { wrote = d; });
+  try {
+    const tick = Array.from(ui.host.querySelectorAll('button'))
+      .filter(b => /^Mark set \d done$/.test(b.getAttribute('aria-label') || ''))[0];
+    assert.ok(tick, 'there is an unticked set to press');
+    ui.clickEl(tick);
+    const log = wrote.training.logs.filter(l => l.id === 'log_live')[0];
+    const first = log.sets.filter(s => s.done)[0];
+    assert.equal(first.weightKg, 60, 'the weight came forward from last time');
+    assert.ok(first.reps > 0, 'and the reps came from what was being asked for');
+    assert.equal(first.rir, null, 'but the effort is left blank rather than assumed');
+  } finally { ui.unmount(); }
+});
+
+test('with no history behind it, a bare tick leaves the weight alone', () => {
+  // There is nothing honest to carry forward on a movement you have never done, and inventing one
+  // is the thing this whole rule exists to stop.
+  const fx = partWayAccount({ noHistory: true });
+  let wrote = null;
+  const ui = runner(fx, (d) => { wrote = d; });
+  try {
+    const tick = Array.from(ui.host.querySelectorAll('button'))
+      .filter(b => /^Mark set \d done$/.test(b.getAttribute('aria-label') || ''))[0];
+    ui.clickEl(tick);
+    const log = wrote.training.logs.filter(l => l.id === 'log_live')[0];
+    assert.equal(log.sets.filter(s => s.done)[0].weightKg, 0, 'no last time, no weight');
+  } finally { ui.unmount(); }
+});
+
+test('the warm-up offer is made where a ramp would follow, and retires once it is taken', () => {
+  // The ramp is worked out FROM the weight in set one, and set one opens empty, so the feature was
+  // invisible to exactly the people who had never found it.
+  const fx = partWayAccount();
+  const ui = runner(fx);
+  try {
+    assert.ok(ui.has('Put it in set 1'), 'the offer is on the movement you are on: ' + ui.text.slice(0, 300));
+  } finally { ui.unmount(); }
+
+  const seen = partWayAccount();
+  seen.db.training.prefs = Object.assign({}, seen.db.training.prefs, { sawWarmupHint: true });
+  const ui2 = runner(seen);
+  try {
+    assert.ok(!ui2.has('Put it in set 1'), 'and it is gone once you have typed a weight yourself');
+  } finally { ui2.unmount(); }
+});
+
+test('finishing a movement moves you to the next one with work left, not the next one along', () => {
+  // Sessions get done out of order - a rack is busy, so the accessory goes first - and advancing
+  // blindly to ii + 1 landed you on a card of ticks you had already filled.
+  const set = (done) => ({ sets: [{ done: done }, { done: done }] });
+  const items = [set(true), set(true), set(false), set(false)];
+  assert.equal(A.nextUnfinished(items, 0), 2, 'movement 1 is already done, so it is skipped');
+  assert.equal(A.nextUnfinished(items, 2), 3, 'and the ordinary case still goes to the next one');
+  // Out of order cuts both ways: finish the last thing first and everything left is ABOVE you.
+  assert.equal(A.nextUnfinished([set(false), set(true), set(true)], 2), 0, 'it wraps to the start');
+  // A part-finished movement is still work.
+  assert.equal(A.nextUnfinished([set(true), { sets: [{ done: true }, { done: false }] }], 0), 1,
+    'one set left is still one set left');
+  // Nothing left anywhere is the end of the session, not a jump back to where you already are.
+  assert.equal(A.nextUnfinished([set(true), set(true)], 0), -1, 'and it says so when there is nothing');
+});

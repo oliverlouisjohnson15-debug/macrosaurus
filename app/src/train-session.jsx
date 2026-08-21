@@ -21,6 +21,27 @@ const SET_TYPES = [
 ];
 const SET_TYPE_TONE = { work: null, warmup: 'var(--warn)', drop: 'var(--carb-ink)', failure: 'var(--danger)' };
 
+/* Where to go once a movement is finished: the next one with work left in it, wrapping to the start.
+ *
+ * NOT the next one along. Sessions get done out of order - a rack is busy, so you take the accessory
+ * first, or you jump to the thing by the door before somebody else does - and advancing blindly to
+ * `from + 1` lands you on a card of ticks you already filled, with the movement you actually have
+ * left further down and nothing saying so. Wraps because "out of order" cuts both ways: finish the
+ * fourth movement first and everything still to do is ABOVE you.
+ *
+ * Its own function so the rule can be tested. Inside the tick handler it sits behind a 450ms timer
+ * that lets the tick animation land, and a timer is not where a decision should be kept. */
+function nextUnfinished(items, from) {
+  const n = (items || []).length;
+  for (let step = 1; step <= n; step++) {
+    const i = (from + step) % n;
+    if (i === from) break;
+    const it = items[i];
+    if (it && it.sets && it.sets.some(s => !s.done)) return i;
+  }
+  return -1;
+}
+
 /* `onExit` steps OUT of the session and leaves it open, so the tab can offer it straight back.
    `onFinish` ends it. Two different things, and until now one control did both: leaving threw away
    the record that you were mid-session, which is why walking out to check a macro felt identical to
@@ -76,11 +97,36 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // movement with both sets under it and one of the two prescriptions gone. Logs written from
       // now on carry the item they belong to; older ones fall back to the old grouping, which is
       // exactly as right as it ever was.
+      //
+      // And `lastTime` was not rebuilt at all. It is not stored on the log - it is worked out from
+      // your history when the session is first laid out - so coming back to a session lost every
+      // weight placeholder and every "same as last time" the runner leans on. That is backwards:
+      // resuming is the NORMAL way to be in a session, because a phone locks itself between sets,
+      // and the state you spend an hour in was the state with the least help in it.
+      const lastFor = {};
+      (session && session.exercises ? session.exercises : []).concat(
+        (existing.sets || []).map(sx => ({ exerciseId: sx.exerciseId }))
+      ).forEach(e => {
+        if (!e || lastFor[e.exerciseId] !== undefined) return;
+        const hist = Training.exerciseHistory(t.logs, e.exerciseId)
+          .filter(h => h.dateISO !== (existing.dateISO || today));
+        const prevDay = hist.length ? hist[hist.length - 1] : null;
+        lastFor[e.exerciseId] = prevDay
+          ? (t.logs.filter(l => l.dateISO === prevDay.dateISO && l.id !== existing.id)[0] || { sets: [] }).sets
+            .filter(sx => sx.exerciseId === e.exerciseId && sx.done && (!sx.type || sx.type === 'work'))
+          : [];
+      });
       const order = [], byKey = {};
       (existing.sets || []).forEach(s => {
         const key = s.itemId || s.exerciseId;
         if (!byKey[key]) { byKey[key] = { exerciseId: s.exerciseId, itemId: s.itemId || null, sets: [] }; order.push(key); }
-        byKey[key].sets.push(Object.assign({}, s));
+        const prevList = lastFor[s.exerciseId] || [];
+        // Set for set where the counts line up, and otherwise the last one they did - the same rule
+        // the fresh lay-out uses, so a resumed row and a fresh row never disagree about last time.
+        const prev = prevList[byKey[key].sets.length] || prevList[prevList.length - 1];
+        byKey[key].sets.push(Object.assign({}, s, {
+          lastTime: s.lastTime || (prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null),
+        }));
       });
       const planned = (session && session.exercises) || [];
       const used = {};
@@ -136,6 +182,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     });
   });
   const [focus, setFocus] = useState(0);
+  /* Two refs on the open movement, because "have I lost it" and "take me back to it" are different
+     questions about different boxes. The rows are what you LOSE - the card's last hundred pixels are
+     a note field and three tools, and counting those as the movement being visible means the bar
+     stays quiet at exactly the moment every row has gone. The card is where you want to be RETURNED
+     to: land on the rows and you arrive with the movement's name, its prescription and half its sets
+     already scrolled past above you. */
+  const openRowsRef = useRef(null);
+  const openCardRef = useRef(null);
+  const [openOffScreen, setOpenOffScreen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
@@ -277,7 +332,56 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       return next;
     });
   }
-  function setField(ii, si, key, value) { mutate(n => { n[ii].sets[si][key] = value; }); }
+  /* Is the movement you are ON still on screen?
+
+     Scrolling down to see what is coming is the most common thing anyone does mid-session, and it
+     used to cost you the set you were in the middle of: you looked, then scrolled back hunting for
+     the card, because nothing pinned said which one it was. A sticky card header would answer it,
+     and would also cost 46px on top of the 140px the brand bar and the session bar already hold -
+     nearly a quarter of the screen given over to chrome on a phone.
+
+     So nothing new is pinned. The bar that is ALREADY pinned changes what it says: while the open
+     card is in view it names the session, and once the card is gone it names the movement instead
+     and offers the way back. The spine underneath does not change, so the session-level anchor is
+     never lost, and neither reading is ever on screen at the same time as the thing it duplicates.
+
+     The margin is the pinned chrome. Without it the card counts as visible while it sits behind the
+     two bars, which is the one position where you can see least and most need telling. */
+  useEffect(() => {
+    const el = openRowsRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') { setOpenOffScreen(false); return; }
+    const io = new IntersectionObserver(
+      es => setOpenOffScreen(!es[es.length - 1].isIntersecting),
+      { rootMargin: '-146px 0px 0px 0px', threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [focus, items.length]);
+  // Back to the set you are on. Also used when you tap what is next from the rest bar, so "take me
+  // there" is one behaviour with one implementation rather than two that drift.
+  function scrollToOpen() {
+    const el = openCardRef.current;
+    if (!el || !el.scrollIntoView) return;
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { el.scrollIntoView(); }
+  }
+  function goTo(ii) {
+    setFocus(ii);
+    setPlateFor(null);
+    setMenuOpen(null);
+    // After the focus change has been painted, or there is nothing at the new position to scroll to.
+    setTimeout(scrollToOpen, 60);
+  }
+
+  function setField(ii, si, key, value) {
+    mutate(n => { n[ii].sets[si][key] = value; });
+    // Typing a weight by hand is the moment the warm-up hint has done its job, so it retires itself
+    // rather than repeating on all eight movements of every session forever. A hint that outstays
+    // the thing it is teaching stops reading as help and starts reading as chrome. The rule itself
+    // is written up in "How your plan is built", which is where it lives permanently.
+    if (key === 'weightKg' && +value > 0 && !t.prefs.sawWarmupHint) {
+      trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { sawWarmupHint: true }); });
+    }
+  }
   function cycleType(ii, si) {
     mutate(n => {
       const cur = n[ii].sets[si].type || 'work';
@@ -294,7 +398,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // back straight afterwards is the old value. That is why the record check silently never fired.
     const tgt = items[ii].target;
     const filled = {
-      weightKg: +row.weightKg || 0,
+      // The carry-over above is part of what the set WILL be, so the record check has to see it too.
+      // Read from the row alone and a personal best logged by a bare tick went uncelebrated.
+      weightKg: (+row.weightKg || 0) || (row.lastTime && +row.lastTime.weightKg > 0 && !wasDone ? +row.lastTime.weightKg : 0),
       reps: (row.reps == null || row.reps === '')
         ? (tgt ? tgt.repHigh : (row.lastTime ? row.lastTime.reps : null))
         : +row.reps,
@@ -303,6 +409,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       const s = n[ii].sets[si];
       s.done = !s.done;
       if (s.done && (s.reps == null || s.reps === '')) s.reps = filled.reps;
+      // And the weight, but ONLY from a real last time, and only into the box where you can see it.
+      //
+      // This is a change of mind, so it is worth saying what changed. The rule was that ticking must
+      // never write a weight, because a weight the app invented is a weight you did not lift. That
+      // is still true of an invented one. But the box opens EMPTY under the effort-not-load rule, so
+      // a tick with nothing typed was logging a set of no weight at all: no tonnage, no e1RM, no
+      // record check, a hole in the history that the progression then reads. The set was silently
+      // worse than not logged.
+      //
+      // What is written here is not a prescription and never appears before you act. Nothing is
+      // suggested up front, the headline still talks in reps and effort, and this lands only once
+      // you have said the set happened - at which point "the same as last time" is the single most
+      // likely truth, and it is written into the field in plain sight where one tap corrects it.
+      // With no last time there is nothing honest to write, so it stays empty.
+      if (s.done && !(+s.weightKg > 0) && s.lastTime && +s.lastTime.weightKg > 0) s.weightKg = +s.lastTime.weightKg;
     });
     if (wasDone) return;   // un-ticking should never start a rest, or claim a record
 
@@ -349,9 +470,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // still unlogged. When there is none left, the movement is done and saying so is the point.
       const workRows = it.sets.map((s, i) => ({ s: s, i: i })).filter(x => (x.s.type || 'work') !== 'warmup');
       const nextPos = workRows.findIndex(x => x.i !== si && !x.s.done);
+      // Where it is, as well as what it is called: the line naming your next set is the one thing on
+      // this bar you might want to ACT on, and it was text.
+      const nextMovement = nextUnfinished(items, ii);
       setRest({
         endsAt: Date.now() + secs * 1000, seconds: secs, alerted: false,
         from: nextPos < 0 ? null : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length,
+        goIi: nextPos < 0 ? (nextMovement >= 0 ? nextMovement : null) : ii,
       });
     }
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
@@ -362,8 +487,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // that means "that is the last of those, the card is about to change under you".
       try { if (navigator.vibrate) navigator.vibrate([14, 60, 22]); } catch (_) {}
     }
-    if (allDone && ii === focus && ii < items.length - 1) {
-      setTimeout(() => setFocus(f => (f === ii ? ii + 1 : f)), 450);
+    if (allDone && ii === focus) {
+      // The next thing with work left in it, which is not the same as the next one along. Sessions
+      // get done out of order - a rack is busy, so you take the accessory first - and advancing
+      // blindly to ii + 1 landed you on a card of ticks you had already filled, with the actual next
+      // movement further down and nothing saying so.
+      const nextUp = nextUnfinished(items, ii);
+      if (nextUp >= 0) setTimeout(() => setFocus(f => (f === ii ? nextUp : f)), 450);
     }
   }
   function addSet(ii) {
@@ -569,6 +699,23 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const allWorkDone = totalSets > 0 && doneSets === totalSets;
   const codes = Training.sessionCodes(items);
+  /* Roughly how much session is left, by the same arithmetic that told you "about 76 min" when you
+     picked the day: sets still to do, times their own rest plus the forty seconds the set takes.
+     Counted from what is LEFT rather than from the clock, so stopping to talk to somebody does not
+     make it claim you are behind - the app has no way of knowing you were resting, and a tracker
+     that tells you off for chatting is a tracker people stop opening.
+
+     Deliberately a fact and not a pace judgement. "Running long" is a number plus an opinion about
+     how you should be spending your evening, and this app does not hold opinions about that. */
+  const minsLeft = Math.round(items.reduce((a, it) => {
+    const left = it.sets.filter(sx => !sx.done && (sx.type || 'work') !== 'warmup').length;
+    return a + left * ((((it.target && it.target.restSec) || 120) + 40) / 60);
+  }, 0));
+  // The movement you are on, for the bar to name once its card has scrolled away.
+  const focusIt = items[focus];
+  const focusEx = focusIt && Training.byId(focusIt.exerciseId, t.custom);
+  const focusWork = focusIt ? focusIt.sets.filter(sx => (sx.type || 'work') !== 'warmup') : [];
+  const focusNext = focusWork.findIndex(sx => !sx.done);
 
   return (
     // Finish rides at the end of the list now, so the only thing to clear is the rest bar, and only
@@ -617,12 +764,30 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               What each line answers is different, which is why they separate cleanly: line one is
               WHICH session, line two is WHERE you are in it. */}
           <div className="flex-1 min-w-0 leading-tight">
-            <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
-              {(session && session.name) || (existing && existing.name) || 'Empty session'}
-            </div>
-            <div className="pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
-              {session && session.week ? 'Week ' + session.week + ' · ' : ''}{doneMovements} of {spine.length} done
-            </div>
+            {/* Two readings of the same bar, one at a time. While the open card is on screen this
+                names the SESSION, which is what a header is for. Once the card has scrolled out from
+                under the chrome it names the MOVEMENT and becomes the way back to it, because at
+                that moment "which session is this" is a question nobody has and "where was I" is the
+                only question anybody has. Nothing new is pinned to do it. */}
+            {openOffScreen && focusEx ? (
+              <button onClick={scrollToOpen} className="w-full text-left" aria-label={'Back to ' + focusEx.name}>
+                <span className="block pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
+                  {codes[focus]} {focusEx.name}
+                </span>
+                <span className="block pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>
+                  {focusNext < 0 ? 'All sets in' : 'Set ' + (focusNext + 1) + ' of ' + focusWork.length} · Tap to go back
+                </span>
+              </button>
+            ) : (
+              <>
+                <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
+                  {(session && session.name) || (existing && existing.name) || 'Empty session'}
+                </div>
+                <div className="pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
+                  {session && session.week ? 'Week ' + session.week + ' · ' : ''}{doneMovements} of {spine.length} done
+                </div>
+              </>
+            )}
             {/* The running clock used to sit here in gold, directly above a spine that reports the
                 same session better. After five hours it is measuring how long the phone has been
                 unlocked, not how the session is going, and it was the more prominent of the two
@@ -774,8 +939,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
         return (
           <div key={it.exerciseId + '_' + ii}
+            ref={open ? openCardRef : null}
             className={grouped ? '' : 'pixel-box mb-4'}
-            style={grouped ? { borderTop: '2px solid var(--border)' } : { background: 'var(--card)' }}>
+            style={Object.assign(
+              grouped ? { borderTop: '2px solid var(--border)' } : { background: 'var(--card)' },
+              // `scrollIntoView` aligns to the top of the SCROLLPORT, which is underneath 140px of
+              // pinned bars, so without this the card is returned to with its header behind the
+              // chrome. The browser owns this offset; doing it by hand means measuring the bars.
+              open ? { scrollMarginTop: 'calc(var(--appbar-h) + 90px)' } : null,
+            )}>
             {/* ---- header, always visible ----
                 The movement you are ON gets the design's filled ink title bar, the same object every
                 panel in this design opens with. The others stay as light rows. That one difference
@@ -901,6 +1073,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   );
                 })()}
 
+                {/* Say that the warm-up exists, to the only people who cannot see it.
+                    The ramp below is worked out FROM the weight in set one, and set one opens empty,
+                    so on a fresh movement the feature was invisible: a line that only appears once
+                    you have done the thing that makes it appear teaches nobody it is there. This is
+                    the offer, and it is careful to be an offer - the app is not asking what you
+                    should lift or telling you what to, it is saying that if you happen to have a
+                    number in mind it will do the arithmetic around it. Shown only where a ramp would
+                    actually follow, so it never promises something it will not deliver. */}
+                {!t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0)
+                  && Training.warmupSets(60, ex, { count: it.warmups }).length > 0 && (
+                  <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+                    Got a weight in mind? Put it in set 1 and a warm-up is worked out for it.
+                  </div>
+                )}
+
                 {/* Warm-up, only until you have started. Once the first working set is in, telling
                     you what to warm up with is stale advice taking up a third of the card. */}
                 {warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
@@ -933,7 +1120,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   </div>
                 )}
 
-                {/* ---- set table ---- */}
+                {/* ---- set table ----
+                    The ref the session bar watches is on the ROWS, not on the card around them.
+                    A card is mostly not the set you are on: its last hundred pixels are a note field
+                    and three tools, and while those are on screen the card counts as visible even
+                    though every row you could log into has gone. Watching the rows asks the question
+                    the bar actually answers, which is "can I still reach my next set from here". */}
+                <div ref={open ? openRowsRef : null}>
                 <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[7px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
                   <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
@@ -1057,6 +1250,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     </div>
                   );
                 })}
+                </div>
 
                 <button onClick={() => addSet(ii)} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add set</button>
 
@@ -1183,8 +1377,34 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             <button onClick={() => setRest(null)} aria-label="Skip rest"
               className="shrink-0 h-11 px-3 pf text-[9px] uppercase" style={{ border: '2px solid var(--accent)', background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>Skip</button>
           </div>
-          <div className="mt-2 text-[12px] leading-snug truncate" style={{ color: 'var(--nav-off)' }}>
-            {rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'}
+          {/* The line you read while you are doing nothing else, so it carries the two facts worth
+              having at that moment: what is next, and how much is left.
+
+              What is next is a BUTTON. It was the one thing on this bar you might want to act on and
+              it was text, so the way to your next set was to dismiss the timer, scroll, and find the
+              card yourself. Resting is exactly when a tracker should be doing that for you.
+
+              The time is the plan's own arithmetic over the sets still to do - the same sum behind
+              "about 76 min" on the card you started from - and it is a fact, not a verdict. It reads
+              off remaining WORK rather than off the clock, so a long chat with somebody at the water
+              fountain does not turn into the app telling you that you are behind. */}
+          <div className="mt-2 flex items-baseline gap-3">
+            {rest.goIi != null ? (
+              <button onClick={() => { goTo(rest.goIi); setRest(null); }}
+                className="flex-1 min-w-0 text-left text-[12px] leading-snug truncate"
+                style={{ color: 'var(--cardhead-text)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                {rest.from ? 'Next: ' + rest.from : 'Next movement is ready'} &rsaquo;
+              </button>
+            ) : (
+              <span className="flex-1 min-w-0 text-[12px] leading-snug truncate" style={{ color: 'var(--nav-off)' }}>
+                {rest.from ? 'Next: ' + rest.from : 'That is the last of them'}
+              </span>
+            )}
+            {minsLeft > 0 && (
+              <span className="pf text-[9px] uppercase shrink-0 tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>
+                ~{minsLeft} min left
+              </span>
+            )}
           </div>
           <div className="mt-2" style={{ height: 8, border: '2px solid var(--cardhead-text)', background: 'rgba(255,253,247,0.14)' }}>
             <div style={{

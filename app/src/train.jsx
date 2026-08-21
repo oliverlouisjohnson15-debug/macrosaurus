@@ -2408,6 +2408,8 @@ function HowItWorks({ onBack }) {
       'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'],
     ['Effort in reps left, not "to failure"',
       'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'],
+    ['Warm-ups follow your number, they do not set it',
+      'The app never puts a working weight in the box. What it will do is build the ramp up to one: type the weight you are aiming for into set one and a warm-up appears above the table, scaled to that load and to the movement. Heavy compounds earn several rungs, isolation earns one easy set at most, and where your plan states how many warm-up sets a movement wants, the author\u2019s number wins. Nothing is logged and nothing is ticked. If you would rather warm up your own way, ignore it and nothing changes.'],
     ['Reps before weight',
       'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'],
     ['Falling numbers mean less, not more',

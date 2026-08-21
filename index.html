@@ -54584,6 +54584,27 @@ const SET_TYPE_TONE = {
   failure: 'var(--danger)'
 };
 
+/* Where to go once a movement is finished: the next one with work left in it, wrapping to the start.
+ *
+ * NOT the next one along. Sessions get done out of order - a rack is busy, so you take the accessory
+ * first, or you jump to the thing by the door before somebody else does - and advancing blindly to
+ * `from + 1` lands you on a card of ticks you already filled, with the movement you actually have
+ * left further down and nothing saying so. Wraps because "out of order" cuts both ways: finish the
+ * fourth movement first and everything still to do is ABOVE you.
+ *
+ * Its own function so the rule can be tested. Inside the tick handler it sits behind a 450ms timer
+ * that lets the tick animation land, and a timer is not where a decision should be kept. */
+function nextUnfinished(items, from) {
+  const n = (items || []).length;
+  for (let step = 1; step <= n; step++) {
+    const i = (from + step) % n;
+    if (i === from) break;
+    const it = items[i];
+    if (it && it.sets && it.sets.some(s => !s.done)) return i;
+  }
+  return -1;
+}
+
 /* `onExit` steps OUT of the session and leaves it open, so the tab can offer it straight back.
    `onFinish` ends it. Two different things, and until now one control did both: leaving threw away
    the record that you were mid-session, which is why walking out to check a macro felt identical to
@@ -54652,6 +54673,23 @@ function SessionPlayer({
       // movement with both sets under it and one of the two prescriptions gone. Logs written from
       // now on carry the item they belong to; older ones fall back to the old grouping, which is
       // exactly as right as it ever was.
+      //
+      // And `lastTime` was not rebuilt at all. It is not stored on the log - it is worked out from
+      // your history when the session is first laid out - so coming back to a session lost every
+      // weight placeholder and every "same as last time" the runner leans on. That is backwards:
+      // resuming is the NORMAL way to be in a session, because a phone locks itself between sets,
+      // and the state you spend an hour in was the state with the least help in it.
+      const lastFor = {};
+      (session && session.exercises ? session.exercises : []).concat((existing.sets || []).map(sx => ({
+        exerciseId: sx.exerciseId
+      }))).forEach(e => {
+        if (!e || lastFor[e.exerciseId] !== undefined) return;
+        const hist = Training.exerciseHistory(t.logs, e.exerciseId).filter(h => h.dateISO !== (existing.dateISO || today));
+        const prevDay = hist.length ? hist[hist.length - 1] : null;
+        lastFor[e.exerciseId] = prevDay ? (t.logs.filter(l => l.dateISO === prevDay.dateISO && l.id !== existing.id)[0] || {
+          sets: []
+        }).sets.filter(sx => sx.exerciseId === e.exerciseId && sx.done && (!sx.type || sx.type === 'work')) : [];
+      });
       const order = [],
         byKey = {};
       (existing.sets || []).forEach(s => {
@@ -54664,7 +54702,16 @@ function SessionPlayer({
           };
           order.push(key);
         }
-        byKey[key].sets.push(Object.assign({}, s));
+        const prevList = lastFor[s.exerciseId] || [];
+        // Set for set where the counts line up, and otherwise the last one they did - the same rule
+        // the fresh lay-out uses, so a resumed row and a fresh row never disagree about last time.
+        const prev = prevList[byKey[key].sets.length] || prevList[prevList.length - 1];
+        byKey[key].sets.push(Object.assign({}, s, {
+          lastTime: s.lastTime || (prev ? {
+            weightKg: +prev.weightKg || 0,
+            reps: +prev.reps || 0
+          } : null)
+        }));
       });
       const planned = session && session.exercises || [];
       const used = {};
@@ -54734,6 +54781,15 @@ function SessionPlayer({
     });
   });
   const [focus, setFocus] = useState(0);
+  /* Two refs on the open movement, because "have I lost it" and "take me back to it" are different
+     questions about different boxes. The rows are what you LOSE - the card's last hundred pixels are
+     a note field and three tools, and counting those as the movement being visible means the bar
+     stays quiet at exactly the moment every row has gone. The card is where you want to be RETURNED
+     to: land on the rows and you arrive with the movement's name, its prescription and half its sets
+     already scrolled past above you. */
+  const openRowsRef = useRef(null);
+  const openCardRef = useRef(null);
+  const [openOffScreen, setOpenOffScreen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null); // a swap that could apply to the rest of the block
@@ -54914,10 +54970,67 @@ function SessionPlayer({
       return next;
     });
   }
+  /* Is the movement you are ON still on screen?
+      Scrolling down to see what is coming is the most common thing anyone does mid-session, and it
+     used to cost you the set you were in the middle of: you looked, then scrolled back hunting for
+     the card, because nothing pinned said which one it was. A sticky card header would answer it,
+     and would also cost 46px on top of the 140px the brand bar and the session bar already hold -
+     nearly a quarter of the screen given over to chrome on a phone.
+      So nothing new is pinned. The bar that is ALREADY pinned changes what it says: while the open
+     card is in view it names the session, and once the card is gone it names the movement instead
+     and offers the way back. The spine underneath does not change, so the session-level anchor is
+     never lost, and neither reading is ever on screen at the same time as the thing it duplicates.
+      The margin is the pinned chrome. Without it the card counts as visible while it sits behind the
+     two bars, which is the one position where you can see least and most need telling. */
+  useEffect(() => {
+    const el = openRowsRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setOpenOffScreen(false);
+      return;
+    }
+    const io = new IntersectionObserver(es => setOpenOffScreen(!es[es.length - 1].isIntersecting), {
+      rootMargin: '-146px 0px 0px 0px',
+      threshold: 0
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [focus, items.length]);
+  // Back to the set you are on. Also used when you tap what is next from the rest bar, so "take me
+  // there" is one behaviour with one implementation rather than two that drift.
+  function scrollToOpen() {
+    const el = openCardRef.current;
+    if (!el || !el.scrollIntoView) return;
+    try {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    } catch (_) {
+      el.scrollIntoView();
+    }
+  }
+  function goTo(ii) {
+    setFocus(ii);
+    setPlateFor(null);
+    setMenuOpen(null);
+    // After the focus change has been painted, or there is nothing at the new position to scroll to.
+    setTimeout(scrollToOpen, 60);
+  }
   function setField(ii, si, key, value) {
     mutate(n => {
       n[ii].sets[si][key] = value;
     });
+    // Typing a weight by hand is the moment the warm-up hint has done its job, so it retires itself
+    // rather than repeating on all eight movements of every session forever. A hint that outstays
+    // the thing it is teaching stops reading as help and starts reading as chrome. The rule itself
+    // is written up in "How your plan is built", which is where it lives permanently.
+    if (key === 'weightKg' && +value > 0 && !t.prefs.sawWarmupHint) {
+      trainUpdate(update, tr => {
+        tr.prefs = Object.assign({}, tr.prefs, {
+          sawWarmupHint: true
+        });
+      });
+    }
   }
   function cycleType(ii, si) {
     mutate(n => {
@@ -54934,13 +55047,30 @@ function SessionPlayer({
     // back straight afterwards is the old value. That is why the record check silently never fired.
     const tgt = items[ii].target;
     const filled = {
-      weightKg: +row.weightKg || 0,
+      // The carry-over above is part of what the set WILL be, so the record check has to see it too.
+      // Read from the row alone and a personal best logged by a bare tick went uncelebrated.
+      weightKg: +row.weightKg || 0 || (row.lastTime && +row.lastTime.weightKg > 0 && !wasDone ? +row.lastTime.weightKg : 0),
       reps: row.reps == null || row.reps === '' ? tgt ? tgt.repHigh : row.lastTime ? row.lastTime.reps : null : +row.reps
     };
     mutate(n => {
       const s = n[ii].sets[si];
       s.done = !s.done;
       if (s.done && (s.reps == null || s.reps === '')) s.reps = filled.reps;
+      // And the weight, but ONLY from a real last time, and only into the box where you can see it.
+      //
+      // This is a change of mind, so it is worth saying what changed. The rule was that ticking must
+      // never write a weight, because a weight the app invented is a weight you did not lift. That
+      // is still true of an invented one. But the box opens EMPTY under the effort-not-load rule, so
+      // a tick with nothing typed was logging a set of no weight at all: no tonnage, no e1RM, no
+      // record check, a hole in the history that the progression then reads. The set was silently
+      // worse than not logged.
+      //
+      // What is written here is not a prescription and never appears before you act. Nothing is
+      // suggested up front, the headline still talks in reps and effort, and this lands only once
+      // you have said the set happened - at which point "the same as last time" is the single most
+      // likely truth, and it is written into the field in plain sight where one tap corrects it.
+      // With no last time there is nothing honest to write, so it stays empty.
+      if (s.done && !(+s.weightKg > 0) && s.lastTime && +s.lastTime.weightKg > 0) s.weightKg = +s.lastTime.weightKg;
     });
     if (wasDone) return; // un-ticking should never start a rest, or claim a record
 
@@ -55004,11 +55134,15 @@ function SessionPlayer({
         i: i
       })).filter(x => (x.s.type || 'work') !== 'warmup');
       const nextPos = workRows.findIndex(x => x.i !== si && !x.s.done);
+      // Where it is, as well as what it is called: the line naming your next set is the one thing on
+      // this bar you might want to ACT on, and it was text.
+      const nextMovement = nextUnfinished(items, ii);
       setRest({
         endsAt: Date.now() + secs * 1000,
         seconds: secs,
         alerted: false,
-        from: nextPos < 0 ? null : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length
+        from: nextPos < 0 ? null : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length,
+        goIi: nextPos < 0 ? nextMovement >= 0 ? nextMovement : null : ii
       });
     }
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
@@ -55021,8 +55155,13 @@ function SessionPlayer({
         if (navigator.vibrate) navigator.vibrate([14, 60, 22]);
       } catch (_) {}
     }
-    if (allDone && ii === focus && ii < items.length - 1) {
-      setTimeout(() => setFocus(f => f === ii ? ii + 1 : f), 450);
+    if (allDone && ii === focus) {
+      // The next thing with work left in it, which is not the same as the next one along. Sessions
+      // get done out of order - a rack is busy, so you take the accessory first - and advancing
+      // blindly to ii + 1 landed you on a card of ticks you had already filled, with the actual next
+      // movement further down and nothing saying so.
+      const nextUp = nextUnfinished(items, ii);
+      if (nextUp >= 0) setTimeout(() => setFocus(f => f === ii ? nextUp : f), 450);
     }
   }
   function addSet(ii) {
@@ -55321,6 +55460,22 @@ function SessionPlayer({
   const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const allWorkDone = totalSets > 0 && doneSets === totalSets;
   const codes = Training.sessionCodes(items);
+  /* Roughly how much session is left, by the same arithmetic that told you "about 76 min" when you
+     picked the day: sets still to do, times their own rest plus the forty seconds the set takes.
+     Counted from what is LEFT rather than from the clock, so stopping to talk to somebody does not
+     make it claim you are behind - the app has no way of knowing you were resting, and a tracker
+     that tells you off for chatting is a tracker people stop opening.
+      Deliberately a fact and not a pace judgement. "Running long" is a number plus an opinion about
+     how you should be spending your evening, and this app does not hold opinions about that. */
+  const minsLeft = Math.round(items.reduce((a, it) => {
+    const left = it.sets.filter(sx => !sx.done && (sx.type || 'work') !== 'warmup').length;
+    return a + left * (((it.target && it.target.restSec || 120) + 40) / 60);
+  }, 0));
+  // The movement you are on, for the bar to name once its card has scrolled away.
+  const focusIt = items[focus];
+  const focusEx = focusIt && Training.byId(focusIt.exerciseId, t.custom);
+  const focusWork = focusIt ? focusIt.sets.filter(sx => (sx.type || 'work') !== 'warmup') : [];
+  const focusNext = focusWork.findIndex(sx => !sx.done);
   return (
     /*#__PURE__*/
     // Finish rides at the end of the list now, so the only thing to clear is the rest bar, and only
@@ -55359,7 +55514,23 @@ function SessionPlayer({
       trigger: lift.n
     }), /*#__PURE__*/React.createElement("div", {
       className: "flex-1 min-w-0 leading-tight"
-    }, /*#__PURE__*/React.createElement("div", {
+    }, openOffScreen && focusEx ? /*#__PURE__*/React.createElement("button", {
+      onClick: scrollToOpen,
+      className: "w-full text-left",
+      "aria-label": 'Back to ' + focusEx.name
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block pf text-[11px] uppercase truncate",
+      style: {
+        color: 'var(--header-text)',
+        letterSpacing: '0.08em'
+      }
+    }, codes[focus], " ", focusEx.name), /*#__PURE__*/React.createElement("span", {
+      className: "block pf text-[9px] uppercase truncate mt-[3px]",
+      style: {
+        color: 'var(--on-header-accent)',
+        letterSpacing: '0.1em'
+      }
+    }, focusNext < 0 ? 'All sets in' : 'Set ' + (focusNext + 1) + ' of ' + focusWork.length, " · Tap to go back")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[11px] uppercase truncate",
       style: {
         color: 'var(--header-text)',
@@ -55371,7 +55542,7 @@ function SessionPlayer({
         color: 'var(--nav-off)',
         letterSpacing: '0.1em'
       }
-    }, session && session.week ? 'Week ' + session.week + ' · ' : '', doneMovements, " of ", spine.length, " done"), past && /*#__PURE__*/React.createElement("div", {
+    }, session && session.week ? 'Week ' + session.week + ' · ' : '', doneMovements, " of ", spine.length, " done")), past && /*#__PURE__*/React.createElement("div", {
       className: "pf text-[9px] uppercase mt-1",
       style: {
         color: 'var(--on-header-accent)',
@@ -55512,12 +55683,19 @@ function SessionPlayer({
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
         return /*#__PURE__*/React.createElement("div", {
           key: it.exerciseId + '_' + ii,
+          ref: open ? openCardRef : null,
           className: grouped ? '' : 'pixel-box mb-4',
-          style: grouped ? {
+          style: Object.assign(grouped ? {
             borderTop: '2px solid var(--border)'
           } : {
             background: 'var(--card)'
-          }
+          },
+          // `scrollIntoView` aligns to the top of the SCROLLPORT, which is underneath 140px of
+          // pinned bars, so without this the card is returned to with its header behind the
+          // chrome. The browser owns this offset; doing it by hand means measuring the bars.
+          open ? {
+            scrollMarginTop: 'calc(var(--appbar-h) + 90px)'
+          } : null)
         }, /*#__PURE__*/React.createElement("button", {
           onClick: () => {
             setFocus(open ? -1 : ii);
@@ -55660,7 +55838,14 @@ function SessionPlayer({
               color: 'var(--muted)'
             }
           }, "New to this one. On ", from ? from.name : 'the plain version', " you did ", toDisplayWeight(ref.best.weightKg, units), unitLabel(units), " × ", ref.best.repsAtBest);
-        })(), warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0 && Training.warmupSets(work[0].weightKg, ex, {
+        })(), !t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0) && Training.warmupSets(60, ex, {
+          count: it.warmups
+        }).length > 0 && /*#__PURE__*/React.createElement("div", {
+          className: "text-[11.5px] mb-4 leading-snug",
+          style: {
+            color: 'var(--muted)'
+          }
+        }, "Got a weight in mind? Put it in set 1 and a warm-up is worked out for it."), warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0 && Training.warmupSets(work[0].weightKg, ex, {
           count: it.warmups
         }).length > 0 && /*#__PURE__*/React.createElement("div", {
           className: "text-[11.5px] mb-4 leading-snug",
@@ -55681,6 +55866,8 @@ function SessionPlayer({
             color: 'var(--text2)'
           }
         }, (tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0 ? 'Intro week. Leave ' + (tgt.rirLast == null ? tgt.rir : tgt.rirLast) + ' in the tank on the last set: this week is what earns you the next five.' : work.length === 1 ? 'One set here. Make it count: take it to the rep where the weight stops moving.' : tgt.rir > 0 ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.' : 'Two sets, both to failure. The second is lighter for exactly that reason.'), /*#__PURE__*/React.createElement("div", {
+          ref: open ? openRowsRef : null
+        }, /*#__PURE__*/React.createElement("div", {
           className: "flex items-center gap-2 pb-2"
         }, /*#__PURE__*/React.createElement("div", {
           className: "w-8 pf text-[7px] uppercase",
@@ -55832,7 +56019,7 @@ function SessionPlayer({
               color: 'var(--muted2)'
             }
           }, plateBarLine(s.weightKg, units)));
-        }), /*#__PURE__*/React.createElement("button", {
+        })), /*#__PURE__*/React.createElement("button", {
           onClick: () => addSet(ii),
           className: "pixel-box w-full h-11 text-[12px] mt-2",
           style: {
@@ -55971,11 +56158,30 @@ function SessionPlayer({
         letterSpacing: '0.06em'
       }
     }, "Skip")), /*#__PURE__*/React.createElement("div", {
-      className: "mt-2 text-[12px] leading-snug truncate",
+      className: "mt-2 flex items-baseline gap-3"
+    }, rest.goIi != null ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        goTo(rest.goIi);
+        setRest(null);
+      },
+      className: "flex-1 min-w-0 text-left text-[12px] leading-snug truncate",
+      style: {
+        color: 'var(--cardhead-text)',
+        textDecoration: 'underline',
+        textUnderlineOffset: 3
+      }
+    }, rest.from ? 'Next: ' + rest.from : 'Next movement is ready', " ›") : /*#__PURE__*/React.createElement("span", {
+      className: "flex-1 min-w-0 text-[12px] leading-snug truncate",
       style: {
         color: 'var(--nav-off)'
       }
-    }, rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'), /*#__PURE__*/React.createElement("div", {
+    }, rest.from ? 'Next: ' + rest.from : 'That is the last of them'), minsLeft > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[9px] uppercase shrink-0 tnum",
+      style: {
+        color: 'var(--nav-off)',
+        letterSpacing: '0.08em'
+      }
+    }, "~", minsLeft, " min left")), /*#__PURE__*/React.createElement("div", {
       className: "mt-2",
       style: {
         height: 8,
@@ -63100,7 +63306,7 @@ function HowItWorks({
 }) {
   useBackClose(onBack);
   const [openRule, setOpenRule] = useState(0);
-  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'], ['The last set is the one that goes', 'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Changing a movement between blocks', 'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'], ['A swap restarts the number, not the muscle', 'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'], ['The big lifts are the expensive ones to change', 'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
+  const rows = [['Four weeks, then decide', 'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'], ['A lighter week when you have earned one', 'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'], ['Volume, in hard sets', 'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'], ['Two ways to train, and one of them is the default', 'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'], ['On min-max, the weight is the progression', 'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'], ['The last set is the one that goes', 'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'], ['Stalling is a movement problem, not a volume problem', 'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'], ['Changing a movement between blocks', 'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'], ['A swap restarts the number, not the muscle', 'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'], ['The big lifts are the expensive ones to change', 'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'], ['Every muscle, twice a week', 'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'], ['A plan you bring is a starting point, not a stencil', 'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'], ['Half a set for helping', 'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'], ['Effort in reps left, not "to failure"', 'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'], ['Warm-ups follow your number, they do not set it', 'The app never puts a working weight in the box. What it will do is build the ramp up to one: type the weight you are aiming for into set one and a warm-up appears above the table, scaled to that load and to the movement. Heavy compounds earn several rungs, isolation earns one easy set at most, and where your plan states how many warm-up sets a movement wants, the author\u2019s number wins. Nothing is logged and nothing is ticked. If you would rather warm up your own way, ignore it and nothing changes.'], ['Reps before weight', 'When you clear the top of the rep range on every set, the weight goes up and the reps reset to the bottom. Before that, the job is another rep. Only after both does the plan add a set.'], ['Falling numbers mean less, not more', 'If a lift stops moving at high volume, the answer is to cut the volume or change the movement. Adding more into a hole is the most common way people stall for months.'], ['Where a movement is hard', 'Some exercises are hardest with the muscle stretched, some in the middle, some at the squeeze. A good week has a mix for each muscle rather than three versions of the same one.'], ['What we do not know', 'Individual variation on all of this is large, and the honest answer to "how much volume do you need" is that it depends on the person more than on any number we could print. Your own bands move as your blocks show what you actually recover from, which matters more than where they started.']];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
