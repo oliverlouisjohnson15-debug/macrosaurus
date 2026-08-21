@@ -42,7 +42,10 @@ function app() {
   ctx.React = React;
   ctx.console = console;
   ctx.globalThis = ctx;
-  ctx.ReactDOM = { createRoot: () => ({ render() {}, unmount() {} }) };
+  // createRoot is stubbed because the app calls it on itself at module scope and a test mounts the
+  // component it wants; createPortal is the REAL one, because the menus are portaled to <body> and a
+  // stub means every test that opens one dies on the first render.
+  ctx.ReactDOM = { createRoot: () => ({ render() {}, unmount() {} }), createPortal: require('react-dom').createPortal };
   const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
   vm.runInContext(ENGINES.map(read).join('\n'), ctx, { filename: 'engines.js' });
   const src = SOURCES.map(read).join('\n');
@@ -133,6 +136,37 @@ function mount(component, props) {
     // Press an element you already have a handle on, inside act() so effects and state settle the
     // same way they do for click(label).
     clickEl(el) { act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true })); }); return api; },
+    // The document the app is mounted in, for the parts of a screen that are NOT inside `host`:
+    // every menu is portaled to <body>, so a test that opens one cannot find it by walking `host`.
+    doc: doc,
+    // The words on a clickable anywhere in the document, portaled menus included.
+    findEl(label, root) {
+      const hits = Array.from((root || doc.body).querySelectorAll('button, [role="button"]'))
+        .filter(b => b.textContent.replace(/\s+/g, ' ').indexOf(label) !== -1);
+      return hits.sort((a, b) => a.textContent.length - b.textContent.length)[0] || null;
+    },
+    /* A TAP, not a click. A finger delivers pointerdown, pointerup and then click, and the app leans
+       on that order: press-and-hold arms a drag on pointerdown, and a tap is only a tap because the
+       hold never completes. Dispatching the click alone tests a control the way nothing ever presses
+       it, which is how a menu whose every item was dead to a real finger passed a mounted test. */
+    tap(el) {
+      // Real PointerEvents, not MouseEvents named 'pointerdown': React's pointer plugin reads
+      // pointerId/pointerType off the event, and a handler that never sees one is a press the test
+      // did not actually perform.
+      const P = A.PointerEvent || A.MouseEvent;
+      const opts = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0 };
+      // One act() PER EVENT, and that is not a detail. A browser renders between pointerdown and
+      // click, so a pointerdown that unmounts what you are pressing means the click is delivered to
+      // nothing. Batching all three into one act() flushes the lot at the end, the button survives
+      // its own removal, and the tap "works" in the test while doing nothing on a phone.
+      act(() => { el.dispatchEvent(new P('pointerdown', opts)); });
+      act(() => { el.dispatchEvent(new P('pointerup', opts)); });
+      // Gone from the document? Then the press tore it out from under the finger and no click
+      // follows - exactly what the screen does, and what the test must be allowed to see.
+      if (!el.isConnected) return api;
+      act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); });
+      return api;
+    },
     unmount() {
       try { act(() => { root.unmount() }); } finally { host.remove(); restore(); }
     },

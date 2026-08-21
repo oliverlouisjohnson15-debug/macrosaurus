@@ -3608,8 +3608,18 @@ function AnchoredMenu({ rect, onClose, className = '', children }) {
   return ReactDOM.createPortal(
     /* Clicks are stopped here so the page's own "tap anywhere to close" handler doesn't fire first.
        A portal still bubbles through the REACT tree, so that handler would otherwise see every tap
-       on the menu itself. */
+       on the menu itself.
+       The POINTER events have to be stopped for the same reason, and stopping the click alone is not
+       enough. A menu is opened from a control that sits inside something draggable - the meal card's
+       title bar is the app's clearest case, since holding it picks the meal up - and those gestures
+       start on pointerdown. The button that opens the menu is exempted by a `data-no-mealdrag`
+       ancestor, but the menu itself is portaled to <body>, so no DOM-ancestor test can see it: the
+       press-and-hold handler ran on every tap of a menu item, closed the menu it was arming from
+       under the finger, and the button was gone before the browser could deliver its click. That is
+       the whole of "the copy button does nothing" - and the same for every other item in that menu. */
     <div ref={ref} onClick={ev => ev.stopPropagation()}
+      onPointerDown={ev => ev.stopPropagation()} onPointerUp={ev => ev.stopPropagation()}
+      onTouchStart={ev => ev.stopPropagation()} onMouseDown={ev => ev.stopPropagation()}
       className={`fixed z-[90] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl ${className}`}
       style={{ top: pos ? pos.top : rect.bottom + 6, left: pos ? pos.left : rect.left, visibility: pos ? 'visible' : 'hidden' }}>
       {children}
