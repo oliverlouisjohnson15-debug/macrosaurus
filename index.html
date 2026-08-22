@@ -53799,6 +53799,10 @@ function TrainTab({
       draft: screen.draft,
       clearDraft: screen.clearDraft,
       onBack: () => go(screen.from || 'home'),
+      onSchedule: id => go('schedule', {
+        blockId: id,
+        fresh: true
+      }),
       onStart: screen.blockId ? startSession : null
     }));
   }
@@ -54014,7 +54018,10 @@ function TrainTab({
       db: db,
       update: update,
       showToast: showToast,
+      isPremium: isPremium,
+      onUpgrade: onUpgrade,
       block: blk,
+      fresh: !!screen.fresh,
       onBack: () => go('home')
     }));
   }
@@ -58862,7 +58869,8 @@ function BlockBuilder({
   draft,
   clearDraft,
   onBack,
-  onStart
+  onStart,
+  onSchedule
 }) {
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
@@ -59045,7 +59053,18 @@ function BlockBuilder({
     // Saved on the way into a session rather than on the way out of the screen: nothing to announce
     // and nowhere to go.
     if (quiet) return;
-    showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.' : isNew ? 'Block saved. First session is ready.' : 'Block updated.');
+    showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.' : isNew ? 'Block saved.' : 'Block updated.');
+    /* A NEW block that starts now goes straight to the days question.
+       The plan is the hard part and the calendar is the easy one, so the calendar was never asked
+       about: a block was built, given a default week, and handed over. The default is a good one and
+       it is still only a guess about somebody's Tuesdays - and the moment it is cheapest to correct
+       is now, before the first session has been run against it. Editing a block already underway
+       goes back where it came from, because that is a change of mind about a plan, not a first
+       answer to a question nobody asked. */
+    if (isNew && !later && onSchedule) {
+      onSchedule(out.id);
+      return;
+    }
     onBack();
   }
   function remove() {
@@ -60143,7 +60162,10 @@ function ScheduleDays({
   db,
   update,
   showToast,
+  isPremium,
+  onUpgrade,
   block,
+  fresh,
   onBack
 }) {
   const rows = Training.scheduleOf(block);
@@ -60155,26 +60177,85 @@ function ScheduleDays({
   // week got away from you - but it is worth saying rather than letting two land in silence.
   const doubled = dows.filter((d, i) => dows.indexOf(d) !== i).length;
   const restCount = 7 - new Set(dows).size;
+  const [wish, setWish] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [aiNote, setAiNote] = useState(null);
   function save() {
-    trainUpdate(update, tr => {
-      const b = tr.blocks.filter(x => x.id === block.id)[0];
-      if (b) Training.reschedule(b, dows);
-    });
-    showToast && showToast('Your week is set.');
+    if (dirty) {
+      trainUpdate(update, tr => {
+        const b = tr.blocks.filter(x => x.id === block.id)[0];
+        if (b) Training.reschedule(b, dows);
+      });
+    }
+    showToast && showToast(fresh ? 'Your block is ready. First session is waiting.' : 'Your week is set.');
     onBack();
+  }
+  async function ask() {
+    if (!wish.trim() || asking) return;
+    if (!isPremium) {
+      onUpgrade && onUpgrade();
+      return;
+    }
+    setAsking(true);
+    setAiNote(null);
+    try {
+      const out = await aiSuggestTrainingDays(wish, rows.map(r => r.name.split(' - ')[0]), recommended);
+      if (!out) {
+        showToast && showToast('Could not work that out. Set the days yourself below.');
+        return;
+      }
+      setDows(out.days);
+      setAiNote(out.note || 'Here is a week that fits.');
+    } catch (e) {
+      showToast && showToast('Could not reach the coach. Set the days yourself below.');
+    } finally {
+      setAsking(false);
+    }
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(SubHeader, {
     back: onBack,
     backLabel: "Train",
-    title: "Your training days"
+    title: fresh ? 'When do you train?' : 'Your training days'
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[12.5px] mb-5 leading-snug",
     style: {
       color: 'var(--muted)'
     }
-  }, "Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them."), /*#__PURE__*/React.createElement(Card, {
+  }, fresh ? 'Your block is built. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.' : 'Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them.'), /*#__PURE__*/React.createElement(Card, {
+    className: "p-3.5 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.12em'
+    }
+  }, "Anything I should work around?"), /*#__PURE__*/React.createElement("textarea", {
+    value: wish,
+    onChange: e => setWish(e.target.value),
+    rows: 2,
+    placeholder: "e.g. I work late Tuesdays and play football on Thursday nights",
+    className: "w-full pixel-box px-3 py-2 text-[12.5px] mb-2.5",
+    style: {
+      background: 'var(--surface2)',
+      color: 'var(--text)',
+      boxShadow: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: ask,
+    disabled: !wish.trim() || asking,
+    className: "pixel-box w-full h-11 text-[12px]",
+    style: {
+      background: wish.trim() && !asking ? 'var(--surface2)' : 'var(--track)',
+      color: wish.trim() && !asking ? 'var(--text2)' : 'var(--muted2)'
+    }
+  }, asking ? 'Working out your week…' : 'Suggest my days'), aiNote && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-2.5 leading-snug",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, aiNote, " Change anything below.")), /*#__PURE__*/React.createElement(Card, {
     className: "p-0 mb-4 overflow-hidden"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: "Each session",
@@ -60230,14 +60311,14 @@ function ScheduleDays({
     }
   }, "We suggest ", recommended.map(d => WEEKDAYS[d]).join(', '), ": a break in the middle of the week rather than every rest day stacked at the end of it."), /*#__PURE__*/React.createElement("button", {
     onClick: save,
-    disabled: !dirty,
+    disabled: !dirty && !fresh,
     className: "pixel-btn w-full h-14 pf text-[12px] uppercase",
     style: {
-      background: dirty ? 'var(--accent)' : 'var(--track)',
-      color: dirty ? 'var(--on-accent)' : 'var(--muted2)',
+      background: dirty || fresh ? 'var(--accent)' : 'var(--track)',
+      color: dirty || fresh ? 'var(--on-accent)' : 'var(--muted2)',
       letterSpacing: '0.06em'
     }
-  }, dirty ? 'Save these days' : 'Nothing to change'), /*#__PURE__*/React.createElement("div", {
+  }, dirty ? 'Save these days' : fresh ? 'These days are right' : 'Nothing to change'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-3 leading-snug",
     style: {
       color: 'var(--muted2)'
@@ -63373,6 +63454,47 @@ async function aiParseTrainingWish(text) {
   });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return parseModelJSON(txt);
+}
+
+/* Turn "I work Tuesdays and play five-a-side Thursday" into a week.
+ *
+ * The one part of a training plan the app cannot reason about is your calendar, and it is the part
+ * that decides whether the plan gets run at all. Everything else here is arithmetic the engine owns;
+ * this is a constraint only the person has, in a form only prose carries.
+ *
+ * The model picks WEEKDAYS and nothing else. It never sees a set, a rep or a load, it cannot change
+ * what the sessions are or what order they run in, and what it returns is checked before it is
+ * offered: the right number of days, every one inside the week, and always shown for approval on the
+ * same seven buttons rather than applied. A choice, not a number the engine could compute - the rule
+ * the whole module runs on.
+ *
+ * Its opening phrase is the signature ai-proxy classifies (featureOf -> workout_import), so keep it
+ * in step with supabase/functions/ai-proxy/index.ts. It genuinely is a sentence about training
+ * turned into JSON, and reusing the classification keeps this behind the same Premium gate as the
+ * rest of the training AI rather than inventing an ungated one.
+ */
+async function aiSuggestTrainingDays(text, sessionNames, recommended) {
+  const names = (sessionNames || []).map((n, i) => i + 1 + '. ' + n);
+  const rules = 'You turn a sentence about training into JSON. Somebody has a weekly training plan and ' + 'needs to fit it around their life. Choose which weekday each session falls on. ' + 'Weekdays are numbers: 0 Monday, 1 Tuesday, 2 Wednesday, 3 Thursday, 4 Friday, 5 Saturday, 6 Sunday. ' + 'Rules you must follow: return exactly one weekday per session, in the order the sessions are listed; ' + 'keep the sessions in that order through the week; avoid the days they say they cannot train; ' + 'spread the sessions out rather than bunching them, leaving at least one rest day in the middle of the week where the count allows it. ' + 'Respond ONLY with compact JSON: {"days": number[], "note": string}. ' + 'note = one short British-English sentence saying what you worked around. Do not mention exercises, sets or reps.' + '\n\nThe sessions, in order:\n' + names.join('\n') + '\n\nIf nothing they say rules a day out, use this: [' + (recommended || []).join(', ') + ']';
+  const j = await aiRequest({
+    model: AI_MODEL_FAST,
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: rules + '\n\nWhat they said:\n' + String(text || '').slice(0, 600) + '\n\nJSON:'
+    }]
+  });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  const out = parseModelJSON(txt);
+  if (!out || !Array.isArray(out.days)) return null;
+  // Checked before it is offered. A model that returns five days for a four-day week, or a Tuesday
+  // spelled 8, must not be able to put the block into a state no screen can draw.
+  const days = out.days.map(d => Math.round(+d)).filter(d => d >= 0 && d <= 6);
+  if (days.length !== (sessionNames || []).length) return null;
+  return {
+    days: days,
+    note: typeof out.note === 'string' ? out.note : ''
+  };
 }
 
 // Muscle words back to the engine's keys. The model is told to use these exact labels, but people's

@@ -130,6 +130,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium}
       blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} onBack={() => go(screen.from || 'home')}
+      onSchedule={(id) => go('schedule', { blockId: id, fresh: true })}
       onStart={screen.blockId ? startSession : null} />);
   }
   if (screen.name === 'wizard') {
@@ -214,7 +215,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
-    return page(<ScheduleDays db={db} update={update} showToast={showToast} block={blk} onBack={() => go('home')} />);
+    return page(<ScheduleDays db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
+      block={blk} fresh={!!screen.fresh} onBack={() => go('home')} />);
   }
   if (screen.name === 'how') {
     return page(<HowItWorks onBack={() => go('settings')} />);

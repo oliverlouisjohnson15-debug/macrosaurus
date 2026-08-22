@@ -905,7 +905,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 }
 
 // ---- block builder / editor -------------------------------------------------------------------
-function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearDraft, onBack, onStart }) {
+function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearDraft, onBack, onStart, onSchedule }) {
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({ daysPerWeek: 4, weeks: 4 }))));
@@ -1060,7 +1060,15 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
     // and nowhere to go.
     if (quiet) return;
     showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.'
-      : isNew ? 'Block saved. First session is ready.' : 'Block updated.');
+      : isNew ? 'Block saved.' : 'Block updated.');
+    /* A NEW block that starts now goes straight to the days question.
+       The plan is the hard part and the calendar is the easy one, so the calendar was never asked
+       about: a block was built, given a default week, and handed over. The default is a good one and
+       it is still only a guess about somebody's Tuesdays - and the moment it is cheapest to correct
+       is now, before the first session has been run against it. Editing a block already underway
+       goes back where it came from, because that is a change of mind about a plan, not a first
+       answer to a question nobody asked. */
+    if (isNew && !later && onSchedule) { onSchedule(out.id); return; }
     onBack();
   }
   function remove() {
@@ -1868,7 +1876,7 @@ function TargetSheet({ row, name, onChange, onClose }) {
  * week in front of you only would undo itself the moment the week turned over, which is the opposite
  * of answering "I train Mondays".
  */
-function ScheduleDays({ db, update, showToast, block, onBack }) {
+function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fresh, onBack }) {
   const rows = Training.scheduleOf(block);
   const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
   const recommended = Training.defaultDows(rows.length);
@@ -1878,21 +1886,61 @@ function ScheduleDays({ db, update, showToast, block, onBack }) {
   // week got away from you - but it is worth saying rather than letting two land in silence.
   const doubled = dows.filter((d, i) => dows.indexOf(d) !== i).length;
   const restCount = 7 - new Set(dows).size;
+  const [wish, setWish] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [aiNote, setAiNote] = useState(null);
   function save() {
-    trainUpdate(update, (tr) => {
-      const b = tr.blocks.filter(x => x.id === block.id)[0];
-      if (b) Training.reschedule(b, dows);
-    });
-    showToast && showToast('Your week is set.');
+    if (dirty) {
+      trainUpdate(update, (tr) => {
+        const b = tr.blocks.filter(x => x.id === block.id)[0];
+        if (b) Training.reschedule(b, dows);
+      });
+    }
+    showToast && showToast(fresh ? 'Your block is ready. First session is waiting.' : 'Your week is set.');
     onBack();
   }
+  async function ask() {
+    if (!wish.trim() || asking) return;
+    if (!isPremium) { onUpgrade && onUpgrade(); return; }
+    setAsking(true);
+    setAiNote(null);
+    try {
+      const out = await aiSuggestTrainingDays(wish, rows.map(r => r.name.split(' - ')[0]), recommended);
+      if (!out) { showToast && showToast('Could not work that out. Set the days yourself below.'); return; }
+      setDows(out.days);
+      setAiNote(out.note || 'Here is a week that fits.');
+    } catch (e) {
+      showToast && showToast('Could not reach the coach. Set the days yourself below.');
+    } finally { setAsking(false); }
+  }
+
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Train" title="Your training days" />
+      <SubHeader back={onBack} backLabel="Train" title={fresh ? 'When do you train?' : 'Your training days'} />
       <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
-        Same sessions, same order, same volume. This only moves them around your week, and the only
-        thing training cares about is the gap between them.
+        {fresh
+          ? 'Your block is built. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.'
+          : 'Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them.'}
       </div>
+
+      {/* The one thing the app cannot work out for itself, in the only form that carries it. Every
+          other question this module asks has an answer in the engine; nothing in here knows that you
+          work Tuesdays. It suggests and never applies: what comes back lands on the same seven
+          buttons below, for you to change or ignore. */}
+      <Card className="p-3.5 mb-4">
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>Anything I should work around?</div>
+        <textarea value={wish} onChange={e => setWish(e.target.value)} rows={2}
+          placeholder="e.g. I work late Tuesdays and play football on Thursday nights"
+          className="w-full pixel-box px-3 py-2 text-[12.5px] mb-2.5" style={{ background: 'var(--surface2)', color: 'var(--text)', boxShadow: 'none' }} />
+        <button onClick={ask} disabled={!wish.trim() || asking}
+          className="pixel-box w-full h-11 text-[12px]"
+          style={{ background: wish.trim() && !asking ? 'var(--surface2)' : 'var(--track)', color: wish.trim() && !asking ? 'var(--text2)' : 'var(--muted2)' }}>
+          {asking ? 'Working out your week…' : 'Suggest my days'}
+        </button>
+        {aiNote && (
+          <div className="text-[12px] mt-2.5 leading-snug" style={{ color: 'var(--accent-ink)' }}>{aiNote} Change anything below.</div>
+        )}
+      </Card>
 
       <Card className="p-0 mb-4 overflow-hidden">
         <CardHead title="Each session" right={restCount + ' rest day' + (restCount === 1 ? '' : 's')} />
@@ -1945,12 +1993,15 @@ function ScheduleDays({ db, update, showToast, block, onBack }) {
         rather than every rest day stacked at the end of it.
       </div>
 
-      <button onClick={save} disabled={!dirty}
+      {/* On a brand new block this is the way OUT of the screen, so it is never disabled: confirming
+          the default is a real answer and the commonest one. On a block already running there is
+          nothing to commit until something changes. */}
+      <button onClick={save} disabled={!dirty && !fresh}
         className="pixel-btn w-full h-14 pf text-[12px] uppercase" style={{
-          background: dirty ? 'var(--accent)' : 'var(--track)',
-          color: dirty ? 'var(--on-accent)' : 'var(--muted2)', letterSpacing: '0.06em',
+          background: dirty || fresh ? 'var(--accent)' : 'var(--track)',
+          color: dirty || fresh ? 'var(--on-accent)' : 'var(--muted2)', letterSpacing: '0.06em',
         }}>
-        {dirty ? 'Save these days' : 'Nothing to change'}
+        {dirty ? 'Save these days' : fresh ? 'These days are right' : 'Nothing to change'}
       </button>
       <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
         This sets every week of {block.name}. To move one session in one week only, open that day from

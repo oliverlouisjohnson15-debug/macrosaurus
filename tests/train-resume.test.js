@@ -492,3 +492,51 @@ test('there is a way to finish whether or not every set is ticked', () => {
     assert.ok(ui2.has('That is every set'), 'every set in gets the committing button: ' + ui2.text.slice(-220));
   } finally { ui2.unmount(); }
 });
+
+// ---- choosing which days you train -------------------------------------------------------------
+
+test('setting your training days on the screen moves every week of the block', () => {
+  const block = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  const db = accountWith(block);
+  let live = db;
+  const ui = mount(A.ScheduleDays, {
+    db: live, showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {},
+    update(fn) { fn(live); },
+  });
+  try {
+    assert.ok(ui.has('Upper A'), 'every session of the week is listed: ' + ui.text.slice(0, 200));
+    // Nothing to commit until something changes - the default is already what the block runs.
+    assert.ok(ui.has('Nothing to change'), 'and it opens with nothing to save');
+    const sat = Array.from(ui.host.querySelectorAll('button'))
+      .filter(b => /Upper A on Saturday/.test(b.getAttribute('aria-label') || ''))[0];
+    assert.ok(sat, 'each session offers all seven days');
+    ui.clickEl(sat);
+    ui.click('Save these days');
+    for (let w = 1; w <= 4; w++) {
+      const first = live.training.blocks[0].sessions.filter(s => s.week === w)[0];
+      assert.equal(first.dayOfWeek, 5, 'week ' + w + ' moved to Saturday');
+    }
+  } finally { ui.unmount(); }
+});
+
+test('a brand new block asks which days before it hands you the plan', () => {
+  // The default week is a good guess and still only a guess about somebody's Tuesdays. The moment it
+  // is cheapest to correct is before the first session has been run against it.
+  const block = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  const db = accountWith(block);
+  const ui = mount(A.ScheduleDays, {
+    db, showToast() {}, isPremium: true, onUpgrade() {}, block, fresh: true, onBack() {}, update() {},
+  });
+  try {
+    assert.ok(ui.has('When do you train?') || ui.has('Your block is built'),
+      'it is framed as the last question of building one: ' + ui.text.slice(0, 200));
+    // Confirming the default is a real answer, and the commonest one, so the way out is never dead.
+    assert.ok(ui.has('These days are right'), 'and confirming is always pressable: ' + ui.text.slice(-200));
+  } finally { ui.unmount(); }
+});
