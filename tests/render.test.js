@@ -26,7 +26,11 @@ test('the tab describes the block it is actually running', () => {
   const db = accountWith(minmax());
   const r = home(db, db.training.blocks[0]);
   assert.ok(r.has('Week 1 of 6'), 'a six-week block should say six: ' + r.text.slice(0, 80));
-  assert.ok(r.has('Rest on Wed and Sun'), 'rest days are prescribed and should be named');
+  // Rest days are DRAWN now, not described. The week is seven columns and the ones with no session
+  // in them are labelled Rest, so the sentence that used to list them under the card was spending a
+  // line to say what the shape already said. They still have to be named somewhere, which is what
+  // this now checks: a prescribed rest day is a part of the plan, not a gap in it.
+  assert.ok(r.has('Rest'), 'rest days are prescribed and should be named: ' + r.text.slice(0, 200));
   assert.ok(/Intro week/.test(r.text), 'the easy first week should say it is meant to be easy');
   assert.ok(r.has('Opens with'), 'the tab should say what you are about to lift');
   // The lead exercise is named; what follows it is a count now, not a second and third name (the

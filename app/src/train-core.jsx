@@ -94,6 +94,14 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEKDAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // "Week 3" on its own never told you WHEN. The dates do, and they are what people check against
 // their actual diary.
+/* The month a block began, for the spine's labels. Three letters, because the segments are as
+   narrow as the block is short and a full month name would truncate on the three-week ones. */
+function monthShort(iso) {
+  const d = new Date(String(iso || '') + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short' });
+}
+
 function weekRangeLabel(startISO, week) {
   if (!startISO) return 'not scheduled yet';
   const start = Date.parse(startISO + 'T00:00:00Z');

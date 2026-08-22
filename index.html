@@ -10700,6 +10700,79 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     };
   }
 
+  /* Every block you have actually RUN, oldest first: the Train tab's spine.
+   *
+   * The tab could say where you are in the block you are in, and nothing at all about the three you
+   * ran before it - they lived behind a button, so the screen read as though training began this
+   * month. This is the shape that puts them on one line: a segment per block, in order, the running
+   * one carrying its own weeks so "where am I" and "what have I done" are one picture rather than
+   * two screens.
+   *
+   * Only blocks with a `startISO` are on it. A block that was built and never begun is a plan, not a
+   * thing you did, and putting it on a timeline of your training would be the app taking credit on
+   * your behalf.
+   *
+   * `max` caps the segments so a long history cannot shave them to slivers; `hidden` counts what was
+   * dropped so the caller can say so rather than quietly showing less than there is.
+   *
+   * `weeksTrained` counts weeks you actually TRAINED in - at least one session finished - not weeks
+   * elapsed. A fortnight off in the middle of a block is not two weeks of training, and a number
+   * that says it is turns the one honest figure on the screen into a participation trophy.
+   */
+  function blockSpine(blocks, logs, todayISO, opts) {
+    opts = opts || {};
+    var max = opts.max == null ? 6 : opts.max;
+    var all = (blocks || []).filter(function (b) { return b && b.startISO; }).slice()
+      .sort(function (a, b) { return a.startISO < b.startISO ? -1 : a.startISO > b.startISO ? 1 : 0; });
+    var hidden = Math.max(0, all.length - max);
+    var shown = hidden ? all.slice(all.length - max) : all;
+    var segments = shown.map(function (b) {
+      var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
+      var comp = completion(b, mine, todayISO);
+      var prog = blockProgress(b, todayISO);
+      var running = !b.archived && !prog.done && !prog.notStarted;
+      var weeks = Math.max(1, b.weeks || 1);
+      var weekFill = [];
+      for (var w = 1; w <= weeks; w++) {
+        var ws = weekSessions(b, w);
+        var got = ws.filter(function (s) {
+          return comp.logBySession[s.id] && !comp.openBySession[s.id];
+        }).length;
+        weekFill.push({
+          week: w, done: got, total: ws.length,
+          full: ws.length > 0 && got === ws.length,
+          now: running && w === prog.week,
+        });
+      }
+      return {
+        id: b.id, name: b.name, weeks: weeks, startISO: b.startISO,
+        state: running ? 'running' : prog.done ? 'done' : 'stopped',
+        week: running ? prog.week : null,
+        done: comp.done, total: comp.total,
+        pct: comp.total ? comp.done / comp.total : 0,
+        weekFill: weekFill,
+        weeksWorked: weekFill.filter(function (x) { return x.done > 0; }).length,
+      };
+    });
+    return {
+      segments: segments, hidden: hidden,
+      running: segments.filter(function (x) { return x.state === 'running'; })[0] || null,
+      before: segments.filter(function (x) { return x.state !== 'running'; }).length + hidden,
+      weeksTrained: all.reduce(function (a, b) {
+        var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
+        var comp = completion(b, mine, todayISO);
+        var n = 0;
+        for (var w = 1; w <= Math.max(1, b.weeks || 1); w++) {
+          var hit = weekSessions(b, w).some(function (s) {
+            return comp.logBySession[s.id] && !comp.openBySession[s.id];
+          });
+          if (hit) n++;
+        }
+        return a + n;
+      }, 0),
+    };
+  }
+
   // ---- block review --------------------------------------------------------------------------
   // The end-of-block payoff. Numbers only; the buddy's prose is written elsewhere from this shape.
   function reviewBlock(block, logs, targets, custom, todayISO) {
@@ -11668,6 +11741,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
+    blockSpine: blockSpine,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
@@ -52990,6 +53064,15 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEKDAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // "Week 3" on its own never told you WHEN. The dates do, and they are what people check against
 // their actual diary.
+/* The month a block began, for the spine's labels. Three letters, because the segments are as
+   narrow as the block is short and a full month name would truncate on the three-week ones. */
+function monthShort(iso) {
+  const d = new Date(String(iso || '') + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    month: 'short'
+  });
+}
 function weekRangeLabel(startISO, week) {
   if (!startISO) return 'not scheduled yet';
   const start = Date.parse(startISO + 'T00:00:00Z');
@@ -53978,6 +54061,9 @@ function TrainHome({
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
   const restToday = restDays.indexOf(todayDow) !== -1;
   const trainingToday = thisWeek.filter(x => x.session.dayOfWeek === todayDow);
+  // Every block actually run, for the spine at the top. Ordering, lengths and per-week fill are
+  // all the engine's arithmetic (`Training.blockSpine`); this screen only draws it.
+  const spine = Training.blockSpine(t.blocks, t.logs, today);
   const lastLog = t.logs.slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -54063,55 +54149,146 @@ function TrainHome({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "carry on ›")), block && !blockDone &&
-  /*#__PURE__*/
-  /* The block, as a titled panel: its name on the ink bar with the week's progress in accent
-     beside it, which is the pair the design puts there and the two facts you open this page
-     for.
-      The count used to be a BUTTON into the block list, which is the one route on this screen
-     that never said where it went: `CardHead` draws its right slot with no verb and no
-     chevron, so "2 / 4 done" was a progress readout that silently navigated - and the Blocks
-     button further down the same page already goes there, labelled. Two routes to one screen,
-     one of them disguised as a number. It is a number again. */
-  React.createElement(Card, {
-    className: "p-0 mb-4 overflow-hidden"
-  }, /*#__PURE__*/React.createElement(CardHead, {
-    title: block.name,
-    right: weekAhead ? shownWeekPlan.length + (shownWeekPlan.length === 1 ? ' session' : ' sessions') : doneShown + ' / ' + shownWeekPlan.length + ' done'
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "px-3 py-3 flex flex-col gap-2",
+  }, "carry on ›")), spine.segments.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-[3px] items-end"
+  }, spine.segments.map(seg => /*#__PURE__*/React.createElement("div", {
+    key: seg.id,
+    className: "min-w-0",
     style: {
-      borderBottom: '2px solid var(--border)'
+      flex: seg.weeks
     }
-  }, block.weeks > 1 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setWeekPick(!weekPick),
-    className: "w-full flex items-center justify-between gap-2 text-left",
-    "aria-label": "Choose which week to look at"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase",
+  }, seg.state === 'running' ? /*#__PURE__*/React.createElement("span", {
+    className: "flex",
     style: {
-      color: viewingAhead ? 'var(--accent-ink)' : 'var(--muted)',
-      letterSpacing: '0.1em'
+      height: 34,
+      border: '3px solid var(--border)',
+      boxShadow: '2px 2px 0 0 var(--shadow)',
+      background: 'var(--track)'
     }
-  }, "Week ", shownWeek, " of ", block.weeks, Training.weekSessions(block, shownWeek).some(x => x.deload) ? ' \u00b7 deload' : '', viewingAhead ? '' : ' \u00b7 now'), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11px] mt-0.5",
+  }, seg.weekFill.map(w => /*#__PURE__*/React.createElement("i", {
+    key: w.week,
+    className: "flex-1",
+    style: {
+      borderRight: w.week < seg.weeks ? '1px solid var(--border)' : 'none',
+      // A week you finished is solid. The week you are IN is filled as far as you
+      // have got, which is the only part of this bar that moves during a week.
+      background: w.full ? 'var(--accent)' : w.now && w.total ? 'linear-gradient(to right, var(--accent) 0 ' + Math.round(w.done / w.total * 100) + '%, var(--track) ' + Math.round(w.done / w.total * 100) + '% 100%)' : 'var(--track)'
+    }
+  }))) : /*#__PURE__*/React.createElement("span", {
+    className: "block",
+    style: {
+      height: 22,
+      border: '2px solid var(--border)',
+      // A block you finished, against one you stopped part-way. The second is not a
+      // failure worth colouring red - it is most of a block, and it still counts.
+      background: seg.state === 'done' ? 'var(--good)' : 'color-mix(in srgb, var(--good) 45%, var(--track))'
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-[3px] mt-1.5"
+  }, spine.segments.map(seg => /*#__PURE__*/React.createElement("div", {
+    key: seg.id,
+    className: "min-w-0",
+    style: {
+      flex: seg.weeks
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase truncate block",
+    style: {
+      letterSpacing: '0.08em',
+      color: seg.state === 'running' ? 'var(--accent-ink)' : 'var(--muted2)'
+    }
+  }, monthShort(seg.startISO), seg.state === 'running' ? ' · now' : '')))), block && !blockDone && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between gap-2 mt-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[13px] font-bold min-w-0 truncate"
+  }, block.name), /*#__PURE__*/React.createElement("button", {
+    onClick: () => go('blocks'),
+    className: "hit pf text-[9px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent-ink)',
+      letterSpacing: '0.09em'
+    }
+  }, spine.before ? spine.before + ' before ›' : 'Your blocks ›')), block && !blockDone && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-0.5 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Week ", prog.week, " of ", block.weeks, (read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block))), spine.hidden > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5",
     style: {
       color: 'var(--muted2)'
     }
-  }, weekRangeLabel(block.startISO, shownWeek))), /*#__PURE__*/React.createElement("span", {
-    className: "shrink-0",
+  }, spine.hidden, " earlier block", spine.hidden === 1 ? '' : 's', " not shown.")), block && !blockDone && /*#__PURE__*/React.createElement(React.Fragment, null, !viewingAhead && next && /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 mb-4 overflow-hidden"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: live ? 'In progress' : 'Next up',
+    right: WEEKDAYS_FULL[next.session.dayOfWeek] || ''
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[17px] font-bold leading-tight"
+  }, next.session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] tnum shrink-0",
     style: {
-      color: 'var(--muted2)',
-      transform: weekPick ? 'rotate(90deg)' : 'none',
-      transition: 'transform .12s'
+      color: 'var(--muted)'
     }
-  }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16"
-  }))), weekPick && /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-1.5 mb-1"
+  }, "about ", sessionMins(next.session.exercises), " min")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-1 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, live ? (() => {
+    const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
+    const planned = (next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0);
+    return 'You are ' + ticked + ' set' + (ticked === 1 ? '' : 's') + ' into this one' + (planned ? ' of ' + planned : '') + '. Everything you ticked is saved.';
+  })() : (() => {
+    const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
+    if (!items.length) return (next.session.exercises || []).length + ' movements';
+    const style = Training.styleOf(block.style);
+    const lead = items[0];
+    const leadEx = Training.byId(lead.exerciseId, t.custom);
+    const effort = style.toFailure ? (lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0 ? 'stopping short this week' : lead.target.rir > 0 ? 'last set to failure' : 'to failure' : lead.target.rir + ' RIR';
+    return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' ' + lead.target.sets + '×' + lead.target.repLow + '-' + lead.target.repHigh + ' · ' + effort + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
+  })()), /*#__PURE__*/React.createElement("button", {
+    onClick: () => live && onResume ? onResume(next.session, block) : onOpen(next.session, block),
+    className: "pixel-btn w-full mt-3.5 py-3.5 pf text-[12px] uppercase",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      letterSpacing: '0.06em'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.play, {
+    width: "16"
+  }), " ", live ? 'Carry on with ' : 'Open ', next.session.name.split(' - ')[0]))), !viewingAhead && !next && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4",
+    style: {
+      background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12.5px] text-center",
+    style: {
+      color: 'var(--good-ink)'
+    }
+  }, "Week ", prog.week, " done. That is the whole week, in the bag.")), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 mb-4 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWeekPick(!weekPick),
+    className: "w-full",
+    "aria-label": "Choose which week to look at",
+    "aria-expanded": weekPick
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: viewingAhead ? 'Week ' + shownWeek : 'This week',
+    right: weekRangeLabel(block.startISO, shownWeek) + (block.weeks > 1 ? '  ›' : '')
+  })), weekPick && block.weeks > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "p-2.5 flex flex-col gap-1.5",
+    style: {
+      borderBottom: '2px solid var(--border)',
+      background: 'var(--surface2)'
+    }
   }, Array.from({
     length: block.weeks
   }, (_, i) => i + 1).map(w => /*#__PURE__*/React.createElement("button", {
@@ -54123,7 +54300,7 @@ function TrainHome({
     className: "w-full p-2.5 flex items-center justify-between gap-2 text-left",
     style: {
       border: '2px solid var(--border)',
-      background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : 'var(--surface2)'
+      background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--card))' : 'var(--card)'
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] uppercase",
@@ -54131,163 +54308,95 @@ function TrainHome({
       color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)',
       letterSpacing: '0.1em'
     }
-  }, "Week ", w, w === prog.week ? ' \u00b7 now' : ''), /*#__PURE__*/React.createElement("span", {
+  }, "Week ", w, w === prog.week ? ' · now' : ''), /*#__PURE__*/React.createElement("span", {
     className: "text-[11px]",
     style: {
       color: Training.weekSessions(block, w).some(x => x.deload) ? 'var(--warn)' : 'var(--muted)'
     }
-  }, Training.weekSessions(block, w).some(x => x.deload) ? 'deload' : weekRangeLabel(block.startISO, w)))))), !weekAhead && /*#__PURE__*/React.createElement(PipLine, {
-    pct: shownWeekPlan.length ? doneShown / shownWeekPlan.length * 100 : 0,
-    color: "var(--accent)",
-    height: 11,
-    cells: Math.max(1, shownWeekPlan.length)
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "text-[12px]",
+  }, Training.weekSessions(block, w).some(x => x.deload) ? 'deload' : weekRangeLabel(block.startISO, w))))), /*#__PURE__*/React.createElement("div", {
+    className: "grid",
     style: {
+      gridTemplateColumns: 'repeat(7, minmax(0, 1fr))'
+    }
+  }, Array.from({
+    length: 7
+  }, (_, dow) => {
+    const slot = shownWeekPlan.filter(x => x.session.dayOfWeek === dow)[0];
+    const isToday = !viewingAhead && dow === todayDow;
+    const done = !!(slot && slot.log && !slot.live);
+    const inPlay = !!(slot && slot.live);
+    const isNext = !!(slot && !viewingAhead && next && slot.session.id === next.session.id);
+    const cell = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[9px] uppercase block",
+      style: {
+        letterSpacing: '0.06em',
+        color: isToday ? 'var(--accent-ink)' : 'var(--muted2)'
+      }
+    }, (WEEKDAYS[dow] || '')[0]), /*#__PURE__*/React.createElement("span", {
+      className: "block mx-auto mt-1.5 flex items-center justify-center",
+      style: {
+        width: 22,
+        height: 22,
+        border: '2px solid ' + (done ? 'var(--good)' : inPlay || isNext ? 'var(--accent)' : slot ? 'var(--border)' : '#cfc8ba'),
+        background: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent)' : 'transparent',
+        color: 'var(--card)'
+      }
+    }, done ? /*#__PURE__*/React.createElement(Tick, {
+      size: 12
+    }) : inPlay ? /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[9px]",
+      style: {
+        color: 'var(--on-accent)'
+      }
+    }, "…") : null), /*#__PURE__*/React.createElement("span", {
+      className: "block text-[9px] mt-1.5 truncate",
+      style: {
+        lineHeight: 1.2,
+        color: done ? 'var(--good-ink)' : slot ? inPlay || isNext ? 'var(--accent-ink)' : 'var(--text2)' : 'var(--muted2)'
+      }
+    }, slot ? slot.session.name.split(' - ')[0] : 'Rest'));
+    const style = {
+      borderRight: dow < 6 ? '2px solid var(--border)' : 'none',
+      padding: '9px 2px',
+      textAlign: 'center',
+      minHeight: 74,
+      background: done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : inPlay || isNext ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))' : 'var(--card)'
+    };
+    // A rest day is not a control. It was never one before either, and giving it a target
+    // that does nothing is worse than leaving it plainly inert.
+    return slot ? /*#__PURE__*/React.createElement("button", {
+      key: dow,
+      style: style,
+      "aria-label": slot.session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[dow] || '') + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : ''),
+      onClick: () => inPlay && onResume ? onResume(slot.session, block) : onOpen(slot.session, block)
+    }, cell) : /*#__PURE__*/React.createElement("div", {
+      key: dow,
+      style: style
+    }, cell);
+  })), !viewingAhead && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] px-3 py-2.5",
+    style: {
+      borderTop: '2px solid var(--border)',
       color: 'var(--muted)'
     }
-  }, viewingAhead ? shownWeekPlan.length + ' session' + (shownWeekPlan.length === 1 ? '' : 's') + ' planned.' + (doneShown ? ' ' + doneShown + ' already done.' : '') : doneShown >= shownWeekPlan.length ? 'That is the whole week done.' : shownWeekPlan.length - doneShown + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week' + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.'), !viewingAhead && restDays.length > 0 && restDays.length < 7 && /*#__PURE__*/React.createElement("span", {
+  }, doneShown >= shownWeekPlan.length ? 'That is the whole week done.' : shownWeekPlan.length - doneShown + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week' + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : '.')), (isDeload || isIntro) && !viewingAhead && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] px-3 py-2 leading-snug",
     style: {
-      color: 'var(--muted2)'
-    }
-  }, " Rest on ", restDays.map(d => WEEKDAYS[d]).join(' and '), "."))), /*#__PURE__*/React.createElement("div", {
-    className: "p-3.5"
-  }, isDeload && !viewingAhead && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mb-4 px-3 py-2 leading-snug",
-    style: {
+      borderTop: '2px solid var(--border)',
       background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))',
-      color: 'var(--warn)'
+      color: 'var(--warn-ink)'
     }
-  }, "Deload week. Lighter on purpose, so the next block starts on a fresh body."), isIntro && !isDeload && !viewingAhead && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mb-4 px-3 py-2 leading-snug",
-    style: {
-      background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))',
-      color: 'var(--accent-ink)'
-    }
-  }, "Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the five after it."), restToday && !trainingToday.length && !viewingAhead && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mb-4 px-3 py-2 leading-snug",
-    style: {
-      background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))',
-      color: 'var(--text2)'
-    }
-  }, /*#__PURE__*/React.createElement("b", null, "Today is a rest day."), " That is the plan, not a gap in it - the week is built around", restDays.length === 1 ? ' it' : ' these two', ". Next up is ", next ? next.session.name.split(' - ')[0] : 'the next session', "."), /*#__PURE__*/React.createElement("div", {
-    className: "mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1.5",
-    style: {
-      gridTemplateColumns: 'repeat(' + (shownWeekPlan.length <= 4 ? Math.max(1, shownWeekPlan.length) : 3) + ', minmax(0, 1fr))'
-    }
-  }, shownWeekPlan.map(({
-    session,
-    log,
-    live: inPlay
-  }) => {
-    const done = !!log && !inPlay;
-    const isNext = !viewingAhead && next && session.id === next.session.id;
-    return /*#__PURE__*/React.createElement("button", {
-      key: session.id,
-      onClick: () => inPlay && onResume ? onResume(session, block) : onOpen(session, block),
-      "aria-label": session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[session.dayOfWeek] || 'not set') + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : ''),
-      className: "flex flex-col justify-center gap-0.5 px-2 py-2 text-left",
-      style: {
-        minHeight: 48,
-        border: '2px solid ' + (isNext || inPlay ? 'var(--accent)' : 'var(--border)'),
-        background: inPlay ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : 'var(--surface2)'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-[12px] font-semibold leading-tight truncate",
-      style: {
-        color: done ? 'var(--muted)' : 'var(--text)'
-      }
-    }, session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[8px] uppercase truncate",
-      style: {
-        letterSpacing: '0.08em',
-        color: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent-ink)' : 'var(--muted2)'
-      }
-    }, WEEKDAYS[session.dayOfWeek] || '--', done ? ' \u2713' : inPlay ? ' \u2026' : ''));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] tnum mt-2 text-right",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0), " sets this week")), viewingAhead ? /*#__PURE__*/React.createElement("button", {
+  }, isDeload ? 'Deload week. Lighter on purpose, so the next block starts on a fresh body.' : 'Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the ' + (block.weeks - 1) + ' after it.'), viewingAhead && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setWeekAt(null);
       setWeekPick(false);
     },
-    className: "pixel-box w-full py-3 text-[12px] mb-1",
+    className: "w-full py-3 text-[12px]",
     style: {
+      borderTop: '2px solid var(--border)',
       background: 'var(--surface2)'
     }
-  }, "Back to week ", prog.week) : next ?
-  /*#__PURE__*/
-  /* One nested card now, not a boxed "Opening with" panel plus a floating sentence plus a
-     hint nobody needed once the roll-up above made every day tappable by name. NEXT · DAY
-     names when, the day's own name and its cost sit on one row, and what it opens with is
-     one sentence rather than a mini exercise card of its own - the whole point of the fold
-     is that this is a preview, not the session. */
-  React.createElement("div", {
-    className: "mb-3 px-3 py-3",
-    style: {
-      background: 'var(--surface2)',
-      border: '2px solid var(--border)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase mb-1",
-    style: {
-      color: 'var(--accent-ink)',
-      letterSpacing: '0.1em'
-    }
-  }, live ? 'In progress' : 'Next', " · ", WEEKDAYS[next.session.dayOfWeek] || ''), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline justify-between gap-2 mb-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[14px] font-bold"
-  }, next.session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("span", {
-    className: "text-[11px] tnum shrink-0",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, (next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0), " sets · about ", sessionMins(next.session.exercises), " min")), (() => {
-    const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
-    if (!items.length) return null;
-    // Half-way through it, so what it OPENS with is not the useful sentence any more.
-    if (live) {
-      const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
-      const planned = items.reduce((a, e) => a + (e.target.sets || 0), 0);
-      return /*#__PURE__*/React.createElement("div", {
-        className: "text-[12px] leading-snug",
-        style: {
-          color: 'var(--text2)'
-        }
-      }, "You are ", ticked, " set", ticked === 1 ? '' : 's', " into this one", planned ? ' of ' + planned : '', ". Everything you ticked is saved - carrying on picks it up where you left it.");
-    }
-    const style = Training.styleOf(block.style);
-    const lead = items[0];
-    const leadEx = Training.byId(lead.exerciseId, t.custom);
-    const effort = style.toFailure ? (lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0 ? 'stopping short this week' : lead.target.rir > 0 ? 'last set to failure' : 'to failure' : lead.target.rir + ' RIR';
-    return /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] leading-snug",
-      style: {
-        color: 'var(--text2)'
-      }
-    }, "Opens with ", leadEx ? leadEx.name : lead.exerciseId, " ", lead.target.sets, "×", lead.target.repLow, "-", lead.target.repHigh, " · ", effort, items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.', restDays.length > 0 && restDays.length < 7 ? ' Rest ' + restDays.map(d => WEEKDAYS[d]).join('-') + '.' : '');
-  })()) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[12.5px] text-center py-3",
-    style: {
-      color: 'var(--good)'
-    }
-  }, "Week ", prog.week, " done. That is the whole week, in the bag."), next && !viewingAhead && /*#__PURE__*/React.createElement("button", {
-    onClick: () => live && onResume ? onResume(next.session, block) : onOpen(next.session, block),
-    className: "pixel-btn w-full py-3.5 pf text-[12px] uppercase",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)',
-      letterSpacing: '0.06em'
-    }
-  }, /*#__PURE__*/React.createElement(Icon.play, {
-    width: "16"
-  }), " ", live ? 'Carry on with ' : 'Open ', next.session.name.split(' - ')[0]))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
+  }, "Back to week ", prog.week))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4",
     style: {
       background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
@@ -54483,7 +54592,7 @@ function TrainHome({
     style: {
       background: 'var(--surface2)'
     }
-  }, "Stats"), /*#__PURE__*/React.createElement("button", {
+  }, "Stats"), spine.segments.length === 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => go('blocks'),
     className: "pixel-box h-11 text-[12px]",
     style: {

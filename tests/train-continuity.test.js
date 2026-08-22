@@ -204,9 +204,10 @@ test('a day that is not the next one opens that day', () => {
     db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
   });
   try {
-    // The chip's own text: its name, then its day, with nothing between them.
-    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    ui.click(other.name.split(' - ')[0] + DAYS[other.dayOfWeek]);
+    // The day is the COLUMN now, not part of the chip's text: the week is seven cells headed M T W
+    // T F S S, so a cell reads as its session's name under the letter of the day it falls on. What
+    // has to stay true is that it is still that day's own control.
+    ui.click(other.name.split(' - ')[0]);
     assert.ok(ui.has(other.name.split(' - ')[0]), 'lands on that session');
     assert.ok(ui.has('Start'), 'with the way to begin it: ' + ui.text.slice(0, 200));
   } finally { ui.unmount(); }

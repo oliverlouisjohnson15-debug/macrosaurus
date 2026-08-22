@@ -322,6 +322,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
   const restToday = restDays.indexOf(todayDow) !== -1;
   const trainingToday = thisWeek.filter(x => x.session.dayOfWeek === todayDow);
+  // Every block actually run, for the spine at the top. Ordering, lengths and per-week fill are
+  // all the engine's arithmetic (`Training.blockSpine`); this screen only draws it.
+  const spine = Training.blockSpine(t.blocks, t.logs, today);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -389,240 +392,239 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </button>
       )}
 
-      {/* ---- the block ---- */}
-      {block && !blockDone && (
-        /* The block, as a titled panel: its name on the ink bar with the week's progress in accent
-           beside it, which is the pair the design puts there and the two facts you open this page
-           for.
+      {/* ---- THE SPINE ----
+          Every block you have run, in order, on one line. The tab used to say a great deal about the
+          block you are in and nothing whatever about the three before it - they were behind a button,
+          so the screen read as though training began this month, and "how am I doing" had no answer
+          shorter than opening another screen.
 
-           The count used to be a BUTTON into the block list, which is the one route on this screen
-           that never said where it went: `CardHead` draws its right slot with no verb and no
-           chevron, so "2 / 4 done" was a progress readout that silently navigated - and the Blocks
-           button further down the same page already goes there, labelled. Two routes to one screen,
-           one of them disguised as a number. It is a number again. */
-        <Card className="p-0 mb-4 overflow-hidden">
-          <CardHead title={block.name} right={weekAhead
-            ? shownWeekPlan.length + (shownWeekPlan.length === 1 ? ' session' : ' sessions')
-            : doneShown + ' / ' + shownWeekPlan.length + ' done'} />
-          {/* The week, as a meter and one sentence, in its own band above the sessions. The card used
-              to open straight onto the list, which answered "what are the days" but never "where am I
-              in the week" - the question the page is actually opened to settle. */}
-          <div className="px-3 py-3 flex flex-col gap-2" style={{ borderBottom: '2px solid var(--border)' }}>
-            {/* Which week, and WHEN it runs. The same control the builder uses, in the same shape and
-                the same words, because a row of "W1 W2 W3 W4" tabs tells you which week and never
-                which dates - and reading ahead is exactly the moment you want the dates. Only drawn
-                on a block long enough to have somewhere to go. */}
-            {block.weeks > 1 && (<>
-              <button onClick={() => setWeekPick(!weekPick)} className="w-full flex items-center justify-between gap-2 text-left"
-                aria-label="Choose which week to look at">
-                <span className="min-w-0">
-                  <span className="pf text-[9px] uppercase" style={{ color: viewingAhead ? 'var(--accent-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>
-                    Week {shownWeek} of {block.weeks}{Training.weekSessions(block, shownWeek).some(x => x.deload) ? ' \u00b7 deload' : ''}{viewingAhead ? '' : ' \u00b7 now'}
+          It is a READOUT, not a control surface. Segments 22px tall cannot carry honest tap targets
+          across four blocks, and the version that tried had a row of 27px week pips you were meant to
+          hit with a thumb. One labelled route out of it instead, on the line below, which is also the
+          only route to the block list now - the footer's third button was the same destination
+          reached by a different word.
+
+          Width is proportional to LENGTH, so a three-week block reads as shorter than a four-week
+          one. The running block is taller, framed and carries its own weeks, because the question it
+          answers is a different one: not "did I do that" but "where am I". */}
+      {spine.segments.length > 0 && (
+        <div className="mb-5">
+          <div className="flex gap-[3px] items-end">
+            {spine.segments.map(seg => (
+              <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
+                {seg.state === 'running' ? (
+                  <span className="flex" style={{ height: 34, border: '3px solid var(--border)', boxShadow: '2px 2px 0 0 var(--shadow)', background: 'var(--track)' }}>
+                    {seg.weekFill.map(w => (
+                      <i key={w.week} className="flex-1" style={{
+                        borderRight: w.week < seg.weeks ? '1px solid var(--border)' : 'none',
+                        // A week you finished is solid. The week you are IN is filled as far as you
+                        // have got, which is the only part of this bar that moves during a week.
+                        background: w.full ? 'var(--accent)'
+                          : w.now && w.total
+                            ? 'linear-gradient(to right, var(--accent) 0 ' + Math.round((w.done / w.total) * 100) + '%, var(--track) ' + Math.round((w.done / w.total) * 100) + '% 100%)'
+                            : 'var(--track)',
+                      }} />
+                    ))}
                   </span>
-                  <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>{weekRangeLabel(block.startISO, shownWeek)}</span>
+                ) : (
+                  <span className="block" style={{
+                    height: 22, border: '2px solid var(--border)',
+                    // A block you finished, against one you stopped part-way. The second is not a
+                    // failure worth colouring red - it is most of a block, and it still counts.
+                    background: seg.state === 'done' ? 'var(--good)' : 'color-mix(in srgb, var(--good) 45%, var(--track))',
+                  }} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-[3px] mt-1.5">
+            {spine.segments.map(seg => (
+              <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
+                <span className="pf text-[9px] uppercase truncate block" style={{ letterSpacing: '0.08em', color: seg.state === 'running' ? 'var(--accent-ink)' : 'var(--muted2)' }}>
+                  {monthShort(seg.startISO)}{seg.state === 'running' ? ' · now' : ''}
                 </span>
-                <span className="shrink-0" style={{ color: 'var(--muted2)', transform: weekPick ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}>
-                  <Icon.chevron width="16" height="16" />
-                </span>
+              </div>
+            ))}
+          </div>
+          {/* What the highlighted segment IS. The bar can say where you are without ever saying what
+              you are running, and a picture of four blocks with no names on it is a chart, not a
+              plan. */}
+          {block && !blockDone && (
+            <div className="flex items-baseline justify-between gap-2 mt-3">
+              {/* The name gets the line to itself. Hung with the week and the split it wrapped to
+                  three lines on any block whose author gave it a real name, and the route out of the
+                  spine ended up floating beside the second half of a sentence. */}
+              <span className="text-[13px] font-bold min-w-0 truncate">{block.name}</span>
+              <button onClick={() => go('blocks')} className="hit pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.09em' }}>
+                {spine.before ? spine.before + ' before ›' : 'Your blocks ›'}
               </button>
-              {weekPick && (
-                <div className="flex flex-col gap-1.5 mb-1">
-                  {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
-                    <button key={w} onClick={() => { setWeekAt(w === prog.week ? null : w); setWeekPick(false); }}
-                      className="w-full p-2.5 flex items-center justify-between gap-2 text-left"
-                      style={{ border: '2px solid var(--border)', background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : 'var(--surface2)' }}>
-                      <span className="pf text-[9px] uppercase" style={{ color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)', letterSpacing: '0.1em' }}>
-                        Week {w}{w === prog.week ? ' \u00b7 now' : ''}
-                      </span>
-                      <span className="text-[11px]" style={{ color: Training.weekSessions(block, w).some(x => x.deload) ? 'var(--warn)' : 'var(--muted)' }}>
-                        {Training.weekSessions(block, w).some(x => x.deload) ? 'deload' : weekRangeLabel(block.startISO, w)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>)}
-            {!weekAhead && <PipLine pct={shownWeekPlan.length ? (doneShown / shownWeekPlan.length) * 100 : 0} color="var(--accent)" height={11} cells={Math.max(1, shownWeekPlan.length)} />}
-            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
-              {/* Reading ahead is a different question from running the week, so it gets a different
-                  sentence. "2 sessions left" and "Next is Upper 1" are facts about the week you are
-                  IN; said over week 3 they would be the card telling you where you are while showing
-                  you somewhere else. */}
-              {viewingAhead
-                ? shownWeekPlan.length + ' session' + (shownWeekPlan.length === 1 ? '' : 's') + ' planned.'
-                  + (doneShown ? ' ' + doneShown + ' already done.' : '')
-                : doneShown >= shownWeekPlan.length
-                  ? 'That is the whole week done.'
-                  : (shownWeekPlan.length - doneShown) + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week' + (live
-                    ? '. ' + live.session.name.split(' - ')[0] + ' is still open.'
-                    : next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
-              {!viewingAhead && restDays.length > 0 && restDays.length < 7 && (
-                <span style={{ color: 'var(--muted2)' }}> Rest on {restDays.map(d => WEEKDAYS[d]).join(' and ')}.</span>
-              )}
-            </span>
-          </div>
-          <div className="p-3.5">
-
-          {isDeload && !viewingAhead && (
-            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
-              Deload week. Lighter on purpose, so the next block starts on a fresh body.
             </div>
           )}
-
-          {isIntro && !isDeload && !viewingAhead && (
-            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--accent-ink)' }}>
-              Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the five after it.
+          {block && !blockDone && (
+            <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
+              Week {prog.week} of {block.weeks}
+              {(read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block))}
             </div>
           )}
-
-          {/* A rest day is prescribed, not a day you failed to train. Saying so is the difference
-              between a week that is going to plan and a week that looks like it is slipping. */}
-          {restToday && !trainingToday.length && !viewingAhead && (
-            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--text2)' }}>
-              <b>Today is a rest day.</b> That is the plan, not a gap in it - the week is built around
-              {restDays.length === 1 ? ' it' : ' these two'}. Next up is {next ? next.session.name.split(' - ')[0] : 'the next session'}.
+          {spine.hidden > 0 && (
+            <div className="text-[11px] mt-1.5" style={{ color: 'var(--muted2)' }}>
+              {spine.hidden} earlier block{spine.hidden === 1 ? '' : 's'} not shown.
             </div>
           )}
+        </div>
+      )}
 
-          {/* The week used to be four full-width rows, one per day, whether or not there was
-              anything left to say about them: a done day and an untouched one took the same amount
-              of screen. Three of those four rows carry exactly one fact - done - so they are folded
-              into a single line of names, each still its own button into that day's plan. Only the
-              week's total set count earns a number of its own, on the right where the old per-row
-              set counts used to scatter. */}
-          {/* ---- the week's days, as things you can actually hit ----
-              Which session you do today is a decision people make in the doorway of the gym: the
-              squat rack is taken, you are stiff, you have forty minutes rather than ninety. The plan
-              has always allowed it - `next` is a suggestion and every session stays startable, which
-              is why the roll-up was tappable at all - but it was drawn as a line of PROSE: four names
-              at 12.5px in muted grey, separated by middots, in 19px-tall targets against a 44px
-              minimum. It read as a caption under a sentence, and the only day with a real control was
-              the one the app had chosen for you, in full-width gold.
+      {/* ---- the block ---- */}
+      {block && !blockDone && (<>
 
-              So the row says what it does. One chip per session, each a proper target, each carrying
-              its day and its state; the recommended one is marked rather than being the only one
-              offered, and the gold button below stays as the recommendation. This is the same shape
-              the module already uses for "Up next" inside the session player - and it keeps the whole
-              week visible at once, which is the one thing TrainHeroic's athletes ask for and its
-              day-by-day calendar does not give them. */}
-          <div className="mb-4">
-            {/* A GRID, not a wrapping flex row: with `flex-1` the last chip on a wrapped line
-                stretched to the full width, so a four-day week drew three 102px chips and one 319px
-                one - accidental emphasis on whichever day happened to wrap. Equal tracks instead.
-                Up to four days across; five or six wrap to three-a-row rather than shrinking past
-                the point a session name survives. */}
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(' + (shownWeekPlan.length <= 4 ? Math.max(1, shownWeekPlan.length) : 3) + ', minmax(0, 1fr))' }}>
-              {shownWeekPlan.map(({ session, log, live: inPlay }) => {
-                const done = !!log && !inPlay;
-                const isNext = !viewingAhead && next && session.id === next.session.id;
-                return (
-                  <button key={session.id}
-                    onClick={() => (inPlay && onResume ? onResume(session, block) : onOpen(session, block))}
-                    aria-label={session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[session.dayOfWeek] || 'not set')
-                      + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : '')}
-                    className="flex flex-col justify-center gap-0.5 px-2 py-2 text-left"
-                    style={{
-                      minHeight: 48,
-                      border: '2px solid ' + (isNext || inPlay ? 'var(--accent)' : 'var(--border)'),
-                      background: inPlay ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))'
-                        : done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
-                          : 'var(--surface2)',
-                    }}>
-                    <span className="text-[12px] font-semibold leading-tight truncate"
-                      style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
-                      {session.name.split(' - ')[0]}
-                    </span>
-                    {/* The DAY always shows, whatever state the session is in - it is what you are
-                        choosing between, and a chip that swapped it for the word "Done" would drop
-                        the one label the row exists to carry. State rides alongside it as a mark,
-                        and on the chip's own border and face. */}
-                    <span className="pf text-[8px] uppercase truncate" style={{ letterSpacing: '0.08em', color: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent-ink)' : 'var(--muted2)' }}>
-                      {WEEKDAYS[session.dayOfWeek] || '--'}{done ? ' \u2713' : inPlay ? ' \u2026' : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="text-[12px] tnum mt-2 text-right" style={{ color: 'var(--muted)' }}>
-              {shownWeekPlan.reduce((a, x) => a + (x.session.exercises || []).reduce((y, e) => y + (e.target.sets || 0), 0), 0)} sets this week
-            </div>
-          </div>
-
-          {/* The next session, and the button that opens it, belong to the week you are IN. While you
-              are reading ahead they step aside: a "Next · Thursday" card under week 3's day list
-              would be offering you this week's session off another week's page. Coming back to the
-              current week brings both back. */}
-          {viewingAhead ? (
-            <button onClick={() => { setWeekAt(null); setWeekPick(false); }}
-              className="pixel-box w-full py-3 text-[12px] mb-1" style={{ background: 'var(--surface2)' }}>
-              Back to week {prog.week}
-            </button>
-          ) : next ? (
-            /* One nested card now, not a boxed "Opening with" panel plus a floating sentence plus a
-               hint nobody needed once the roll-up above made every day tappable by name. NEXT · DAY
-               names when, the day's own name and its cost sit on one row, and what it opens with is
-               one sentence rather than a mini exercise card of its own - the whole point of the fold
-               is that this is a preview, not the session. */
-            <div className="mb-3 px-3 py-3" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
-              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>
-                {live ? 'In progress' : 'Next'} · {WEEKDAYS[next.session.dayOfWeek] || ''}
+        {/* ---- WHAT TO DO NOW ----
+            One card, one action, at the top of the work rather than at the bottom of a panel that
+            first walked you through the week's arithmetic. While you are reading a week you are not
+            in, it steps aside entirely: offering this week's session off week three's page is the
+            app answering a question nobody asked. */}
+        {!viewingAhead && next && (
+          <Card className="p-0 mb-4 overflow-hidden">
+            <CardHead title={live ? 'In progress' : 'Next up'} right={WEEKDAYS_FULL[next.session.dayOfWeek] || ''} />
+            <div className="p-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[17px] font-bold leading-tight">{next.session.name.split(' - ')[0]}</span>
+                <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>about {sessionMins(next.session.exercises)} min</span>
               </div>
-              <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <span className="text-[14px] font-bold">{next.session.name.split(' - ')[0]}</span>
-                <span className="text-[11px] tnum shrink-0" style={{ color: 'var(--muted)' }}>
-                  {(next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0)} sets · about {sessionMins(next.session.exercises)} min
-                </span>
+              <div className="text-[12px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>
+                {live
+                  ? (() => {
+                    const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
+                    const planned = (next.session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0);
+                    return 'You are ' + ticked + ' set' + (ticked === 1 ? '' : 's') + ' into this one'
+                      + (planned ? ' of ' + planned : '') + '. Everything you ticked is saved.';
+                  })()
+                  : (() => {
+                    const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
+                    if (!items.length) return (next.session.exercises || []).length + ' movements';
+                    const style = Training.styleOf(block.style);
+                    const lead = items[0];
+                    const leadEx = Training.byId(lead.exerciseId, t.custom);
+                    const effort = style.toFailure
+                      ? ((lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0
+                        ? 'stopping short this week'
+                        : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
+                      : lead.target.rir + ' RIR';
+                    return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' '
+                      + lead.target.sets + '×' + lead.target.repLow + '-' + lead.target.repHigh + ' · ' + effort
+                      + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
+                  })()}
               </div>
-              {(() => {
-                const items = (next.session.exercises || []).slice().sort((a, b) => a.order - b.order);
-                if (!items.length) return null;
-                // Half-way through it, so what it OPENS with is not the useful sentence any more.
-                if (live) {
-                  const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
-                  const planned = items.reduce((a, e) => a + (e.target.sets || 0), 0);
-                  return (
-                    <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-                      You are {ticked} set{ticked === 1 ? '' : 's'} into this one{planned ? ' of ' + planned : ''}. Everything you ticked is saved - carrying on picks it up where you left it.
-                    </div>
-                  );
-                }
-                const style = Training.styleOf(block.style);
-                const lead = items[0];
-                const leadEx = Training.byId(lead.exerciseId, t.custom);
-                const effort = style.toFailure
-                  ? ((lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0
-                    ? 'stopping short this week'
-                    : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
-                  : lead.target.rir + ' RIR';
-                return (
-                  <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-                    Opens with {leadEx ? leadEx.name : lead.exerciseId} {lead.target.sets}×{lead.target.repLow}-{lead.target.repHigh} · {effort}
-                    {items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.'}
-                    {restDays.length > 0 && restDays.length < 7 ? ' Rest ' + restDays.map(d => WEEKDAYS[d]).join('-') + '.' : ''}
-                  </div>
-                );
-              })()}
+              <button onClick={() => (live && onResume ? onResume(next.session, block) : onOpen(next.session, block))}
+                className="pixel-btn w-full mt-3.5 py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+                <Icon.play width="16" /> {live ? 'Carry on with ' : 'Open '}{next.session.name.split(' - ')[0]}
+              </button>
             </div>
-          ) : (
-            <div className="text-[12.5px] text-center py-3" style={{ color: 'var(--good)' }}>
+          </Card>
+        )}
+        {!viewingAhead && !next && (
+          <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
+            <div className="text-[12.5px] text-center" style={{ color: 'var(--good-ink)' }}>
               Week {prog.week} done. That is the whole week, in the bag.
             </div>
+          </Card>
+        )}
+
+        {/* ---- THE WEEK, AS SEVEN DAYS ----
+            Every day of the week, training and rest alike, drawn rather than described. The old card
+            listed the four sessions and then said "Rest on Fri and Sat and Sun" underneath in prose -
+            a sentence spending a line to describe the three gaps that were already visible the moment
+            the week had a shape. Seven columns and the rest days draw themselves.
+
+            The head is the week PICKER. Reading ahead used to open a disclosure inside the card; it
+            is the same list, hung off the one control on this card that was already naming the week. */}
+        <Card className="p-0 mb-4 overflow-hidden">
+          <button onClick={() => setWeekPick(!weekPick)} className="w-full" aria-label="Choose which week to look at"
+            aria-expanded={weekPick}>
+            <CardHead title={viewingAhead ? 'Week ' + shownWeek : 'This week'}
+              right={weekRangeLabel(block.startISO, shownWeek) + (block.weeks > 1 ? '  ›' : '')} />
+          </button>
+          {weekPick && block.weeks > 1 && (
+            <div className="p-2.5 flex flex-col gap-1.5" style={{ borderBottom: '2px solid var(--border)', background: 'var(--surface2)' }}>
+              {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
+                <button key={w} onClick={() => { setWeekAt(w === prog.week ? null : w); setWeekPick(false); }}
+                  className="w-full p-2.5 flex items-center justify-between gap-2 text-left"
+                  style={{ border: '2px solid var(--border)', background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--card))' : 'var(--card)' }}>
+                  <span className="pf text-[9px] uppercase" style={{ color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)', letterSpacing: '0.1em' }}>
+                    Week {w}{w === prog.week ? ' · now' : ''}
+                  </span>
+                  <span className="text-[11px]" style={{ color: Training.weekSessions(block, w).some(x => x.deload) ? 'var(--warn)' : 'var(--muted)' }}>
+                    {Training.weekSessions(block, w).some(x => x.deload) ? 'deload' : weekRangeLabel(block.startISO, w)}
+                  </span>
+                </button>
+              ))}
+            </div>
           )}
-          {/* The page's one primary action, so it wears the accent rather than a hardcoded white
-              slab - which was also the last control in Train that stayed daylight at night. */}
-          {/* "Looking is not starting" is the rule for a session you have not begun: the tap opens the
-              plan and the button on THAT screen starts it. A session you are already inside is not
-              looking, and sending it through the preview meant resuming a workout you were standing
-              in the middle of cost two taps and a screen you did not need. Live goes straight in. */}
-          {next && !viewingAhead && (
-            <button onClick={() => (live && onResume ? onResume(next.session, block) : onOpen(next.session, block))}
-              className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-              <Icon.play width="16" /> {live ? 'Carry on with ' : 'Open '}{next.session.name.split(' - ')[0]}
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+            {Array.from({ length: 7 }, (_, dow) => {
+              const slot = shownWeekPlan.filter(x => x.session.dayOfWeek === dow)[0];
+              const isToday = !viewingAhead && dow === todayDow;
+              const done = !!(slot && slot.log && !slot.live);
+              const inPlay = !!(slot && slot.live);
+              const isNext = !!(slot && !viewingAhead && next && slot.session.id === next.session.id);
+              const cell = (
+                <>
+                  <span className="pf text-[9px] uppercase block" style={{ letterSpacing: '0.06em', color: isToday ? 'var(--accent-ink)' : 'var(--muted2)' }}>
+                    {(WEEKDAYS[dow] || '')[0]}
+                  </span>
+                  <span className="block mx-auto mt-1.5 flex items-center justify-center" style={{
+                    width: 22, height: 22,
+                    border: '2px solid ' + (done ? 'var(--good)' : inPlay || isNext ? 'var(--accent)' : slot ? 'var(--border)' : '#cfc8ba'),
+                    background: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent)' : 'transparent',
+                    color: 'var(--card)',
+                  }}>
+                    {done ? <Tick size={12} /> : inPlay ? <span className="pf text-[9px]" style={{ color: 'var(--on-accent)' }}>&hellip;</span> : null}
+                  </span>
+                  <span className="block text-[9px] mt-1.5 truncate" style={{ lineHeight: 1.2, color: done ? 'var(--good-ink)' : slot ? (inPlay || isNext ? 'var(--accent-ink)' : 'var(--text2)') : 'var(--muted2)' }}>
+                    {slot ? slot.session.name.split(' - ')[0] : 'Rest'}
+                  </span>
+                </>
+              );
+              const style = {
+                borderRight: dow < 6 ? '2px solid var(--border)' : 'none',
+                padding: '9px 2px', textAlign: 'center', minHeight: 74,
+                background: done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+                  : inPlay || isNext ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))' : 'var(--card)',
+              };
+              // A rest day is not a control. It was never one before either, and giving it a target
+              // that does nothing is worse than leaving it plainly inert.
+              return slot ? (
+                <button key={dow} style={style}
+                  aria-label={slot.session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[dow] || '')
+                    + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : '')}
+                  onClick={() => (inPlay && onResume ? onResume(slot.session, block) : onOpen(slot.session, block))}>
+                  {cell}
+                </button>
+              ) : <div key={dow} style={style}>{cell}</div>;
+            })}
+          </div>
+          {!viewingAhead && (
+            <div className="text-[12px] px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', color: 'var(--muted)' }}>
+              {doneShown >= shownWeekPlan.length
+                ? 'That is the whole week done.'
+                : (shownWeekPlan.length - doneShown) + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week'
+                  + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : '.')}
+            </div>
+          )}
+          {(isDeload || isIntro) && !viewingAhead && (
+            <div className="text-[11px] px-3 py-2 leading-snug" style={{ borderTop: '2px solid var(--border)', background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn-ink)' }}>
+              {isDeload
+                ? 'Deload week. Lighter on purpose, so the next block starts on a fresh body.'
+                : 'Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the ' + (block.weeks - 1) + ' after it.'}
+            </div>
+          )}
+          {viewingAhead && (
+            <button onClick={() => { setWeekAt(null); setWeekPick(false); }}
+              className="w-full py-3 text-[12px]" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+              Back to week {prog.week}
             </button>
           )}
-          </div>
         </Card>
-      )}
+      </>)}
 
       {block && blockDone && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
@@ -772,7 +774,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       <div className="grid grid-cols-3 gap-2 mb-2">
         <button onClick={() => go('history')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>History</button>
         <button onClick={() => go('stats')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Stats</button>
-        <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
+        {/* Blocks was here as a third button AND under the spine as "3 before" - two words for one
+            destination, which is the fault this screen already had once with the "2 / 4 done"
+            counter. The spine owns the route now, because that is where the question is asked. It
+            comes back only on an account with no spine to hang it off. */}
+        {spine.segments.length === 0 && (
+          <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
+        )}
       </div>
 
       {/* "Empty session" is for the days that are not in the plan: a class, a holiday gym, a bit of

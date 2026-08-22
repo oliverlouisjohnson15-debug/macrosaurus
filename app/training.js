@@ -4617,6 +4617,79 @@
     };
   }
 
+  /* Every block you have actually RUN, oldest first: the Train tab's spine.
+   *
+   * The tab could say where you are in the block you are in, and nothing at all about the three you
+   * ran before it - they lived behind a button, so the screen read as though training began this
+   * month. This is the shape that puts them on one line: a segment per block, in order, the running
+   * one carrying its own weeks so "where am I" and "what have I done" are one picture rather than
+   * two screens.
+   *
+   * Only blocks with a `startISO` are on it. A block that was built and never begun is a plan, not a
+   * thing you did, and putting it on a timeline of your training would be the app taking credit on
+   * your behalf.
+   *
+   * `max` caps the segments so a long history cannot shave them to slivers; `hidden` counts what was
+   * dropped so the caller can say so rather than quietly showing less than there is.
+   *
+   * `weeksTrained` counts weeks you actually TRAINED in - at least one session finished - not weeks
+   * elapsed. A fortnight off in the middle of a block is not two weeks of training, and a number
+   * that says it is turns the one honest figure on the screen into a participation trophy.
+   */
+  function blockSpine(blocks, logs, todayISO, opts) {
+    opts = opts || {};
+    var max = opts.max == null ? 6 : opts.max;
+    var all = (blocks || []).filter(function (b) { return b && b.startISO; }).slice()
+      .sort(function (a, b) { return a.startISO < b.startISO ? -1 : a.startISO > b.startISO ? 1 : 0; });
+    var hidden = Math.max(0, all.length - max);
+    var shown = hidden ? all.slice(all.length - max) : all;
+    var segments = shown.map(function (b) {
+      var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
+      var comp = completion(b, mine, todayISO);
+      var prog = blockProgress(b, todayISO);
+      var running = !b.archived && !prog.done && !prog.notStarted;
+      var weeks = Math.max(1, b.weeks || 1);
+      var weekFill = [];
+      for (var w = 1; w <= weeks; w++) {
+        var ws = weekSessions(b, w);
+        var got = ws.filter(function (s) {
+          return comp.logBySession[s.id] && !comp.openBySession[s.id];
+        }).length;
+        weekFill.push({
+          week: w, done: got, total: ws.length,
+          full: ws.length > 0 && got === ws.length,
+          now: running && w === prog.week,
+        });
+      }
+      return {
+        id: b.id, name: b.name, weeks: weeks, startISO: b.startISO,
+        state: running ? 'running' : prog.done ? 'done' : 'stopped',
+        week: running ? prog.week : null,
+        done: comp.done, total: comp.total,
+        pct: comp.total ? comp.done / comp.total : 0,
+        weekFill: weekFill,
+        weeksWorked: weekFill.filter(function (x) { return x.done > 0; }).length,
+      };
+    });
+    return {
+      segments: segments, hidden: hidden,
+      running: segments.filter(function (x) { return x.state === 'running'; })[0] || null,
+      before: segments.filter(function (x) { return x.state !== 'running'; }).length + hidden,
+      weeksTrained: all.reduce(function (a, b) {
+        var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
+        var comp = completion(b, mine, todayISO);
+        var n = 0;
+        for (var w = 1; w <= Math.max(1, b.weeks || 1); w++) {
+          var hit = weekSessions(b, w).some(function (s) {
+            return comp.logBySession[s.id] && !comp.openBySession[s.id];
+          });
+          if (hit) n++;
+        }
+        return a + n;
+      }, 0),
+    };
+  }
+
   // ---- block review --------------------------------------------------------------------------
   // The end-of-block payoff. Numbers only; the buddy's prose is written elsewhere from this shape.
   function reviewBlock(block, logs, targets, custom, todayISO) {
@@ -5585,6 +5658,7 @@
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
+    blockSpine: blockSpine,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
