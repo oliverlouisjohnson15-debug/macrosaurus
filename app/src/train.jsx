@@ -2812,3 +2812,142 @@ function SkeletonRows({ n = 3 }) {
     </div>
   );
 }
+
+/* ---- PROGRESS -----------------------------------------------------------------------------------
+ * "Am I getting stronger?" - the question the module could not answer.
+ *
+ * It was split across two screens and landed on neither. History's first tab listed your BESTS,
+ * which is a progress question filed under the record of what happened. Stats answered it with four
+ * 0-100 scores against bodyweight which, by their own copy, "move slowly and do not lie" - so
+ * nothing changed between visits and not one of them named a lift you could do something about.
+ *
+ * This is the literal answer instead: estimated 1RM per movement, over the last eight sessions, and
+ * which way it is going. The arithmetic is `Training.liftTrends`; the screen only draws it.
+ *
+ * Ordered by what has STOPPED rather than alphabetically, because the list is not the point. Two or
+ * three stalled lifts are the only rows in the module that ask you to decide something, and burying
+ * them under twenty that are fine is how a progress screen becomes wallpaper.
+ */
+function LiftSpark({ series, tone }) {
+  // Drawn to ONE fixed range for every row - a sixteen percent swing spans the box - rather than
+  // stretched to each lift's own min and max. Per-row normalisation makes a lift that moved a
+  // kilogram in two months climb as steeply as one that added thirty, so the picture argues against
+  // the number printed beside it, on the screen whose whole job is showing what moves.
+  const w = 84, h = 28, FULL = 0.16;
+  const v0 = series[0] || 1;
+  const mid = h / 2;
+  const pts = series.map((v, i) => {
+    const x = +(i * (w - 4) / Math.max(1, series.length - 1) + 2).toFixed(1);
+    const frac = Math.max(-1, Math.min(1, (v / v0 - 1) / FULL));
+    return x + ',' + (+(mid - frac * (mid - 3)).toFixed(1));
+  });
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return (
+    <svg width={w} height={h} viewBox={'0 0 ' + w + ' ' + h} aria-hidden="true" style={{ display: 'block' }}>
+      <line x1="2" y1={mid} x2={w - 2} y2={mid} stroke="var(--track)" strokeWidth="1" />
+      <polyline points={pts.join(' ')} fill="none" stroke={tone} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <rect x={+lx - 2} y={+ly - 2} width="4" height="4" fill={tone} />
+    </svg>
+  );
+}
+
+function TrainProgress({ db, onBack, onOpenExercise, go }) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const units = t.prefs.units;
+  const today = Store.todayISO();
+  const trends = Training.liftTrends(t.logs, { custom: t.custom });
+  // Every group folds after four. Capping only the last one left an account a couple of blocks in
+  // opening on twenty near-identical rows all reading "up 18%" - an inventory, which is the exact
+  // navigability failure that made History hard to use.
+  const [open, setOpen] = useState({});
+  const LIMIT = 4;
+
+  const row = (r, i) => {
+    const tone = r.state === 'down' ? 'var(--danger)' : r.state === 'stuck' ? 'var(--warn)'
+      : r.state === 'up' ? 'var(--good)' : 'var(--muted2)';
+    const ink = r.state === 'down' ? 'var(--danger-ink)' : r.state === 'stuck' ? 'var(--warn-ink)'
+      : r.state === 'up' ? 'var(--good-ink)' : 'var(--muted)';
+    return (
+      <button key={r.exerciseId} onClick={() => onOpenExercise(r.exerciseId)}
+        className="w-full text-left px-3.5 py-3 flex items-center gap-3"
+        style={i ? { borderTop: '2px solid var(--track)' } : null}>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
+          <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+            {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
+          </span>
+          {/* The advice belongs to the engine, which is the thing that decided it had stalled. */}
+          {r.state === 'stuck' && (
+            <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>
+              No new best in {Math.min(3, r.sessions)} sessions.
+            </span>
+          )}
+          {r.state === 'down' && (
+            <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>
+              Going backwards since {relativeDay(r.lastISO, today).toLowerCase()}.
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 text-right">
+          <LiftSpark series={r.series} tone={tone} />
+          <span className="block pf text-[10px] tnum mt-1" style={{ color: ink, letterSpacing: '0.04em' }}>
+            {r.deltaPct > 0 ? '+' : ''}{r.deltaPct}%
+          </span>
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Train" title="Progress" />
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Am I getting stronger?</div>
+      <h1 className="pf text-lg mb-2">Progress</h1>
+      <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
+        Your estimated one-rep max on every movement, and which way it is going. Every line is drawn to
+        the same scale, so a lift that is moving looks like it.
+      </div>
+
+      {trends.rows.length === 0 && (
+        <Card className="p-4">
+          <div className="text-[13px] mb-1">Not enough logged yet.</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+            A movement shows up here once you have trained it three times. Two points is not a trend,
+            and a screen that called one session's difference progress would be teaching you to read noise.
+          </div>
+        </Card>
+      )}
+
+      {[
+        { key: 'look', list: trends.needsLook, title: 'Worth a look', right: trends.needsLook.length + ' of ' + trends.rows.length, warn: true },
+        { key: 'up', list: trends.up, title: 'Moving up', right: 'last 8 sessions' },
+        { key: 'flat', list: trends.steady, title: 'Ticking along', right: String(trends.steady.length) },
+      ].filter(g => g.list.length > 0).map(g => (
+        <Card key={g.key} className={'p-0 mb-4 overflow-hidden' + (g.warn ? ' box-warn' : '')}>
+          <CardHead title={g.title} right={g.right} />
+          {(open[g.key] ? g.list : g.list.slice(0, LIMIT)).map(row)}
+          {!open[g.key] && g.list.length > LIMIT && (
+            <button onClick={() => setOpen(o => Object.assign({}, o, { [g.key]: true }))}
+              className="w-full text-left px-3.5 py-3.5 text-[12px]"
+              style={{ borderTop: '2px solid var(--track)', color: 'var(--accent-ink)' }}>
+              Show the other {g.list.length - LIMIT} ›
+            </button>
+          )}
+        </Card>
+      ))}
+
+      {/* The character sheet is still here, one tap away, rather than being the whole screen. It is a
+          game object and it is good at being one - it was filed under a screen people open to make
+          training decisions, which is why it read as empty. */}
+      <button onClick={() => go('stats')} className="pixel-box w-full text-left p-3.5 flex items-center justify-between gap-3"
+        style={{ background: 'var(--surface2)' }}>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-semibold">Your character sheet</span>
+          <span className="block text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>Strength, power, endurance and balance, against your bodyweight</span>
+        </span>
+        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+      </button>
+    </div>
+  );
+}

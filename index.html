@@ -8076,6 +8076,82 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return null;
   }
 
+  /* EVERY MOVEMENT YOU HAVE TRAINED, AND WHICH WAY IT IS GOING.
+   *
+   * "Am I getting stronger" had no screen. History listed your BESTS - a progress question filed
+   * under the record of what happened - and Stats answered it with four scores against bodyweight
+   * that by design move slowly, so nothing changed between visits and none of it named a lift. The
+   * one number that actually answers the question, per movement, was computed everywhere and shown
+   * nowhere: estimated 1RM over time.
+   *
+   * Sorted by what is MOVING rather than alphabetically, and split three ways, because the useful
+   * part is not the list - it is the two or three lifts that have stopped. Those are the only rows
+   * on the screen that ask you to decide something.
+   *
+   * `series` is the last `window` sessions' e1RM. `deltaPct` is measured across that window rather
+   * than against all time: a lift you have trained for a year should be judged on the block you are
+   * in, not flattered by where it started.
+   *
+   * A movement needs `minSessions` before it appears at all. Two points is not a trend, and a screen
+   * that calls one session's difference "up 14%" teaches people to read noise as progress.
+   */
+  function liftTrends(logs, opts) {
+    opts = opts || {};
+    var window = opts.window || 8;
+    var minSessions = opts.minSessions || 3;
+    var stallAt = opts.stallSessions || 3;
+    var ids = uniq((logs || []).reduce(function (a, l) {
+      return a.concat((l.sets || []).filter(function (s) {
+        return s.done && (!s.type || s.type === 'work');
+      }).map(function (s) { return s.exerciseId; }));
+    }, []));
+    var rows = ids.map(function (id) {
+      var hist = exerciseHistory(logs, id).filter(function (h) { return h.e1rm > 0; });
+      if (hist.length < minSessions) return null;
+      var win = hist.slice(-window);
+      var series = win.map(function (h) { return h.e1rm; });
+      var first = series[0] || 0, last = series[series.length - 1] || 0;
+      var deltaPct = first ? round(((last - first) / first) * 100, 1) : 0;
+      var ex = byId(id, opts.custom);
+      var best = hist.reduce(function (a, h) { return h.e1rm > a.e1rm ? h : a; }, hist[0]);
+      // Stuck is the engine's existing rule, not a new one: no new best in the last few sessions.
+      var stall = detectStall(hist, stallAt);
+      return {
+        exerciseId: id, name: ex ? ex.name : id,
+        sessions: hist.length, lastISO: hist[hist.length - 1].dateISO,
+        e1rm: last, bestE1rm: best.e1rm, topKg: best.topWeight, topReps: best.topReps,
+        series: series, deltaPct: deltaPct,
+        // Falling is its own thing: a lift going backwards is not the same news as one standing
+        // still, and lumping them together loses the only bit that is urgent.
+        /* Stuck means stuck OVER THE WINDOW, not merely "no new best in the last three".
+           Those come apart constantly: a lift can add sixteen percent across eight sessions and
+           still not have set a best in the last three, because it just took a deload or because the
+           top set landed a fortnight ago. Judging on the short rule alone put rows reading "+16.7%"
+           under a heading saying they had stopped - the badge arguing with the label, on the one
+           screen that exists to say which lifts are moving. The short rule now only decides between
+           stuck and flat once the window itself has gone quiet. */
+        state: deltaPct <= -1.5 ? 'down'
+          : deltaPct >= 1.5 ? 'up'
+            : (stall ? 'stuck' : 'flat'),
+        stalled: !!stall,
+      };
+    }).filter(Boolean);
+    var rank = { down: 0, stuck: 1, up: 2, flat: 3 };
+    rows.sort(function (a, b) {
+      if (rank[a.state] !== rank[b.state]) return rank[a.state] - rank[b.state];
+      // Within a group, the biggest mover first, and a tie broken by recency so a lift you trained
+      // today outranks one from three weeks ago.
+      if (Math.abs(b.deltaPct) !== Math.abs(a.deltaPct)) return Math.abs(b.deltaPct) - Math.abs(a.deltaPct);
+      return a.lastISO < b.lastISO ? 1 : -1;
+    });
+    return {
+      rows: rows,
+      needsLook: rows.filter(function (r) { return r.state === 'down' || r.state === 'stuck'; }),
+      up: rows.filter(function (r) { return r.state === 'up'; }),
+      steady: rows.filter(function (r) { return r.state === 'flat'; }),
+    };
+  }
+
   // ---- the character sheet ---------------------------------------------------------------------
   // Four stats, every one of them derived from sets you actually logged. Nothing here is awarded for
   // turning up, which is the whole point: a number that goes up because you opened the app teaches
@@ -11948,6 +12024,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
@@ -46598,8 +46675,72 @@ function demoStateBuild() {
         });
       });
     });
+    /* A BLOCK BEFORE THIS ONE, finished, with its four weeks logged.
+       Without it the sample account has each movement twice - under the three-session floor Progress
+       sets - so the one screen built to answer "am I getting stronger" had nothing to answer it with,
+       History was two weeks long, and the spine drew a single segment. A tracker's screens are all
+       about accumulation and none of them can be judged on a fortnight.
+       Weights climb across the two blocks, and a couple of movements deliberately do not: a lat
+       pulldown that has not moved in three sessions and an RDL slipping back are what the "worth a
+       look" list exists for, and a demo where everything goes up cannot show it. */
+    {
+      const prev = Training.generateBlock({
+        daysPerWeek: 4,
+        weeks: 4,
+        shape: 'build3-deload1',
+        goal: 'hypertrophy',
+        targets: Training.defaultTargets({
+          experience: 'intermediate'
+        }),
+        name: 'Spring strength',
+        startISO: shiftISO(today, -45)
+      });
+      prev.archived = true;
+      for (let w = 1; w <= 4; w++) {
+        Training.weekSessions(prev, w).forEach((sess, di) => {
+          const dayOffset = -45 + (w - 1) * 7 + di;
+          if (dayOffset > -11) return;
+          logs.push({
+            id: 'demoprev_' + w + '_' + di,
+            dateISO: shiftISO(today, dayOffset),
+            blockId: prev.id,
+            sessionId: sess.id,
+            name: sess.name,
+            startedAt: shiftISO(today, dayOffset) + 'T09:00:00.000Z',
+            endedAt: shiftISO(today, dayOffset) + 'T10:10:00.000Z',
+            notes: '',
+            sets: sess.exercises.reduce((acc, e, ei) => {
+              const ex = Training.byId(e.exerciseId);
+              const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+              // Most things climb week to week. `lat_pulldown` is pinned and `db_rdl` drifts down,
+              // so the screen has something real to flag.
+              const flat = e.exerciseId === 'lat_pulldown';
+              const fading = e.exerciseId === 'db_rdl';
+              const base = compound ? 52 + ei * 5 : 10 + ei * 2;
+              const step = flat ? 0 : fading ? -(w - 1) : (w - 1) * (compound ? 2.5 : 1);
+              for (let i = 0; i < e.target.sets; i++) {
+                acc.push({
+                  exerciseId: e.exerciseId,
+                  itemId: e.id,
+                  setIndex: i,
+                  type: 'work',
+                  weightKg: Math.max(5, base + step),
+                  reps: e.target.repHigh - (i > 1 ? 1 : 0),
+                  rir: e.target.rir,
+                  done: true
+                });
+              }
+              return acc;
+            }, [])
+          });
+        });
+      }
+      s.training = Object.assign(s.training || {}, {
+        blocks: [prev]
+      });
+    }
     s.training = Object.assign(s.training || {}, {
-      blocks: [blk],
+      blocks: (s.training.blocks || []).concat([blk]),
       logs: logs,
       custom: [],
       volumeTargets: {},
@@ -54152,6 +54293,16 @@ function TrainTab({
       onBack: () => go('settings')
     }));
   }
+  if (screen.name === 'progress') {
+    return page(/*#__PURE__*/React.createElement(TrainProgress, {
+      db: db,
+      onBack: () => go('home'),
+      go: go,
+      onOpenExercise: id => go('exercise', {
+        exerciseId: id
+      })
+    }));
+  }
   if (screen.name === 'stats') {
     return page(/*#__PURE__*/React.createElement(StatSheet, {
       db: db,
@@ -54882,7 +55033,7 @@ function TrainHome({
       background: 'var(--surface2)'
     }
   }, "Build", /*#__PURE__*/React.createElement("br", null), "a block")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-2 mb-2"
+    className: 'grid gap-2 mb-2 ' + (spine.segments.length === 0 ? 'grid-cols-3' : 'grid-cols-2')
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => go('history'),
     className: "pixel-box h-11 text-[12px]",
@@ -54890,12 +55041,12 @@ function TrainHome({
       background: 'var(--surface2)'
     }
   }, "History"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('stats'),
+    onClick: () => go('progress'),
     className: "pixel-box h-11 text-[12px]",
     style: {
       background: 'var(--surface2)'
     }
-  }, "Stats"), spine.segments.length === 0 && /*#__PURE__*/React.createElement("button", {
+  }, "Progress"), spine.segments.length === 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => go('blocks'),
     className: "pixel-box h-11 text-[12px]",
     style: {
@@ -64539,6 +64690,214 @@ function SkeletonRows({
       animation: 'fade 1.1s ease-in-out infinite alternate'
     }
   }))))));
+}
+
+/* ---- PROGRESS -----------------------------------------------------------------------------------
+ * "Am I getting stronger?" - the question the module could not answer.
+ *
+ * It was split across two screens and landed on neither. History's first tab listed your BESTS,
+ * which is a progress question filed under the record of what happened. Stats answered it with four
+ * 0-100 scores against bodyweight which, by their own copy, "move slowly and do not lie" - so
+ * nothing changed between visits and not one of them named a lift you could do something about.
+ *
+ * This is the literal answer instead: estimated 1RM per movement, over the last eight sessions, and
+ * which way it is going. The arithmetic is `Training.liftTrends`; the screen only draws it.
+ *
+ * Ordered by what has STOPPED rather than alphabetically, because the list is not the point. Two or
+ * three stalled lifts are the only rows in the module that ask you to decide something, and burying
+ * them under twenty that are fine is how a progress screen becomes wallpaper.
+ */
+function LiftSpark({
+  series,
+  tone
+}) {
+  // Drawn to ONE fixed range for every row - a sixteen percent swing spans the box - rather than
+  // stretched to each lift's own min and max. Per-row normalisation makes a lift that moved a
+  // kilogram in two months climb as steeply as one that added thirty, so the picture argues against
+  // the number printed beside it, on the screen whose whole job is showing what moves.
+  const w = 84,
+    h = 28,
+    FULL = 0.16;
+  const v0 = series[0] || 1;
+  const mid = h / 2;
+  const pts = series.map((v, i) => {
+    const x = +(i * (w - 4) / Math.max(1, series.length - 1) + 2).toFixed(1);
+    const frac = Math.max(-1, Math.min(1, (v / v0 - 1) / FULL));
+    return x + ',' + +(mid - frac * (mid - 3)).toFixed(1);
+  });
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return /*#__PURE__*/React.createElement("svg", {
+    width: w,
+    height: h,
+    viewBox: '0 0 ' + w + ' ' + h,
+    "aria-hidden": "true",
+    style: {
+      display: 'block'
+    }
+  }, /*#__PURE__*/React.createElement("line", {
+    x1: "2",
+    y1: mid,
+    x2: w - 2,
+    y2: mid,
+    stroke: "var(--track)",
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: pts.join(' '),
+    fill: "none",
+    stroke: tone,
+    strokeWidth: "2.5",
+    strokeLinejoin: "round",
+    strokeLinecap: "round"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: +lx - 2,
+    y: +ly - 2,
+    width: "4",
+    height: "4",
+    fill: tone
+  }));
+}
+function TrainProgress({
+  db,
+  onBack,
+  onOpenExercise,
+  go
+}) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const units = t.prefs.units;
+  const today = Store.todayISO();
+  const trends = Training.liftTrends(t.logs, {
+    custom: t.custom
+  });
+  // Every group folds after four. Capping only the last one left an account a couple of blocks in
+  // opening on twenty near-identical rows all reading "up 18%" - an inventory, which is the exact
+  // navigability failure that made History hard to use.
+  const [open, setOpen] = useState({});
+  const LIMIT = 4;
+  const row = (r, i) => {
+    const tone = r.state === 'down' ? 'var(--danger)' : r.state === 'stuck' ? 'var(--warn)' : r.state === 'up' ? 'var(--good)' : 'var(--muted2)';
+    const ink = r.state === 'down' ? 'var(--danger-ink)' : r.state === 'stuck' ? 'var(--warn-ink)' : r.state === 'up' ? 'var(--good-ink)' : 'var(--muted)';
+    return /*#__PURE__*/React.createElement("button", {
+      key: r.exerciseId,
+      onClick: () => onOpenExercise(r.exerciseId),
+      className: "w-full text-left px-3.5 py-3 flex items-center gap-3",
+      style: i ? {
+        borderTop: '2px solid var(--track)'
+      } : null
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "min-w-0 flex-1"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block text-[13.5px] font-semibold leading-tight"
+    }, r.name), /*#__PURE__*/React.createElement("span", {
+      className: "block text-[11.5px] tnum mt-0.5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, toDisplayWeight(r.e1rm, units), unitLabel(units), " est. 1RM · ", r.sessions, " ", r.sessions === 1 ? 'session' : 'sessions'), r.state === 'stuck' && /*#__PURE__*/React.createElement("span", {
+      className: "block text-[11px] mt-1 leading-snug",
+      style: {
+        color: ink
+      }
+    }, "No new best in ", Math.min(3, r.sessions), " sessions."), r.state === 'down' && /*#__PURE__*/React.createElement("span", {
+      className: "block text-[11px] mt-1 leading-snug",
+      style: {
+        color: ink
+      }
+    }, "Going backwards since ", relativeDay(r.lastISO, today).toLowerCase(), ".")), /*#__PURE__*/React.createElement("span", {
+      className: "shrink-0 text-right"
+    }, /*#__PURE__*/React.createElement(LiftSpark, {
+      series: r.series,
+      tone: tone
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "block pf text-[10px] tnum mt-1",
+      style: {
+        color: ink,
+        letterSpacing: '0.04em'
+      }
+    }, r.deltaPct > 0 ? '+' : '', r.deltaPct, "%")));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(SubHeader, {
+    back: onBack,
+    backLabel: "Train",
+    title: "Progress"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-1.5",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.14em'
+    }
+  }, "Am I getting stronger?"), /*#__PURE__*/React.createElement("h1", {
+    className: "pf text-lg mb-2"
+  }, "Progress"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12.5px] mb-5 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Your estimated one-rep max on every movement, and which way it is going. Every line is drawn to the same scale, so a lift that is moving looks like it."), trends.rows.length === 0 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] mb-1"
+  }, "Not enough logged yet."), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "A movement shows up here once you have trained it three times. Two points is not a trend, and a screen that called one session's difference progress would be teaching you to read noise.")), [{
+    key: 'look',
+    list: trends.needsLook,
+    title: 'Worth a look',
+    right: trends.needsLook.length + ' of ' + trends.rows.length,
+    warn: true
+  }, {
+    key: 'up',
+    list: trends.up,
+    title: 'Moving up',
+    right: 'last 8 sessions'
+  }, {
+    key: 'flat',
+    list: trends.steady,
+    title: 'Ticking along',
+    right: String(trends.steady.length)
+  }].filter(g => g.list.length > 0).map(g => /*#__PURE__*/React.createElement(Card, {
+    key: g.key,
+    className: 'p-0 mb-4 overflow-hidden' + (g.warn ? ' box-warn' : '')
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: g.title,
+    right: g.right
+  }), (open[g.key] ? g.list : g.list.slice(0, LIMIT)).map(row), !open[g.key] && g.list.length > LIMIT && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(o => Object.assign({}, o, {
+      [g.key]: true
+    })),
+    className: "w-full text-left px-3.5 py-3.5 text-[12px]",
+    style: {
+      borderTop: '2px solid var(--track)',
+      color: 'var(--accent-ink)'
+    }
+  }, "Show the other ", g.list.length - LIMIT, " ›"))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => go('stats'),
+    className: "pixel-box w-full text-left p-3.5 flex items-center justify-between gap-3",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-[13px] font-semibold"
+  }, "Your character sheet"), /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11.5px] mt-0.5",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Strength, power, endurance and balance, against your bodyweight")), /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "16",
+    height: "16",
+    style: {
+      color: 'var(--muted2)',
+      flexShrink: 0
+    }
+  })));
 }
 </script>
 </body>

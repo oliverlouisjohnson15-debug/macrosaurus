@@ -17618,8 +17618,55 @@ function demoStateBuild() {
         });
       });
     });
+    /* A BLOCK BEFORE THIS ONE, finished, with its four weeks logged.
+       Without it the sample account has each movement twice - under the three-session floor Progress
+       sets - so the one screen built to answer "am I getting stronger" had nothing to answer it with,
+       History was two weeks long, and the spine drew a single segment. A tracker's screens are all
+       about accumulation and none of them can be judged on a fortnight.
+       Weights climb across the two blocks, and a couple of movements deliberately do not: a lat
+       pulldown that has not moved in three sessions and an RDL slipping back are what the "worth a
+       look" list exists for, and a demo where everything goes up cannot show it. */
+    {
+      const prev = Training.generateBlock({
+        daysPerWeek: 4, weeks: 4, shape: 'build3-deload1', goal: 'hypertrophy',
+        targets: Training.defaultTargets({ experience: 'intermediate' }),
+        name: 'Spring strength', startISO: shiftISO(today, -45),
+      });
+      prev.archived = true;
+      for (let w = 1; w <= 4; w++) {
+        Training.weekSessions(prev, w).forEach((sess, di) => {
+          const dayOffset = -45 + (w - 1) * 7 + di;
+          if (dayOffset > -11) return;
+          logs.push({
+            id: 'demoprev_' + w + '_' + di, dateISO: shiftISO(today, dayOffset),
+            blockId: prev.id, sessionId: sess.id, name: sess.name,
+            startedAt: shiftISO(today, dayOffset) + 'T09:00:00.000Z',
+            endedAt: shiftISO(today, dayOffset) + 'T10:10:00.000Z', notes: '',
+            sets: sess.exercises.reduce((acc, e, ei) => {
+              const ex = Training.byId(e.exerciseId);
+              const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+              // Most things climb week to week. `lat_pulldown` is pinned and `db_rdl` drifts down,
+              // so the screen has something real to flag.
+              const flat = e.exerciseId === 'lat_pulldown';
+              const fading = e.exerciseId === 'db_rdl';
+              const base = compound ? 52 + ei * 5 : 10 + ei * 2;
+              const step = flat ? 0 : fading ? -(w - 1) : (w - 1) * (compound ? 2.5 : 1);
+              for (let i = 0; i < e.target.sets; i++) {
+                acc.push({
+                  exerciseId: e.exerciseId, itemId: e.id, setIndex: i, type: 'work',
+                  weightKg: Math.max(5, base + step), reps: e.target.repHigh - (i > 1 ? 1 : 0),
+                  rir: e.target.rir, done: true,
+                });
+              }
+              return acc;
+            }, []),
+          });
+        });
+      }
+      s.training = Object.assign(s.training || {}, { blocks: [prev] });
+    }
     s.training = Object.assign(s.training || {}, {
-      blocks: [blk], logs: logs, custom: [], volumeTargets: {},
+      blocks: (s.training.blocks || []).concat([blk]), logs: logs, custom: [], volumeTargets: {},
       prefs: { units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true },
     });
     // ?demo&live  today's session already RUNNING: started half an hour ago, the first movement

@@ -221,6 +221,10 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'how') {
     return page(<HowItWorks onBack={() => go('settings')} />);
   }
+  if (screen.name === 'progress') {
+    return page(<TrainProgress db={db} onBack={() => go('home')} go={go}
+      onOpenExercise={(id) => go('exercise', { exerciseId: id })} />);
+  }
   if (screen.name === 'stats') {
     return page(<StatSheet db={db} onBack={() => go('home')} />);
   }
@@ -859,9 +863,16 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               this close together and this low-contrast were the least discoverable controls in the
               app; a button is a button whether it says HISTORY or OPEN LOWER B. "Your blocks" is
               renamed to fit a one-word button and match the block card's own name for itself. ---- */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      {/* The track count follows the number of buttons. It was fixed at three while the third is
+          conditional, so on every ordinary account History and Progress sat in two thirds of the
+          row with a phantom column beside them - two buttons pushed off-centre under a
+          full-width card. */}
+      <div className={'grid gap-2 mb-2 ' + (spine.segments.length === 0 ? 'grid-cols-3' : 'grid-cols-2')}>
         <button onClick={() => go('history')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>History</button>
-        <button onClick={() => go('stats')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Stats</button>
+        {/* Progress, not Stats. The screen behind it answers a question now - "am I getting stronger" -
+            rather than showing four scores that by design do not move. The character sheet is one tap
+            further on, which is the right distance for a thing you look at monthly. */}
+        <button onClick={() => go('progress')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Progress</button>
         {/* Blocks was here as a third button AND under the spine as "3 before" - two words for one
             destination, which is the fault this screen already had once with the "2 / 4 done"
             counter. The spine owns the route now, because that is where the question is asked. It

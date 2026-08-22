@@ -1993,6 +1993,82 @@
     return null;
   }
 
+  /* EVERY MOVEMENT YOU HAVE TRAINED, AND WHICH WAY IT IS GOING.
+   *
+   * "Am I getting stronger" had no screen. History listed your BESTS - a progress question filed
+   * under the record of what happened - and Stats answered it with four scores against bodyweight
+   * that by design move slowly, so nothing changed between visits and none of it named a lift. The
+   * one number that actually answers the question, per movement, was computed everywhere and shown
+   * nowhere: estimated 1RM over time.
+   *
+   * Sorted by what is MOVING rather than alphabetically, and split three ways, because the useful
+   * part is not the list - it is the two or three lifts that have stopped. Those are the only rows
+   * on the screen that ask you to decide something.
+   *
+   * `series` is the last `window` sessions' e1RM. `deltaPct` is measured across that window rather
+   * than against all time: a lift you have trained for a year should be judged on the block you are
+   * in, not flattered by where it started.
+   *
+   * A movement needs `minSessions` before it appears at all. Two points is not a trend, and a screen
+   * that calls one session's difference "up 14%" teaches people to read noise as progress.
+   */
+  function liftTrends(logs, opts) {
+    opts = opts || {};
+    var window = opts.window || 8;
+    var minSessions = opts.minSessions || 3;
+    var stallAt = opts.stallSessions || 3;
+    var ids = uniq((logs || []).reduce(function (a, l) {
+      return a.concat((l.sets || []).filter(function (s) {
+        return s.done && (!s.type || s.type === 'work');
+      }).map(function (s) { return s.exerciseId; }));
+    }, []));
+    var rows = ids.map(function (id) {
+      var hist = exerciseHistory(logs, id).filter(function (h) { return h.e1rm > 0; });
+      if (hist.length < minSessions) return null;
+      var win = hist.slice(-window);
+      var series = win.map(function (h) { return h.e1rm; });
+      var first = series[0] || 0, last = series[series.length - 1] || 0;
+      var deltaPct = first ? round(((last - first) / first) * 100, 1) : 0;
+      var ex = byId(id, opts.custom);
+      var best = hist.reduce(function (a, h) { return h.e1rm > a.e1rm ? h : a; }, hist[0]);
+      // Stuck is the engine's existing rule, not a new one: no new best in the last few sessions.
+      var stall = detectStall(hist, stallAt);
+      return {
+        exerciseId: id, name: ex ? ex.name : id,
+        sessions: hist.length, lastISO: hist[hist.length - 1].dateISO,
+        e1rm: last, bestE1rm: best.e1rm, topKg: best.topWeight, topReps: best.topReps,
+        series: series, deltaPct: deltaPct,
+        // Falling is its own thing: a lift going backwards is not the same news as one standing
+        // still, and lumping them together loses the only bit that is urgent.
+        /* Stuck means stuck OVER THE WINDOW, not merely "no new best in the last three".
+           Those come apart constantly: a lift can add sixteen percent across eight sessions and
+           still not have set a best in the last three, because it just took a deload or because the
+           top set landed a fortnight ago. Judging on the short rule alone put rows reading "+16.7%"
+           under a heading saying they had stopped - the badge arguing with the label, on the one
+           screen that exists to say which lifts are moving. The short rule now only decides between
+           stuck and flat once the window itself has gone quiet. */
+        state: deltaPct <= -1.5 ? 'down'
+          : deltaPct >= 1.5 ? 'up'
+            : (stall ? 'stuck' : 'flat'),
+        stalled: !!stall,
+      };
+    }).filter(Boolean);
+    var rank = { down: 0, stuck: 1, up: 2, flat: 3 };
+    rows.sort(function (a, b) {
+      if (rank[a.state] !== rank[b.state]) return rank[a.state] - rank[b.state];
+      // Within a group, the biggest mover first, and a tie broken by recency so a lift you trained
+      // today outranks one from three weeks ago.
+      if (Math.abs(b.deltaPct) !== Math.abs(a.deltaPct)) return Math.abs(b.deltaPct) - Math.abs(a.deltaPct);
+      return a.lastISO < b.lastISO ? 1 : -1;
+    });
+    return {
+      rows: rows,
+      needsLook: rows.filter(function (r) { return r.state === 'down' || r.state === 'stuck'; }),
+      up: rows.filter(function (r) { return r.state === 'up'; }),
+      steady: rows.filter(function (r) { return r.state === 'flat'; }),
+    };
+  }
+
   // ---- the character sheet ---------------------------------------------------------------------
   // Four stats, every one of them derived from sets you actually logged. Nothing here is awarded for
   // turning up, which is the whole point: a number that goes up because you opened the app teaches
@@ -5865,6 +5941,7 @@
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
