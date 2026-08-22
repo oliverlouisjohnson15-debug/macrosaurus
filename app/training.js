@@ -2099,7 +2099,14 @@
   };
   function defaultDows(days) {
     var n = Math.round(+days) || 4;
-    return (DEFAULT_DOW[n] || DEFAULT_DOW[4]).slice();
+    if (DEFAULT_DOW[n]) return DEFAULT_DOW[n].slice();
+    // More sessions than the week has days is a real import: eight screenshots, eight days. The map
+    // stops at six, and returning a four-long array for an eight-session week is worse than useless -
+    // the screen that consumes it would drop half the rows. Fill the week and double up from the
+    // start, which is what the rest of the module does with an over-long template.
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(i % 7);
+    return out;
   }
 
   /* What to recommend for THIS block, which is not always the general recommendation.
@@ -2559,6 +2566,9 @@
   //
   //   `template` = [{ kind, name, dayOfWeek, exercises: [{ id, exerciseId, order, target }] }]
   function blockFromTemplate(template, opts) {
+    // Same rule as everywhere else a weekday is defaulted. A template that already carries days keeps
+    // them; one that does not takes the recommended week, not 0,1,2,3.
+    var tplDows = defaultDows((template || []).length);
     opts = opts || {};
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
@@ -2617,7 +2627,7 @@
           // Clamped for the same reason the draft basket clamps: a template holding more days than a
           // week has cannot hand a session a weekday that does not exist. It doubles up on Sunday
           // and can be moved from there, rather than landing somewhere nothing can draw or schedule.
-          week: w, dayOfWeek: day.dayOfWeek == null ? Math.min(di, 6) : clamp(+day.dayOfWeek, 0, 6),
+          week: w, dayOfWeek: day.dayOfWeek == null ? tplDows[di] : clamp(+day.dayOfWeek, 0, 6),
           name: day.name || ('Day ' + (di + 1)), kind: day.kind || 'full',
           deload: isDeload,
           exercises: (day.exercises || []).map(function (item, ei) {
@@ -2709,6 +2719,9 @@
 
   function importTemplate(parsed, opts) {
     opts = opts || {};
+    // Where a source states no weekday, the recommended week rather than the array index. See
+    // DEFAULT_DOW: consecutive days were never a decision.
+    var importDows = defaultDows(((parsed && parsed.days) || []).length);
     var unresolved = [];   // rows the library had no match for - still IN the plan, via newCustom
     var loose = [];        // matched, but on a weak score - worth a second look
     var mismatches = [];   // right movement, kit the source did not ask for
@@ -2803,7 +2816,7 @@
       });
       var row = {
         kind: 'full', name: dayName,
-        dayOfWeek: day.dayOfWeek == null ? di : clamp(+day.dayOfWeek, 0, 6),
+        dayOfWeek: day.dayOfWeek == null ? importDows[di] : clamp(+day.dayOfWeek, 0, 6),
         exercises: exercises,
       };
       // Name it for what it trains, once the movements are known - including anything auto-created
@@ -3177,10 +3190,28 @@
    * Monday, second Wednesday, third Saturday, fourth Sunday". A null entry leaves that session where
    * it is, which is what makes it usable for changing one row without restating the rest.
    */
-  function reschedule(block, dows) {
+  function reschedule(block, dows, todayISO) {
     if (!block || !dows || !dows.length) return false;
+    /* WEEKS YOU HAVE ALREADY TRAINED STAY AS THEY WERE.
+     *
+     * This walked every week of the block, including the ones behind you, so moving Thursday to
+     * Saturday in week three rewrote weeks one and two to claim their sessions had been on a
+     * Saturday. The logs keep their own dates so no data was lost, but paging back a week showed a
+     * tick sitting on a day nobody trained, and `restDaysOfWeek` called a training day a rest day.
+     * History is not a thing a preference gets to edit.
+     *
+     * It is the rule the rest of the module already follows - `swapInBlock` takes the current week
+     * and the builder says "weeks you have trained stay as they were" in as many words. With no date
+     * to hand there is no past to protect, which is what a caller with no clock means.
+     */
+    var from = 0;
+    if (todayISO) {
+      var pg = blockProgress(block, todayISO);
+      if (!pg.notStarted) from = pg.week;
+    }
     var byWeek = {};
     (block.sessions || []).forEach(function (s) {
+      if (from && (+s.week || 1) < from) return;
       (byWeek[s.week] = byWeek[s.week] || []).push(s);
     });
     var changed = false;
@@ -3206,12 +3237,27 @@
 
   // The weekdays a block's week currently runs on, in session order: what `reschedule` would take to
   // leave it exactly as it is, and what an editor opens showing.
-  function scheduleOf(block) {
-    var first = null;
-    (block && block.sessions || []).forEach(function (s) {
-      if (first == null || s.week < first) first = s.week;
-    });
-    return (block && block.sessions || []).filter(function (s) { return s.week === first; })
+  function scheduleOf(block, todayISO) {
+    var sessions = (block && block.sessions) || [];
+    // The week being LOOKED at, which is the week you are in. Always reading week one meant that on
+    // week three the screen showed week one's days: any one-off move made this week was invisible,
+    // the save button read "nothing to change" over an arrangement plainly different from the strip
+    // above it, and saving silently reverted the move.
+    var want = null;
+    if (todayISO && block && block.startISO) {
+      var pg = blockProgress(block, todayISO);
+      if (!pg.notStarted && !pg.done) want = pg.week;
+    }
+    if (want == null) {
+      sessions.forEach(function (s) {
+        var w = +s.week || 1;
+        if (want == null || w < want) want = w;
+      });
+    }
+    // `week` has always been written by every producer, but a hand-edited or half-migrated block
+    // without it matched EVERY session here (undefined == null), returning the whole block as one
+    // week - sixteen rows on a four-week block, and a daysPerWeek of seven after a save.
+    return sessions.filter(function (s) { return (+s.week || 1) === want; })
       .map(function (s) { return { id: s.id, name: s.name, dayOfWeek: s.dayOfWeek }; });
   }
 
@@ -3429,7 +3475,36 @@
     // dayOfWeek 7 is off the end of every weekday label in the app and off the end of the schedule.
     // It doubles up on Sunday instead, which the block builder already supports (two sessions on one
     // day is an ordinary thing to programme), and which the person can move wherever they like.
-    days.forEach(function (x, i) { x.dayOfWeek = Math.min(i, 6); });
+    // The recommended week, not the array index. This used to ASSIGN `Math.min(i, 6)` over the top of
+    // whatever had been read off the plan, so every imported programme - the whole point of the
+    // Premium importer - came back on consecutive days with a four-day weekend, which is the very
+    // thing DEFAULT_DOW exists to stop. A weekday the source actually stated is kept.
+    /* The basket's weekdays: what the SOURCE said where it said anything, and the recommended week
+       for everything else.
+       This used to assign `Math.min(i, 6)` over the top of every day, so an imported programme - the
+       whole point of the importer - always came back on consecutive days with a four-day weekend.
+       Two things have to hold at once. A weekday the plan actually states is the author's and is
+       kept. And the basket must always end with as many DISTINCT days as it has sessions, because
+       phone screenshots of a plan very often all call themselves "Day 1" and a read that gives five
+       of them the same weekday would stack all five on Monday.
+       `dowAuto` marks a day this function placed, so re-running it as each new screenshot lands
+       re-places them together rather than letting each arrival grab whatever was free - which came
+       out distinct but scattered (Mon, Thu, Fri, Tue, Sat for five plain days). */
+    var taken = {};
+    days.forEach(function (x) {
+      if (x.dayOfWeek != null && !x.dowAuto) { x.dayOfWeek = clamp(Math.round(+x.dayOfWeek), 0, 6); taken[x.dayOfWeek] = 1; }
+    });
+    var basketDows = defaultDows(days.length);
+    days.forEach(function (x, i) {
+      if (x.dayOfWeek != null && !x.dowAuto) return;
+      var rec = basketDows[i];
+      var want = (rec != null && !taken[rec]) ? rec : null;
+      for (var d = 0; want == null && d <= 6; d++) if (!taken[d]) want = d;
+      if (want == null) want = Math.min(i, 6);
+      taken[want] = 1;
+      x.dayOfWeek = want;
+      x.dowAuto = true;
+    });
     // Re-mint the exercise ids against the day's position in the BASKET. importTemplate numbers them
     // by the day's index within its own parse, and a batch of screenshots is one parse each, so every
     // one of them thinks it is day zero: five screenshots produce five sets of identical ids. Those
@@ -3823,7 +3898,12 @@
     var name = opts.name || 'Imported programme';
     var stamp = Date.now().toString(36);
     var blocks = chunks.map(function (chunk, ci) {
-      var dows = SHEET_DOW[dayCount] || chunk[0].days.map(function (_, i) { return Math.min(i, 6); });
+      // A sheet import is built as a min-max block (`style: 'minmax'` below), so it takes the week
+      // that method prescribes rather than the general recommendation. Pointing SHEET_DOW at
+      // DEFAULT_DOW made a fresh 4-day import open on Mon/Tue/Thu/Fri while the schedule screen told
+      // it that "this plan is written around Mon, Thu, Fri, Sat" - the app disagreeing with itself
+      // about a block it had just built.
+      var dows = recommendedDows({ style: 'minmax' }, dayCount);
       // Fresh every time, so two imports of one sheet cannot collide on the shelf. A caller that
       // wants a stable file on disk (tools/minmax-import.mjs) passes its own prefix instead.
       var id = opts.idPrefix ? opts.idPrefix + (chunks.length > 1 ? '_b' + (ci + 1) : '') : 'blk_' + stamp + '_' + ci + Math.random().toString(36).slice(2, 5);
@@ -4748,11 +4828,25 @@
       .sort(function (a, b) { return a.startISO < b.startISO ? -1 : a.startISO > b.startISO ? 1 : 0; });
     var hidden = Math.max(0, all.length - max);
     var shown = hidden ? all.slice(all.length - max) : all;
+    /* WHICH ONE IS LIVE, decided once for the whole spine.
+     *
+     * "not archived and not finished" is a per-block predicate, and two blocks can satisfy it at
+     * once - overlapping blocks are creatable, and two saved on the same day certainly are. That put
+     * two tall framed segments and two "now" labels on one timeline, and made this function disagree
+     * with `activeBlock`, which takes the NEWEST. One winner, chosen the same way, so the spine and
+     * the rest of the app cannot name different blocks as the one you are in.
+     */
+    var liveId = null, liveStart = null;
+    shown.forEach(function (b) {
+      var pg = blockProgress(b, todayISO);
+      if (b.archived || pg.done || pg.notStarted) return;
+      if (liveStart == null || b.startISO >= liveStart) { liveStart = b.startISO; liveId = b.id; }
+    });
     var segments = shown.map(function (b) {
       var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
       var comp = completion(b, mine, todayISO);
       var prog = blockProgress(b, todayISO);
-      var running = !b.archived && !prog.done && !prog.notStarted;
+      var running = b.id === liveId;
       var weeks = Math.max(1, b.weeks || 1);
       var weekFill = [];
       for (var w = 1; w <= weeks; w++) {
@@ -4768,7 +4862,11 @@
       }
       return {
         id: b.id, name: b.name, weeks: weeks, startISO: b.startISO,
-        state: running ? 'running' : prog.done ? 'done' : 'stopped',
+        // A block dated into the future is not one you abandoned. It fell through to 'stopped' and
+        // was drawn as most-of-a-block-you-walked-away-from, on a timeline of things you have done,
+        // while the lines below it said "week 1 of 4" - the screen calling it history and present at
+        // the same time. It has its own state, and it is the only one that has not happened yet.
+        state: prog.notStarted ? 'planned' : running ? 'running' : prog.done ? 'done' : 'stopped',
         week: running ? prog.week : null,
         done: comp.done, total: comp.total,
         pct: comp.total ? comp.done / comp.total : 0,
@@ -4779,7 +4877,10 @@
     return {
       segments: segments, hidden: hidden,
       running: segments.filter(function (x) { return x.state === 'running'; })[0] || null,
-      before: segments.filter(function (x) { return x.state !== 'running'; }).length + hidden,
+      // What you have BEHIND you, which is neither the block you are in nor one that has not begun.
+      before: segments.filter(function (x) {
+        return x.state !== 'running' && x.state !== 'planned';
+      }).length + hidden,
       weeksTrained: all.reduce(function (a, b) {
         var mine = (logs || []).filter(function (l) { return l.blockId === b.id; });
         var comp = completion(b, mine, todayISO);

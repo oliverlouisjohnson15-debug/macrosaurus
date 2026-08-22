@@ -215,7 +215,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
-    return page(<ScheduleDays db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
+    return page(<ScheduleDays db={db} update={update} showToast={showToast}
       block={blk} fresh={!!screen.fresh} onBack={() => go('home')} />);
   }
   if (screen.name === 'how') {
@@ -284,7 +284,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // The landmarks of the block being LOOKED at. Somebody running an imported min-max block while
   // the wizard is still set to the volume model was being told a complete six-set chest week was
   // short on chest - the app disagreeing with a plan it is running, in a bar with no explanation.
-  const targets = trainTargets(db, block ? block.style : undefined);
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
   /* ---- the week you are LOOKING at, which is not always the week you are IN ----
@@ -305,7 +304,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const viewingAhead = !!(block && prog && shownWeek !== prog.week);
   // A week that has not happened yet has nothing to REPORT, only something to show. A past week you
   // are looking back at does, so the two are not the same case.
-  const weekAhead = !!(block && prog && shownWeek > prog.week);
   const shownWeekPlan = viewingAhead ? weekPlan(block, shownWeek, t.logs) : thisWeek;
   const doneShown = shownWeekPlan.filter(x => x.log && !x.live).length;
   // A session started this morning and left half-way is NOT one of the week's done sessions, and
@@ -328,11 +326,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // Date.getDay(); borrowing that here would move every session by a day.
   const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
-  const restToday = restDays.indexOf(todayDow) !== -1;
-  const trainingToday = thisWeek.filter(x => x.session.dayOfWeek === todayDow);
   // Every block actually run, for the spine at the top. Ordering, lengths and per-week fill are
   // all the engine's arithmetic (`Training.blockSpine`); this screen only draws it.
-  const spine = Training.blockSpine(t.blocks, t.logs, today);
+  // Memoised: it walks every block against every log, and it sat in the component body re-running on
+  // each `setWeekPick`, `setWeekAt` and parent render for a number that only changes when the store
+  // does. Cheap on a laptop, several milliseconds on a phone with a year of history behind it.
+  const spine = useMemo(() => Training.blockSpine(t.blocks, t.logs, today), [t.blocks, t.logs, today]);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -372,7 +371,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       <div className="flex items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
           <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>
-            {block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks : 'Your training'}
+            {/* The one honest figure about the whole of your training, and the reason the spine's
+                arithmetic is worth doing: weeks you actually trained in, not weeks elapsed. */}
+            {spine.weeksTrained
+              ? spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained'
+              : block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks : 'Your training'}
           </div>
           <h1 className="pf text-xl mt-3">Train</h1>
         </div>
@@ -417,7 +420,15 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           answers is a different one: not "did I do that" but "where am I". */}
       {spine.segments.length > 0 && (
         <div className="mb-5">
-          <div className="flex gap-[3px] items-end">
+          {/* The bars are a picture and nothing else, so they are hidden from assistive tech and the
+              same facts are given as one sentence. Left as bare styled spans they read as nothing at
+              all, which meant a screen-reader user got no account of their block history whatever. */}
+          <span className="sr-only">
+            {spine.segments.length} block{spine.segments.length === 1 ? '' : 's'} so far, oldest first
+            {spine.hidden ? ', plus ' + spine.hidden + ' earlier not shown' : ''}
+            {spine.running ? '. Running now: ' + spine.running.name + ', week ' + spine.running.week + ' of ' + spine.running.weeks + '.' : '.'}
+          </span>
+          <div className="flex gap-[3px] items-end" aria-hidden="true">
             {spine.segments.map(seg => (
               <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
                 {seg.state === 'running' ? (
@@ -436,44 +447,58 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   </span>
                 ) : (
                   <span className="block" style={{
-                    height: 22, border: '2px solid var(--border)',
-                    // A block you finished, against one you stopped part-way. The second is not a
-                    // failure worth colouring red - it is most of a block, and it still counts.
-                    background: seg.state === 'done' ? 'var(--good)' : 'color-mix(in srgb, var(--good) 45%, var(--track))',
+                    height: 22,
+                    // Three readings, not two. A block you FINISHED is solid. One you stopped
+                    // part-way is paler, because that is not a failure worth colouring red - it is
+                    // most of a block and it still counts. One that has not STARTED is an empty
+                    // outline: it is not history at all, and drawing it as history told somebody
+                    // their December block was already behind them.
+                    border: '2px ' + (seg.state === 'planned' ? 'dashed var(--muted2)' : 'solid var(--border)'),
+                    background: seg.state === 'done' ? 'var(--good)'
+                      : seg.state === 'planned' ? 'transparent'
+                        : 'color-mix(in srgb, var(--good) 45%, var(--track))',
                   }} />
                 )}
               </div>
             ))}
           </div>
-          <div className="flex gap-[3px] mt-1.5">
+          <div className="flex gap-[3px] mt-1.5" aria-hidden="true">
             {spine.segments.map(seg => (
               <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
                 <span className="pf text-[9px] uppercase truncate block" style={{ letterSpacing: '0.08em', color: seg.state === 'running' ? 'var(--accent-ink)' : 'var(--muted2)' }}>
-                  {monthShort(seg.startISO)}{seg.state === 'running' ? ' · now' : ''}
+                  {monthShort(seg.startISO)}{seg.state === 'running' ? ' · now' : seg.state === 'planned' ? ' · to come' : ''}
                 </span>
               </div>
             ))}
           </div>
-          {/* What the highlighted segment IS. The bar can say where you are without ever saying what
-              you are running, and a picture of four blocks with no names on it is a chart, not a
-              plan. */}
-          {block && !blockDone && (
-            <div className="flex items-baseline justify-between gap-2 mt-3">
-              {/* The name gets the line to itself. Hung with the week and the split it wrapped to
-                  three lines on any block whose author gave it a real name, and the route out of the
-                  spine ended up floating beside the second half of a sentence. */}
-              <span className="text-[13px] font-bold min-w-0 truncate">{block.name}</span>
-              <button onClick={() => go('blocks')} className="hit pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.09em' }}>
-                {spine.before ? spine.before + ' before ›' : 'Your blocks ›'}
-              </button>
-            </div>
-          )}
-          {block && !blockDone && (
-            <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
-              Week {prog.week} of {block.weeks}
-              {(read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block))}
-            </div>
-          )}
+          {/* What the highlighted segment IS, and the way to the rest of them.
+
+              This row is NOT conditional on a block running, and that is the whole point of the
+              rewrite of it. It used to be, and taking the footer's Blocks button away at the same
+              time left four ordinary states with no route to the block list at all - including the
+              one every single user reaches at the end of every block, and the one where every block
+              is archived, from which un-archiving was then impossible. The tab had a dead end in it.
+
+              The name changes with the state; the link never goes away. */}
+          <div className="flex items-baseline justify-between gap-2 mt-3">
+            {/* The name gets the line to itself. Hung with the week and the split it wrapped to
+                three lines on any block whose author gave it a real name, and the route out of the
+                spine ended up floating beside the second half of a sentence. */}
+            <span className="text-[13px] font-bold min-w-0 truncate">
+              {block && !blockDone ? block.name : block && blockDone ? block.name : 'Nothing running'}
+            </span>
+            <button onClick={() => go('blocks')} className="hit pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.09em' }}>
+              {spine.before ? spine.before + ' before ›' : 'Your blocks ›'}
+            </button>
+          </div>
+          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
+            {block && !blockDone
+              ? 'Week ' + prog.week + ' of ' + block.weeks
+                + (read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block))
+              : block && blockDone
+                ? 'Finished. ' + spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained in all.'
+                : spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained. Pick one up, or build a new one.'}
+          </div>
           {spine.hidden > 0 && (
             <div className="text-[11px] mt-1.5" style={{ color: 'var(--muted2)' }}>
               {spine.hidden} earlier block{spine.hidden === 1 ? '' : 's'} not shown.
@@ -546,11 +571,18 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             The head is the week PICKER. Reading ahead used to open a disclosure inside the card; it
             is the same list, hung off the one control on this card that was already naming the week. */}
         <Card className="p-0 mb-4 overflow-hidden">
-          <button onClick={() => setWeekPick(!weekPick)} className="w-full" aria-label="Choose which week to look at"
-            aria-expanded={weekPick}>
-            <CardHead title={viewingAhead ? 'Week ' + shownWeek : 'This week'}
-              right={weekRangeLabel(block.startISO, shownWeek) + (block.weeks > 1 ? '  ›' : '')} />
-          </button>
+          {/* Only a control where there is somewhere to go. On a one-week block the head was still a
+              full-width button that toggled a panel guarded on `block.weeks > 1`, so it did nothing
+              at all - and told assistive tech it had expanded a region that never opened. */}
+          {block.weeks > 1 ? (
+            <button onClick={() => setWeekPick(!weekPick)} className="w-full" aria-label="Choose which week to look at"
+              aria-expanded={weekPick}>
+              <CardHead title={viewingAhead ? 'Week ' + shownWeek : 'This week'}
+                right={weekRangeLabel(block.startISO, shownWeek) + '  ›'} />
+            </button>
+          ) : (
+            <CardHead title="This week" right={weekRangeLabel(block.startISO, shownWeek)} />
+          )}
           {weekPick && block.weeks > 1 && (
             <div className="p-2.5 flex flex-col gap-1.5" style={{ borderBottom: '2px solid var(--border)', background: 'var(--surface2)' }}>
               {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
@@ -569,7 +601,14 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           )}
           <div className="grid" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
             {Array.from({ length: 7 }, (_, dow) => {
-              const slot = shownWeekPlan.filter(x => x.session.dayOfWeek === dow)[0];
+              // EVERY session on this day, not the first one. Taking `[0]` made the second session
+              // of a double day invisible and untappable - and two-a-days are a state this app now
+              // deliberately supports, since the schedule screen allows two sessions on one weekday
+              // and warns rather than blocks. The count under the strip reads the FULL plan, so the
+              // footer said "1 session left this week" over a strip showing nothing left to do.
+              const onDay = shownWeekPlan.filter(x => x.session.dayOfWeek === dow);
+              const slot = onDay[0];
+              const extra = onDay.length - 1;
               const isToday = !viewingAhead && dow === todayDow;
               const done = !!(slot && slot.log && !slot.live);
               const inPlay = !!(slot && slot.live);
@@ -590,6 +629,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   <span className="block text-[9px] mt-1.5 truncate" style={{ lineHeight: 1.2, color: done ? 'var(--good-ink)' : slot ? (inPlay || isNext ? 'var(--accent-ink)' : 'var(--text2)') : 'var(--muted2)' }}>
                     {slot ? slot.session.name.split(' - ')[0] : 'Rest'}
                   </span>
+                  {extra > 0 && (
+                    <span className="block pf text-[9px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>+{extra}</span>
+                  )}
                 </>
               );
               const style = {
@@ -607,7 +649,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   onClick={() => (inPlay && onResume ? onResume(slot.session, block) : onOpen(slot.session, block))}>
                   {cell}
                 </button>
-              ) : <div key={dow} style={style}>{cell}</div>;
+              ) : (
+                // A rest day is not a control, but it still has to say which day it is: the column
+                // header is a single letter, and "T" is Tuesday and Thursday alike to anything that
+                // cannot see the order.
+                <div key={dow} style={style} role="note" aria-label={(WEEKDAYS_FULL[dow] || '') + ', rest day'}>{cell}</div>
+              );
             })}
           </div>
           {/* The way to change which days you train, on the object that shows them. It was reachable
@@ -629,6 +676,28 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : '.')}
             </div>
           )}
+          {/* Anything the week cannot place. A session whose weekday is missing or out of range - an
+              import with more days than a week has, an older block built before the day was clamped
+              - belongs to no column, and a strip that iterates Monday to Sunday would simply not
+              draw it. It would be a session in the plan, counted by the line below, that you could
+              not open from this screen at all. */}
+          {(() => {
+            const lost = shownWeekPlan.filter(x => !(x.session.dayOfWeek >= 0 && x.session.dayOfWeek <= 6));
+            if (!lost.length) return null;
+            return (
+              <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
+                <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>No day set</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {lost.map(({ session, live: inPlay }) => (
+                    <button key={session.id} onClick={() => (inPlay && onResume ? onResume(session, block) : onOpen(session, block))}
+                      className="px-2.5 py-2 text-[12px]" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+                      {session.name.split(' - ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {(isDeload || isIntro) && !viewingAhead && (
             <div className="text-[11px] px-3 py-2 leading-snug" style={{ borderTop: '2px solid var(--border)', background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn-ink)' }}>
               {isDeload

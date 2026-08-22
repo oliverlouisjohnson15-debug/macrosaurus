@@ -615,7 +615,11 @@ test('five screenshots that all name their day the same still land as five days'
   });
   assert.equal(days.length, 5, 'a day from a different screenshot must never overwrite another');
   assert.equal(new Set(days.map(d => d.name)).size, 5, 'and the five must be tellable apart');
-  assert.deepEqual(days.map(d => d.dayOfWeek), [0, 1, 2, 3, 4]);
+  // Five DISTINCT days is the guarantee; which five is the recommendation's business. They used to
+  // be the array index (0,1,2,3,4 - five consecutive days), which was never a decision. See
+  // DEFAULT_DOW: a five-day week takes its break in the middle.
+  assert.deepEqual(days.map(d => d.dayOfWeek), [0, 1, 3, 4, 5]);
+  assert.equal(new Set(days.map(d => d.dayOfWeek)).size, 5, 'and no two share a day');
 });
 
 test('re-importing the same file replaces the day it gave last time rather than doubling it', () => {

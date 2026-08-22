@@ -19424,7 +19424,7 @@ function App() {
   // `?demo&live` seeds a session already running and points t.open back at it, but t.open only
   // routes WITHIN the Train tab, so without this the app still opens on Today and the running
   // session is a tap away. A flag for landing mid-session should land you mid-session.
-  const [view, setView] = useState(DEMO && new URLSearchParams(window.location.search).has('live') ? 'train' : 'dashboard');
+  const [view, setView] = useState(() => (DEMO && new URLSearchParams(window.location.search).has('live') ? 'train' : 'dashboard'));
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.

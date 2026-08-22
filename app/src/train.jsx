@@ -2169,49 +2169,6 @@ async function aiParseTrainingWish(text) {
   return parseModelJSON(txt);
 }
 
-/* Turn "I work Tuesdays and play five-a-side Thursday" into a week.
- *
- * The one part of a training plan the app cannot reason about is your calendar, and it is the part
- * that decides whether the plan gets run at all. Everything else here is arithmetic the engine owns;
- * this is a constraint only the person has, in a form only prose carries.
- *
- * The model picks WEEKDAYS and nothing else. It never sees a set, a rep or a load, it cannot change
- * what the sessions are or what order they run in, and what it returns is checked before it is
- * offered: the right number of days, every one inside the week, and always shown for approval on the
- * same seven buttons rather than applied. A choice, not a number the engine could compute - the rule
- * the whole module runs on.
- *
- * Its opening phrase is the signature ai-proxy classifies (featureOf -> workout_import), so keep it
- * in step with supabase/functions/ai-proxy/index.ts. It genuinely is a sentence about training
- * turned into JSON, and reusing the classification keeps this behind the same Premium gate as the
- * rest of the training AI rather than inventing an ungated one.
- */
-async function aiSuggestTrainingDays(text, sessionNames, recommended) {
-  const names = (sessionNames || []).map((n, i) => (i + 1) + '. ' + n);
-  const rules = 'You turn a sentence about training into JSON. Somebody has a weekly training plan and '
-    + 'needs to fit it around their life. Choose which weekday each session falls on. '
-    + 'Weekdays are numbers: 0 Monday, 1 Tuesday, 2 Wednesday, 3 Thursday, 4 Friday, 5 Saturday, 6 Sunday. '
-    + 'Rules you must follow: return exactly one weekday per session, in the order the sessions are listed; '
-    + 'keep the sessions in that order through the week; avoid the days they say they cannot train; '
-    + 'spread the sessions out rather than bunching them, leaving at least one rest day in the middle of the week where the count allows it. '
-    + 'Respond ONLY with compact JSON: {"days": number[], "note": string}. '
-    + 'note = one short British-English sentence saying what you worked around. Do not mention exercises, sets or reps.'
-    + '\n\nThe sessions, in order:\n' + names.join('\n')
-    + '\n\nIf nothing they say rules a day out, use this: [' + (recommended || []).join(', ') + ']';
-  const j = await aiRequest({
-    model: AI_MODEL_FAST, max_tokens: 300,
-    messages: [{ role: 'user', content: rules + '\n\nWhat they said:\n' + String(text || '').slice(0, 600) + '\n\nJSON:' }],
-  });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  const out = parseModelJSON(txt);
-  if (!out || !Array.isArray(out.days)) return null;
-  // Checked before it is offered. A model that returns five days for a four-day week, or a Tuesday
-  // spelled 8, must not be able to put the block into a state no screen can draw.
-  const days = out.days.map(d => Math.round(+d)).filter(d => d >= 0 && d <= 6);
-  if (days.length !== (sessionNames || []).length) return null;
-  return { days: days, note: typeof out.note === 'string' ? out.note : '' };
-}
-
 // Muscle words back to the engine's keys. The model is told to use these exact labels, but people's
 // phrasing leaks through, so match on the label rather than trusting an id.
 function musclesFromLabels(labels) {

@@ -44,7 +44,10 @@ const SET_TYPE_TONE = { work: null, warmup: 'var(--warn)', drop: 'var(--carb-ink
 function setsSummary(sets, fmt) {
   const runs = [];
   (sets || []).forEach(s => {
-    const kg = +s.weightKg > 0 ? +s.weightKg : 0;
+    // Rounded to the precision the receipt prints at. Strict float equality split a run whose two
+    // weights differed in the last decimal - a pound entry round-tripped through the converter - and
+    // then printed both halves identically, so the grouping looked broken.
+    const kg = +s.weightKg > 0 ? Math.round(+s.weightKg * 100) / 100 : 0;
     const reps = s.reps == null ? '\u2013' : s.reps;
     const last = runs[runs.length - 1];
     if (last && last.kg === kg) last.reps.push(reps);
@@ -59,7 +62,11 @@ function nextUnfinished(items, from) {
     const i = (from + step) % n;
     if (i === from) break;
     const it = items[i];
-    if (it && it.sets && it.sets.some(s => !s.done)) return i;
+    // WORK sets only. Warm-up rows are rarely ticked, so counting them left every movement somebody
+    // had added a warm-up to reading as unfinished for ever - and sent both the auto-advance and the
+    // rest bar's "next" button to a card of green ticks, which is the exact failure this exists to
+    // prevent.
+    if (it && it.sets && it.sets.some(s => !s.done && (s.type || 'work') !== 'warmup')) return i;
   }
   return -1;
 }
@@ -125,27 +132,44 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // weight placeholder and every "same as last time" the runner leans on. That is backwards:
       // resuming is the NORMAL way to be in a session, because a phone locks itself between sets,
       // and the state you spend an hour in was the state with the least help in it.
+      //
+      // Keyed by the LINE, not by the movement. A day that programmes the same movement twice - a
+      // heavy row and a back-off row, the ordinary case - would otherwise hand both lines the same
+      // list of last week's sets, so the back-off row came back holding the heavy row's weights.
+      // Once a tick writes that number into the log (see toggleDone) it stops being a wrong
+      // placeholder and becomes wrong data feeding next week's progression.
       const lastFor = {};
-      (session && session.exercises ? session.exercises : []).concat(
-        (existing.sets || []).map(sx => ({ exerciseId: sx.exerciseId }))
-      ).forEach(e => {
-        if (!e || lastFor[e.exerciseId] !== undefined) return;
-        const hist = Training.exerciseHistory(t.logs, e.exerciseId)
-          .filter(h => h.dateISO !== (existing.dateISO || today));
+      (existing.sets || []).forEach(sx => {
+        const key = sx.itemId || sx.exerciseId;
+        if (lastFor[key] !== undefined) return;
+        // Strictly BEFORE the day being edited, not merely "not that day". Correcting Tuesday's
+        // session on Friday was taking Thursday's sets as "last time" and, with the carry-over,
+        // writing a later workout backwards into an earlier one.
+        const on = existing.dateISO || today;
+        const hist = Training.exerciseHistory(t.logs, sx.exerciseId).filter(h => h.dateISO < on);
         const prevDay = hist.length ? hist[hist.length - 1] : null;
-        lastFor[e.exerciseId] = prevDay
-          ? (t.logs.filter(l => l.dateISO === prevDay.dateISO && l.id !== existing.id)[0] || { sets: [] }).sets
-            .filter(sx => sx.exerciseId === e.exerciseId && sx.done && (!sx.type || sx.type === 'work'))
-          : [];
+        const prevLog = prevDay
+          ? t.logs.filter(l => l.dateISO === prevDay.dateISO && l.id !== existing.id)[0]
+          : null;
+        const rows = prevLog ? (prevLog.sets || []) : [];
+        // Prefer the same LINE of that session where the log carries item ids; fall back to the
+        // movement for logs written before they existed.
+        const byItem = rows.filter(r => r.itemId && sx.itemId && r.itemId === sx.itemId
+          && r.done && (!r.type || r.type === 'work'));
+        lastFor[key] = byItem.length ? byItem
+          : rows.filter(r => r.exerciseId === sx.exerciseId && r.done && (!r.type || r.type === 'work'));
       });
       const order = [], byKey = {};
       (existing.sets || []).forEach(s => {
         const key = s.itemId || s.exerciseId;
         if (!byKey[key]) { byKey[key] = { exerciseId: s.exerciseId, itemId: s.itemId || null, sets: [] }; order.push(key); }
-        const prevList = lastFor[s.exerciseId] || [];
-        // Set for set where the counts line up, and otherwise the last one they did - the same rule
-        // the fresh lay-out uses, so a resumed row and a fresh row never disagree about last time.
-        const prev = prevList[byKey[key].sets.length] || prevList[prevList.length - 1];
+        const prevList = lastFor[key] || [];
+        // Indexed by WORK set, because that is what `prevList` holds. Counting every row instead put
+        // a movement with three warm-ups three places past the end of the list, so all three of its
+        // work sets fell back to last week's final set - the light one on any top-set scheme.
+        const workSoFar = byKey[key].sets.filter(x => (x.type || 'work') !== 'warmup').length;
+        const prev = (s.type || 'work') === 'warmup' ? null
+          : (prevList[workSoFar] || prevList[prevList.length - 1]);
         byKey[key].sets.push(Object.assign({}, s, {
           lastTime: s.lastTime || (prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null),
         }));
@@ -212,6 +236,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
      already scrolled past above you. */
   const openRowsRef = useRef(null);
   const openCardRef = useRef(null);
+  const barRef = useRef(null);   // the session bar, so the observer measures the chrome rather than assuming it
   const [openOffScreen, setOpenOffScreen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
@@ -232,7 +257,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [rest, setRestState] = useState(() => {
     const saved = t.restRun;
     if (!saved || saved.logId !== logId || !(saved.endsAt > Date.now())) return null;
-    return { endsAt: saved.endsAt, seconds: saved.seconds, from: saved.from || null, alerted: false };
+    return { endsAt: saved.endsAt, seconds: saved.seconds, from: saved.from || null, goIi: saved.goIi == null ? null : saved.goIi, alerted: false };
   });
   function setRest(next) {
     setRestState(prev => {
@@ -241,7 +266,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // business of the store's.
       if ((prev && prev.endsAt) !== (val && val.endsAt)) {
         trainUpdate(update, (tr) => {
-          if (val) tr.restRun = { endsAt: val.endsAt, seconds: val.seconds, from: val.from || null, logId: logId };
+          // `goIi` rides along: it is what makes the next-up line a button, and a rest that
+          // survived a reload came back with a dead line instead of a live one.
+          if (val) tr.restRun = { endsAt: val.endsAt, seconds: val.seconds, from: val.from || null, goIi: val.goIi == null ? null : val.goIi, logId: logId };
           else delete tr.restRun;
         });
       }
@@ -372,13 +399,29 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   useEffect(() => {
     const el = openRowsRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') { setOpenOffScreen(false); return; }
-    const io = new IntersectionObserver(
-      es => setOpenOffScreen(!es[es.length - 1].isIntersecting),
-      { rootMargin: '-146px 0px 0px 0px', threshold: 0 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [focus, items.length]);
+    let io = null;
+    /* The margin is the pinned chrome, MEASURED. It was hardcoded at 146 - the brand bar plus the
+       session bar on a phone - and neither number is fixed: `--appbar-h` is zeroed above 1024px
+       where the brand bar is not drawn, and the session bar grows when a title wraps or the
+       "Editing" line appears. One constant was wrong in both directions: on a desktop window it
+       discounted 69px of plainly visible page and flipped the bar while the set table was still on
+       screen; on an edited past session it stayed quiet after the rows had gone. */
+    const arm = () => {
+      if (io) io.disconnect();
+      const appbar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--appbar-h')) || 0;
+      const bar = barRef.current ? barRef.current.getBoundingClientRect().height : 77;
+      io = new IntersectionObserver(
+        es => setOpenOffScreen(!es[es.length - 1].isIntersecting),
+        { rootMargin: '-' + Math.round(appbar + bar) + 'px 0px 0px 0px', threshold: 0 },
+      );
+      io.observe(el);
+    };
+    arm();
+    // Crossing the desktop breakpoint in a resized window, or an orientation change, changes the
+    // chrome without changing anything this effect depends on.
+    window.addEventListener('resize', arm);
+    return () => { window.removeEventListener('resize', arm); if (io) io.disconnect(); };
+  }, [focus, items.length, past]);
   // Back to the set you are on. Also used when you tap what is next from the rest bar, so "take me
   // there" is one behaviour with one implementation rather than two that drift.
   function scrollToOpen() {
@@ -502,7 +545,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       });
     }
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
-    const allDone = it.sets.every((s, i) => (i === si ? true : s.done));
+    // Same rule as nextUnfinished: an unticked warm-up is not outstanding work, and treating it as
+    // such meant the advance never fired at all on those movements.
+    const allDone = it.sets.every((s, i) => (i === si ? true : s.done || (s.type || 'work') === 'warmup'));
     if (allDone) {
       // A distinct double-buzz for finishing a movement, against the single tap for a set. Two
       // different events should never feel like the same event through a pocket, and this is the one
@@ -515,7 +560,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // blindly to ii + 1 landed you on a card of ticks you had already filled, with the actual next
       // movement further down and nothing saying so.
       const nextUp = nextUnfinished(items, ii);
-      if (nextUp >= 0) setTimeout(() => setFocus(f => (f === ii ? nextUp : f)), 450);
+      // Scrolled to, not just switched to. The next movement with work left can be ABOVE the one you
+      // just finished - out-of-order sessions are the reason this wraps - and moving focus there
+      // reflows the three bands by hundreds of pixels while you are looking at the bottom of the
+      // screen. Landing on it is the difference between the page helping and the page lurching.
+      if (nextUp >= 0) setTimeout(() => { setFocus(f => (f === ii ? nextUp : f)); setTimeout(scrollToOpen, 80); }, 450);
     }
   }
   function addSet(ii) {
@@ -750,7 +799,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           hanging off its end. On the paper background this was a back link, a title and a hairline,
           which read as a page heading rather than as an instrument you are mid-way through.
 
-          It is now the ONLY bar here - `App` hides the brand header for the duration - so it is one
+          It sits directly under the brand bar, which no longer steps aside for a session, so it is one
           purple block with one rule under it, rather than two purple blocks with the page showing
           between them. Its `top-0` needs no safe-area inset for the same reason the brand header
           never did: `theme-color` paints the status bar and the web view begins below it.
@@ -760,7 +809,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           brand bar gone it was left stranded above this one, a cream strip along the top edge of the
           screen at scroll 0. It is not visible once you scroll, which is precisely why a bar that is
           only ever seen mid-scroll can carry a fault like this for months. */}
-      <div className="sticky z-20 -mx-5 -mt-6 mb-6 border-b-[3px]"
+      <div ref={barRef} className="sticky z-20 -mx-5 -mt-6 mb-6 border-b-[3px]"
         style={{ top: 'var(--appbar-h)', background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-2">
           {/* The way back NAMES where it goes, like every other back control in the app
@@ -1103,8 +1152,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     should lift or telling you what to, it is saying that if you happen to have a
                     number in mind it will do the arithmetic around it. Shown only where a ramp would
                     actually follow, so it never promises something it will not deliver. */}
+                {/* Probed at the weight this movement is ACTUALLY likely to carry, not a flat 60kg.
+                    `warmupSets` short-circuits on the real number - isolation under 15kg gets nothing
+                    at all - so the flat probe promised a ramp to somebody whose lateral raise is 10kg
+                    and then produced none, which is the one thing an offer must not do. */}
                 {!t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0)
-                  && Training.warmupSets(60, ex, { count: it.warmups }).length > 0 && (
+                  && Training.warmupSets((work[0].lastTime && work[0].lastTime.weightKg) || 60, ex, { count: it.warmups }).length > 0 && (
                   <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
                     Got a weight in mind? Put it in set 1 and a warm-up is worked out for it.
                   </div>

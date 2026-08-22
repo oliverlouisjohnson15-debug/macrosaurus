@@ -1876,8 +1876,9 @@ function TargetSheet({ row, name, onChange, onClose }) {
  * week in front of you only would undo itself the moment the week turned over, which is the opposite
  * of answering "I train Mondays".
  */
-function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fresh, onBack }) {
-  const rows = Training.scheduleOf(block);
+function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
+  const today = Store.todayISO();
+  const rows = Training.scheduleOf(block, today);
   const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
   const recommended = Training.recommendedDows(block, rows.length);
   const ownCadence = Training.prescribesDays(block);
@@ -1887,34 +1888,16 @@ function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fres
   // week got away from you - but it is worth saying rather than letting two land in silence.
   const doubled = dows.filter((d, i) => dows.indexOf(d) !== i).length;
   const restCount = 7 - new Set(dows).size;
-  const [wish, setWish] = useState('');
-  const [asking, setAsking] = useState(false);
-  const [aiNote, setAiNote] = useState(null);
   function save() {
     if (dirty) {
       trainUpdate(update, (tr) => {
         const b = tr.blocks.filter(x => x.id === block.id)[0];
-        if (b) Training.reschedule(b, dows);
+        if (b) Training.reschedule(b, dows, today);
       });
     }
     showToast && showToast(fresh ? 'Your block is ready. First session is waiting.' : 'Your week is set.');
     onBack();
   }
-  async function ask() {
-    if (!wish.trim() || asking) return;
-    if (!isPremium) { onUpgrade && onUpgrade(); return; }
-    setAsking(true);
-    setAiNote(null);
-    try {
-      const out = await aiSuggestTrainingDays(wish, rows.map(r => r.name.split(' - ')[0]), recommended);
-      if (!out) { showToast && showToast('Could not work that out. Set the days yourself below.'); return; }
-      setDows(out.days);
-      setAiNote(out.note || 'Here is a week that fits.');
-    } catch (e) {
-      showToast && showToast('Could not reach the coach. Set the days yourself below.');
-    } finally { setAsking(false); }
-  }
-
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title={fresh ? 'When do you train?' : 'Your training days'} />
@@ -1923,25 +1906,6 @@ function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fres
           ? 'Your block is built. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.'
           : 'Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them.'}
       </div>
-
-      {/* The one thing the app cannot work out for itself, in the only form that carries it. Every
-          other question this module asks has an answer in the engine; nothing in here knows that you
-          work Tuesdays. It suggests and never applies: what comes back lands on the same seven
-          buttons below, for you to change or ignore. */}
-      <Card className="p-3.5 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>Anything I should work around?</div>
-        <textarea value={wish} onChange={e => setWish(e.target.value)} rows={2}
-          placeholder="e.g. I work late Tuesdays and play football on Thursday nights"
-          className="w-full pixel-box px-3 py-2 text-[12.5px] mb-2.5" style={{ background: 'var(--surface2)', color: 'var(--text)', boxShadow: 'none' }} />
-        <button onClick={ask} disabled={!wish.trim() || asking}
-          className="pixel-box w-full h-11 text-[12px]"
-          style={{ background: wish.trim() && !asking ? 'var(--surface2)' : 'var(--track)', color: wish.trim() && !asking ? 'var(--text2)' : 'var(--muted2)' }}>
-          {asking ? 'Working out your week…' : 'Suggest my days'}
-        </button>
-        {aiNote && (
-          <div className="text-[12px] mt-2.5 leading-snug" style={{ color: 'var(--accent-ink)' }}>{aiNote} Change anything below.</div>
-        )}
-      </Card>
 
       <Card className="p-0 mb-4 overflow-hidden">
         <CardHead title="Each session" right={restCount + ' rest day' + (restCount === 1 ? '' : 's')} />
@@ -1961,10 +1925,15 @@ function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fres
                     aria-pressed={on}
                     className="pf text-[9px] uppercase"
                     style={{
-                      minHeight: 40, letterSpacing: '0.04em',
-                      border: '2px solid ' + (on ? 'var(--border)' : taken ? 'var(--muted2)' : 'var(--border)'),
-                      background: on ? 'var(--accent)' : taken ? 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' : 'var(--surface2)',
-                      color: on ? 'var(--on-accent)' : taken ? 'var(--accent-ink)' : 'var(--text2)',
+                      // 44px, the app's floor for a real control - and this is the only control on
+                      // the screen. It was 40, which is under it in both axes on a 375px phone.
+                      minHeight: 44, letterSpacing: '0.04em',
+                      // A day another session already has reads as MORE than an empty one, not less.
+                      // At a 12% tint behind a weaker border it was the quietest thing in the row,
+                      // so the one state carrying information looked like the absence of it.
+                      border: '2px solid ' + (on || taken ? 'var(--border)' : '#cfc8ba'),
+                      background: on ? 'var(--accent)' : taken ? 'color-mix(in srgb, var(--accent) 26%, var(--surface2))' : 'var(--surface2)',
+                      color: on ? 'var(--on-accent)' : taken ? 'var(--accent-ink)' : 'var(--muted)',
                     }}>
                     {(WEEKDAYS[d] || '')[0]}
                   </button>
