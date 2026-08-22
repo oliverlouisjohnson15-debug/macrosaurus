@@ -2102,6 +2102,28 @@
     return (DEFAULT_DOW[n] || DEFAULT_DOW[4]).slice();
   }
 
+  /* What to recommend for THIS block, which is not always the general recommendation.
+   *
+   * Min-max carries its weekdays in its own split because there the rest days are the method: a day
+   * off in the middle of the week and one at the end are what make training everything to failure
+   * survivable. Offering to "use the week we recommend" on one of those was the schedule screen
+   * offering to overwrite the plan's own prescription with a generic one, under a sentence naming
+   * days the block did not run. Everything else has no opinion of its own and takes DEFAULT_DOW.
+   */
+  function recommendedDows(block, sessionCount) {
+    var n = Math.round(+sessionCount) || 4;
+    var style = styleOf(block && block.style);
+    if (style.toFailure && MINMAX_SPLITS[n]) {
+      return MINMAX_SPLITS[n].map(function (d, i) { return d[2] == null ? i : d[2]; });
+    }
+    return defaultDows(n);
+  }
+  // Does this block prescribe its own week, or is it taking ours? The screen says a different thing
+  // in each case, because "we suggest" and "this method requires" are not the same sentence.
+  function prescribesDays(block) {
+    return !!styleOf(block && block.style).toFailure;
+  }
+
   var SPLITS = {
     2: [['full', 'Full body A'], ['full', 'Full body B']],
     3: [['full', 'Full body A'], ['full', 'Full body B'], ['full', 'Full body C']],
@@ -5742,6 +5764,7 @@
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,

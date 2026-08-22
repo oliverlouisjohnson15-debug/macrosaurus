@@ -3620,3 +3620,17 @@ test('a block reads back the schedule it would take to leave it alone', () => {
   assert.equal(T.reschedule(b, before), false, 'and feeding it back is a no-op');
   assert.ok(T.scheduleOf(b).every(x => x.name), 'every row names its session');
 });
+
+test('a plan that prescribes its own week is not offered ours', () => {
+  // Min-max carries its weekdays in its own split because there the rest days ARE the method: a day
+  // off in the middle and one at the end are what make training everything to failure survivable.
+  // The schedule screen was offering to "use the week we recommend" on one of those - the app
+  // proposing to overwrite a plan's prescription with a generic default, under a sentence naming
+  // days the block did not run on.
+  assert.deepEqual(T.recommendedDows({ style: 'minmax' }, 4), [0, 3, 4, 5], 'min-max keeps its own');
+  assert.deepEqual(T.recommendedDows({ style: 'minmax' }, 5), [0, 1, 3, 4, 5], 'at five days too');
+  assert.deepEqual(T.recommendedDows({}, 4), [0, 1, 3, 4], 'everything else takes ours');
+  assert.deepEqual(T.recommendedDows(null, 5), [0, 1, 3, 4, 5], 'and a missing block is not a crash');
+  assert.equal(T.prescribesDays({ style: 'minmax' }), true);
+  assert.equal(T.prescribesDays({}), false, 'so the screen can say a different sentence for each');
+});

@@ -1879,7 +1879,8 @@ function TargetSheet({ row, name, onChange, onClose }) {
 function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fresh, onBack }) {
   const rows = Training.scheduleOf(block);
   const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
-  const recommended = Training.defaultDows(rows.length);
+  const recommended = Training.recommendedDows(block, rows.length);
+  const ownCadence = Training.prescribesDays(block);
   const dirty = dows.some((d, i) => d !== rows[i].dayOfWeek);
   const isRecommended = dows.every((d, i) => d === recommended[i]);
   // Two sessions on one day is allowed - two-a-days are real, and so is a Saturday double when the
@@ -1983,14 +1984,17 @@ function ScheduleDays({ db, update, showToast, isPremium, onUpgrade, block, fres
 
       {!isRecommended && (
         <button onClick={() => setDows(recommended.slice())} className="pixel-box w-full h-11 text-[12px] mb-3" style={{ background: 'var(--surface2)' }}>
-          Use the week we recommend
+          {ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'}
         </button>
       )}
       <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
-        {/* The recommendation is stated, not just applied, because a default nobody can see is a
-            decision the app made on your behalf and never mentioned. */}
-        We suggest {recommended.map(d => WEEKDAYS[d]).join(', ')}: a break in the middle of the week
-        rather than every rest day stacked at the end of it.
+        {/* Stated, not just applied: a default nobody can see is a decision the app made on your
+            behalf and never mentioned. And a block that prescribes its OWN week gets a different
+            sentence, because "we suggest" and "this plan is built around" are not the same claim -
+            on min-max the rest days are the method, not a preference. */}
+        {ownCadence
+          ? 'This plan is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': training everything to failure needs the day off in the middle. You can still move it.'
+          : 'We suggest ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': a break in the middle of the week rather than every rest day stacked at the end of it.'}
       </div>
 
       {/* On a brand new block this is the way OUT of the screen, so it is never disabled: confirming

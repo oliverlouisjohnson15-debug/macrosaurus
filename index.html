@@ -8185,6 +8185,28 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return (DEFAULT_DOW[n] || DEFAULT_DOW[4]).slice();
   }
 
+  /* What to recommend for THIS block, which is not always the general recommendation.
+   *
+   * Min-max carries its weekdays in its own split because there the rest days are the method: a day
+   * off in the middle of the week and one at the end are what make training everything to failure
+   * survivable. Offering to "use the week we recommend" on one of those was the schedule screen
+   * offering to overwrite the plan's own prescription with a generic one, under a sentence naming
+   * days the block did not run. Everything else has no opinion of its own and takes DEFAULT_DOW.
+   */
+  function recommendedDows(block, sessionCount) {
+    var n = Math.round(+sessionCount) || 4;
+    var style = styleOf(block && block.style);
+    if (style.toFailure && MINMAX_SPLITS[n]) {
+      return MINMAX_SPLITS[n].map(function (d, i) { return d[2] == null ? i : d[2]; });
+    }
+    return defaultDows(n);
+  }
+  // Does this block prescribe its own week, or is it taking ours? The screen says a different thing
+  // in each case, because "we suggest" and "this method requires" are not the same sentence.
+  function prescribesDays(block) {
+    return !!styleOf(block && block.style).toFailure;
+  }
+
   var SPLITS = {
     2: [['full', 'Full body A'], ['full', 'Full body B']],
     3: [['full', 'Full body A'], ['full', 'Full body B'], ['full', 'Full body C']],
@@ -11825,6 +11847,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
@@ -60170,7 +60193,8 @@ function ScheduleDays({
 }) {
   const rows = Training.scheduleOf(block);
   const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
-  const recommended = Training.defaultDows(rows.length);
+  const recommended = Training.recommendedDows(block, rows.length);
+  const ownCadence = Training.prescribesDays(block);
   const dirty = dows.some((d, i) => d !== rows[i].dayOfWeek);
   const isRecommended = dows.every((d, i) => d === recommended[i]);
   // Two sessions on one day is allowed - two-a-days are real, and so is a Saturday double when the
@@ -60304,12 +60328,12 @@ function ScheduleDays({
     style: {
       background: 'var(--surface2)'
     }
-  }, "Use the week we recommend"), /*#__PURE__*/React.createElement("div", {
+  }, ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] mb-4 leading-snug",
     style: {
       color: 'var(--muted2)'
     }
-  }, "We suggest ", recommended.map(d => WEEKDAYS[d]).join(', '), ": a break in the middle of the week rather than every rest day stacked at the end of it."), /*#__PURE__*/React.createElement("button", {
+  }, ownCadence ? 'This plan is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': training everything to failure needs the day off in the middle. You can still move it.' : 'We suggest ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': a break in the middle of the week rather than every rest day stacked at the end of it.'), /*#__PURE__*/React.createElement("button", {
     onClick: save,
     disabled: !dirty && !fresh,
     className: "pixel-btn w-full h-14 pf text-[12px] uppercase",
