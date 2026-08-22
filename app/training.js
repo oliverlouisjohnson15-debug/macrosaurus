@@ -2074,6 +2074,34 @@
   // ---- blocks --------------------------------------------------------------------------------
   // Splits by days available. Two days is full body because anything else cannot hit a muscle
   // twice; six is a push/pull/legs run twice, which is the standard high-frequency answer.
+  /* WHERE THE TRAINING WEEK FALLS, by how many days you train.
+   *
+   * The volume model used to put its sessions on consecutive days - four days meant Monday to
+   * Thursday and a four-day weekend - because the split said what to train and nothing said when.
+   * Consecutive is the one arrangement nobody actually runs: it stacks systemic fatigue into the
+   * back half and leaves three quarters of the recovery in one block at the end.
+   *
+   * The default is a mid-week break: two on, one off, then the rest. It is the cadence the min-max
+   * side of the app already prescribed for five days, and the shape most published four and five day
+   * programmes run.
+   *
+   * It is a RECOMMENDATION, and it is the app's only opinion about your calendar. Every session can
+   * be moved to whatever weekday actually suits (`reschedule`), and the plan is unchanged by where
+   * it lands - what matters is the gap between sessions, not that Tuesday is a leg day.
+   */
+  var DEFAULT_DOW = {
+    1: [0],
+    2: [0, 3],
+    3: [0, 2, 4],
+    4: [0, 1, 3, 4],          // Mon Tue / Wed off / Thu Fri / weekend off
+    5: [0, 1, 3, 4, 5],       // Mon Tue / Wed off / Thu Fri Sat / Sun off
+    6: [0, 1, 2, 3, 4, 5],
+  };
+  function defaultDows(days) {
+    var n = Math.round(+days) || 4;
+    return (DEFAULT_DOW[n] || DEFAULT_DOW[4]).slice();
+  }
+
   var SPLITS = {
     2: [['full', 'Full body A'], ['full', 'Full body B']],
     3: [['full', 'Full body A'], ['full', 'Full body B'], ['full', 'Full body C']],
@@ -3116,6 +3144,55 @@
     session.dayOfWeek = d;
     return true;
   }
+  /* The block's SCHEDULE: which weekday each session of the week falls on, in every week of it.
+   *
+   * `setSessionDay` is a different act and stays one - it moves THIS Thursday's legs to Friday
+   * because a gym was shut, and leaves next Thursday alone. This is the plan: answering "I train
+   * Monday, Wednesday, Saturday and Sunday" has to reach all four weeks, or the answer is undone the
+   * moment the week turns over.
+   *
+   * `dows` is parallel to the week's sessions in order, so [0, 2, 5, 6] reads as "first session
+   * Monday, second Wednesday, third Saturday, fourth Sunday". A null entry leaves that session where
+   * it is, which is what makes it usable for changing one row without restating the rest.
+   */
+  function reschedule(block, dows) {
+    if (!block || !dows || !dows.length) return false;
+    var byWeek = {};
+    (block.sessions || []).forEach(function (s) {
+      (byWeek[s.week] = byWeek[s.week] || []).push(s);
+    });
+    var changed = false;
+    Object.keys(byWeek).forEach(function (w) {
+      byWeek[w].forEach(function (s, i) {
+        var d = dows[i];
+        if (d == null) return;
+        d = Math.round(+d);
+        if (!(d >= 0 && d <= 6) || s.dayOfWeek === d) return;
+        s.dayOfWeek = d;
+        changed = true;
+      });
+    });
+    // How many days a week this block trains is a fact about its schedule, and the blocks list and
+    // the nutrition side both read it. Left alone it would still report the count the block was
+    // BUILT with after somebody doubled two sessions onto one day.
+    if (changed) {
+      var wk1 = byWeek[Object.keys(byWeek).sort(function (a, b) { return a - b; })[0]] || [];
+      block.daysPerWeek = uniq(wk1.map(function (s) { return s.dayOfWeek; })).length;
+    }
+    return changed;
+  }
+
+  // The weekdays a block's week currently runs on, in session order: what `reschedule` would take to
+  // leave it exactly as it is, and what an editor opens showing.
+  function scheduleOf(block) {
+    var first = null;
+    (block && block.sessions || []).forEach(function (s) {
+      if (first == null || s.week < first) first = s.week;
+    });
+    return (block && block.sessions || []).filter(function (s) { return s.week === first; })
+      .map(function (s) { return { id: s.id, name: s.name, dayOfWeek: s.dayOfWeek }; });
+  }
+
   // Anything else already on that day, so the move can say "Upper A is there too" rather than either
   // blocking it (two-a-days are real) or letting two sessions land on one day in silence.
   function sessionsOnDay(block, week, dayOfWeek, exceptId) {
@@ -3544,7 +3621,9 @@
   };
   // Where a week's sessions fall. These sheets write "1-2 Rest Days" between days rather than naming
   // weekdays, so the gaps are kept where the programme puts them.
-  var SHEET_DOW = { 2: [0, 3], 3: [0, 2, 4], 4: [0, 3, 4, 5], 5: [0, 1, 3, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
+  // A sheet says what to train and almost never says when, so an import lands on the same
+  // recommended week as anything else the app builds. See DEFAULT_DOW.
+  var SHEET_DOW = DEFAULT_DOW;
 
   // What a movement is, read off its own name. The photo importer gets this from the model that read
   // the photograph; a sheet has no model, so a name the library has never seen is classified here.
@@ -4245,6 +4324,7 @@
     // The split, and where in the week it falls. Min-max carries its own weekdays because the rest
     // days are part of the prescription; everything else runs on consecutive days as it always has.
     var split = (style.toFailure && MINMAX_SPLITS[days]) || SPLITS[days];
+    var dayPlan = defaultDows(days);
     // 45 to 60 minutes and about six movements. Sets are the thing being spent sparingly on this
     // style, so a session that runs long is a session with filler in it.
     var maxEx = opts.sessionMinutes
@@ -4300,7 +4380,10 @@
             style.toFailure ? { rirLast: ef.rirLast } : {}),
         });
       }
-      return { kind: kind, name: name, dayOfWeek: d[2] == null ? i : d[2], window: window, exercises: exercises };
+      // Min-max carries its own weekdays in the split, because the rest days are part of that
+      // prescription. Everything else takes the recommended week (DEFAULT_DOW) rather than landing on
+      // consecutive days, which was never a decision - it was the array index showing through.
+      return { kind: kind, name: name, dayOfWeek: d[2] == null ? (dayPlan[i] == null ? i : dayPlan[i]) : d[2], window: window, exercises: exercises };
     });
 
     // Frequency floor: every muscle at least twice a week, before volume gets topped up at all.
@@ -5658,7 +5741,8 @@
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
-    blockSpine: blockSpine,
+    blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,

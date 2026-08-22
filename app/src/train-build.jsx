@@ -1853,3 +1853,109 @@ function TargetSheet({ row, name, onChange, onClose }) {
 // sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
 // block" button could not be reached at all. A block built by mistake was permanent. Editing and
 // deleting are the same screen because they answer the same question: this one is wrong, now what.
+/* ---- WHICH DAYS YOU TRAIN ---------------------------------------------------------------------
+ * The plan says what to train and how hard. It has never had a right to say WHEN, and until now it
+ * said so anyway: a four-day block landed on Monday to Thursday because that is what the array index
+ * did, and somebody who works Tuesdays or plays five-a-side on Thursday had no way to say so short of
+ * moving one session, one week at a time, from inside the builder.
+ *
+ * So this is the one screen in the module that is purely about your calendar. It changes nothing
+ * about the programme: same sessions, same order, same volume. What it changes is the gap between
+ * them, and that gap is the only thing about a weekday that training cares about - which is why the
+ * screen says so out loud rather than implying that Tuesday is a leg day.
+ *
+ * It writes through `Training.reschedule`, which reaches every week of the block. Setting it on the
+ * week in front of you only would undo itself the moment the week turned over, which is the opposite
+ * of answering "I train Mondays".
+ */
+function ScheduleDays({ db, update, showToast, block, onBack }) {
+  const rows = Training.scheduleOf(block);
+  const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
+  const recommended = Training.defaultDows(rows.length);
+  const dirty = dows.some((d, i) => d !== rows[i].dayOfWeek);
+  const isRecommended = dows.every((d, i) => d === recommended[i]);
+  // Two sessions on one day is allowed - two-a-days are real, and so is a Saturday double when the
+  // week got away from you - but it is worth saying rather than letting two land in silence.
+  const doubled = dows.filter((d, i) => dows.indexOf(d) !== i).length;
+  const restCount = 7 - new Set(dows).size;
+  function save() {
+    trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === block.id)[0];
+      if (b) Training.reschedule(b, dows);
+    });
+    showToast && showToast('Your week is set.');
+    onBack();
+  }
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Train" title="Your training days" />
+      <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
+        Same sessions, same order, same volume. This only moves them around your week, and the only
+        thing training cares about is the gap between them.
+      </div>
+
+      <Card className="p-0 mb-4 overflow-hidden">
+        <CardHead title="Each session" right={restCount + ' rest day' + (restCount === 1 ? '' : 's')} />
+        {rows.map((r, i) => (
+          <div key={r.id} className="px-3 py-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
+            <div className="text-[13px] font-bold mb-2 truncate">{r.name.split(' - ')[0]}</div>
+            {/* Seven buttons, not a dropdown. The whole question is "which day", there are exactly
+                seven answers, and a picker that hides six of them behind a tap makes comparing them
+                impossible - which is the entire act here. */}
+            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+              {Array.from({ length: 7 }, (_, d) => {
+                const on = dows[i] === d;
+                const taken = !on && dows.indexOf(d) !== -1;
+                return (
+                  <button key={d} onClick={() => setDows(xs => xs.map((x, j) => (j === i ? d : x)))}
+                    aria-label={r.name.split(' - ')[0] + ' on ' + (WEEKDAYS_FULL[d] || '')}
+                    aria-pressed={on}
+                    className="pf text-[9px] uppercase"
+                    style={{
+                      minHeight: 40, letterSpacing: '0.04em',
+                      border: '2px solid ' + (on ? 'var(--border)' : taken ? 'var(--muted2)' : 'var(--border)'),
+                      background: on ? 'var(--accent)' : taken ? 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' : 'var(--surface2)',
+                      color: on ? 'var(--on-accent)' : taken ? 'var(--accent-ink)' : 'var(--text2)',
+                    }}>
+                    {(WEEKDAYS[d] || '')[0]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </Card>
+
+      {doubled > 0 && (
+        <div className="pixel-box p-3 mb-4 text-[12px] leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))', color: 'var(--warn-ink)' }}>
+          Two sessions land on the same day. That is allowed and sometimes it is the plan, but it is
+          a long day and the muscles trained twice get no gap at all.
+        </div>
+      )}
+
+      {!isRecommended && (
+        <button onClick={() => setDows(recommended.slice())} className="pixel-box w-full h-11 text-[12px] mb-3" style={{ background: 'var(--surface2)' }}>
+          Use the week we recommend
+        </button>
+      )}
+      <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
+        {/* The recommendation is stated, not just applied, because a default nobody can see is a
+            decision the app made on your behalf and never mentioned. */}
+        We suggest {recommended.map(d => WEEKDAYS[d]).join(', ')}: a break in the middle of the week
+        rather than every rest day stacked at the end of it.
+      </div>
+
+      <button onClick={save} disabled={!dirty}
+        className="pixel-btn w-full h-14 pf text-[12px] uppercase" style={{
+          background: dirty ? 'var(--accent)' : 'var(--track)',
+          color: dirty ? 'var(--on-accent)' : 'var(--muted2)', letterSpacing: '0.06em',
+        }}>
+        {dirty ? 'Save these days' : 'Nothing to change'}
+      </button>
+      <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
+        This sets every week of {block.name}. To move one session in one week only, open that day from
+        the week and change it there.
+      </div>
+    </div>
+  );
+}

@@ -210,6 +210,12 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'settings') {
     return page(<TrainSettings db={db} update={update} showToast={showToast} onBack={() => go('home')} onHowItWorks={() => go('how')} />);
   }
+  if (screen.name === 'schedule') {
+    const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
+    if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
+      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
+    return page(<ScheduleDays db={db} update={update} showToast={showToast} block={blk} onBack={() => go('home')} />);
+  }
   if (screen.name === 'how') {
     return page(<HowItWorks onBack={() => go('settings')} />);
   }
@@ -602,6 +608,17 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               ) : <div key={dow} style={style}>{cell}</div>;
             })}
           </div>
+          {/* The way to change which days you train, on the object that shows them. It was reachable
+              only by moving one session inside the builder, one week at a time, which is a different
+              act - that is "the gym was shut on Thursday", this is "I do not train Thursdays". */}
+          {!viewingAhead && (
+            <button onClick={() => go('schedule', { blockId: block.id })}
+              className="w-full text-left text-[12px] px-3 py-2.5 flex items-center justify-between gap-2"
+              style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
+              <span>Change which days you train</span>
+              <Icon.chevron width="14" height="14" />
+            </button>
+          )}
           {!viewingAhead && (
             <div className="text-[12px] px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', color: 'var(--muted)' }}>
               {doneShown >= shownWeekPlan.length

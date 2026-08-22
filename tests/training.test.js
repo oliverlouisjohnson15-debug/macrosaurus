@@ -3562,3 +3562,61 @@ test('naming the grip in the search brings that variation back', () => {
 test('an empty search shows movements only', () => {
   assert.ok(!T.search('', null, 50).some(e => e.variantOf));
 });
+
+// ---- where the training week falls -------------------------------------------------------------
+
+test('the recommended week takes a break in the middle of it', () => {
+  // Consecutive days was never a decision - it was the array index showing through, and it is the
+  // one arrangement nobody runs: it stacks the fatigue into the back half and puts three quarters of
+  // the recovery in one lump at the end.
+  const D = (b, w) => T.weekSessions(b, w || 1).map(s => s.dayOfWeek);
+  const gen = (days) => T.generateBlock({
+    daysPerWeek: days, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  assert.deepEqual(D(gen(4)), [0, 1, 3, 4], 'four days: Mon Tue, Wed off, Thu Fri');
+  assert.deepEqual(D(gen(5)), [0, 1, 3, 4, 5], 'five days: Mon Tue, Wed off, Thu Fri Sat');
+  assert.deepEqual(D(gen(3)), [0, 2, 4], 'three days stay spread across the week');
+  // The same recommendation every week of the block, not just the first.
+  assert.deepEqual(D(gen(4), 3), [0, 1, 3, 4], 'and it is the same week every week');
+  // Min-max keeps its own cadence: there the rest days ARE the prescription, written into the split.
+  const mm = T.generateBlock({
+    daysPerWeek: 5, weeks: 6, shape: 'minmax6', style: 'minmax',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'M', startISO: '2026-08-17',
+  });
+  assert.deepEqual(D(mm), [0, 1, 3, 4, 5], 'min-max already ran this week and still does');
+});
+
+test('rescheduling a block moves every week of it, not just this one', () => {
+  // The whole point of answering "I train Monday, Wednesday, Saturday and Sunday" is that it holds.
+  // Setting it on week one only would undo itself the moment the week turned over.
+  const b = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  assert.equal(T.reschedule(b, [0, 2, 5, 6]), true, 'it reports that it changed something');
+  for (let w = 1; w <= 4; w++) {
+    assert.deepEqual(T.weekSessions(b, w).map(s => s.dayOfWeek), [0, 2, 5, 6], 'week ' + w + ' moved');
+  }
+  // A null leaves that session where it is, so one row can be changed without restating the rest.
+  T.reschedule(b, [null, 3, null, null]);
+  assert.deepEqual(T.weekSessions(b, 2).map(s => s.dayOfWeek), [0, 3, 5, 6], 'only the named row moved');
+  // Two sessions on one day is allowed - two-a-days are real - but the block must then report the
+  // number of DAYS it trains, not the number of sessions it holds.
+  T.reschedule(b, [0, 0, 5, 6]);
+  assert.equal(b.daysPerWeek, 3, 'doubling two onto Monday makes it a three-day week');
+  // Out of range and unchanged both count as no change.
+  assert.equal(T.reschedule(b, [9, 9, 9, 9]), false, 'a weekday that does not exist is refused');
+  assert.equal(T.reschedule(b, [0, 0, 5, 6]), false, 'and setting what is already set changes nothing');
+});
+
+test('a block reads back the schedule it would take to leave it alone', () => {
+  const b = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  const before = T.scheduleOf(b).map(x => x.dayOfWeek);
+  assert.deepEqual(before, [0, 1, 3, 4], 'it opens on what the block actually runs');
+  assert.equal(T.reschedule(b, before), false, 'and feeding it back is a no-op');
+  assert.ok(T.scheduleOf(b).every(x => x.name), 'every row names its session');
+});
