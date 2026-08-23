@@ -418,7 +418,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
           <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>lifts up</div>
         </Card>
         <Card className="p-3 text-center">
-          <div className="pf text-[15px]">{Math.round(toDisplayWeight(review.tonnage, units) / 1000)}k</div>
+          <div className="pf text-[15px]">{fmtTonnage(review.tonnage, units)}</div>
           <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>{unitLabel(units)} moved</div>
         </Card>
       </div>
@@ -2527,7 +2527,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
             the work they just did nothing. */}
         <div className="flex items-start gap-1 py-3 mb-4" style={{ borderTop: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
           {stat(facts.sets === 1 ? 'set' : 'sets', facts.sets)}
-          {facts.tonnageKg > 0 && stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString())}
+          {facts.tonnageKg > 0 && stat('moved', fmtTonnage(facts.tonnageKg, units))}
           {stat(facts.minutes === 1 ? 'minute' : 'minutes', facts.minutes)}
           {facts.movementsTotal > 0 && stat('movements', facts.movementsDone + '/' + facts.movementsTotal)}
         </div>
@@ -2943,17 +2943,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
         )}
       </>)}
 
-      {/* The character sheet is not deleted, it is one tap on - the right distance for something you
-          look at monthly. It is a good game object that was filed under a screen people open to make
-          training decisions, which is why it read as empty. */}
-      <button onClick={() => go('stats')} className="pixel-box w-full text-left p-3.5 flex items-center justify-between gap-3"
-        style={{ background: 'var(--surface2)' }}>
-        <span className="min-w-0">
-          <span className="block text-[13px] font-semibold">Your character sheet</span>
-          <span className="block text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>Strength, power, endurance and balance, against your bodyweight</span>
-        </span>
-        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-      </button>
+
     </div>
   );
 }

@@ -225,9 +225,9 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<TrainProgress db={db} onBack={() => go('home')} go={go}
       onOpenExercise={(id) => go('exercise', { exerciseId: id })} />);
   }
-  if (screen.name === 'stats') {
-    return page(<StatSheet db={db} onBack={() => go('home')} />);
-  }
+  // The character sheet is no longer a Train destination. It answered nothing anyone opens this tab
+  // to ask, and reaching it meant a menu inside a menu inside a menu. `StatSheet` itself is left
+  // standing for the Play side, which is where a character sheet belongs.
   return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
     block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
 }
@@ -813,9 +813,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             <span className="text-[13px] tnum" style={{ color: 'var(--text)' }}>
               {(() => {
                 const sets = (lastLog.sets || []).filter(s => s.done).length;
-                const kg = toDisplayWeight(Training.tonnage(lastLog), units);
-                const vol = kg >= 1000 ? (Math.round(kg / 100) / 10) + 't' : Math.round(kg) + unitLabel(units);
-                return <><b>{sets}</b> sets · <b>{vol}</b> moved</>;
+                // `fmtTonnage`, like everywhere else. This was the only place that knew how to write
+                // a tonne, so the same session read as 3.7t here and 12495kg in History.
+                return <><b>{sets}</b> sets · <b>{fmtTonnage(Training.tonnage(lastLog), units)}</b> moved</>;
               })()}
             </span>
           </span>

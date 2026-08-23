@@ -54349,12 +54349,9 @@ function TrainTab({
       })
     }));
   }
-  if (screen.name === 'stats') {
-    return page(/*#__PURE__*/React.createElement(StatSheet, {
-      db: db,
-      onBack: () => go('home')
-    }));
-  }
+  // The character sheet is no longer a Train destination. It answered nothing anyone opens this tab
+  // to ask, and reaching it meant a menu inside a menu inside a menu. `StatSheet` itself is left
+  // standing for the Play side, which is where a character sheet belongs.
   return page(/*#__PURE__*/React.createElement(TrainHome, {
     db: db,
     update: update,
@@ -55020,9 +55017,9 @@ function TrainHome({
     }
   }, (() => {
     const sets = (lastLog.sets || []).filter(s => s.done).length;
-    const kg = toDisplayWeight(Training.tonnage(lastLog), units);
-    const vol = kg >= 1000 ? Math.round(kg / 100) / 10 + 't' : Math.round(kg) + unitLabel(units);
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, sets), " sets · ", /*#__PURE__*/React.createElement("b", null, vol), " moved");
+    // `fmtTonnage`, like everywhere else. This was the only place that knew how to write
+    // a tonne, so the same session read as 3.7t here and 12495kg in History.
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, sets), " sets · ", /*#__PURE__*/React.createElement("b", null, fmtTonnage(Training.tonnage(lastLog), units)), " moved");
   })())), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[10px] uppercase shrink-0",
     style: {
@@ -61315,7 +61312,7 @@ function BlockReviewScreen({
     className: "p-3 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[15px]"
-  }, Math.round(toDisplayWeight(review.tonnage, units) / 1000), "k"), /*#__PURE__*/React.createElement("div", {
+  }, fmtTonnage(review.tonnage, units)), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] mt-1",
     style: {
       color: 'var(--muted)'
@@ -64337,7 +64334,7 @@ function SessionSignOff({
       borderTop: '2px solid var(--border)',
       borderBottom: '2px solid var(--border)'
     }
-  }, stat(facts.sets === 1 ? 'set' : 'sets', facts.sets), facts.tonnageKg > 0 && stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString()), stat(facts.minutes === 1 ? 'minute' : 'minutes', facts.minutes), facts.movementsTotal > 0 && stat('movements', facts.movementsDone + '/' + facts.movementsTotal)), (facts.prList || []).map((p, i) => /*#__PURE__*/React.createElement("div", {
+  }, stat(facts.sets === 1 ? 'set' : 'sets', facts.sets), facts.tonnageKg > 0 && stat('moved', fmtTonnage(facts.tonnageKg, units)), stat(facts.minutes === 1 ? 'minute' : 'minutes', facts.minutes), facts.movementsTotal > 0 && stat('movements', facts.movementsDone + '/' + facts.movementsTotal)), (facts.prList || []).map((p, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "pixel-box p-3 mb-2 text-[11.5px] leading-snug",
     style: {
@@ -64888,29 +64885,7 @@ function TrainProgress({
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: "Biggest movers",
     right: 'top ' + movers.length
-  }), movers.map(row))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('stats'),
-    className: "pixel-box w-full text-left p-3.5 flex items-center justify-between gap-3",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "block text-[13px] font-semibold"
-  }, "Your character sheet"), /*#__PURE__*/React.createElement("span", {
-    className: "block text-[11.5px] mt-0.5",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Strength, power, endurance and balance, against your bodyweight")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
-    style: {
-      color: 'var(--muted2)',
-      flexShrink: 0
-    }
-  })));
+  }), movers.map(row))));
 }
 </script>
 </body>
