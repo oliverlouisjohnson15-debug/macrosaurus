@@ -931,7 +931,7 @@ function relativeDay(iso, todayISO) {
   // is what people actually check against their own memory of the week.
   const dt = new Date(iso + 'T00:00:00Z');
   if (isNaN(dt.getTime())) return iso;
-  return dt.getUTCDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dt.getUTCMonth()];
+  return dt.getUTCDate() + ' ' + MONTHS[dt.getUTCMonth()];
 }
 
 // ---- the session player -----------------------------------------------------------------------

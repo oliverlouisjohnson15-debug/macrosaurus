@@ -2061,11 +2061,32 @@
       if (Math.abs(b.deltaPct) !== Math.abs(a.deltaPct)) return Math.abs(b.deltaPct) - Math.abs(a.deltaPct);
       return a.lastISO < b.lastISO ? 1 : -1;
     });
+    var needsLook = rows.filter(function (r) { return r.state === 'down' || r.state === 'stuck'; });
+    var up = rows.filter(function (r) { return r.state === 'up'; });
+    /* THE ANSWER, as a shape the screen can phrase.
+     * "Am I getting stronger" is a question with an answer, and the answer is a proportion: how many
+     * movements are moving, out of how many you have trained enough to judge. The screen should not
+     * be inventing that threshold in its markup, and it should not be left to the reader to work it
+     * out of a list either - a list is the evidence, not the answer.
+     * Deliberately three bands and no score. Anything finer would be pretending to a precision that
+     * eight sessions of estimated 1RM does not carry. */
+    var pct = rows.length ? up.length / rows.length : 0;
+    var verdict = !rows.length ? 'none'
+      : pct >= 0.9 ? 'yes'
+        : pct >= 0.6 ? 'mostly'
+          : pct >= 0.3 ? 'mixed'
+            : 'stalling';
     return {
       rows: rows,
-      needsLook: rows.filter(function (r) { return r.state === 'down' || r.state === 'stuck'; }),
-      up: rows.filter(function (r) { return r.state === 'up'; }),
+      needsLook: needsLook,
+      up: up,
       steady: rows.filter(function (r) { return r.state === 'flat'; }),
+      verdict: verdict,
+      upCount: up.length,
+      total: rows.length,
+      // The single biggest gain, which is the one fact worth naming in the summary: it is the
+      // evidence for the verdict, and it is the thing somebody actually wants to hear.
+      best: up.length ? up.slice().sort(function (a, b) { return b.deltaPct - a.deltaPct; })[0] : null,
     };
   }
 

@@ -94,12 +94,24 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEKDAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // "Week 3" on its own never told you WHEN. The dates do, and they are what people check against
 // their actual diary.
-/* The month a block began, for the spine's labels. Three letters, because the segments are as
-   narrow as the block is short and a full month name would truncate on the three-week ones. */
+/* The module's month names, in one place.
+   They were written out inline in `relativeDay` and read off the device locale in `monthShort`, so a
+   French phone drew "janv." in one line of a screen and "2 Aug" in the next - and "janv." is five
+   characters in a slot sized for three, on a segment as narrow as the block is short. One English
+   array, like every other label in the module. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/* How much was moved, in a unit a person reads. Twelve and a half thousand kilograms is a number you
+   have to count the digits of; 12.5t is a number you take in. The homepage already did this inline
+   and History did not, so the same session read two different ways on two screens. */
+function fmtTonnage(kg, units) {
+  const n = +kg || 0;
+  return n >= 1000 ? (Math.round(n / 100) / 10) + 't' : Math.round(toDisplayWeight(n, units)) + unitLabel(units);
+}
 function monthShort(iso) {
-  const d = new Date(String(iso || '') + 'T00:00:00');
+  const d = new Date(String(iso || '') + 'T00:00:00Z');
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short' });
+  return MONTHS[d.getUTCMonth()];
 }
 
 function weekRangeLabel(startISO, week) {

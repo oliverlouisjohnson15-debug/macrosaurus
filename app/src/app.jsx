@@ -17606,10 +17606,23 @@ function demoStateBuild() {
             const ex = Training.byId(e.exerciseId);
             const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
             const base = compound ? 60 + ei * 5 : 12 + ei * 2;
+            // Two movements deliberately do NOT move, carried over from the previous block: the
+            // screens that exist to flag a stalled lift cannot be judged on an account where
+            // everything climbs, and a demo where everything climbs is the one shape no real
+            // training history has.
+            const flat = ei === 1;
+            const fading = ei === 3;
+            // A pinned movement has to CONTINUE from where the last block left it, not restart at
+            // this block's higher base. Restarting gave it an 8kg jump between blocks, so the lift
+            // that is meant to read as stuck came out up fifteen percent - and the screen built to
+            // flag a stall had nothing to flag on the only account anyone can look at.
+            const prevBase = compound ? 52 + ei * 5 : 10 + ei * 2;
             for (let i = 0; i < e.target.sets; i++) {
               acc.push({
                 exerciseId: e.exerciseId, setIndex: i, type: 'work',
-                weightKg: base + (w - 1) * (compound ? 2.5 : 1),
+                weightKg: flat ? prevBase
+                  : fading ? Math.max(5, prevBase - 3 - (w - 1))
+                    : base + (w - 1) * (compound ? 2.5 : 1),
                 reps: e.target.repHigh - (i > 1 ? 1 : 0), rir: e.target.rir, done: true,
               });
             }
@@ -17647,8 +17660,12 @@ function demoStateBuild() {
               const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
               // Most things climb week to week. `lat_pulldown` is pinned and `db_rdl` drifts down,
               // so the screen has something real to flag.
-              const flat = e.exerciseId === 'lat_pulldown';
-              const fading = e.exerciseId === 'db_rdl';
+              // By POSITION, not by exercise id: generateBlock picks its own movements out of the
+              // library, so naming ids here pinned nothing and the demo came back with everything
+              // climbing - the one shape no real training history has, and the shape that makes the
+              // screens built to flag a stalled lift impossible to look at.
+              const flat = ei === 1;
+              const fading = ei === 3;
               const base = compound ? 52 + ei * 5 : 10 + ei * 2;
               const step = flat ? 0 : fading ? -(w - 1) : (w - 1) * (compound ? 2.5 : 1);
               for (let i = 0; i < e.target.sets; i++) {

@@ -136,9 +136,11 @@ test('history opens a session rather than only offering to delete it', () => {
     db, update() {}, onBack() {}, onOpenExercise() {}, onOpenSession(l) { opened = l; },
   });
   try {
-    ui.click('Sessions');
-    assert.ok(ui.has('Open & edit'), 'the way in is on the card: ' + ui.text.slice(0, 400));
-    ui.click('Open & edit');
+    // No tabs any more - History does one job, and the whole ROW is the way in rather than a button
+    // on a card. What has to stay true is that a logged session can be reopened at all: it was once
+    // a receipt with nothing but Delete under it, which is the regression this test exists for.
+    assert.ok(ui.has(session.name.split(' - ')[0]), 'the session is listed: ' + ui.text.slice(0, 300));
+    ui.click(session.name.split(' - ')[0]);
   } finally { ui.unmount(); }
   assert.ok(opened && opened.sessionId === session.id, 'and it hands over the log that was tapped');
 });

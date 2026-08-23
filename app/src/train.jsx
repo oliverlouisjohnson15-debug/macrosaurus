@@ -840,181 +840,137 @@ function recentSleepShort(db) {
 // up a lift is something you do standing in front of a rack. So a search box comes first, every
 // movement you have ever trained is one keystroke away with its best beside it, and the sessions
 // list is the second tab rather than the whole page.
+/* ---- HISTORY -------------------------------------------------------------------------------------
+ * "What did I actually do?" - and nothing else.
+ *
+ * It used to be two screens under one title. The first tab listed every movement with its best,
+ * which is a PROGRESS question, and the second listed sessions. Two different questions wearing one
+ * name is why it was hard to navigate: whichever tab you landed on was the wrong one half the time,
+ * and neither could be made good without making the other worse. The bests have gone to Progress.
+ *
+ * The sessions themselves were N separately framed cards, each with its own offset shadow - the box
+ * soup the design system exists to prevent, and the same fault this screen was already fixed for
+ * once on its other tab. One panel per week, ruled rows inside it.
+ */
 function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
-  const [tab, setTab] = useState('lifts');
+  const today = Store.todayISO();
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
+  const [limit, setLimit] = useState(6);
 
-  const logs = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
-  const prs = Training.computePRs(t.logs);
   const prsBySession = {};
   t.logs.forEach(l => { const p = Training.prsInLog(t.logs, l); if (p.length) prsBySession[l.id] = p; });
 
-  // Every movement you have ever logged, with its best and when you last did it. Sorted by
-  // recency, because the thing you trained on Monday is far more likely to be what you are
-  // looking for than the thing you did once in March.
-  const lifts = (() => {
-    const by = {};
-    t.logs.forEach(l => {
-      (l.sets || []).forEach(s => {
-        if (!s.done || (s.type && s.type !== 'work')) return;
-        const r = by[s.exerciseId] || (by[s.exerciseId] = { exerciseId: s.exerciseId, sessions: new Set(), lastISO: '', topKg: 0, topReps: 0 });
-        r.sessions.add(l.id);
-        if (l.dateISO > r.lastISO) r.lastISO = l.dateISO;
-        if ((+s.weightKg || 0) > r.topKg) { r.topKg = +s.weightKg || 0; r.topReps = +s.reps || 0; }
-      });
-    });
-    return Object.keys(by).map(k => {
-      const ex = Training.byId(k, t.custom);
-      return Object.assign({}, by[k], { name: ex ? ex.name : k, sessions: by[k].sessions.size, e1rm: (prs[k] || {}).e1rm || 0 });
-    }).sort((a, b) => (a.lastISO < b.lastISO ? 1 : a.lastISO > b.lastISO ? -1 : 0));
-  })();
-
   const needle = q.trim().toLowerCase();
-  const shown = needle ? lifts.filter(l => l.name.toLowerCase().indexOf(needle) !== -1) : lifts;
+  // Searched by session name OR by something you lifted in it, because both are how people look for
+  // a session: "that leg day" and "the last time I benched" are the same request.
+  const logs = t.logs.slice()
+    .filter(l => {
+      if (!needle) return true;
+      if (String(l.name || '').toLowerCase().indexOf(needle) !== -1) return true;
+      return (l.sets || []).some(x => x.done && String((Training.byId(x.exerciseId, t.custom) || {}).name || '').toLowerCase().indexOf(needle) !== -1);
+    })
+    .sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+
+  /* Grouped by the week it happened in. A flat list of every session you have ever done is a wall,
+     and the unit people actually think in is the week - "did I get four in last week" is the
+     question, not "what was my 31st most recent session". */
+  const weekStart = (iso) => {
+    const d = new Date(Date.parse(iso + 'T00:00:00Z'));
+    const dow = (d.getUTCDay() + 6) % 7;          // Monday-first, like every dayOfWeek in this module
+    return new Date(d.getTime() - dow * 86400000).toISOString().slice(0, 10);
+  };
+  const thisWeek = weekStart(today);
+  const groups = [];
+  logs.forEach(l => {
+    const k = weekStart(l.dateISO);
+    let g = groups.filter(x => x.key === k)[0];
+    if (!g) { g = { key: k, logs: [] }; groups.push(g); }
+    g.logs.push(l);
+  });
+  const weekLabel = (k) => {
+    if (k === thisWeek) return 'This week';
+    const days = Math.round((Date.parse(thisWeek) - Date.parse(k)) / 86400000);
+    if (days === 7) return 'Last week';
+    const d = new Date(Date.parse(k + 'T00:00:00Z'));
+    return 'Week of ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+  };
+  const shown = groups.slice(0, limit);
 
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="History" />
-      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Every lift you have logged</div>
-      <h1 className="pf text-lg mb-4">History</h1>
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What did I actually do?</div>
+      <h1 className="pf text-lg mb-2">History</h1>
+      <div className="text-[12.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+        Every session you have logged, newest first. Bests and trends live in Progress.
+      </div>
 
-      <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'lifts', l: 'Your lifts' }, { v: 'sessions', l: 'Sessions' }]} /></div>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a session or a movement"
+        className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
 
-      {tab === 'lifts' && (
-        <div>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a movement"
-            className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+      {t.logs.length === 0 && (
+        <Card className="p-4">
+          <div className="text-[13px] mb-1">Nothing logged yet.</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Your first session will show up here.</div>
+        </Card>
+      )}
 
-          {lifts.length === 0 && (
-            <Card className="p-4">
-              <div className="text-[13px] mb-1">Nothing logged yet.</div>
-              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-                Once you have trained something, your best on it lives here.
-              </div>
-            </Card>
-          )}
-
-          {lifts.length > 0 && shown.length === 0 && (
-            <div className="text-[12.5px] py-6 text-center" style={{ color: 'var(--muted)' }}>
-              You have not logged anything matching "{q}".
-            </div>
-          )}
-
-          {/* ONE panel with ruled rows, per `Train Subscreens.dc.html`. Twenty-five separately framed
-              cards each with their own offset shadow is the "box soup" this whole overhaul is against:
-              a list of lifts is one object, and the rules between its rows say so at a fraction of the
-              ink. The name still gets its own line - "Seated cab..." tells you nothing, and the pixel
-              font eats horizontal space fast - so the numbers keep a row to themselves. */}
-          {shown.length > 0 && (() => {
-            // Recency grouping rather than one flat twenty-six-row wall. What you did this week is
-            // what most visits are checking, and it earns a section instead of being row one of
-            // twenty-six with nothing marking where "recent" stops.
-            const todayISO = Store.todayISO();
-            const weekAgo = new Date(Date.parse(todayISO + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
-            const thisWeek = shown.filter(l => l.lastISO >= weekAgo);
-            const earlier = shown.filter(l => l.lastISO < weekAgo);
-            const row = (l, i) => (
-              <button key={l.exerciseId} onClick={() => onOpenExercise(l.exerciseId)}
-                className="w-full text-left px-3.5 py-3 flex items-start justify-between gap-3"
-                style={{ borderTop: '2px solid var(--border)' }}>
-                <span className="min-w-0">
-                  <span className="block text-[13.5px] font-semibold leading-tight">{l.name}</span>
-                  <span className="block text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
-                    {relativeDay(l.lastISO, todayISO)} · {l.sessions} {l.sessions === 1 ? 'session' : 'sessions'}
-                  </span>
-                </span>
-                {/* The best, which is the whole reason for coming to this screen. */}
-                <span className="text-right shrink-0">
-                  <span className="block pf text-[10px] tnum" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>
-                    {toDisplayWeight(l.topKg, units)}{unitLabel(units)} × {l.topReps}
-                  </span>
-                  {l.e1rm > 0 && (
-                    <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
-                      {toDisplayWeight(l.e1rm, units)}{unitLabel(units)} est. 1RM
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-            const heading = (label, ruled) => (
-              <div className="px-3.5 pt-3 pb-1 pf text-[8px] uppercase"
-                style={{ color: 'var(--muted)', letterSpacing: '0.1em', borderTop: ruled ? '2px solid var(--border)' : null }}>{label}</div>
-            );
-            return (
-              <Card className="p-0 overflow-hidden">
-                <CardHead title="Your lifts" right="Best set shown" />
-                {thisWeek.length > 0 && heading('This week', false)}
-                {thisWeek.map(row)}
-                {earlier.length > 0 && heading('Earlier', thisWeek.length > 0)}
-                {earlier.map(row)}
-              </Card>
-            );
-          })()}
+      {t.logs.length > 0 && logs.length === 0 && (
+        <div className="text-[12.5px] py-6 text-center" style={{ color: 'var(--muted)' }}>
+          Nothing matching "{q.trim()}".
         </div>
       )}
 
-      {tab === 'sessions' && (
-        <div>
-          {logs.length === 0 && (
-            <Card className="p-4"><div className="text-[13px]" style={{ color: 'var(--muted)' }}>Nothing logged yet. Your first session will show up here.</div></Card>
-          )}
-          {logs.map(l => {
-            const exIds = [];
-            // What was actually LIFTED. A movement whose sets were all left unticked was not part of
-            // the session, and listing it here would put a lift you skipped in your history.
-            (l.sets || []).forEach(s => { if (s.done && exIds.indexOf(s.exerciseId) === -1) exIds.push(s.exerciseId); });
+      {shown.map(g => (
+        <Card key={g.key} className="p-0 mb-4 overflow-hidden">
+          <CardHead title={weekLabel(g.key)} right={g.logs.length + (g.logs.length === 1 ? ' session' : ' sessions')} />
+          {g.logs.map((l, i) => {
+            const done = (l.sets || []).filter(x => x.done).length;
+            const live = liveLog(l, today);
             const sessionPRs = prsBySession[l.id] || [];
+            const d = new Date(Date.parse(l.dateISO + 'T00:00:00Z'));
             return (
-              <Card key={l.id} className="p-4 mb-4">
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <div className="text-[13px] font-bold flex items-center gap-2 min-w-0">
-                    <span className="truncate">{l.name || 'Session'}</span>
-                    {sessionPRs.length > 0 && (
-                      <span className="pf text-[7px] uppercase px-2 py-0.5 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-                        {sessionPRs.length > 1 ? sessionPRs.length + ' PBs' : 'PB'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] shrink-0" style={{ color: 'var(--muted2)' }}>{l.dateISO}</div>
-                </div>
-                <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>
-                  {(l.sets || []).filter(s => s.done).length} sets · {toDisplayWeight(Training.tonnage(l), units)}{unitLabel(units)} moved
-                  {liveLog(l, Store.todayISO()) && <span style={{ color: 'var(--warn)' }}> · still open</span>}
-                </div>
-                {sessionPRs.length > 0 && (
-                  <div className="text-[11px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
-                    {sessionPRs.map((p, pi) => {
-                      const e = Training.byId(p.exerciseId, t.custom);
-                      return <span key={p.exerciseId + pi}>{pi > 0 ? ' · ' : ''}<Spark size={12} /> {(e ? e.name : p.exerciseId) + ', ' + p.label.toLowerCase()}</span>;
-                    })}
-                  </div>
-                )}
-                <div className="text-[11px] leading-snug" style={{ color: 'var(--muted2)' }}>
-                  {exIds.map(id => (Training.byId(id, t.custom) || {}).name || id).join(', ')}
-                </div>
-                {l.notes && <div className="text-[11px] mt-2 italic" style={{ color: 'var(--muted)' }}>{l.notes}</div>}
-                {/* A session you have already done is a thing you can go back into, not just a
-                    receipt with a Delete under it. You mistyped 100 for 10, you forgot to tick the
-                    last two sets, you walked out half-way and finished the session at home: every
-                    one of those wanted the session opened again, and the only thing this card
-                    offered was throwing the whole night away and starting it from nothing. It opens
-                    in the same runner it was logged in, on ITS day rather than today. */}
-                <div className="flex items-center gap-3 mt-2">
-                  {onOpenSession && (
-                    <button onClick={() => onOpenSession(l)} className="pixel-box px-3 py-2 text-[11.5px]" style={{ background: 'var(--surface2)' }}>
-                      {liveLog(l, Store.todayISO()) ? 'Carry on with it' : 'Open & edit'}
-                    </button>
+              <button key={l.id} onClick={() => onOpenSession && onOpenSession(l)}
+                className="w-full text-left px-3 py-3 flex items-start gap-3"
+                style={i ? { borderTop: '2px solid var(--track)' } : null}>
+                <span className="shrink-0 text-center" style={{ width: 34 }}>
+                  <span className="block pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>{WEEKDAYS[(d.getUTCDay() + 6) % 7]}</span>
+                  <span className="block pf text-[13px] tnum" style={{ color: 'var(--text2)' }}>{d.getUTCDate()}</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13.5px] font-semibold leading-tight truncate">{(l.name || 'Session').split(' - ')[0]}</span>
+                  <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+                    {done} {done === 1 ? 'set' : 'sets'} · {fmtTonnage(Training.tonnage(l), units)} moved
+                    {live && <span style={{ color: 'var(--warn-ink)' }}> · still open</span>}
+                  </span>
+                  {/* A record is the part of a session worth spotting from a scroll, so it is named
+                      rather than counted. "1 PB" is a badge; "heaviest ever on incline press" is the
+                      thing you would tell somebody. */}
+                  {sessionPRs.length > 0 && (
+                    <span className="block text-[11px] mt-1 leading-snug" style={{ color: 'var(--good-ink)' }}>
+                      {sessionPRs.slice(0, 2).map((pr, pi) => {
+                        const e = Training.byId(pr.exerciseId, t.custom);
+                        return (e ? e.name : pr.exerciseId) + ', ' + pr.label.toLowerCase();
+                      }).join(' · ')}
+                      {sessionPRs.length > 2 ? ' · and ' + (sessionPRs.length - 2) + ' more' : ''}
+                    </span>
                   )}
-                  <button onClick={() => setConfirm(l.id)} className="text-[10px]" style={{ color: 'var(--muted2)' }}>Delete</button>
-                </div>
-              </Card>
+                </span>
+                <Icon.chevron width="12" height="12" style={{ color: 'var(--muted2)', flexShrink: 0, marginTop: 5 }} />
+              </button>
             );
           })}
-        </div>
+        </Card>
+      ))}
+
+      {groups.length > limit && (
+        <button onClick={() => setLimit(l => l + 12)} className="pixel-box w-full h-12 text-[12.5px] mb-4" style={{ background: 'var(--surface2)' }}>
+          Show earlier weeks
+        </button>
       )}
 
       {confirm && <ConfirmDialog title="Delete this session?" body="It comes out of your volume and your records too."
@@ -2857,11 +2813,8 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
   const units = t.prefs.units;
   const today = Store.todayISO();
   const trends = Training.liftTrends(t.logs, { custom: t.custom });
-  // Every group folds after four. Capping only the last one left an account a couple of blocks in
-  // opening on twenty near-identical rows all reading "up 18%" - an inventory, which is the exact
-  // navigability failure that made History hard to use.
-  const [open, setOpen] = useState({});
-  const LIMIT = 4;
+  const [q, setQ] = useState('');
+  const [lookAll, setLookAll] = useState(false);
 
   const row = (r, i) => {
     const tone = r.state === 'down' ? 'var(--danger)' : r.state === 'stuck' ? 'var(--warn)'
@@ -2877,7 +2830,6 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
           <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
             {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
-          {/* The advice belongs to the engine, which is the thing that decided it had stalled. */}
           {r.state === 'stuck' && (
             <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>
               No new best in {Math.min(3, r.sessions)} sessions.
@@ -2885,7 +2837,9 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
           )}
           {r.state === 'down' && (
             <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>
-              Going backwards since {relativeDay(r.lastISO, today).toLowerCase()}.
+              {/* relativeDay returns "Yesterday" or "16 Aug"; lower-casing the lot to fit mid-sentence
+                  turned the month into "16 aug." Start the clause instead. */}
+              Going backwards. {relativeDay(r.lastISO, today)} was the last time.
             </span>
           )}
         </span>
@@ -2899,17 +2853,26 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
     );
   };
 
+  const needle = q.trim().toLowerCase();
+  const found = needle ? trends.rows.filter(r => r.name.toLowerCase().indexOf(needle) !== -1) : [];
+  // The three biggest gains. Not a leaderboard - the evidence behind the sentence at the top, so the
+  // claim is checkable without scrolling a list of twenty-eight.
+  const movers = trends.up.slice().sort((a, b) => b.deltaPct - a.deltaPct).slice(0, 3);
+
+  const HEAD = {
+    yes: ['Yes', 'var(--good)', 'var(--good-ink)', '#e6efe9'],
+    mostly: ['Yes, mostly', 'var(--good)', 'var(--good-ink)', '#e6efe9'],
+    mixed: ['Some of it', 'var(--warn)', 'var(--warn-ink)', 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'],
+    stalling: ['Not at the moment', 'var(--warn)', 'var(--warn-ink)', 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'],
+  }[trends.verdict] || [];
+
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Progress" />
       <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Am I getting stronger?</div>
-      <h1 className="pf text-lg mb-2">Progress</h1>
-      <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
-        Your estimated one-rep max on every movement, and which way it is going. Every line is drawn to
-        the same scale, so a lift that is moving looks like it.
-      </div>
+      <h1 className="pf text-lg mb-4">Progress</h1>
 
-      {trends.rows.length === 0 && (
+      {trends.rows.length === 0 ? (
         <Card className="p-4">
           <div className="text-[13px] mb-1">Not enough logged yet.</div>
           <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
@@ -2917,28 +2880,71 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
             and a screen that called one session's difference progress would be teaching you to read noise.
           </div>
         </Card>
-      )}
-
-      {[
-        { key: 'look', list: trends.needsLook, title: 'Worth a look', right: trends.needsLook.length + ' of ' + trends.rows.length, warn: true },
-        { key: 'up', list: trends.up, title: 'Moving up', right: 'last 8 sessions' },
-        { key: 'flat', list: trends.steady, title: 'Ticking along', right: String(trends.steady.length) },
-      ].filter(g => g.list.length > 0).map(g => (
-        <Card key={g.key} className={'p-0 mb-4 overflow-hidden' + (g.warn ? ' box-warn' : '')}>
-          <CardHead title={g.title} right={g.right} />
-          {(open[g.key] ? g.list : g.list.slice(0, LIMIT)).map(row)}
-          {!open[g.key] && g.list.length > LIMIT && (
-            <button onClick={() => setOpen(o => Object.assign({}, o, { [g.key]: true }))}
-              className="w-full text-left px-3.5 py-3.5 text-[12px]"
-              style={{ borderTop: '2px solid var(--track)', color: 'var(--accent-ink)' }}>
-              Show the other {g.list.length - LIMIT} ›
-            </button>
-          )}
+      ) : (<>
+        {/* ---- THE ANSWER ----
+            This screen exists to answer a question, so it answers it, in a sentence, before showing
+            any evidence. The version this replaces opened on three stacked lists of twenty-eight
+            movements and left the reader to work the answer out of them - which is a dataset, not an
+            answer, and it is the same fault that made History hard to navigate. */}
+        <Card className="p-0 mb-4 overflow-hidden" style={{ background: HEAD[3] }}>
+          <div className="p-4">
+            <div className="pf text-[11px] mb-2" style={{ color: HEAD[2], letterSpacing: '0.1em' }}>{(HEAD[0] || '').toUpperCase()}</div>
+            <div className="text-[14px] leading-relaxed">
+              <b>{trends.upCount} of {trends.total}</b> movements have gone up over the last eight sessions.
+              {trends.best ? <> Your biggest gain is <b>{trends.best.name.toLowerCase()}</b>, up {trends.best.deltaPct}%.</> : null}
+            </div>
+          </div>
         </Card>
-      ))}
 
-      {/* The character sheet is still here, one tap away, rather than being the whole screen. It is a
-          game object and it is good at being one - it was filed under a screen people open to make
+        {/* The exceptions, in full and never folded. They are the only rows in the module that ask
+            you to decide something, and there are almost never more than a handful. */}
+        {/* The exceptions. Usually a handful, and shown in full when they are - but a bad block can
+            produce a dozen, and a dozen is the wall this screen was rebuilt to avoid. Five, then a
+            fold: enough to see it is not one rogue lift, not so many that the answer above scrolls
+            away. */}
+        {trends.needsLook.length > 0 && (
+          <Card className="p-0 mb-4 overflow-hidden box-warn">
+            <CardHead title={trends.needsLook.length === 1 ? 'The one that has not' : 'The ' + trends.needsLook.length + ' that have not'}
+              right="worth a look" />
+            {(lookAll ? trends.needsLook : trends.needsLook.slice(0, 5)).map(row)}
+            {!lookAll && trends.needsLook.length > 5 && (
+              <button onClick={() => setLookAll(true)} className="w-full text-left px-3.5 py-3.5 text-[12px]"
+                style={{ borderTop: '2px solid var(--track)', color: 'var(--accent-ink)' }}>
+                Show the other {trends.needsLook.length - 5} ›
+              </button>
+            )}
+          </Card>
+        )}
+
+        {/* Browsing is a search, not a list. Twenty-eight rows of "up 18%" is an inventory; anybody
+            who wants a specific movement knows its name. */}
+        {/* The same plain framed input History uses. There is no search glyph in the pixel set and
+            inventing one for this screen alone would give the module two search fields that do not
+            look alike. */}
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Look up any movement"
+          className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+
+        {needle ? (
+          found.length ? (
+            <Card className="p-0 mb-4 overflow-hidden">
+              <CardHead title={found.length + (found.length === 1 ? ' match' : ' matches')} right={'"' + q.trim() + '"'} />
+              {found.map(row)}
+            </Card>
+          ) : (
+            <div className="text-[12.5px] py-6 text-center mb-4" style={{ color: 'var(--muted)' }}>
+              Nothing trained three times matching "{q.trim()}".
+            </div>
+          )
+        ) : movers.length > 0 && (
+          <Card className="p-0 mb-4 overflow-hidden">
+            <CardHead title="Biggest movers" right={'top ' + movers.length} />
+            {movers.map(row)}
+          </Card>
+        )}
+      </>)}
+
+      {/* The character sheet is not deleted, it is one tap on - the right distance for something you
+          look at monthly. It is a good game object that was filed under a screen people open to make
           training decisions, which is why it read as empty. */}
       <button onClick={() => go('stats')} className="pixel-box w-full text-left p-3.5 flex items-center justify-between gap-3"
         style={{ background: 'var(--surface2)' }}>
