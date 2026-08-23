@@ -335,7 +335,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const weeks = useMemo(() => (block ? Training.blockWeeks(block, t.logs, today) : []), [block, t.logs, today]);
   const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
   const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
-  const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
   const [confirmDraft, setConfirmDraft] = useState(false);
@@ -746,32 +745,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               It lives on the draft screen while you are building, and behind Your blocks after, both
               of which are places you went looking for it. ---- */}
 
-      {/* ---- last session, so the tab is never empty and progress is always in view ---- */}
-      {lastLog && (
-        /* LAST SESSION is a titled panel too, with WHEN on the bar in accent - the design puts the
-           recency there because "yesterday" is the thing that makes the card worth a glance, and it
-           frees the interior to carry the session and its numbers instead of a three-line stack. */
-        <button onClick={() => go('history')} className="pixel-box w-full text-left px-3.5 py-3 mb-4 flex items-center justify-between gap-3"
-          style={{ background: 'var(--card)' }}>
-          {/* Recognition, not a second dashboard. This used to be a titled card with three stat
-              tiles under it - a whole panel to say "yes, you trained yesterday". One line does the
-              same job: which session, when, what it cost, and a way in if you want more. */}
-          <span className="min-w-0">
-            <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--muted2)', letterSpacing: '0.08em' }}>
-              Last · {(lastLog.name || 'Session').split(' - ')[0]} · {relativeDay(lastLog.dateISO, today).toLowerCase()}
-            </span>
-            <span className="text-[13px] tnum" style={{ color: 'var(--text)' }}>
-              {(() => {
-                const sets = (lastLog.sets || []).filter(s => s.done).length;
-                // `fmtTonnage`, like everywhere else. This was the only place that knew how to write
-                // a tonne, so the same session read as 3.7t here and 12495kg in History.
-                return <><b>{sets}</b> sets · <b>{fmtTonnage(Training.tonnage(lastLog), units)}</b> moved</>;
-              })()}
-            </span>
-          </span>
-          <span className="pf text-[10px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>view ›</span>
-        </button>
-      )}
+      {/* The "last session" card used to sit here: which session, when, its sets and its tonnage,
+          with a way into History. It is History's first row with different furniture - the same
+          session, the same two numbers, one screen apart - and the tab it sat on is the one you open
+          to decide the next hour rather than to admire the last one. History is a labelled button a
+          few pixels below, which is the honest way to offer a record of what you did. */}
 
       {/* ---- a draft in progress is a promise you made yourself, so it gets a real card ---- */}
       {draftDays > 0 && (

@@ -54615,7 +54615,6 @@ function TrainHome({
   const weeks = useMemo(() => block ? Training.blockWeeks(block, t.logs, today) : [], [block, t.logs, today]);
   const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
   const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
-  const lastLog = t.logs.slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
   const [confirmDraft, setConfirmDraft] = useState(false);
@@ -55082,41 +55081,7 @@ function TrainHome({
         startISO: Store.todayISO()
       })
     })
-  }), lastLog &&
-  /*#__PURE__*/
-  /* LAST SESSION is a titled panel too, with WHEN on the bar in accent - the design puts the
-     recency there because "yesterday" is the thing that makes the card worth a glance, and it
-     frees the interior to carry the session and its numbers instead of a three-line stack. */
-  React.createElement("button", {
-    onClick: () => go('history'),
-    className: "pixel-box w-full text-left px-3.5 py-3 mb-4 flex items-center justify-between gap-3",
-    style: {
-      background: 'var(--card)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase block mb-1",
-    style: {
-      color: 'var(--muted2)',
-      letterSpacing: '0.08em'
-    }
-  }, "Last · ", (lastLog.name || 'Session').split(' - ')[0], " · ", relativeDay(lastLog.dateISO, today).toLowerCase()), /*#__PURE__*/React.createElement("span", {
-    className: "text-[13px] tnum",
-    style: {
-      color: 'var(--text)'
-    }
-  }, (() => {
-    const sets = (lastLog.sets || []).filter(s => s.done).length;
-    // `fmtTonnage`, like everywhere else. This was the only place that knew how to write
-    // a tonne, so the same session read as 3.7t here and 12495kg in History.
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, sets), " sets · ", /*#__PURE__*/React.createElement("b", null, fmtTonnage(Training.tonnage(lastLog), units)), " moved");
-  })())), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[10px] uppercase shrink-0",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "view ›")), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+  }), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-4 mb-4 flex items-center justify-between gap-2",
     style: {
       background: 'color-mix(in srgb, var(--accent) 10%, var(--card))'
