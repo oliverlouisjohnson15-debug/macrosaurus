@@ -3084,12 +3084,18 @@ function countWeighIns(entries, startISO, endISO) { return entries.filter(w => w
 // It is E.cycleMeans, the engine's own function, so the number on screen is literally the number in
 // the maths: a smoothed trend weight when you weigh through the week, your latest raw reading when
 // you weigh once. `count` is the weigh-ins behind this cycle's figure.
-function checkInReadings(entries, cs, todayISO, cycleDays, single) {
+// `floorISO` is the fresh-start line (planFloorISO): the decision reads only the current run, so a
+// reset is not diffed against the plan it replaced.
+function checkInReadings(entries, cs, todayISO, cycleDays, single, floorISO) {
   const cm = E.cycleMeans({
     weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
     cycleStart: cs, today: todayISO, cycleDays, weighCadence: single ? 'single' : 'daily',
+    floorISO: floorISO || null,
   });
-  return { now: cm.cur, prev: cm.prev, count: cm.count, nowDate: cm.curDate, prevDate: cm.prevDate, spanDays: cm.spanDays, source: cm.source };
+  // `now`/`prev` are the pair the RATE is read between (cycle means). `nowTrend` is where the person
+  // actually is today - see cycleMeans: the mean of a falling week sits days behind them, so the two
+  // must not be used for each other's job.
+  return { now: cm.cur, prev: cm.prev, nowTrend: cm.curNow, prevTrend: cm.prevNow, count: cm.count, nowDate: cm.curDate, prevDate: cm.prevDate, spanDays: cm.spanDays, source: cm.source };
 }
 function recomputeTrend(d) {
   d.weight_entries.sort((a, b) => a.date.localeCompare(b.date));
@@ -5462,6 +5468,9 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   // Windows derive from the actual cadence (cycle start → today), not a fixed week.
   const cov = cycleCoverage(db, today);
   const cs = cov.cs, cycleDays = cov.days;
+  // The day this run began. Everything the check-in DECIDES from is read at or after it, so a fresh
+  // start is measured on its own terms rather than against the plan it was drawn to replace.
+  const planFloor = planFloorISO(db);
   const loggedDays = cov.logged, weighDays = cov.weighed;
   const logWindow = cov.logWindow, weighWindow = cov.weighWindow;
   // Thresholds scale to the days we actually expected of them, not the raw calendar window.
@@ -5562,16 +5571,20 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const liveEntries = typedKg != null
     ? db.weight_entries.filter(w => w.date !== today).concat([{ date: today, scale_weight: typedKg }])
     : db.weight_entries;
-  const live = checkInReadings(liveEntries, cs, today, cycleDays, singleWeigh);
-  const liveAvg = live.now, prevCycleAvg = live.prev, liveCount = live.count;
-  const avgDelta = shownDelta(liveAvg, prevCycleAvg, unit);
+  const live = checkInReadings(liveEntries, cs, today, cycleDays, singleWeigh, planFloor);
+  // What the sheet SHOWS as your weight is where the trend has got to, which is the figure the
+  // check-in goes on to record and build the plan from (see decisionFor). The cycle mean stays out
+  // of sight in the engine, doing the rate. Screen and maths are the same number again.
+  const liveAvg = live.nowTrend != null ? live.nowTrend : live.now, liveCount = live.count;
+  // Endpoint to endpoint, so "your trend moved X" is not half one measure and half the other.
+  const avgDelta = shownDelta(liveAvg, live.prevTrend, unit);
   // A once-a-week weigher has a single reading carrying the whole cycle, so the average framing
   // (and the "average is enough, skip today" escape) only applies to the daily-ish lane.
   const soloRead = !singleWeigh && liveCount === 1;
   // Already weighed enough this cycle? Then a missed morning shouldn't block the check-in: it can
   // read the weights it already has instead of forcing you to invent today's number.
   const canSkipWeight = singleWeigh
-    ? checkInReadings(db.weight_entries, cs, today, cycleDays, true).now != null
+    ? checkInReadings(db.weight_entries, cs, today, cycleDays, true, planFloor).now != null
     : (wkAvg != null && weighDays >= needWeigh);
   const bfNum = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
   // What the trend becomes once this reading is in, which is the figure the protein target and the
@@ -5605,11 +5618,14 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   function decisionFor(weightKg, bfVal) {
     const todayEntry = weightKg ? Object.assign({ date: today, scale_weight: +weightKg }, bfVal != null ? { bodyfat: bfVal, bf_source: bfSrc } : {}) : null;
     const entries = todayEntry ? db.weight_entries.filter(w => w.date !== today).concat([todayEntry]) : db.weight_entries.slice();
-    const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh);
+    const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh, planFloor);
     if (read.now == null) return null;
-    // The weight everything downstream stands on: this cycle's trend weight when you weigh through
-    // the week, the latest reading when you weigh once. Same rule the engine diffs on.
-    const curAvg = read.now;
+    // The weight everything downstream stands on: where the trend has actually got to, not the
+    // cycle's average. Averaging a week that is moving hands back its midpoint, so a fast week was
+    // building the next plan on a bodyweight the person left behind days ago (and recording it as
+    // the weight they checked in at). The RATE still reads mean-to-mean inside the engine, which is
+    // what makes it hard to swing with one bad morning; this is only "where am I now".
+    const curAvg = read.nowTrend != null ? read.nowTrend : read.now;
     // Every outcome screen carries the two weights the decision was actually made from, so the
     // result can show the comparison instead of only the rate it produced.
     // Lean mass then vs now. On a cut this is the line that actually answers "am I losing the right
@@ -5638,7 +5654,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       profile: prof, currentTargets: base,
       weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
       kcalByDate: byDate, targetByDate,
-      cycleStart: cs, today, cycleDays,
+      cycleStart: cs, today, cycleDays, floorISO: planFloor,
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
       expenditure: priorBurn, checkins: db.checkins || [],
       // Travel water and salt behave exactly like a premenstrual rise, so a declared window (and its
