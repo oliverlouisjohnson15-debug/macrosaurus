@@ -10982,6 +10982,36 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     };
   }
 
+  /* ONE BLOCK, WEEK BY WEEK: how many of each week's sessions are finished, and which week you are
+   * in. The Train tab draws it as a ladder; `blockSpine` reads the same rows for its live segment,
+   * so there is one definition of "week three is done" rather than two that can drift.
+   *
+   * `full` requires the week to HAVE sessions, so an empty week never reads as completed - the same
+   * rule `completion` uses, for the same reason: a week with nothing in it is not an achievement.
+   */
+  function blockWeeks(block, logs, todayISO) {
+    if (!block) return [];
+    var mine = (logs || []).filter(function (l) { return l.blockId === block.id; });
+    var comp = completion(block, mine, todayISO);
+    var prog = blockProgress(block, todayISO);
+    var weeks = Math.max(1, block.weeks || 1);
+    var out = [];
+    for (var w = 1; w <= weeks; w++) {
+      var ws = weekSessions(block, w);
+      var got = ws.filter(function (s) {
+        return comp.logBySession[s.id] && !comp.openBySession[s.id];
+      }).length;
+      out.push({
+        week: w, done: got, total: ws.length,
+        full: ws.length > 0 && got === ws.length,
+        now: !prog.notStarted && !prog.done && w === prog.week,
+        past: !prog.notStarted && (prog.done || w < prog.week),
+        deload: ws.some(function (s) { return !!s.deload; }),
+      });
+    }
+    return out;
+  }
+
   /* Every block you have actually RUN, oldest first: the Train tab's spine.
    *
    * The tab could say where you are in the block you are in, and nothing at all about the three you
@@ -11028,18 +11058,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       var prog = blockProgress(b, todayISO);
       var running = b.id === liveId;
       var weeks = Math.max(1, b.weeks || 1);
-      var weekFill = [];
-      for (var w = 1; w <= weeks; w++) {
-        var ws = weekSessions(b, w);
-        var got = ws.filter(function (s) {
-          return comp.logBySession[s.id] && !comp.openBySession[s.id];
-        }).length;
-        weekFill.push({
-          week: w, done: got, total: ws.length,
-          full: ws.length > 0 && got === ws.length,
-          now: running && w === prog.week,
-        });
-      }
+      // One definition of "how did each week go", shared with the Train tab's ladder.
+      var weekFill = blockWeeks(b, mine, todayISO).map(function (x) {
+        return { week: x.week, done: x.done, total: x.total, full: x.full, now: running && x.now };
+      });
       return {
         id: b.id, name: b.name, weeks: weeks, startISO: b.startISO,
         // A block dated into the future is not one you abandoned. It fell through to 'stopped' and
@@ -12044,7 +12066,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
-    blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
     liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 
@@ -54588,6 +54610,11 @@ function TrainHome({
   // Date.getDay(); borrowing that here would move every session by a day.
   const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
+  // The block's weeks, for the ladder at the top. Memoised for the same reason the spine was: it
+  // walks every week against every log and only changes when the store does.
+  const weeks = useMemo(() => block ? Training.blockWeeks(block, t.logs, today) : [], [block, t.logs, today]);
+  const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
+  const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
   const lastLog = t.logs.slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -54630,7 +54657,7 @@ function TrainHome({
     style: {
       color: 'var(--muted)'
     }
-  }, block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks + ' · ' + block.name : 'Your training'), /*#__PURE__*/React.createElement("h1", {
+  }, block && !blockDone ? block.name : 'Your training'), /*#__PURE__*/React.createElement("h1", {
     className: "pf text-xl mt-3"
   }, "Train")), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('settings'),
@@ -54673,7 +54700,53 @@ function TrainHome({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "carry on ›")), block && !blockDone && /*#__PURE__*/React.createElement(React.Fragment, null, !viewingAhead && next && /*#__PURE__*/React.createElement(Card, {
+  }, "carry on ›")), block && !blockDone && weeks.length > 1 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 mb-4 overflow-hidden"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: 'Week ' + prog.week + ' of ' + block.weeks,
+    right: weeksDone + ' of ' + weeksTotal + ' sessions'
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3 flex gap-1.5"
+  }, weeks.map(wk => {
+    const tone = wk.now ? 'var(--accent)' : 'var(--good)';
+    const border = wk.now ? 'var(--accent)' : wk.past ? 'var(--border)' : '#cfc8ba';
+    const bg = wk.now ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))' : wk.past ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : 'var(--card)';
+    // A light week is a different KIND of week, not a lesser one, so it is named rather
+    // than shaded - the block's plan is the reason it looks empty, and a pale cell with no
+    // explanation reads as a week you missed.
+    const label = wk.deload ? 'Light' : 'Wk ' + wk.week;
+    const ink = wk.deload ? 'var(--warn-ink)' : wk.now ? 'var(--accent-ink)' : wk.past ? 'var(--good-ink)' : 'var(--muted2)';
+    return /*#__PURE__*/React.createElement("div", {
+      key: wk.week,
+      className: "flex-1 min-w-0",
+      style: {
+        border: '2px solid ' + border,
+        background: bg,
+        padding: '7px 6px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase truncate",
+      style: {
+        color: ink,
+        letterSpacing: '0.06em'
+      }
+    }, label), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-[1px] mt-1.5",
+      style: {
+        border: '2px solid var(--border)',
+        background: 'var(--border)'
+      }
+    }, Array.from({
+      length: Math.max(1, wk.total)
+    }, (_, i) => /*#__PURE__*/React.createElement("i", {
+      key: i,
+      className: "flex-1",
+      style: {
+        height: 7,
+        background: i < wk.done ? tone : 'var(--track)'
+      }
+    }))));
+  }))), block && !blockDone && /*#__PURE__*/React.createElement(React.Fragment, null, !viewingAhead && next && /*#__PURE__*/React.createElement(Card, {
     className: "p-0 mb-4 overflow-hidden"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: live ? 'In progress' : 'Next up',

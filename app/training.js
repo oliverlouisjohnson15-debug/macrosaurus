@@ -4899,6 +4899,36 @@
     };
   }
 
+  /* ONE BLOCK, WEEK BY WEEK: how many of each week's sessions are finished, and which week you are
+   * in. The Train tab draws it as a ladder; `blockSpine` reads the same rows for its live segment,
+   * so there is one definition of "week three is done" rather than two that can drift.
+   *
+   * `full` requires the week to HAVE sessions, so an empty week never reads as completed - the same
+   * rule `completion` uses, for the same reason: a week with nothing in it is not an achievement.
+   */
+  function blockWeeks(block, logs, todayISO) {
+    if (!block) return [];
+    var mine = (logs || []).filter(function (l) { return l.blockId === block.id; });
+    var comp = completion(block, mine, todayISO);
+    var prog = blockProgress(block, todayISO);
+    var weeks = Math.max(1, block.weeks || 1);
+    var out = [];
+    for (var w = 1; w <= weeks; w++) {
+      var ws = weekSessions(block, w);
+      var got = ws.filter(function (s) {
+        return comp.logBySession[s.id] && !comp.openBySession[s.id];
+      }).length;
+      out.push({
+        week: w, done: got, total: ws.length,
+        full: ws.length > 0 && got === ws.length,
+        now: !prog.notStarted && !prog.done && w === prog.week,
+        past: !prog.notStarted && (prog.done || w < prog.week),
+        deload: ws.some(function (s) { return !!s.deload; }),
+      });
+    }
+    return out;
+  }
+
   /* Every block you have actually RUN, oldest first: the Train tab's spine.
    *
    * The tab could say where you are in the block you are in, and nothing at all about the three you
@@ -4945,18 +4975,10 @@
       var prog = blockProgress(b, todayISO);
       var running = b.id === liveId;
       var weeks = Math.max(1, b.weeks || 1);
-      var weekFill = [];
-      for (var w = 1; w <= weeks; w++) {
-        var ws = weekSessions(b, w);
-        var got = ws.filter(function (s) {
-          return comp.logBySession[s.id] && !comp.openBySession[s.id];
-        }).length;
-        weekFill.push({
-          week: w, done: got, total: ws.length,
-          full: ws.length > 0 && got === ws.length,
-          now: running && w === prog.week,
-        });
-      }
+      // One definition of "how did each week go", shared with the Train tab's ladder.
+      var weekFill = blockWeeks(b, mine, todayISO).map(function (x) {
+        return { week: x.week, done: x.done, total: x.total, full: x.full, now: running && x.now };
+      });
       return {
         id: b.id, name: b.name, weeks: weeks, startISO: b.startISO,
         // A block dated into the future is not one you abandoned. It fell through to 'stopped' and
@@ -5961,7 +5983,7 @@
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
-    blockSpine: blockSpine, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
     liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
 

@@ -3675,3 +3675,28 @@ test('a movement needs three sessions before it is judged', () => {
   assert.equal(T.liftTrends([mk('2026-07-01', 100), mk('2026-07-08', 140)], {}).rows.length, 0);
   assert.equal(T.liftTrends([mk('2026-07-01', 100), mk('2026-07-08', 120), mk('2026-07-15', 140)], {}).rows.length, 1);
 });
+
+test('a block reads back week by week, and an empty week is not an achievement', () => {
+  const b = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build3-deload1',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-10',
+  });
+  const logs = [];
+  [1, 2].forEach(w => T.weekSessions(b, w).forEach((s, i) => {
+    if (w === 2 && i === 3) return;                       // the week you are in, one still to do
+    logs.push({ id: 'l' + w + i, dateISO: '2026-08-1' + w, blockId: b.id, sessionId: s.id,
+      endedAt: 'x', sets: [{ exerciseId: s.exercises[0].exerciseId, done: true, weightKg: 60, reps: 8, type: 'work' }] });
+  }));
+  const wk = T.blockWeeks(b, logs, '2026-08-23');
+  assert.equal(wk.length, 4);
+  assert.deepEqual(wk.map(x => x.done), [4, 3, 0, 0], 'each week counts its own finished sessions');
+  assert.deepEqual(wk.map(x => x.full), [true, false, false, false]);
+  assert.deepEqual(wk.map(x => x.now), [false, true, false, false], 'exactly one week is the one you are in');
+  assert.deepEqual(wk.map(x => x.past), [true, false, false, false]);
+  assert.equal(wk[3].deload, true, 'and the light week is flagged, so it can be named rather than shaded');
+
+  // A week with no sessions in it must never read as completed - the same rule completion uses.
+  const empty = Object.assign({}, b, { sessions: b.sessions.filter(s => s.week !== 3) });
+  assert.equal(T.blockWeeks(empty, logs, '2026-08-23')[2].full, false, 'an empty week is not an achievement');
+  assert.deepEqual(T.blockWeeks(null, logs, '2026-08-23'), [], 'and no block is no rows, not a crash');
+});

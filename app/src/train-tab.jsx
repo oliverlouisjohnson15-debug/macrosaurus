@@ -330,6 +330,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // Date.getDay(); borrowing that here would move every session by a day.
   const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
+  // The block's weeks, for the ladder at the top. Memoised for the same reason the spine was: it
+  // walks every week against every log and only changes when the store does.
+  const weeks = useMemo(() => (block ? Training.blockWeeks(block, t.logs, today) : []), [block, t.logs, today]);
+  const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
+  const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -369,12 +374,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       <div className="flex items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
           <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>
-            {/* Which block, and how far into it. This was the line under the spine; without the
-                bars it is the only thing on the page naming what you are running, and it is what
-                somebody opening the tab wants confirmed before anything else. */}
-            {block && !blockDone
-              ? 'Week ' + prog.week + ' of ' + block.weeks + ' · ' + block.name
-              : 'Your training'}
+            {/* The block's NAME only. The ladder's own title bar says which week, an inch below,
+                and the two together read as the page saying it twice - which is the redundancy this
+                whole screen has been cleared of. The kicker names what you are running; the card
+                says how far through it you are. */}
+            {block && !blockDone ? block.name : 'Your training'}
           </div>
           <h1 className="pf text-xl mt-3">Train</h1>
         </div>
@@ -400,6 +404,50 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           </span>
           <span className="pf text-[10px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>carry on ›</span>
         </button>
+      )}
+
+      {/* ---- HOW FAR THROUGH THE BLOCK ----
+          The spine that used to sit here drew every block you had ever run: months of history on the
+          screen you open to decide the next hour, which is why nobody could tell what it was for.
+          This answers a question you DO have here - how far into this block am I, and how much is
+          left - and it earns its place against the week card below by showing what that one cannot:
+          where this week sits among the others.
+
+          Countable cells, never a smooth bar. That is the house rule for every meter in the app, and
+          it is most of why the spine failed: proportional-width blocks read as a chart to parse
+          rather than a quantity to count. Here you can see at a glance that week one is complete,
+          that you are three of four into week two, and that two weeks are untouched.
+
+          The arithmetic is `Training.blockWeeks`, shared with `blockSpine`, so there is one
+          definition of a finished week rather than two that drift. */}
+      {block && !blockDone && weeks.length > 1 && (
+        <Card className="p-0 mb-4 overflow-hidden">
+          <CardHead title={'Week ' + prog.week + ' of ' + block.weeks}
+            right={weeksDone + ' of ' + weeksTotal + ' sessions'} />
+          <div className="p-3 flex gap-1.5">
+            {weeks.map(wk => {
+              const tone = wk.now ? 'var(--accent)' : 'var(--good)';
+              const border = wk.now ? 'var(--accent)' : wk.past ? 'var(--border)' : '#cfc8ba';
+              const bg = wk.now ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))'
+                : wk.past ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : 'var(--card)';
+              // A light week is a different KIND of week, not a lesser one, so it is named rather
+              // than shaded - the block's plan is the reason it looks empty, and a pale cell with no
+              // explanation reads as a week you missed.
+              const label = wk.deload ? 'Light' : 'Wk ' + wk.week;
+              const ink = wk.deload ? 'var(--warn-ink)' : wk.now ? 'var(--accent-ink)' : wk.past ? 'var(--good-ink)' : 'var(--muted2)';
+              return (
+                <div key={wk.week} className="flex-1 min-w-0" style={{ border: '2px solid ' + border, background: bg, padding: '7px 6px' }}>
+                  <div className="pf text-[9px] uppercase truncate" style={{ color: ink, letterSpacing: '0.06em' }}>{label}</div>
+                  <div className="flex gap-[1px] mt-1.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
+                    {Array.from({ length: Math.max(1, wk.total) }, (_, i) => (
+                      <i key={i} className="flex-1" style={{ height: 7, background: i < wk.done ? tone : 'var(--track)' }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       {/* The block spine used to sit here: every block you had run, drawn end to end. It went
