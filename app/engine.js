@@ -1521,6 +1521,12 @@
   // of a new run diffs the new plan against the old one's weigh-ins, and reports a rate belonging
   // to neither. Nothing is deleted - the chart still draws the lot - this is only what the DECISION
   // is allowed to read.
+  // How much of a cycle a fresh-start-clipped baseline must still cover, and how many weigh-ins it
+  // must still hold, before it is a baseline rather than scraps. 70% keeps a reset that lands a day
+  // or two into a cycle usable; it rules out the handful of mornings left by one that lands late.
+  var PREV_MIN_COVERAGE = 0.7;
+  var PREV_MIN_WEIGHINS = 4;
+
   function cycleMeans(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
@@ -1550,25 +1556,56 @@
     // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
     // bias the expenditure estimate and invite oscillation).
     var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), TREND_ALPHA);
-    var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
-    // No PARTIAL previous cycle. Whatever survives the line is not a like-for-like baseline: a
-    // couple of readings averaged against a full cycle's worth is a comparison decided by which
-    // mornings happened to fall after the reset, and one rebound reading left standing alone
-    // becomes the entire thing the new run is measured from. Until a full cycle has run since the
-    // fresh start there IS no previous cycle, and the caller falls to its first-cycle path, which
-    // reads a robust slope off this cycle's raw weigh-ins and discounts it heavily for water.
-    var prevUsable = !floorISO || prevStart >= floorISO;
-    var curVals = [], prevVals = [], curCycle = [];
+    var prevWanted = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
+    // Clip the previous cycle at the line rather than abandoning it. A reset that lands mid-cycle
+    // leaves a stretch that is still nearly a whole cycle of real weigh-ins, and throwing that away
+    // sends an established user back through the first-cycle path - beginner treatment for someone
+    // with a week of good data. What must not become a baseline is the SCRAPS: one or two mornings
+    // that happened to survive, which is a comparison decided by where the line fell.
+    var prevStart = (floorISO && prevWanted < floorISO) ? floorISO : prevWanted;
+    var prevPartial = prevStart !== prevWanted;
+    var curVals = [], prevVals = [], curCycle = [], curDays = [], prevDays = [];
     for (var i = 0; i < ts.length; i++) {
       var pnt = ts[i];
-      if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
-      else if (prevUsable && pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
+      if (pnt.date >= cs && pnt.date <= today) {
+        curVals.push(pnt.trendKg); curCycle.push(pnt); curDays.push(daysBetweenISO(cs, pnt.date));
+      } else if (pnt.date >= prevStart && pnt.date <= prevEnd) {
+        prevVals.push(pnt.trendKg); prevDays.push(daysBetweenISO(cs, pnt.date));
+      }
+    }
+    // Scraps test, applied only to a window the line actually cut into. Both halves matter: the
+    // stretch has to still SPAN most of a cycle, and it has to carry enough mornings to average.
+    // Known limit, accepted rather than papered over: filtering at the line reseeds the EMA, so a
+    // baseline sitting right against it is still in the smoothing's warm-up while the current cycle
+    // has converged. On a falling series that reads a few percent UNDER the true rate. The safe
+    // direction - it holds a cut rather than chasing one - and it fades as the window moves away
+    // from the reset. Carrying the trend across the line instead would drag the pre-reset weights
+    // back in, which is the thing floorISO exists to stop, and that error is far bigger.
+    if (prevPartial) {
+      var coverDays = daysBetweenISO(prevStart, prevEnd) + 1;
+      var needDays = Math.ceil(cycleDays * PREV_MIN_COVERAGE);
+      var needWeighIns = Math.min(PREV_MIN_WEIGHINS, coverDays);
+      if (coverDays < needDays || prevVals.length < needWeighIns) { prevVals = []; prevDays = []; }
+    }
+    // The span the rate is divided by is the gap between where the two means actually SIT in time,
+    // not the nominal cycle length. With full coverage each mean sits at its window's midpoint and
+    // the gap is exactly cycleDays, which is what this always assumed. With a clipped window it is
+    // not, and dividing by cycleDays would state the movement over a span that never happened -
+    // the one way a shortened baseline can genuinely mislead. Measuring it is what makes the
+    // clipped baseline safe to use at all.
+    var spanDays = cycleDays;
+    if (prevVals.length && curVals.length) {
+      var gap = mean(curDays) - mean(prevDays);
+      if (gap > 0) spanDays = gap;
     }
     return {
       cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,
       curNow: curVals.length ? curVals[curVals.length - 1] : null,
       prevNow: prevVals.length ? prevVals[prevVals.length - 1] : null,
-      curCycle: curCycle, spanDays: cycleDays, count: curVals.length,
+      // True when the fresh-start line shortened the baseline and it was still good enough to use,
+      // so the caller can say so rather than presenting it as an ordinary cycle-on-cycle read.
+      prevPartial: prevPartial && prevVals.length > 0,
+      curCycle: curCycle, spanDays: spanDays, count: curVals.length,
       curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
       source: 'trend',
     };

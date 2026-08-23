@@ -303,19 +303,88 @@ test('cycleMeans: a fresh start floors what the decision may read', () => {
   assert.ok(floored.cur < across.cur, 'the pre-reset rebound was propping the current mean up');
 });
 
-test('cycleMeans: no previous cycle is assembled from a partial one', () => {
-  // The line falls mid-way through what would have been the previous cycle. Averaging the two
-  // mornings that survive against a full cycle is not a like-for-like diff, so there is no previous
-  // cycle at all until a whole one has run since the reset.
-  const partial = E.cycleMeans(Object.assign({ weights: FRESH_WEIGHTS, floorISO: '2026-08-14' }, FRESH_CYCLE));
-  assert.strictEqual(partial.prev, null, 'prevStart 2026-08-12 predates the line, so no baseline');
-  // Once a full cycle has run on the new plan, normal comparison resumes - both sides post-reset.
-  const settled = E.cycleMeans({
-    weights: FRESH_WEIGHTS, floorISO: '2026-08-18',
-    cycleStart: '2026-08-24', today: '2026-08-29', cycleDays: 6,
+test('cycleMeans: a clipped baseline is used when it is still most of a cycle, not scraps', () => {
+  // The line falls two days into what would have been the previous cycle, leaving 4 of 6 days. That
+  // is scraps: it neither spans most of a cycle nor carries enough mornings, and a baseline decided
+  // by where the line happened to fall is worse than none.
+  const scraps = E.cycleMeans(Object.assign({ weights: FRESH_WEIGHTS, floorISO: '2026-08-14' }, FRESH_CYCLE));
+  assert.strictEqual(scraps.prev, null, '4 of 6 days is under the coverage bar');
+  assert.strictEqual(scraps.prevPartial, false);
+
+  // The real case this exists for: a reset one day into the previous cycle. 6 of 7 days survive,
+  // all six carry weigh-ins, and every one of them is after the line. Discarding that would send an
+  // established user back through the first-cycle path on a week of perfectly good data.
+  const nearly = E.cycleMeans({
+    weights: FRESH_WEIGHTS.concat([
+      { date: '2026-08-24', kg: 89.90 }, { date: '2026-08-25', kg: 89.70 },
+      { date: '2026-08-26', kg: 89.75 }, { date: '2026-08-27', kg: 89.50 },
+      { date: '2026-08-28', kg: 89.55 }, { date: '2026-08-29', kg: 89.30 },
+      { date: '2026-08-30', kg: 89.35 },
+    ]),
+    floorISO: '2026-08-18', cycleStart: '2026-08-24', today: '2026-08-30', cycleDays: 7,
   });
-  assert.ok(settled.prev != null, 'prevStart 2026-08-18 is the line itself, so the baseline is clean');
-  assert.ok(settled.prev < 92, 'and it is built from the new run, not the old rebound');
+  assert.ok(nearly.prev != null, '6 of 7 days, all post-reset, is a baseline');
+  assert.strictEqual(nearly.prevPartial, true, 'and it says so rather than posing as a full cycle');
+  assert.ok(nearly.prev < 92, 'built from the new run only - the 92.5 rebound is the far side of the line');
+  // The two means sit 6.5 days apart, not the nominal 7, and the span says so.
+  assert.ok(nearly.spanDays < 7 && nearly.spanDays > 6, `spanDays ${nearly.spanDays}`);
+});
+
+test('cycleMeans: the span is the real gap between the means, not the nominal cycle', () => {
+  // A series falling exactly 0.1 kg/day must read -0.7 kg/wk. It only does if the rate is divided
+  // by the gap between where the two means actually sit; with uneven coverage the nominal cycle
+  // length is not that gap, and using it states the movement over a span that never happened.
+  const all = [];
+  for (let i = 0; i < 61; i++) {
+    const d = new Date('2026-07-01T00:00:00Z'); d.setUTCDate(d.getUTCDate() + i);
+    all.push({ date: d.toISOString().slice(0, 10), kg: +(95 - 0.1 * i).toFixed(3) });
+  }
+  const rateOf = cm => ((cm.cur - cm.prev) / cm.spanDays) * 7;
+
+  const full = E.cycleMeans({ weights: all, cycleStart: '2026-08-24', today: '2026-08-30', cycleDays: 7 });
+  assert.strictEqual(full.spanDays, 7, 'even coverage: the means sit exactly a cycle apart, as always assumed');
+  near(rateOf(full), -0.7, 0.02);
+
+  // Now weigh only the back half of the current cycle. Its mean slides later, the real gap widens,
+  // and the rate must stay -0.7 - dividing by 7 would understate it.
+  const sparse = all.filter(w => !(w.date >= '2026-08-24' && w.date <= '2026-08-26'));
+  const uneven = E.cycleMeans({ weights: sparse, cycleStart: '2026-08-24', today: '2026-08-30', cycleDays: 7 });
+  assert.ok(uneven.spanDays > 7, `gap widened to ${uneven.spanDays}`);
+  // Within a few percent, not exact: the gap-aware EMA raises its effective alpha across the
+  // 3-day hole, so the trend sits a touch nearer the raw readings than a daily series would.
+  near(rateOf(uneven), -0.7, 0.05);
+  const byNominal = ((uneven.cur - uneven.prev) / 7) * 7;
+  assert.ok(Math.abs(byNominal) > 0.78, `dividing by cycleDays would have overstated it as ${byNominal.toFixed(3)}`);
+});
+
+test('cycleMeans: a clipped baseline reads slightly conservative, and never the other way', () => {
+  // Honest limit of clipping. Filtering at the line reseeds the EMA, so a baseline window sitting
+  // right against the line is still in the smoothing's warm-up while the current window has
+  // converged. On a falling series that lifts the baseline less than convergence would, so the
+  // measured rate comes in UNDER the truth. The span fix removes most of the error; this is what
+  // is left, and its direction is the safe one - a cut is held rather than chased.
+  const all = [];
+  for (let i = 0; i < 61; i++) {
+    const d = new Date('2026-07-01T00:00:00Z'); d.setUTCDate(d.getUTCDate() + i);
+    all.push({ date: d.toISOString().slice(0, 10), kg: +(95 - 0.1 * i).toFixed(3) });
+  }
+  const cycle = { weights: all, cycleStart: '2026-08-24', today: '2026-08-30', cycleDays: 7 };
+  const rateOf = cm => ((cm.cur - cm.prev) / cm.spanDays) * 7;
+  const clipped = E.cycleMeans(Object.assign({ floorISO: '2026-08-19' }, cycle));
+  assert.strictEqual(clipped.prevPartial, true);
+
+  const measured = rateOf(clipped);
+  // Understates, never overstates: it will not invent a loss that is not there.
+  assert.ok(measured > -0.7, `should read under the true -0.7, got ${measured.toFixed(3)}`);
+  assert.ok(measured < -0.5, `but still most of the way there, got ${measured.toFixed(3)}`);
+  // And the span fix is carrying most of that: without it the same movement reads far shorter.
+  const byNominal = ((clipped.cur - clipped.prev) / 7) * 7;
+  assert.ok(Math.abs(measured) > Math.abs(byNominal) + 0.05,
+    `span-corrected ${measured.toFixed(3)} should beat nominal ${byNominal.toFixed(3)}`);
+  // The warm-up is the whole of the residual: give it a settled floor and the read is exact.
+  const settled = E.cycleMeans(Object.assign({ floorISO: '2026-07-05' }, cycle));
+  assert.strictEqual(settled.prevPartial, false);
+  near(rateOf(settled), -0.7, 0.02);
 });
 
 test('cycleMeans: single cadence will not reach back across a fresh start for its baseline', () => {
