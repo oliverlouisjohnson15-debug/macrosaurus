@@ -351,6 +351,74 @@ test('checkInDecision: the first check-in after a fresh start is a first cycle a
   assert.ok(Math.abs(floored.deltaKcal || 0) <= 150);
 });
 
+// ---- where you are now, versus what the rate was read between ----
+// The mean of a week that is moving is roughly its MIDPOINT, so on a fast cycle the cycle mean sits
+// days behind the person. It was being used for both jobs: the rate (right) and "your weight" - the
+// bodyweight the next plan is built from and the figure the check-in records (wrong, and always
+// stale in the direction of travel). curNow answers the second question without disturbing the first.
+test('cycleMeans: curNow is where the trend got to, cur is what the rate is read between', () => {
+  const weights = [
+    { date: '2026-08-18', kg: 91.20 },
+    { date: '2026-08-19', kg: 90.80 },
+    { date: '2026-08-20', kg: 90.28 },
+    { date: '2026-08-21', kg: 89.85 },
+    { date: '2026-08-22', kg: 90.15 },
+    { date: '2026-08-23', kg: 89.85 },
+  ];
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-08-18', today: '2026-08-23', cycleDays: 6 });
+  assert.ok(cm.curNow < cm.cur, 'on a falling week the mean lags the trend it is averaging');
+  // The gap is not a rounding detail: half a kilo of a bodyweight that feeds BMR and gets recorded.
+  assert.ok(cm.cur - cm.curNow > 0.3, `mean ${cm.cur} vs trend now ${cm.curNow}`);
+  // curNow is the last trend value of the cycle, not the last raw reading (still smoothed).
+  const ts = E.trendSeries(weights.map(w => ({ date: w.date, weightKg: w.kg })), E.TREND_ALPHA);
+  assert.strictEqual(cm.curNow, ts[ts.length - 1].trendKg);
+  assert.notStrictEqual(cm.curNow, 89.85);
+});
+
+test('cycleMeans: a flat cycle has nothing to lag, so both readings agree', () => {
+  const weights = ['2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23']
+    .map(date => ({ date, kg: 90.00 }));
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-08-18', today: '2026-08-23', cycleDays: 6 });
+  near(cm.curNow, cm.cur, 0.001);
+});
+
+test('cycleMeans: prevNow pairs with curNow so a trend delta is endpoint to endpoint', () => {
+  const weights = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    weights.push({ date: d.toISOString().slice(0, 10), kg: +(84 - (13 - i) * 0.1).toFixed(2) });
+  }
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7 });
+  assert.ok(cm.prevNow != null && cm.curNow != null);
+  assert.ok(cm.curNow < cm.prevNow, 'a falling series ends each cycle lower than the last');
+  // Both measures describe the same fall, and must not disagree about its size by much, or the
+  // headline and the decision panel would be telling the user two different stories. They do not
+  // agree exactly, and should not: over a fortnight the EMA is still converging on a steadily
+  // falling series, which damps the mean-to-mean span slightly more than the endpoints.
+  near(cm.curNow - cm.prevNow, cm.cur - cm.prev, 0.1);
+  assert.ok((cm.curNow - cm.prevNow) < 0 && (cm.cur - cm.prev) < 0, 'and never disagree on direction');
+});
+
+test('cycleMeans: the rate still reads mean-to-mean, unmoved by the new endpoints', () => {
+  // Guard on the split itself: adding curNow must not have quietly changed what the rate is.
+  const weights = [], kcalByDate = {}, targetByDate = {};
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    weights.push({ date: iso, kg: +(92.5 - (27 - i) * 0.07).toFixed(2) });
+    kcalByDate[iso] = 2300; targetByDate[iso] = 2300;
+  }
+  const opts = {
+    profile: baseProfile, currentTargets: { kcal: 2300, protein_g: 180, carbs_g: 230, fat_g: 70 },
+    weights, kcalByDate, targetByDate, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7,
+    weighDays: 7, minDays: 4, periodDays: 7, expenditure: { kcal: 2800, n: 3 }, checkins: [],
+  };
+  const cm = E.cycleMeans(opts);
+  const dec = E.checkInDecision(opts);
+  near(dec.estimate.weeklyChangeKg, ((cm.cur - cm.prev) / cm.spanDays) * 7, 0.01);
+  assert.notStrictEqual(cm.curNow, cm.cur, 'guard: the two really are different numbers here');
+});
+
 test('cycleMeans matches what checkInDecision reports back for the same inputs', () => {
   const weights = [], kcalByDate = {}, targetByDate = {};
   for (let i = 27; i >= 0; i--) {

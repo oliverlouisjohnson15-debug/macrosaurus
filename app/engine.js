@@ -1505,8 +1505,16 @@
   // checkInDecision so the UI can SHOW the same numbers the decision is made from, rather than a
   // second, similar-looking average of its own.
   //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence, floorISO }
-  // Returns { cur, prev, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
+  // Returns { cur, prev, curNow, prevNow, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
   // where source is 'trend' (EMA cycle means) or 'reading' (single weekly weigh-in).
+  // `cur`/`prev` are the two weights the RATE is measured between, and they are cycle MEANS on
+  // purpose: mean-to-mean over a fixed span is the change between the two weeks' midpoints, which
+  // one salty morning cannot swing. `curNow` answers the different question of where you are NOW -
+  // the trend on the cycle's last weigh-in. Averaging a falling week returns roughly its midpoint,
+  // so `cur` sits days behind the person; anything that means "your weight today" (the bodyweight
+  // the plan is built from, what the check-in records) wants curNow, and only the rate wants cur.
+  // prevNow is the same reading a cycle back, so "your trend moved X" can be stated endpoint to
+  // endpoint without borrowing half of it from the mean-to-mean pair.
   // floorISO is the day the current run began (Store.freshStart's `fresh_start`). A fresh start
   // draws a line, and the reset already forgets the learned expenditure on the other side of it
   // (Store.FRESH_ALWAYS). The weight read has to forget it too: left to itself the first check-in
@@ -1528,6 +1536,8 @@
       var prevPt = prevPts.length ? prevPts[prevPts.length - 1] : null;
       return {
         cur: curPt ? curPt.kg : null, prev: prevPt ? prevPt.kg : null,
+        // One reading IS the cycle here, so there is no mean lagging behind it to correct for.
+        curNow: curPt ? curPt.kg : null, prevNow: prevPt ? prevPt.kg : null,
         curCycle: curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; }),
         spanDays: (curPt && prevPt) ? Math.max(1, daysBetweenISO(prevPt.date, curPt.date)) : cycleDays,
         count: curPts.length, curDate: curPt ? curPt.date : null, prevDate: prevPt ? prevPt.date : null,
@@ -1556,6 +1566,8 @@
     }
     return {
       cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,
+      curNow: curVals.length ? curVals[curVals.length - 1] : null,
+      prevNow: prevVals.length ? prevVals[prevVals.length - 1] : null,
       curCycle: curCycle, spanDays: cycleDays, count: curVals.length,
       curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
       source: 'trend',

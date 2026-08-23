@@ -2376,8 +2376,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // checkInDecision so the UI can SHOW the same numbers the decision is made from, rather than a
   // second, similar-looking average of its own.
   //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence, floorISO }
-  // Returns { cur, prev, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
+  // Returns { cur, prev, curNow, prevNow, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
   // where source is 'trend' (EMA cycle means) or 'reading' (single weekly weigh-in).
+  // `cur`/`prev` are the two weights the RATE is measured between, and they are cycle MEANS on
+  // purpose: mean-to-mean over a fixed span is the change between the two weeks' midpoints, which
+  // one salty morning cannot swing. `curNow` answers the different question of where you are NOW -
+  // the trend on the cycle's last weigh-in. Averaging a falling week returns roughly its midpoint,
+  // so `cur` sits days behind the person; anything that means "your weight today" (the bodyweight
+  // the plan is built from, what the check-in records) wants curNow, and only the rate wants cur.
+  // prevNow is the same reading a cycle back, so "your trend moved X" can be stated endpoint to
+  // endpoint without borrowing half of it from the mean-to-mean pair.
   // floorISO is the day the current run began (Store.freshStart's `fresh_start`). A fresh start
   // draws a line, and the reset already forgets the learned expenditure on the other side of it
   // (Store.FRESH_ALWAYS). The weight read has to forget it too: left to itself the first check-in
@@ -2399,6 +2407,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       var prevPt = prevPts.length ? prevPts[prevPts.length - 1] : null;
       return {
         cur: curPt ? curPt.kg : null, prev: prevPt ? prevPt.kg : null,
+        // One reading IS the cycle here, so there is no mean lagging behind it to correct for.
+        curNow: curPt ? curPt.kg : null, prevNow: prevPt ? prevPt.kg : null,
         curCycle: curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; }),
         spanDays: (curPt && prevPt) ? Math.max(1, daysBetweenISO(prevPt.date, curPt.date)) : cycleDays,
         count: curPts.length, curDate: curPt ? curPt.date : null, prevDate: prevPt ? prevPt.date : null,
@@ -2427,6 +2437,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     return {
       cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,
+      curNow: curVals.length ? curVals[curVals.length - 1] : null,
+      prevNow: prevVals.length ? prevVals[prevVals.length - 1] : null,
       curCycle: curCycle, spanDays: cycleDays, count: curVals.length,
       curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
       source: 'trend',
@@ -16035,9 +16047,14 @@ function checkInReadings(entries, cs, todayISO, cycleDays, single, floorISO) {
     weighCadence: single ? 'single' : 'daily',
     floorISO: floorISO || null
   });
+  // `now`/`prev` are the pair the RATE is read between (cycle means). `nowTrend` is where the person
+  // actually is today - see cycleMeans: the mean of a falling week sits days behind them, so the two
+  // must not be used for each other's job.
   return {
     now: cm.cur,
     prev: cm.prev,
+    nowTrend: cm.curNow,
+    prevTrend: cm.prevNow,
     count: cm.count,
     nowDate: cm.curDate,
     prevDate: cm.prevDate,
@@ -21020,10 +21037,13 @@ function CheckInModal({
     scale_weight: typedKg
   }]) : db.weight_entries;
   const live = checkInReadings(liveEntries, cs, today, cycleDays, singleWeigh, planFloor);
-  const liveAvg = live.now,
-    prevCycleAvg = live.prev,
+  // What the sheet SHOWS as your weight is where the trend has got to, which is the figure the
+  // check-in goes on to record and build the plan from (see decisionFor). The cycle mean stays out
+  // of sight in the engine, doing the rate. Screen and maths are the same number again.
+  const liveAvg = live.nowTrend != null ? live.nowTrend : live.now,
     liveCount = live.count;
-  const avgDelta = shownDelta(liveAvg, prevCycleAvg, unit);
+  // Endpoint to endpoint, so "your trend moved X" is not half one measure and half the other.
+  const avgDelta = shownDelta(liveAvg, live.prevTrend, unit);
   // A once-a-week weigher has a single reading carrying the whole cycle, so the average framing
   // (and the "average is enough, skip today" escape) only applies to the daily-ish lane.
   const soloRead = !singleWeigh && liveCount === 1;
@@ -21081,9 +21101,12 @@ function CheckInModal({
     const entries = todayEntry ? db.weight_entries.filter(w => w.date !== today).concat([todayEntry]) : db.weight_entries.slice();
     const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh, planFloor);
     if (read.now == null) return null;
-    // The weight everything downstream stands on: this cycle's trend weight when you weigh through
-    // the week, the latest reading when you weigh once. Same rule the engine diffs on.
-    const curAvg = read.now;
+    // The weight everything downstream stands on: where the trend has actually got to, not the
+    // cycle's average. Averaging a week that is moving hands back its midpoint, so a fast week was
+    // building the next plan on a bodyweight the person left behind days ago (and recording it as
+    // the weight they checked in at). The RATE still reads mean-to-mean inside the engine, which is
+    // what makes it hard to swing with one bad morning; this is only "where am I now".
+    const curAvg = read.nowTrend != null ? read.nowTrend : read.now;
     // Every outcome screen carries the two weights the decision was actually made from, so the
     // result can show the comparison instead of only the rate it produced.
     // Lean mass then vs now. On a cut this is the line that actually answers "am I losing the right
