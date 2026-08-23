@@ -2514,11 +2514,15 @@ function SessionSignOff({ db, facts, units, onDone }) {
           ))}
         </div>
       )}
-      <div className="w-full max-w-sm pixel-box fade-in p-5 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }}>
-        <div className="flex justify-center mb-4">
-          <BuddyScene buddy={buddy} stageIndex={stage} px={4} w={150} h={112}
-            floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
+      <div className="w-full max-w-sm pixel-box fade-in max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }}>
+        <div style={{ borderBottom: '3px solid var(--border)', lineHeight: 0 }}>
+          {/* Same world as everywhere else. This was a bare sprite on the card's own cream, so the
+              one screen you reach by finishing a session showed a buddy standing nowhere - and a
+              bought sky, the most visible thing anybody buys, did not appear on it. */}
+          <BuddyScene buddy={buddy} stageIndex={stage} px={3} w="100%" h={PROGRESS_WORLD_H} terrarium
+            floor={terraFloor(PROGRESS_WORLD_H)} plant shadowW={44} eq={equippedCosmetics(buddy)} />
         </div>
+        <div className="p-5">
         <div className="pf text-[11px] text-center mb-2" style={{ color: 'var(--accent-ink)' }}>{(line ? line.head : 'Logged').toUpperCase()}</div>
         <div className="text-[13px] leading-relaxed text-center mb-4">{line ? line.body : 'Session saved.'}</div>
 
@@ -2570,6 +2574,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
           Today counts toward your streak.
         </div>
         <button onClick={onDone} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Done</button>
+        </div>
       </div>
     </div>
   );
@@ -2898,11 +2903,26 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
             the sentence: the tone has to survive being bad news, and a picture alone cannot carry
             "not at the moment". */}
         <Card className="p-0 mb-4 overflow-hidden">
-          <div style={{ background: 'var(--scene-top)', borderBottom: '3px solid var(--border)' }}>
-            <div className="flex justify-center pt-3">
-              <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
-                px={3} w={150} h={92} floor={22} spriteBottom={5} shadowW={56} eq={equippedCosmetics(buddy)} />
-            </div>
+          {/* The REAL terrarium, edge to edge, and short.
+              It was a flat cream band with the buddy standing on it - a floor rather than a place -
+              because this call was not passing `terrarium`, which is the flag that draws the world
+              Today already draws. Passing it also means a bought sky recolours this scene, so
+              scenery somebody paid for turns up wherever the buddy does rather than on one screen.
+
+              Deliberately shorter than Today's 132px. There the world is the hero and earns a third
+              of the card; here it is the frame around one sentence, and a scene that took over the
+              screen would push the lifts that need a decision below the fold - which is the whole
+              thing this screen was rebuilt to stop. Full width and no inset is what still makes it
+              read as a window at this height. */}
+          <div style={{ borderBottom: '3px solid var(--border)', lineHeight: 0 }}>
+            {/* `floor` + `plant` is what stands the buddy ON the drawn line. Without them the sprite
+                falls back to a `spriteBottom` nobody passed and floats up among the clouds - and the
+                floor has to be DERIVED from the height (`terraFloor`), because the terrarium's ground
+                sits at row 38 of 50, so it is a fraction of whatever height the scene is given rather
+                than a fixed offset. */}
+            <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
+              px={2.2} w="100%" h={PROGRESS_WORLD_H} terrarium
+              floor={terraFloor(PROGRESS_WORLD_H)} plant shadowW={36} eq={equippedCosmetics(buddy)} />
           </div>
           <div className="p-4" style={{ background: HEAD[3] }}>
             <div className="pf text-[9px] uppercase mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>

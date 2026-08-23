@@ -7519,6 +7519,11 @@ const WORLD_PX = 2.8;
    rather than posing on a shelf. At 92px the scene had a horizon and no sky above it. 132 is the
    same third of a 375px phone. */
 const WORLD_H = 132;
+/* The same world at a secondary size. Today's card is the one place the terrarium is the hero and
+   earns a third of the screen; everywhere else it is the frame around a sentence, and a scene that
+   takes over pushes the thing you came for below the fold. Still tall enough to have sky above the
+   horizon, which is what stopped the 92px version reading as a strip of ground. */
+const PROGRESS_WORLD_H = 104;
 const WORLD_FLOOR = terraFloor(WORLD_H);   // the terrarium's own ground line, not a guessed offset
 /* THE STATUS STRIP.
    The card's rule until now was that it carried no figures at all - the macro card directly below
@@ -8357,7 +8362,12 @@ function TerrariumCanvas({ h, still, scene }) {
     const { W, H, GROUND, S } = TERRA;
     const P = terraPalette(scene);
     if (cv.width !== W * S) { cv.width = W * S; cv.height = H * S; }
-    const ctx = cv.getContext('2d');
+    // A canvas is not guaranteed to hand back a context: it returns null under jsdom, and a real
+    // browser can refuse one when it is out of GPU memory or the tab is being throttled. Reaching
+    // straight through it threw, and because this scene is now drawn on four surfaces rather than
+    // one, that turned "no canvas today" into a blank screen wherever the buddy appears.
+    const ctx = cv.getContext && cv.getContext('2d');
+    if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = P.sky; ctx.fillRect(0, 0, cv.width, cv.height);
     const px = (x, y, c) => {
@@ -8636,8 +8646,10 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
     <div className="fade-in">
       <div className="pixel-box p-0 mb-3 overflow-hidden" style={{ background: 'var(--card)' }}>
         <div className="relative" style={{ borderBottom: '2px solid var(--border)', lineHeight: 0 }}>
-          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w={384} h={238}
-            floor={62} spriteBottom={38} shadowW={64} eq={eq} asleep={asleep} />
+          {/* The terrarium, like Today and Progress. This tab is where scenery is BOUGHT, and it was
+              the one place a bought sky could not be seen standing in. */}
+          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={238}
+            terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} />
           <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
           {!incubating && <div className="pf absolute text-[8px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
         </div>

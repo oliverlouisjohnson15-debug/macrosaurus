@@ -24517,6 +24517,11 @@ const WORLD_PX = 2.8;
    rather than posing on a shelf. At 92px the scene had a horizon and no sky above it. 132 is the
    same third of a 375px phone. */
 const WORLD_H = 132;
+/* The same world at a secondary size. Today's card is the one place the terrarium is the hero and
+   earns a third of the screen; everywhere else it is the frame around a sentence, and a scene that
+   takes over pushes the thing you came for below the fold. Still tall enough to have sky above the
+   horizon, which is what stopped the 92px version reading as a strip of ground. */
+const PROGRESS_WORLD_H = 104;
 const WORLD_FLOOR = terraFloor(WORLD_H); // the terrarium's own ground line, not a guessed offset
 /* THE STATUS STRIP.
    The card's rule until now was that it carried no figures at all - the macro card directly below
@@ -26213,7 +26218,12 @@ function TerrariumCanvas({
       cv.width = W * S;
       cv.height = H * S;
     }
-    const ctx = cv.getContext('2d');
+    // A canvas is not guaranteed to hand back a context: it returns null under jsdom, and a real
+    // browser can refuse one when it is out of GPU memory or the tab is being throttled. Reaching
+    // straight through it threw, and because this scene is now drawn on four surfaces rather than
+    // one, that turned "no canvas today" into a blank screen wherever the buddy appears.
+    const ctx = cv.getContext && cv.getContext('2d');
+    if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = P.sky;
     ctx.fillRect(0, 0, cv.width, cv.height);
@@ -26646,10 +26656,11 @@ function PlayBuddyView({
     buddy: buddy,
     stageIndex: buddy.stage || 0,
     px: 4,
-    w: 384,
+    w: "100%",
     h: 238,
-    floor: 62,
-    spriteBottom: 38,
+    terrarium: true,
+    floor: terraFloor(238),
+    plant: true,
     shadowW: 64,
     eq: eq,
     asleep: asleep
@@ -64334,23 +64345,29 @@ function SessionSignOff({
       background: CONFETTI_COLORS[i % CONFETTI_COLORS.length]
     }
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-sm pixel-box fade-in p-5 max-h-[88vh] overflow-y-auto",
+    className: "w-full max-w-sm pixel-box fade-in max-h-[88vh] overflow-y-auto",
     style: {
       background: 'var(--card)'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-4"
+    style: {
+      borderBottom: '3px solid var(--border)',
+      lineHeight: 0
+    }
   }, /*#__PURE__*/React.createElement(BuddyScene, {
     buddy: buddy,
     stageIndex: stage,
-    px: 4,
-    w: 150,
-    h: 112,
-    floor: 26,
-    spriteBottom: 6,
-    shadowW: 62,
+    px: 3,
+    w: "100%",
+    h: PROGRESS_WORLD_H,
+    terrarium: true,
+    floor: terraFloor(PROGRESS_WORLD_H),
+    plant: true,
+    shadowW: 44,
     eq: equippedCosmetics(buddy)
   })), /*#__PURE__*/React.createElement("div", {
+    className: "p-5"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[11px] text-center mb-2",
     style: {
       color: 'var(--accent-ink)'
@@ -64406,7 +64423,7 @@ function SessionSignOff({
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "Done")));
+  }, "Done"))));
 }
 
 // A short rising fanfare. Deliberately different from the rest-timer beep: one says "go", this says
@@ -64868,22 +64885,21 @@ function TrainProgress({
     className: "p-0 mb-4 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      background: 'var(--scene-top)',
-      borderBottom: '3px solid var(--border)'
+      borderBottom: '3px solid var(--border)',
+      lineHeight: 0
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center pt-3"
   }, /*#__PURE__*/React.createElement(BuddyScene, {
     buddy: buddy,
     stageIndex: Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1),
-    px: 3,
-    w: 150,
-    h: 92,
-    floor: 22,
-    spriteBottom: 5,
-    shadowW: 56,
+    px: 2.2,
+    w: "100%",
+    h: PROGRESS_WORLD_H,
+    terrarium: true,
+    floor: terraFloor(PROGRESS_WORLD_H),
+    plant: true,
+    shadowW: 36,
     eq: equippedCosmetics(buddy)
-  }))), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "p-4",
     style: {
       background: HEAD[3]
