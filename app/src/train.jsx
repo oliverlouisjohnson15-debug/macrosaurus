@@ -2892,48 +2892,33 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
             any evidence. The version this replaces opened on three stacked lists of twenty-eight
             movements and left the reader to work the answer out of them - which is a dataset, not an
             answer, and it is the same fault that made History hard to navigate. */}
-        {/* THE BUDDY SAYS IT.
-            This was a card the app printed: a coloured slab with a verdict word on it. The app has a
-            voice already and this is the one line on the screen that is not a number, so it is the
-            buddy telling you rather than the interface announcing. It also stops the answer reading
-            as a status badge, which is what a coloured word in a box always reads as.
+        {/* THE BUDDY SAYS IT, and it is TALKING rather than posing.
+            A whole animal in a drawn terrarium was a third of the fold before the reader reached a
+            single lift - on the one screen whose complaint was that the answer got buried. The head
+            leans over the top edge of what it is saying instead: the overlap is what makes it read
+            as a character rather than an avatar in a row, and it costs about half the height.
 
-            The scene is the terrarium the app already draws everywhere else, so it costs no new art
-            and it is the same character that speaks on Today. The verdict word stays, small, above
-            the sentence: the tone has to survive being bad news, and a picture alone cannot carry
-            "not at the moment". */}
-        <Card className="p-0 mb-4 overflow-hidden">
-          {/* The REAL terrarium, edge to edge, and short.
-              It was a flat cream band with the buddy standing on it - a floor rather than a place -
-              because this call was not passing `terrarium`, which is the flag that draws the world
-              Today already draws. Passing it also means a bought sky recolours this scene, so
-              scenery somebody paid for turns up wherever the buddy does rather than on one screen.
-
-              Deliberately shorter than Today's 132px. There the world is the hero and earns a third
-              of the card; here it is the frame around one sentence, and a scene that took over the
-              screen would push the lifts that need a decision below the fold - which is the whole
-              thing this screen was rebuilt to stop. Full width and no inset is what still makes it
-              read as a window at this height. */}
-          <div style={{ borderBottom: '3px solid var(--border)', lineHeight: 0 }}>
-            {/* `floor` + `plant` is what stands the buddy ON the drawn line. Without them the sprite
-                falls back to a `spriteBottom` nobody passed and floats up among the clouds - and the
-                floor has to be DERIVED from the height (`terraFloor`), because the terrarium's ground
-                sits at row 38 of 50, so it is a fraction of whatever height the scene is given rather
-                than a fixed offset. */}
-            <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
-              px={2.2} w="100%" h={PROGRESS_WORLD_H} terrarium
-              floor={terraFloor(PROGRESS_WORLD_H)} plant shadowW={36} eq={equippedCosmetics(buddy)} />
+            The world is not lost, it moved to where the buddy LIVES - Today, the Play hub and the
+            session sign-off all draw the full terrarium. A bought sky still tints the backdrop here,
+            because scenery somebody paid for should not vanish on the screen that crops in. */}
+        <div className="relative mb-4" style={{ paddingTop: 26 }}>
+          <div className="absolute" style={{ left: 14, top: 0, zIndex: 2, border: '3px solid var(--border)', lineHeight: 0 }}>
+            <BuddyHead buddy={buddy} size={58} />
           </div>
-          <div className="p-4" style={{ background: HEAD[3] }}>
-            <div className="pf text-[9px] uppercase mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>
-              {buddyName(db)} reckons · {HEAD[0]}
+          <Card className="p-0 overflow-hidden">
+            <div className="px-3.5 pt-6 pb-3.5" style={{ background: HEAD[3] }}>
+              {/* The name sits opposite the head so the two never collide, whatever the buddy is
+                  called and however wide its frame is. */}
+              <div className="pf text-[9px] uppercase text-right mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>
+                {buddyName(db)} · {HEAD[0]}
+              </div>
+              <div className="text-[13.5px] leading-relaxed">
+                <b>{trends.upCount} of your {trends.total}</b> movements have gone up over the last eight sessions.
+                {trends.best ? <> Your biggest gain is <b>{trends.best.name.toLowerCase()}</b>, up {trends.best.deltaPct}%.</> : null}
+              </div>
             </div>
-            <div className="text-[14px] leading-relaxed">
-              <b>{trends.upCount} of your {trends.total}</b> movements have gone up over the last eight sessions.
-              {trends.best ? <> Your biggest gain is <b>{trends.best.name.toLowerCase()}</b>, up {trends.best.deltaPct}%.</> : null}
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
         {/* The exceptions, in full and never folded. They are the only rows in the module that ask
             you to decide something, and there are almost never more than a handful. */}

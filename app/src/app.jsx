@@ -8598,6 +8598,45 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, s
 // The buddy avatar on the new animated art: the chosen species/palette at its growth stage (or the
 // egg while incubating), with equipped emoji cosmetics overlaid. `px` is the SpriteSheet pixel scale
 // (rendered size = 24*px square).
+/* A CLOSE-UP of the buddy's head, for the places where it is TALKING rather than living somewhere.
+ *
+ * The terrarium is right where the buddy is a figure in a world - Today, the Play hub, the sign-off.
+ * It is wrong where the buddy is a voice: a whole animal standing in a drawn desert above one
+ * sentence spends a third of the fold before the reader reaches anything they came for.
+ *
+ * The sprite sheet is 24x24 logical pixels a frame, so this is a window onto part of that frame with
+ * the sheet scaled up behind it - the same trick PixelEgg uses to fill its box, with a vertical
+ * offset as well so the window lands on the head rather than the middle. It stays ANIMATED, which is
+ * the whole point: a still portrait is a sticker, and the idle blink is what makes it read as
+ * listening.
+ *
+ * A bought sky tints the backdrop. The full scene cannot fit behind a head, but scenery somebody paid
+ * for should not vanish entirely on the one screen that crops in.
+ */
+/* Read off the sprite itself rather than guessed. Decoding `base/idle.png` frame one, the animal
+   occupies rows 4-20 of the 24x24 frame: the head-and-neck mass is rows 4-13 across columns 7-19,
+   and everything below row 14 is torso and legs. The first crop started two rows ABOVE the sprite
+   and ran down to row 14, so the window framed a chest. */
+const HEAD_CROP = { x: 7, y: 4, w: 13, h: 10 };
+function BuddyHead({ buddy, size = 58, asleep }) {
+  const stage = (buddy && buddy.stage) || 0;
+  const sp = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
+  const scene = (eq && eq.scene) ? sceneArt(eq.scene) : null;
+  const px = size / HEAD_CROP.w;
+  const h = Math.round(HEAD_CROP.h * px);
+  return (
+    <div style={{
+      width: size, height: h, overflow: 'hidden', position: 'relative', lineHeight: 0,
+      background: scene ? scene.top : 'var(--scene-top)',
+      filter: asleep ? 'grayscale(0.85)' : undefined, opacity: asleep ? 0.6 : 1,
+    }}>
+      <div style={{ position: 'absolute', left: Math.round(-HEAD_CROP.x * px), top: Math.round(-HEAD_CROP.y * px) }}>
+        <SpriteSheet palette={sp.palette} species={sp.species} group={sp.group} anim={sp.anim} px={px} fps={sp.fps} />
+      </div>
+    </div>
+  );
+}
 function BuddyAvatar({ buddy, px = 4, asleep }) {
   const stage = (buddy && buddy.stage) || 0;
   const s = buddyStageSprite(stage, buddy);

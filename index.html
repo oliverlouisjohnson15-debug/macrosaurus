@@ -26556,6 +26556,68 @@ function BuddyScene({
 // The buddy avatar on the new animated art: the chosen species/palette at its growth stage (or the
 // egg while incubating), with equipped emoji cosmetics overlaid. `px` is the SpriteSheet pixel scale
 // (rendered size = 24*px square).
+/* A CLOSE-UP of the buddy's head, for the places where it is TALKING rather than living somewhere.
+ *
+ * The terrarium is right where the buddy is a figure in a world - Today, the Play hub, the sign-off.
+ * It is wrong where the buddy is a voice: a whole animal standing in a drawn desert above one
+ * sentence spends a third of the fold before the reader reaches anything they came for.
+ *
+ * The sprite sheet is 24x24 logical pixels a frame, so this is a window onto part of that frame with
+ * the sheet scaled up behind it - the same trick PixelEgg uses to fill its box, with a vertical
+ * offset as well so the window lands on the head rather than the middle. It stays ANIMATED, which is
+ * the whole point: a still portrait is a sticker, and the idle blink is what makes it read as
+ * listening.
+ *
+ * A bought sky tints the backdrop. The full scene cannot fit behind a head, but scenery somebody paid
+ * for should not vanish entirely on the one screen that crops in.
+ */
+/* Read off the sprite itself rather than guessed. Decoding `base/idle.png` frame one, the animal
+   occupies rows 4-20 of the 24x24 frame: the head-and-neck mass is rows 4-13 across columns 7-19,
+   and everything below row 14 is torso and legs. The first crop started two rows ABOVE the sprite
+   and ran down to row 14, so the window framed a chest. */
+const HEAD_CROP = {
+  x: 7,
+  y: 4,
+  w: 13,
+  h: 10
+};
+function BuddyHead({
+  buddy,
+  size = 58,
+  asleep
+}) {
+  const stage = buddy && buddy.stage || 0;
+  const sp = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
+  const scene = eq && eq.scene ? sceneArt(eq.scene) : null;
+  const px = size / HEAD_CROP.w;
+  const h = Math.round(HEAD_CROP.h * px);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: size,
+      height: h,
+      overflow: 'hidden',
+      position: 'relative',
+      lineHeight: 0,
+      background: scene ? scene.top : 'var(--scene-top)',
+      filter: asleep ? 'grayscale(0.85)' : undefined,
+      opacity: asleep ? 0.6 : 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: Math.round(-HEAD_CROP.x * px),
+      top: Math.round(-HEAD_CROP.y * px)
+    }
+  }, /*#__PURE__*/React.createElement(SpriteSheet, {
+    palette: sp.palette,
+    species: sp.species,
+    group: sp.group,
+    anim: sp.anim,
+    px: px,
+    fps: sp.fps
+  })));
+}
 function BuddyAvatar({
   buddy,
   px = 4,
@@ -64881,38 +64943,39 @@ function TrainProgress({
     style: {
       color: 'var(--muted)'
     }
-  }, "A movement shows up here once you have trained it three times. Two points is not a trend, and a screen that called one session's difference progress would be teaching you to read noise.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
-    className: "p-0 mb-4 overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, "A movement shows up here once you have trained it three times. Two points is not a trend, and a screen that called one session's difference progress would be teaching you to read noise.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "relative mb-4",
     style: {
-      borderBottom: '3px solid var(--border)',
+      paddingTop: 26
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      left: 14,
+      top: 0,
+      zIndex: 2,
+      border: '3px solid var(--border)',
       lineHeight: 0
     }
-  }, /*#__PURE__*/React.createElement(BuddyScene, {
+  }, /*#__PURE__*/React.createElement(BuddyHead, {
     buddy: buddy,
-    stageIndex: Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1),
-    px: 2.2,
-    w: "100%",
-    h: PROGRESS_WORLD_H,
-    terrarium: true,
-    floor: terraFloor(PROGRESS_WORLD_H),
-    plant: true,
-    shadowW: 36,
-    eq: equippedCosmetics(buddy)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "p-4",
+    size: 58
+  })), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-3.5 pt-6 pb-3.5",
     style: {
       background: HEAD[3]
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
+    className: "pf text-[9px] uppercase text-right mb-2",
     style: {
       color: HEAD[2],
       letterSpacing: '0.12em'
     }
-  }, buddyName(db), " reckons · ", HEAD[0]), /*#__PURE__*/React.createElement("div", {
-    className: "text-[14px] leading-relaxed"
-  }, /*#__PURE__*/React.createElement("b", null, trends.upCount, " of your ", trends.total), " movements have gone up over the last eight sessions.", trends.best ? /*#__PURE__*/React.createElement(React.Fragment, null, " Your biggest gain is ", /*#__PURE__*/React.createElement("b", null, trends.best.name.toLowerCase()), ", up ", trends.best.deltaPct, "%.") : null))), trends.needsLook.length > 0 && /*#__PURE__*/React.createElement(Card, {
+  }, buddyName(db), " · ", HEAD[0]), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13.5px] leading-relaxed"
+  }, /*#__PURE__*/React.createElement("b", null, trends.upCount, " of your ", trends.total), " movements have gone up over the last eight sessions.", trends.best ? /*#__PURE__*/React.createElement(React.Fragment, null, " Your biggest gain is ", /*#__PURE__*/React.createElement("b", null, trends.best.name.toLowerCase()), ", up ", trends.best.deltaPct, "%.") : null)))), trends.needsLook.length > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-0 mb-4 overflow-hidden box-warn"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: trends.needsLook.length === 1 ? 'The one that has not' : 'The ' + trends.needsLook.length + ' that have not',
