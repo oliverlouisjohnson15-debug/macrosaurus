@@ -3638,3 +3638,40 @@ test('a plan that prescribes its own week is not offered ours', () => {
   assert.equal(T.prescribesDays({ style: 'minmax' }), true);
   assert.equal(T.prescribesDays({}), false, 'so the screen can say a different sentence for each');
 });
+
+test('the trend verdict is a proportion, not a score', () => {
+  // "Am I getting stronger" is a question with an answer, and the answer is how many movements are
+  // moving out of how many you have trained enough to judge. The threshold belongs here with the
+  // rest of the arithmetic rather than being invented in a screen's markup.
+  const mk = (d, id, w) => ({ id: 'l' + d + id, dateISO: d, endedAt: 'x',
+    sets: [{ exerciseId: id, setIndex: 0, type: 'work', weightKg: w, reps: 8, done: true }] });
+  const days = ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-07-01', '2026-07-08'];
+  const build = (spec) => {
+    const logs = [];
+    days.forEach((d, i) => Object.keys(spec).forEach(id => logs.push(mk(d, id, spec[id](i)))));
+    return T.liftTrends(logs, {});
+  };
+  const allUp = build({ hack_squat: i => 100 + i * 4, back_squat: i => 120 + i * 4, bb_bench: i => 80 + i * 3 });
+  assert.equal(allUp.verdict, 'yes');
+  assert.equal(allUp.upCount, 3);
+  assert.equal(allUp.best.name, 'Hack squat', 'and it names the biggest gain, which is the evidence');
+
+  const half = build({ hack_squat: i => 100 + i * 4, back_squat: i => 120 + i * 4, lat_pulldown: () => 70, db_rdl: i => 95 - i });
+  assert.equal(half.verdict, 'mixed', 'two of four is not "mostly"');
+  assert.equal(half.needsLook.length, 2, 'and both exceptions are pulled out');
+
+  const none = build({ lat_pulldown: () => 70, db_rdl: i => 95 - i, pec_deck: () => 40 });
+  assert.equal(none.verdict, 'stalling');
+  assert.equal(none.best, null, 'with nothing to celebrate, it says so rather than inventing a winner');
+
+  assert.equal(T.liftTrends([], {}).verdict, 'none', 'and an empty account has no verdict at all');
+});
+
+test('a movement needs three sessions before it is judged', () => {
+  // Two points is not a trend, and a screen calling one session's difference progress would be
+  // teaching people to read noise as improvement.
+  const mk = (d, w) => ({ id: 'l' + d, dateISO: d, endedAt: 'x',
+    sets: [{ exerciseId: 'hack_squat', setIndex: 0, type: 'work', weightKg: w, reps: 8, done: true }] });
+  assert.equal(T.liftTrends([mk('2026-07-01', 100), mk('2026-07-08', 140)], {}).rows.length, 0);
+  assert.equal(T.liftTrends([mk('2026-07-01', 100), mk('2026-07-08', 120), mk('2026-07-15', 140)], {}).rows.length, 1);
+});

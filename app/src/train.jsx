@@ -2815,6 +2815,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
   const trends = Training.liftTrends(t.logs, { custom: t.custom });
   const [q, setQ] = useState('');
   const [lookAll, setLookAll] = useState(false);
+  const buddy = db.buddy || {};
 
   const row = (r, i) => {
     const tone = r.state === 'down' ? 'var(--danger)' : r.state === 'stuck' ? 'var(--warn)'
@@ -2886,11 +2887,29 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
             any evidence. The version this replaces opened on three stacked lists of twenty-eight
             movements and left the reader to work the answer out of them - which is a dataset, not an
             answer, and it is the same fault that made History hard to navigate. */}
-        <Card className="p-0 mb-4 overflow-hidden" style={{ background: HEAD[3] }}>
-          <div className="p-4">
-            <div className="pf text-[11px] mb-2" style={{ color: HEAD[2], letterSpacing: '0.1em' }}>{(HEAD[0] || '').toUpperCase()}</div>
+        {/* THE BUDDY SAYS IT.
+            This was a card the app printed: a coloured slab with a verdict word on it. The app has a
+            voice already and this is the one line on the screen that is not a number, so it is the
+            buddy telling you rather than the interface announcing. It also stops the answer reading
+            as a status badge, which is what a coloured word in a box always reads as.
+
+            The scene is the terrarium the app already draws everywhere else, so it costs no new art
+            and it is the same character that speaks on Today. The verdict word stays, small, above
+            the sentence: the tone has to survive being bad news, and a picture alone cannot carry
+            "not at the moment". */}
+        <Card className="p-0 mb-4 overflow-hidden">
+          <div style={{ background: 'var(--scene-top)', borderBottom: '3px solid var(--border)' }}>
+            <div className="flex justify-center pt-3">
+              <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
+                px={3} w={150} h={92} floor={22} spriteBottom={5} shadowW={56} eq={equippedCosmetics(buddy)} />
+            </div>
+          </div>
+          <div className="p-4" style={{ background: HEAD[3] }}>
+            <div className="pf text-[9px] uppercase mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>
+              {buddyName(db)} reckons · {HEAD[0]}
+            </div>
             <div className="text-[14px] leading-relaxed">
-              <b>{trends.upCount} of {trends.total}</b> movements have gone up over the last eight sessions.
+              <b>{trends.upCount} of your {trends.total}</b> movements have gone up over the last eight sessions.
               {trends.best ? <> Your biggest gain is <b>{trends.best.name.toLowerCase()}</b>, up {trends.best.deltaPct}%.</> : null}
             </div>
           </div>

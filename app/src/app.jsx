@@ -7140,11 +7140,39 @@ function forageMessage(v) {
   if (v.status === 'away') return { kind: 'say', text: "I'm out foraging. Back around " + forageClock(v.returnsAt) + '.' };
   return null;
 }
+/* WHAT IS GOING UP, in the buddy's voice.
+ *
+ * The training side had no way of ever reaching Today. Every lift climbing for a month was a fact the
+ * app knew and never mentioned, sitting two taps away on a screen you have to decide to open - and
+ * "your bench went up again" is the single most encouraging thing this app is in a position to say.
+ *
+ * It rides the REST rung on purpose: that is the day with nothing outstanding, which is exactly the
+ * day worth spending on good news rather than an ask. Only on a day you actually trained, only when
+ * a movement is genuinely moving, and never over the top of something the buddy needs from you.
+ *
+ * Named, not counted. "Three lifts are up" is a statistic; "your hack squat is up 11%" is a thing
+ * somebody repeats to a friend.
+ */
+function liftsRisingLine(db) {
+  const t = (db && db.training) || {};
+  if (!(t.logs || []).length) return null;
+  const tr = Training.liftTrends(t.logs, { custom: t.custom });
+  if (!tr.best || tr.best.deltaPct < 3) return null;
+  const others = tr.up.length - 1;
+  return tr.best.name + ' is up ' + tr.best.deltaPct + '% over your last few sessions'
+    + (others > 0 ? ', and ' + others + ' other ' + (others === 1 ? 'lift is' : 'lifts are') + ' climbing too.' : '.');
+}
 function buddyRest(db, today, streak, asleep) {
   const pick = (arr) => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
   if (asleep) return pick(REST_LINES.asleep);
   if (dayLanded(db, today)) {
-    if (trainedDates(db).has(today)) return pick(REST_LINES.landedTrained);
+    if (trainedDates(db).has(today)) {
+      // On a day you trained, the lifts get the line. It is the one thing the buddy can say that is
+      // both true and about the work you just did.
+      const rising = liftsRisingLine(db);
+      if (rising) return pick(REST_LINES.landedTrained).replace(/\s*$/, '') + ' ' + rising;
+      return pick(REST_LINES.landedTrained);
+    }
     if (streak >= 3) return pick(REST_LINES.landedStreak).replace('{n}', streak);
     return pick(REST_LINES.landed);
   }

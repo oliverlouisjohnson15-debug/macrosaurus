@@ -23965,11 +23965,40 @@ function forageMessage(v) {
   };
   return null;
 }
+/* WHAT IS GOING UP, in the buddy's voice.
+ *
+ * The training side had no way of ever reaching Today. Every lift climbing for a month was a fact the
+ * app knew and never mentioned, sitting two taps away on a screen you have to decide to open - and
+ * "your bench went up again" is the single most encouraging thing this app is in a position to say.
+ *
+ * It rides the REST rung on purpose: that is the day with nothing outstanding, which is exactly the
+ * day worth spending on good news rather than an ask. Only on a day you actually trained, only when
+ * a movement is genuinely moving, and never over the top of something the buddy needs from you.
+ *
+ * Named, not counted. "Three lifts are up" is a statistic; "your hack squat is up 11%" is a thing
+ * somebody repeats to a friend.
+ */
+function liftsRisingLine(db) {
+  const t = db && db.training || {};
+  if (!(t.logs || []).length) return null;
+  const tr = Training.liftTrends(t.logs, {
+    custom: t.custom
+  });
+  if (!tr.best || tr.best.deltaPct < 3) return null;
+  const others = tr.up.length - 1;
+  return tr.best.name + ' is up ' + tr.best.deltaPct + '% over your last few sessions' + (others > 0 ? ', and ' + others + ' other ' + (others === 1 ? 'lift is' : 'lifts are') + ' climbing too.' : '.');
+}
 function buddyRest(db, today, streak, asleep) {
   const pick = arr => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
   if (asleep) return pick(REST_LINES.asleep);
   if (dayLanded(db, today)) {
-    if (trainedDates(db).has(today)) return pick(REST_LINES.landedTrained);
+    if (trainedDates(db).has(today)) {
+      // On a day you trained, the lifts get the line. It is the one thing the buddy can say that is
+      // both true and about the work you just did.
+      const rising = liftsRisingLine(db);
+      if (rising) return pick(REST_LINES.landedTrained).replace(/\s*$/, '') + ' ' + rising;
+      return pick(REST_LINES.landedTrained);
+    }
     if (streak >= 3) return pick(REST_LINES.landedStreak).replace('{n}', streak);
     return pick(REST_LINES.landed);
   }
@@ -64758,6 +64787,7 @@ function TrainProgress({
   });
   const [q, setQ] = useState('');
   const [lookAll, setLookAll] = useState(false);
+  const buddy = db.buddy || {};
   const row = (r, i) => {
     const tone = r.state === 'down' ? 'var(--danger)' : r.state === 'stuck' ? 'var(--warn)' : r.state === 'up' ? 'var(--good)' : 'var(--muted2)';
     const ink = r.state === 'down' ? 'var(--danger-ink)' : r.state === 'stuck' ? 'var(--warn-ink)' : r.state === 'up' ? 'var(--good-ink)' : 'var(--muted)';
@@ -64835,21 +64865,38 @@ function TrainProgress({
       color: 'var(--muted)'
     }
   }, "A movement shows up here once you have trained it three times. Two points is not a trend, and a screen that called one session's difference progress would be teaching you to read noise.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
-    className: "p-0 mb-4 overflow-hidden",
+    className: "p-0 mb-4 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--scene-top)',
+      borderBottom: '3px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-center pt-3"
+  }, /*#__PURE__*/React.createElement(BuddyScene, {
+    buddy: buddy,
+    stageIndex: Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1),
+    px: 3,
+    w: 150,
+    h: 92,
+    floor: 22,
+    spriteBottom: 5,
+    shadowW: 56,
+    eq: equippedCosmetics(buddy)
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "p-4",
     style: {
       background: HEAD[3]
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[11px] mb-2",
+    className: "pf text-[9px] uppercase mb-2",
     style: {
       color: HEAD[2],
-      letterSpacing: '0.1em'
+      letterSpacing: '0.12em'
     }
-  }, (HEAD[0] || '').toUpperCase()), /*#__PURE__*/React.createElement("div", {
+  }, buddyName(db), " reckons · ", HEAD[0]), /*#__PURE__*/React.createElement("div", {
     className: "text-[14px] leading-relaxed"
-  }, /*#__PURE__*/React.createElement("b", null, trends.upCount, " of ", trends.total), " movements have gone up over the last eight sessions.", trends.best ? /*#__PURE__*/React.createElement(React.Fragment, null, " Your biggest gain is ", /*#__PURE__*/React.createElement("b", null, trends.best.name.toLowerCase()), ", up ", trends.best.deltaPct, "%.") : null))), trends.needsLook.length > 0 && /*#__PURE__*/React.createElement(Card, {
+  }, /*#__PURE__*/React.createElement("b", null, trends.upCount, " of your ", trends.total), " movements have gone up over the last eight sessions.", trends.best ? /*#__PURE__*/React.createElement(React.Fragment, null, " Your biggest gain is ", /*#__PURE__*/React.createElement("b", null, trends.best.name.toLowerCase()), ", up ", trends.best.deltaPct, "%.") : null))), trends.needsLook.length > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-0 mb-4 overflow-hidden box-warn"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: trends.needsLook.length === 1 ? 'The one that has not' : 'The ' + trends.needsLook.length + ' that have not',
