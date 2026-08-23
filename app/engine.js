@@ -1493,6 +1493,8 @@
   //   kcalByDate: {iso: kcal},               logged intake per day of the cycle
   //   targetByDate: {iso: kcal},             planned kcal per logged day (completeness checks; optional)
   //   cycleStart, today, cycleDays,
+  //   floorISO: 'YYYY-MM-DD' | null,         the day this run began (a fresh start). The decision
+  //                                          reads no weigh-in before it; see cycleMeans.
   //   weighDays, minDays, periodDays, earlyCap,
   //   expenditure: {kcal, n} | null,         smoothed prior (seed kcal from the formula at n=0)
   //   checkins: [{adhered, weeklyChangeKg, deltaKcal}, ...]   prior history for plateau detection
@@ -1502,13 +1504,20 @@
   // The two weights a check-in is decided between, and the real span between them. Split out of
   // checkInDecision so the UI can SHOW the same numbers the decision is made from, rather than a
   // second, similar-looking average of its own.
-  //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence }
+  //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence, floorISO }
   // Returns { cur, prev, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
   // where source is 'trend' (EMA cycle means) or 'reading' (single weekly weigh-in).
+  // floorISO is the day the current run began (Store.freshStart's `fresh_start`). A fresh start
+  // draws a line, and the reset already forgets the learned expenditure on the other side of it
+  // (Store.FRESH_ALWAYS). The weight read has to forget it too: left to itself the first check-in
+  // of a new run diffs the new plan against the old one's weigh-ins, and reports a rate belonging
+  // to neither. Nothing is deleted - the chart still draws the lot - this is only what the DECISION
+  // is allowed to read.
   function cycleMeans(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
-    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
+    var floorISO = opts.floorISO || null;
+    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null && (!floorISO || w.date >= floorISO); })
       .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add
     // nothing. Diff the two most recent raw weigh-ins directly, over their real gap.
@@ -1532,11 +1541,18 @@
     // bias the expenditure estimate and invite oscillation).
     var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), TREND_ALPHA);
     var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
+    // No PARTIAL previous cycle. Whatever survives the line is not a like-for-like baseline: a
+    // couple of readings averaged against a full cycle's worth is a comparison decided by which
+    // mornings happened to fall after the reset, and one rebound reading left standing alone
+    // becomes the entire thing the new run is measured from. Until a full cycle has run since the
+    // fresh start there IS no previous cycle, and the caller falls to its first-cycle path, which
+    // reads a robust slope off this cycle's raw weigh-ins and discounts it heavily for water.
+    var prevUsable = !floorISO || prevStart >= floorISO;
     var curVals = [], prevVals = [], curCycle = [];
     for (var i = 0; i < ts.length; i++) {
       var pnt = ts[i];
       if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
-      else if (pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
+      else if (prevUsable && pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
     }
     return {
       cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,

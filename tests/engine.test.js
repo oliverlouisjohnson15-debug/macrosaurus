@@ -267,6 +267,90 @@ test('cycleMeans: says nothing rather than guessing when a side has no weigh-ins
   assert.strictEqual(empty.count, 0);
 });
 
+// ---- a fresh start is a line, and the check-in reads only the side of it you are on ----
+// The reset already forgets the learned expenditure (Store.FRESH_ALWAYS). Until floorISO existed the
+// weight read did NOT forget the rest, so the first check-in of a new run diffed it against the plan
+// it had just replaced. Worse, the previous-cycle window kept whichever mornings happened to land
+// after the line, so a single rebound reading could end up being the entire baseline the new run was
+// measured against, and the rate reported belonged to neither run.
+const FRESH_WEIGHTS = [
+  // the old run: settled, and nothing to do with the plan that replaces it
+  { date: '2026-08-10', kg: 90.70 },
+  { date: '2026-08-11', kg: 90.60 },
+  { date: '2026-08-12', kg: 90.40 },
+  // a gap, then one rebound morning, still on the old plan and one day before the line
+  { date: '2026-08-17', kg: 92.50 },
+  // the fresh start is 2026-08-18; everything below is the new run
+  { date: '2026-08-18', kg: 91.20 },
+  { date: '2026-08-19', kg: 90.80 },
+  { date: '2026-08-20', kg: 90.28 },
+  { date: '2026-08-21', kg: 89.85 },
+  { date: '2026-08-22', kg: 90.15 },
+  { date: '2026-08-23', kg: 89.85 },
+];
+const FRESH_CYCLE = { cycleStart: '2026-08-18', today: '2026-08-23', cycleDays: 6 };
+
+test('cycleMeans: a fresh start floors what the decision may read', () => {
+  const across = E.cycleMeans(Object.assign({ weights: FRESH_WEIGHTS }, FRESH_CYCLE));
+  const floored = E.cycleMeans(Object.assign({ weights: FRESH_WEIGHTS, floorISO: '2026-08-18' }, FRESH_CYCLE));
+  // Without the floor there is a "previous cycle", made of the old run's last days plus the rebound.
+  assert.ok(across.prev != null, 'guard: without a floor the old run is still being read');
+  // With it there is no complete previous cycle yet, so the decision is told so rather than handed a
+  // baseline assembled from the far side of the reset.
+  assert.strictEqual(floored.prev, null);
+  assert.strictEqual(floored.count, 6, 'the current cycle is unaffected: same six mornings');
+  // ...and the current mean no longer carries the old run in through the EMA either.
+  assert.ok(floored.cur < across.cur, 'the pre-reset rebound was propping the current mean up');
+});
+
+test('cycleMeans: no previous cycle is assembled from a partial one', () => {
+  // The line falls mid-way through what would have been the previous cycle. Averaging the two
+  // mornings that survive against a full cycle is not a like-for-like diff, so there is no previous
+  // cycle at all until a whole one has run since the reset.
+  const partial = E.cycleMeans(Object.assign({ weights: FRESH_WEIGHTS, floorISO: '2026-08-14' }, FRESH_CYCLE));
+  assert.strictEqual(partial.prev, null, 'prevStart 2026-08-12 predates the line, so no baseline');
+  // Once a full cycle has run on the new plan, normal comparison resumes - both sides post-reset.
+  const settled = E.cycleMeans({
+    weights: FRESH_WEIGHTS, floorISO: '2026-08-18',
+    cycleStart: '2026-08-24', today: '2026-08-29', cycleDays: 6,
+  });
+  assert.ok(settled.prev != null, 'prevStart 2026-08-18 is the line itself, so the baseline is clean');
+  assert.ok(settled.prev < 92, 'and it is built from the new run, not the old rebound');
+});
+
+test('cycleMeans: single cadence will not reach back across a fresh start for its baseline', () => {
+  const single = { weights: FRESH_WEIGHTS, cycleStart: '2026-08-18', today: '2026-08-23', cycleDays: 6, weighCadence: 'single' };
+  const across = E.cycleMeans(single);
+  assert.strictEqual(across.prev, 92.50, 'guard: unfloored, the pre-reset rebound is the baseline');
+  const floored = E.cycleMeans(Object.assign({ floorISO: '2026-08-18' }, single));
+  assert.strictEqual(floored.prev, null, 'nothing on this side of the line to diff against yet');
+  assert.strictEqual(floored.cur, 89.85, 'the latest reading still stands');
+});
+
+test('checkInDecision: the first check-in after a fresh start is a first cycle again', () => {
+  const kcalByDate = {}, targetByDate = {};
+  ['2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23']
+    .forEach(iso => { kcalByDate[iso] = 2100; targetByDate[iso] = 2100; });
+  const opts = {
+    profile: baseProfile, currentTargets: { kcal: 2100, protein_g: 180, carbs_g: 200, fat_g: 65 },
+    weights: FRESH_WEIGHTS, kcalByDate, targetByDate,
+    weighDays: 6, minDays: 4, periodDays: 6, earlyCap: 150,
+    expenditure: { kcal: 2800, n: 3 }, checkins: [],
+  };
+  const across = E.checkInDecision(Object.assign({}, opts, FRESH_CYCLE));
+  const floored = E.checkInDecision(Object.assign({ floorISO: '2026-08-18' }, opts, FRESH_CYCLE));
+  assert.strictEqual(floored.status, 'proposed');
+  // Reading across the line, the old run's settled weight is the baseline and the rate is a fiction
+  // built from two plans. Floored, this is the first cycle of a new run: a robust slope off its own
+  // raw weigh-ins, discounted for water, and flagged as such.
+  assert.ok(!across.earlyPhase, 'guard: unfloored, this looked like an ordinary Nth cycle');
+  assert.strictEqual(floored.earlyPhase, true);
+  assert.ok(Math.abs(floored.estimate.weeklyChangeKg) > Math.abs(across.estimate.weeklyChangeKg),
+    'the new run is genuinely dropping faster than the cross-reset diff made it look');
+  // The early path caps how hard a water-heavy first cycle may move the plan.
+  assert.ok(Math.abs(floored.deltaKcal || 0) <= 150);
+});
+
 test('cycleMeans matches what checkInDecision reports back for the same inputs', () => {
   const weights = [], kcalByDate = {}, targetByDate = {};
   for (let i = 27; i >= 0; i--) {
