@@ -54588,12 +54588,6 @@ function TrainHome({
   // Date.getDay(); borrowing that here would move every session by a day.
   const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
-  // Every block actually run, for the spine at the top. Ordering, lengths and per-week fill are
-  // all the engine's arithmetic (`Training.blockSpine`); this screen only draws it.
-  // Memoised: it walks every block against every log, and it sat in the component body re-running on
-  // each `setWeekPick`, `setWeekAt` and parent render for a number that only changes when the store
-  // does. Cheap on a laptop, several milliseconds on a phone with a year of history behind it.
-  const spine = useMemo(() => Training.blockSpine(t.blocks, t.logs, today), [t.blocks, t.logs, today]);
   const lastLog = t.logs.slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -54636,7 +54630,7 @@ function TrainHome({
     style: {
       color: 'var(--muted)'
     }
-  }, spine.weeksTrained ? spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained' : block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks : 'Your training'), /*#__PURE__*/React.createElement("h1", {
+  }, block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks + ' · ' + block.name : 'Your training'), /*#__PURE__*/React.createElement("h1", {
     className: "pf text-xl mt-3"
   }, "Train")), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('settings'),
@@ -54679,85 +54673,7 @@ function TrainHome({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "carry on ›")), spine.segments.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "mb-5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "sr-only"
-  }, spine.segments.length, " block", spine.segments.length === 1 ? '' : 's', " so far, oldest first", spine.hidden ? ', plus ' + spine.hidden + ' earlier not shown' : '', spine.running ? '. Running now: ' + spine.running.name + ', week ' + spine.running.week + ' of ' + spine.running.weeks + '.' : '.'), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] items-end",
-    "aria-hidden": "true"
-  }, spine.segments.map(seg => /*#__PURE__*/React.createElement("div", {
-    key: seg.id,
-    className: "min-w-0",
-    style: {
-      flex: seg.weeks
-    }
-  }, seg.state === 'running' ? /*#__PURE__*/React.createElement("span", {
-    className: "flex",
-    style: {
-      height: 34,
-      border: '3px solid var(--border)',
-      boxShadow: '2px 2px 0 0 var(--shadow)',
-      background: 'var(--track)'
-    }
-  }, seg.weekFill.map(w => /*#__PURE__*/React.createElement("i", {
-    key: w.week,
-    className: "flex-1",
-    style: {
-      borderRight: w.week < seg.weeks ? '1px solid var(--border)' : 'none',
-      // A week you finished is solid. The week you are IN is filled as far as you
-      // have got, which is the only part of this bar that moves during a week.
-      background: w.full ? 'var(--accent)' : w.now && w.total ? 'linear-gradient(to right, var(--accent) 0 ' + Math.round(w.done / w.total * 100) + '%, var(--track) ' + Math.round(w.done / w.total * 100) + '% 100%)' : 'var(--track)'
-    }
-  }))) : /*#__PURE__*/React.createElement("span", {
-    className: "block",
-    style: {
-      height: 22,
-      // Three readings, not two. A block you FINISHED is solid. One you stopped
-      // part-way is paler, because that is not a failure worth colouring red - it is
-      // most of a block and it still counts. One that has not STARTED is an empty
-      // outline: it is not history at all, and drawing it as history told somebody
-      // their December block was already behind them.
-      border: '2px ' + (seg.state === 'planned' ? 'dashed var(--muted2)' : 'solid var(--border)'),
-      background: seg.state === 'done' ? 'var(--good)' : seg.state === 'planned' ? 'transparent' : 'color-mix(in srgb, var(--good) 45%, var(--track))'
-    }
-  })))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] mt-1.5",
-    "aria-hidden": "true"
-  }, spine.segments.map(seg => /*#__PURE__*/React.createElement("div", {
-    key: seg.id,
-    className: "min-w-0",
-    style: {
-      flex: seg.weeks
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase truncate block",
-    style: {
-      letterSpacing: '0.08em',
-      color: seg.state === 'running' ? 'var(--accent-ink)' : 'var(--muted2)'
-    }
-  }, monthShort(seg.startISO), seg.state === 'running' ? ' · now' : seg.state === 'planned' ? ' · to come' : '')))), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline justify-between gap-2 mt-3"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[13px] font-bold min-w-0 truncate"
-  }, block && !blockDone ? block.name : block && blockDone ? block.name : 'Nothing running'), /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('blocks'),
-    className: "hit pf text-[9px] uppercase shrink-0",
-    style: {
-      color: 'var(--accent-ink)',
-      letterSpacing: '0.09em'
-    }
-  }, spine.before ? spine.before + ' before ›' : 'Your blocks ›')), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mt-0.5 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks + (read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block)) : block && blockDone ? 'Finished. ' + spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained in all.' : spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained. Pick one up, or build a new one.'), spine.hidden > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-1.5",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, spine.hidden, " earlier block", spine.hidden === 1 ? '' : 's', " not shown.")), block && !blockDone && /*#__PURE__*/React.createElement(React.Fragment, null, !viewingAhead && next && /*#__PURE__*/React.createElement(Card, {
+  }, "carry on ›")), block && !blockDone && /*#__PURE__*/React.createElement(React.Fragment, null, !viewingAhead && next && /*#__PURE__*/React.createElement(Card, {
     className: "p-0 mb-4 overflow-hidden"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: live ? 'In progress' : 'Next up',
@@ -55178,7 +55094,7 @@ function TrainHome({
       background: 'var(--surface2)'
     }
   }, "Build", /*#__PURE__*/React.createElement("br", null), "a block")), /*#__PURE__*/React.createElement("div", {
-    className: 'grid gap-2 mb-2 ' + (spine.segments.length === 0 ? 'grid-cols-3' : 'grid-cols-2')
+    className: "grid grid-cols-3 gap-2 mb-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => go('history'),
     className: "pixel-box h-11 text-[12px]",
@@ -55191,7 +55107,7 @@ function TrainHome({
     style: {
       background: 'var(--surface2)'
     }
-  }, "Progress"), spine.segments.length === 0 && /*#__PURE__*/React.createElement("button", {
+  }, "Progress"), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('blocks'),
     className: "pixel-box h-11 text-[12px]",
     style: {

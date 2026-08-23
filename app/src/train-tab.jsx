@@ -330,12 +330,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // Date.getDay(); borrowing that here would move every session by a day.
   const todayDow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;
   const restDays = block && prog && !blockDone ? Training.restDaysOfWeek(block, prog.week) : [];
-  // Every block actually run, for the spine at the top. Ordering, lengths and per-week fill are
-  // all the engine's arithmetic (`Training.blockSpine`); this screen only draws it.
-  // Memoised: it walks every block against every log, and it sat in the component body re-running on
-  // each `setWeekPick`, `setWeekAt` and parent render for a number that only changes when the store
-  // does. Cheap on a laptop, several milliseconds on a phone with a year of history behind it.
-  const spine = useMemo(() => Training.blockSpine(t.blocks, t.logs, today), [t.blocks, t.logs, today]);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
@@ -375,11 +369,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       <div className="flex items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
           <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>
-            {/* The one honest figure about the whole of your training, and the reason the spine's
-                arithmetic is worth doing: weeks you actually trained in, not weeks elapsed. */}
-            {spine.weeksTrained
-              ? spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained'
-              : block && !blockDone ? 'Week ' + prog.week + ' of ' + block.weeks : 'Your training'}
+            {/* Which block, and how far into it. This was the line under the spine; without the
+                bars it is the only thing on the page naming what you are running, and it is what
+                somebody opening the tab wants confirmed before anything else. */}
+            {block && !blockDone
+              ? 'Week ' + prog.week + ' of ' + block.weeks + ' · ' + block.name
+              : 'Your training'}
           </div>
           <h1 className="pf text-xl mt-3">Train</h1>
         </div>
@@ -407,109 +402,16 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </button>
       )}
 
-      {/* ---- THE SPINE ----
-          Every block you have run, in order, on one line. The tab used to say a great deal about the
-          block you are in and nothing whatever about the three before it - they were behind a button,
-          so the screen read as though training began this month, and "how am I doing" had no answer
-          shorter than opening another screen.
+      {/* The block spine used to sit here: every block you had run, drawn end to end. It went
+          because Olly could not tell what it was for, which is the only verdict that matters on an
+          object whose entire job is to be understood at a glance. It answered "what have I done
+          over months" on the screen people open to answer "what do I do in the next hour", and it
+          spent the most valuable strip on the page doing it.
 
-          It is a READOUT, not a control surface. Segments 22px tall cannot carry honest tap targets
-          across four blocks, and the version that tried had a row of 27px week pips you were meant to
-          hit with a thumb. One labelled route out of it instead, on the line below, which is also the
-          only route to the block list now - the footer's third button was the same destination
-          reached by a different word.
-
-          Width is proportional to LENGTH, so a three-week block reads as shorter than a four-week
-          one. The running block is taller, framed and carries its own weeks, because the question it
-          answers is a different one: not "did I do that" but "where am I". */}
-      {spine.segments.length > 0 && (
-        <div className="mb-5">
-          {/* The bars are a picture and nothing else, so they are hidden from assistive tech and the
-              same facts are given as one sentence. Left as bare styled spans they read as nothing at
-              all, which meant a screen-reader user got no account of their block history whatever. */}
-          <span className="sr-only">
-            {spine.segments.length} block{spine.segments.length === 1 ? '' : 's'} so far, oldest first
-            {spine.hidden ? ', plus ' + spine.hidden + ' earlier not shown' : ''}
-            {spine.running ? '. Running now: ' + spine.running.name + ', week ' + spine.running.week + ' of ' + spine.running.weeks + '.' : '.'}
-          </span>
-          <div className="flex gap-[3px] items-end" aria-hidden="true">
-            {spine.segments.map(seg => (
-              <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
-                {seg.state === 'running' ? (
-                  <span className="flex" style={{ height: 34, border: '3px solid var(--border)', boxShadow: '2px 2px 0 0 var(--shadow)', background: 'var(--track)' }}>
-                    {seg.weekFill.map(w => (
-                      <i key={w.week} className="flex-1" style={{
-                        borderRight: w.week < seg.weeks ? '1px solid var(--border)' : 'none',
-                        // A week you finished is solid. The week you are IN is filled as far as you
-                        // have got, which is the only part of this bar that moves during a week.
-                        background: w.full ? 'var(--accent)'
-                          : w.now && w.total
-                            ? 'linear-gradient(to right, var(--accent) 0 ' + Math.round((w.done / w.total) * 100) + '%, var(--track) ' + Math.round((w.done / w.total) * 100) + '% 100%)'
-                            : 'var(--track)',
-                      }} />
-                    ))}
-                  </span>
-                ) : (
-                  <span className="block" style={{
-                    height: 22,
-                    // Three readings, not two. A block you FINISHED is solid. One you stopped
-                    // part-way is paler, because that is not a failure worth colouring red - it is
-                    // most of a block and it still counts. One that has not STARTED is an empty
-                    // outline: it is not history at all, and drawing it as history told somebody
-                    // their December block was already behind them.
-                    border: '2px ' + (seg.state === 'planned' ? 'dashed var(--muted2)' : 'solid var(--border)'),
-                    background: seg.state === 'done' ? 'var(--good)'
-                      : seg.state === 'planned' ? 'transparent'
-                        : 'color-mix(in srgb, var(--good) 45%, var(--track))',
-                  }} />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-[3px] mt-1.5" aria-hidden="true">
-            {spine.segments.map(seg => (
-              <div key={seg.id} className="min-w-0" style={{ flex: seg.weeks }}>
-                <span className="pf text-[9px] uppercase truncate block" style={{ letterSpacing: '0.08em', color: seg.state === 'running' ? 'var(--accent-ink)' : 'var(--muted2)' }}>
-                  {monthShort(seg.startISO)}{seg.state === 'running' ? ' · now' : seg.state === 'planned' ? ' · to come' : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-          {/* What the highlighted segment IS, and the way to the rest of them.
-
-              This row is NOT conditional on a block running, and that is the whole point of the
-              rewrite of it. It used to be, and taking the footer's Blocks button away at the same
-              time left four ordinary states with no route to the block list at all - including the
-              one every single user reaches at the end of every block, and the one where every block
-              is archived, from which un-archiving was then impossible. The tab had a dead end in it.
-
-              The name changes with the state; the link never goes away. */}
-          <div className="flex items-baseline justify-between gap-2 mt-3">
-            {/* The name gets the line to itself. Hung with the week and the split it wrapped to
-                three lines on any block whose author gave it a real name, and the route out of the
-                spine ended up floating beside the second half of a sentence. */}
-            <span className="text-[13px] font-bold min-w-0 truncate">
-              {block && !blockDone ? block.name : block && blockDone ? block.name : 'Nothing running'}
-            </span>
-            <button onClick={() => go('blocks')} className="hit pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.09em' }}>
-              {spine.before ? spine.before + ' before ›' : 'Your blocks ›'}
-            </button>
-          </div>
-          <div className="text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
-            {block && !blockDone
-              ? 'Week ' + prog.week + ' of ' + block.weeks
-                + (read => read ? ' · ' + read.splitName + ' · ' + read.weekSets + ' sets a week' : '')(readBlock(block))
-              : block && blockDone
-                ? 'Finished. ' + spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained in all.'
-                : spine.weeksTrained + ' week' + (spine.weeksTrained === 1 ? '' : 's') + ' trained. Pick one up, or build a new one.'}
-          </div>
-          {spine.hidden > 0 && (
-            <div className="text-[11px] mt-1.5" style={{ color: 'var(--muted2)' }}>
-              {spine.hidden} earlier block{spine.hidden === 1 ? '' : 's'} not shown.
-            </div>
-          )}
-        </div>
-      )}
+          What it carried that was worth keeping moved: the block's name and week are the page's
+          kicker now, and Blocks is a labelled button again. `Training.blockSpine` stays in the
+          engine, tested, for whatever wants a history of blocks later - the Blocks screen is the
+          obvious home, since that is where the question is actually asked. */}
 
       {/* ---- the block ---- */}
       {block && !blockDone && (<>
@@ -867,19 +769,17 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           conditional, so on every ordinary account History and Progress sat in two thirds of the
           row with a phantom column beside them - two buttons pushed off-centre under a
           full-width card. */}
-      <div className={'grid gap-2 mb-2 ' + (spine.segments.length === 0 ? 'grid-cols-3' : 'grid-cols-2')}>
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <button onClick={() => go('history')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>History</button>
         {/* Progress, not Stats. The screen behind it answers a question now - "am I getting stronger" -
             rather than showing four scores that by design do not move. The character sheet is one tap
             further on, which is the right distance for a thing you look at monthly. */}
         <button onClick={() => go('progress')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Progress</button>
-        {/* Blocks was here as a third button AND under the spine as "3 before" - two words for one
-            destination, which is the fault this screen already had once with the "2 / 4 done"
-            counter. The spine owns the route now, because that is where the question is asked. It
-            comes back only on an account with no spine to hang it off. */}
-        {spine.segments.length === 0 && (
-          <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
-        )}
+        {/* Blocks, unconditionally. It was briefly the spine's job to be the route here, which left
+            four ordinary states with no way to the block list at all - including the end of every
+            block. With the spine gone it is a button again, which is what it should always have
+            been: the destination has a name, so the control that goes there says it. */}
+        <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
       </div>
 
       {/* "Empty session" is for the days that are not in the plan: a class, a holiday gym, a bit of
