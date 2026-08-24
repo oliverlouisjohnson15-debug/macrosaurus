@@ -285,6 +285,82 @@ test('yesterday\'s pointer is not today\'s session', () => {
   } finally { ui.unmount(); }
 });
 
+/* ---- finished is finished ----------------------------------------------------------------------
+   Finish stamps `endedAt` and then hands you the buddy's send-off, and the send-off is the last
+   thing a lot of people see before the phone goes in a bag. The pointer used to be dropped only when
+   that screen was dismissed, so an app killed on it - or reloaded by the OS, or handed the other
+   device's copy of `open` by a sync - came back with a pointer at a session that was already over
+   and opened the runner on it, every launch. Two ways out: the pointer goes with the same write that
+   ends the session, and a pointer that survives anyway is checked against the log before it is
+   trusted. */
+
+test('finishing clears the pointer there and then, not when the send-off is dismissed', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id })];
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today() };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(IN_SESSION.test(ui.text), 'starts in the session');
+    ui.click('That is every set');
+    ui.click('Finish');                                           // through the confirm
+    assert.ok(db.training.logs[0].endedAt, 'the session is over');
+    assert.ok(!db.training.open, 'and nothing is left saying you are still in one');
+  } finally { ui.unmount(); }
+});
+
+test('a pointer at a session you already finished opens nothing', () => {
+  // The state a killed send-off leaves behind: the log ended, the pointer still there.
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id, endedAt: new Date().toISOString() })];
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today() };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(!IN_SESSION.test(ui.text), 'the tab, not the runner you already left: ' + ui.text.slice(0, 200));
+    assert.ok(!/Still open/.test(ui.text), 'and nothing offers a finished session back');
+  } finally { ui.unmount(); }
+  assert.ok(!db.training.open, 'the spent pointer is swept on the way past');
+});
+
+test('a finished freeform session does not reopen itself either', () => {
+  // Freeform has no session id to check against the block, so it used to pass every test the pointer
+  // was given and put you into a brand new empty session on every launch.
+  const block = minmax();
+  const db = accountWith(block);
+  db.training.logs = [Object.assign(logFor(T.weekSessions(block, 1)[0], { endedAt: new Date().toISOString() }),
+    { id: 'ff', sessionId: null, name: 'Empty session' })];
+  db.training.open = { sessionId: null, blockId: null, logId: null, freeform: true, atISO: today() };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(!IN_SESSION.test(ui.text), 'lands on the tab: ' + ui.text.slice(0, 200));
+  } finally { ui.unmount(); }
+  assert.ok(!db.training.open, 'and the pointer is gone');
+});
+
+test('a session still going is not swept by any of that', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const session = T.weekSessions(block, 1)[0];
+  db.training.logs = [logFor(session, { blockId: block.id })];            // today, no endedAt
+  db.training.open = { sessionId: session.id, blockId: block.id, logId: null, freeform: false, atISO: today() };
+  const ui = mount(A.TrainTab, {
+    db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    assert.ok(IN_SESSION.test(ui.text), 'straight back into it: ' + ui.text.slice(0, 200));
+  } finally { ui.unmount(); }
+  assert.ok(db.training.open, 'and the pointer is left where it is');
+});
+
 // ---- G. the rest clock --------------------------------------------------------------------------
 
 test('a rest that was running is still running when the screen comes back', () => {

@@ -721,6 +721,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     trainUpdate(update, (tr, d) => {
       // The session is over, so the countdown into its next set is too.
       if (tr.restRun && tr.restRun.logId === logId) delete tr.restRun;
+      /* And so is the pointer that says you are in one. It used to be dropped by `closeSession`,
+         which runs when the send-off is dismissed - so a phone put down on the buddy's screen, or an
+         app the OS reloaded before it was tapped away, kept a pointer at a session that had already
+         ended and opened the Train tab back into it on every launch. The pointer is cleared with the
+         same write that stamps `endedAt`, because that write is what actually ends the session. */
+      delete tr.open;
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
         tr.logs[i].endedAt = new Date().toISOString();

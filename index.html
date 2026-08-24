@@ -53817,6 +53817,33 @@ function liveLog(log, todayISO) {
   return Training.sessionOpen(log, todayISO || Store.todayISO(), Date.now());
 }
 
+/* Does this pointer still name a session that is GOING?
+ *
+ * The pointer is written when the player opens and deleted when the session is signed off, and for a
+ * while those were the only two events that mattered. They are not: Finish stamps `endedAt` on the
+ * log and THEN shows the buddy's send-off, and the send-off is the last thing a lot of people see
+ * before they put the phone down. Kill the app there - or let a phone reload the PWA overnight, or
+ * let the other device's copy of `open` come back through a sync - and the pointer outlived the
+ * session it named. The tab then opened straight into the player, every single time, on a workout
+ * that was already finished and already counted: a live session you could not get out of, because
+ * the one control that ends one had already been pressed.
+ *
+ * So the log has the last word, not the pointer. `sessionOpen` owns the rule - today's date and no
+ * `endedAt` - and this is the pointer-shaped spelling of it: named log, or today's log for that
+ * session, or today's freeform log. A pointer with no log behind it yet is still live: opening a
+ * session and ticking nothing is a session you are in, and there is nothing there to say otherwise. */
+function openIsLive(db, o) {
+  const t = tdb(db);
+  const today = Store.todayISO();
+  if (o.logId) {
+    const log = t.logs.filter(l => l.id === o.logId)[0];
+    return !!log && liveLog(log, today);
+  }
+  const mine = t.logs.filter(l => o.sessionId ? l.sessionId === o.sessionId : !l.sessionId);
+  const todays = mine.filter(l => (l.dateISO || '') === today || liveLog(l, today));
+  return todays.length ? todays.some(l => liveLog(l, today)) : true;
+}
+
 /* The session that is open right now, as a screen to go back to.
  *
  * `training.open` is a pointer, not a copy: the sets themselves have been in `training.logs` since
@@ -53830,14 +53857,16 @@ function liveLog(log, todayISO) {
  * session was live, Train home could not be reached at all. One control was doing two jobs and
  * neither of them well.
  *
- * Checked against the world before it is trusted: the day has to be today, and whatever it points at
- * has to still exist. A pointer at a block that was deleted underneath it must not put the app into
- * a screen it cannot draw. */
+ * Checked against the world before it is trusted: the day has to be today, whatever it points at has
+ * to still exist, and the session it names has to still be GOING. A pointer at a block that was
+ * deleted underneath it must not put the app into a screen it cannot draw, and a pointer at a
+ * session you have already finished must not put you back into it. */
 function openRecord(db) {
   const t = tdb(db);
   const o = t.open;
   if (!o || o.atISO !== Store.todayISO()) return null;
   if (o.logId && !t.logs.some(l => l.id === o.logId)) return null;
+  if (!openIsLive(db, o)) return null;
   if (o.blockId) {
     const b = t.blocks.filter(x => x.id === o.blockId)[0];
     if (!b) return null;
@@ -56218,6 +56247,12 @@ function SessionPlayer({
     trainUpdate(update, (tr, d) => {
       // The session is over, so the countdown into its next set is too.
       if (tr.restRun && tr.restRun.logId === logId) delete tr.restRun;
+      /* And so is the pointer that says you are in one. It used to be dropped by `closeSession`,
+         which runs when the send-off is dismissed - so a phone put down on the buddy's screen, or an
+         app the OS reloaded before it was tapped away, kept a pointer at a session that had already
+         ended and opened the Train tab back into it on every launch. The pointer is cleared with the
+         same write that stamps `endedAt`, because that write is what actually ends the session. */
+      delete tr.open;
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
         tr.logs[i].endedAt = new Date().toISOString();
