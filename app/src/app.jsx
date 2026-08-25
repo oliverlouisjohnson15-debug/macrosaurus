@@ -3637,10 +3637,12 @@ function AnchoredMenu({ rect, onClose, className = '', children }) {
    the Food log's day and meal cards, the community cookbook, the training block, the last session -
    so it is a component, not a pattern to retype. `right` is optional; `onRight` makes it a button.
    Cards using this want `p-0 overflow-hidden`, since the bar is full-bleed. */
-function CardHead({ title, right, onRight, rightTone = 'accent' }) {
+function CardHead({ title, right, onRight, rightTone = 'accent', padLeft }) {
   const rc = rightTone === 'muted' ? 'var(--cardhead-text)' : 'var(--accent)';
   return (
-    <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+    // padLeft is for the one card the buddy's head leans over: the bar has to start clear of the
+    // portrait rather than run underneath it.
+    <div data-cardbar className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)', paddingLeft: padLeft || undefined }}>
       <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{title}</span>
       {right != null && (onRight
         ? <button onClick={onRight} className="hit pf text-[10px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</button>
@@ -4338,9 +4340,16 @@ function HabitGrid({ days, color }) {
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
 // average across the range) and raw weight fades to a faint background, so a year of daily weigh-ins
 // stays readable. Points are spaced by real date, and tapping selects the nearest weigh-in.
-function LineChart({ points, trend, color, decimals, unitLabel, goal }) {
+/* `plan`, `project`, `marks` and `weekly` are what turned this from a picture of your weight into a
+   picture of your PLAN. In order: the line you agreed to be measured against, your own rate carried
+   forward to the day it crosses the goal, the check-ins that moved your targets, and what each week
+   actually put in. Every one of them is drawn on the same axis as the trend, which is the point: the
+   week-six bar sits under the segment of line it produced, and "ahead of plan" stops being a claim
+   in a sentence and becomes a gap you can see. */
+function LineChart({ points, trend, color, decimals, unitLabel, goal, plan, project, marks, weekly }) {
   const [sel, setSel] = useState(null);
-  const H = 150, W = 320, padL = 30, padR = 8, padT = 14, padB = 18, plotW = W - padL - padR;
+  const barsH = (weekly && weekly.length) ? 74 : 0;
+  const H = 150 + barsH, W = 320, padL = 30, padR = 8, padT = 14, padB = 18 + barsH, plotW = W - padL - padR;
   const pts = (points || []).filter(p => p.value != null);
   if (pts.length < 2) return <div className="h-[150px] flex items-center justify-center text-center text-[12px] text-[#8A8A90] px-6">Weigh in on another day and your weight line will appear here.</div>;
   const trendPts = (trend || []).filter(p => p.value != null);
@@ -4352,8 +4361,26 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal }) {
   if (goalInView) { min = Math.min(min, goal); max = Math.max(max, goal); }
   if (min === max) { min -= 1; max += 1; } const pad = (max - min) * 0.18; min -= pad; max += pad;
   const ms = d => new Date(d + 'T00:00:00').getTime();
-  const t0 = ms(pts[0].date), t1 = ms(pts[pts.length - 1].date), tspan = (t1 - t0) || 1;
+  const WEEK = 7 * 86400000;
+  const t0 = ms(pts[0].date), t1 = ms(pts[pts.length - 1].date);
+  // How long the projection needs before it meets the goal. The axis has to make room for it up
+  // front: a forecast drawn past the right edge is a forecast nobody can read, and rescaling the
+  // history to fit it is what makes a chart lie about its own resolution.
+  const projWeeks = (() => {
+    if (!project || goal == null || !(Math.abs(project.rate) > 0.02)) return 0;
+    const need = (goal - project.from) / project.rate;     // both in display units
+    return (need > 0 && need < 78) ? need : 0;             // 18 months is the honest ceiling
+  })();
+  // The forecast never takes more than two fifths of the axis. A fortnight of weigh-ins pointed at a
+  // goal six weeks out would otherwise squash the history that earned the forecast into a quarter of
+  // the plot, which is the chart lying about its own resolution. When it is capped the line simply
+  // runs off the right edge, still carrying its date.
+  const maxProjMs = ((t1 - t0) || WEEK) * 0.7;
+  const projClamped = projWeeks * WEEK > maxProjMs;
+  const tEnd = t1 + Math.min(projWeeks * WEEK, maxProjMs);
+  const tspan = (tEnd - t0) || 1;
   const Xd = d => padL + ((ms(d) - t0) / tspan) * plotW;   // space by real date, not index
+  const Xt = t => padL + ((t - t0) / tspan) * plotW;       // ...and by raw time, for the forecast
   const Y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
   const dense = pts.length > 45;                            // long range → lead with the trend
   const useTrend = dense && trendPts.length >= 2;
@@ -4387,16 +4414,82 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal }) {
       {ticks.map((t, i) => { const y = Y(t); return <g key={i}><line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border)" strokeWidth="1" /><text x={2} y={y + 3} fill="var(--muted)" fontSize="8">{t.toFixed(dec)}</text></g>; })}
       {/* The goal, as a line. The meter on the card above says 1.6 of 6.6 kg; this says the same
           thing in the one place where you can see the distance rather than read it. */}
+      {/* The forecast half of the axis, tinted so history and guesswork are never confused. */}
+      {projWeeks > 0 && <rect x={Xd(pts[pts.length - 1].date)} y={padT} width={Math.max(0, W - padR - Xd(pts[pts.length - 1].date))} height={H - padT - padB} fill="var(--surface2)" />}
       {goalInView && (() => { const gy = Y(goal); return <g>
         <line x1={padL} y1={gy} x2={W - padR} y2={gy} stroke="var(--good-ink)" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
         <text x={W - padR} y={gy - 4} fill="var(--good-ink)" fontSize="8" textAnchor="end">goal {goal.toFixed(dec)}</text>
       </g>; })()}
+      {/* THE PLAN LINE: the rate you agreed to, from where this goal started. Your trend sitting
+          under it is what "ahead of plan" means, and the gap is the whole verdict in one picture.
+          It is muted and dashed because it is an agreement, not a measurement. */}
+      {plan && goalInView && (() => {
+        const x1 = Xd(plan.fromISO), y1 = Y(plan.from);
+        if (!(Math.abs(plan.perWeek) > 0.001)) return null;
+        const wks = (goal - plan.from) / plan.perWeek;
+        if (!(wks > 0)) return null;
+        const x2 = Math.min(W - padR, Xt(ms(plan.fromISO) + wks * WEEK)), y2 = Y(goal);
+        if (!(x2 > x1)) return null;
+        // A range shorter than the goal starts the plan off the left edge; walk it in to the plot
+        // rather than letting it run under the axis labels.
+        const cx1 = Math.max(padL, x1), cy1 = y1 + (y2 - y1) * ((cx1 - x1) / (x2 - x1));
+        return <g>
+          <line x1={cx1} y1={cy1} x2={x2} y2={y2} stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="3 3" />
+          <text x={(cx1 + x2) / 2} y={(cy1 + y2) / 2 - 4} fill="var(--muted)" fontSize="8" textAnchor="middle">plan</text>
+        </g>;
+      })()}
       <polygon points={area} fill={`url(#${gid})`} />
       {selPt && <line x1={selX} y1={padT} x2={selX} y2={H - padB} stroke={color} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />}
       <polyline points={rawStr} fill="none" stroke={color} strokeWidth={useTrend ? 1 : 2} opacity={useTrend ? 0.3 : 1} strokeLinejoin="round" strokeLinecap="round" />
       {trendStr && <polyline points={trendStr} fill="none" stroke={color} strokeWidth={useTrend ? 2 : 1.5} opacity={useTrend ? 1 : 0.4} strokeDasharray={useTrend ? '' : '4 3'} strokeLinejoin="round" strokeLinecap="round" />}
       {!dense && pts.map((p, i) => <circle key={'m' + i} cx={Xd(p.date)} cy={Y(p.value)} r={sel === p.date ? 3.4 : 2.2} fill={color} />)}
       {selPt && <circle cx={selX} cy={selY} r="3.4" fill={color} />}
+      {/* YOUR OWN LINE, carried forward at the rate the verdict just quoted, to the day it meets
+          the goal. "About four weeks" becomes a place on the page with a date under it. */}
+      {projWeeks > 0 && (() => {
+        const x1 = Xd(pts[pts.length - 1].date), y1 = Y(project.from);
+        const tHit = t1 + projWeeks * WEEK;
+        const hitISO = new Date(tHit).toISOString().slice(0, 10);
+        // Clamped or not, the line is drawn along the SAME slope; only where it stops changes.
+        const xFull = Xt(tHit), yFull = Y(goal);
+        const x2 = Math.min(W - padR, xFull);
+        const y2 = y1 + (yFull - y1) * ((x2 - x1) / ((xFull - x1) || 1));
+        return <g>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="2" strokeDasharray="4 3" />
+          {!projClamped && <rect x={x2 - 3} y={y2 - 3} width="6" height="6" fill="var(--accent)" stroke="var(--border)" strokeWidth="1.5" />}
+          <text x={x2 - 1} y={y2 - 7} fill="var(--text)" fontSize="8" textAnchor="end">{fmtd(hitISO)}</text>
+        </g>;
+      })()}
+      {projWeeks > 0 && (() => { const nx = Xd(pts[pts.length - 1].date); return <g>
+        <line x1={nx} y1={padT} x2={nx} y2={H - padB} stroke="var(--border)" strokeWidth="1" opacity="0.55" />
+        <text x={nx + 3} y={padT + 7} fill="var(--muted)" fontSize="7">NOW</text>
+      </g>; })()}
+      {/* Every check-in that actually moved your numbers, as a notch on the axis. It is the one
+          thing joining this chart to the coach's timeline further down the page. */}
+      {(marks || []).map((d, i) => { const x = Xd(d); if (x < padL || x > W - padR) return null;
+        return <polygon key={'k' + i} points={`${x},${H - padB - 1} ${x + 3},${H - padB + 5} ${x - 3},${H - padB + 5}`} fill="var(--border)" opacity="0.75" />; })}
+      {/* WHAT EACH WEEK PUT IN, on the axis it came from. Countable cells rather than a solid bar,
+          for the same reason every other meter in this app is: six of them is read at a glance. */}
+      {barsH > 0 && (() => {
+        const base = H - 14, top = base - 42, cellH = 5, gap = 1;
+        const peak = Math.max(0.3, ...weekly.map(w => Math.abs(w.kg)));
+        const cellKg = peak / 7;                            // seven cells at the biggest week
+        const bw = Math.max(4, Math.min(14, plotW / Math.max(8, weekly.length) - 3));
+        return <g>
+          <text x={2} y={top + 4} fill="var(--muted)" fontSize="7">EACH</text>
+          <text x={2} y={top + 12} fill="var(--muted)" fontSize="7">WEEK</text>
+          {weekly.map((w, i) => {
+            const cx = (Xd(w.start) + Xd(w.end)) / 2, n = Math.max(1, Math.round(Math.abs(w.kg) / cellKg));
+            const up = w.kg >= 0;
+            return <g key={'w' + i}>
+              {Array.from({ length: n }, (_, c) => <rect key={c} x={cx - bw / 2} width={bw} height={cellH}
+                y={up ? base - 2 - (c + 1) * (cellH + gap) : base + 2 + c * (cellH + gap)}
+                fill={up ? 'var(--good)' : 'var(--warn)'} />)}
+            </g>;
+          })}
+          <line x1={Xd(weekly[0].start)} y1={base} x2={Xd(weekly[weekly.length - 1].end)} y2={base} stroke="var(--border)" strokeWidth="1.5" />
+        </g>;
+      })()}
       <text x={padL} y={H - 4} fill="var(--muted)" fontSize="8">{fmtd(pts[0].date)}</text>
       <text x={W - padR} y={H - 4} fill="var(--muted)" fontSize="8" textAnchor="end">{fmtd(pts[pts.length - 1].date)}</text>
       {selPt && <g style={{ pointerEvents: 'none' }}>
@@ -4496,8 +4589,23 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
         {/* The range belongs on the footer next to the control that changes it, not in both places. */}
         {delta != null && <span className="text-[13px] font-semibold tnum shrink-0" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</span>}
       </div>
-      <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl}
-        goal={tab === 'weight' && db.profile.goalWeightKg > 0 ? toDisp(db.profile.goalWeightKg) : null} />
+      {(() => {
+        // The plan furniture only means anything on the weight tab: body fat and lean mass have no
+        // agreed rate to be measured against, so they get the plain chart they always had.
+        const v = tab === 'weight' ? progressVerdict(db) : null;
+        const perDisp = kg => (unit === 'st_lb' ? kg * LB_PER_KG : kg);
+        const plan = (v && v.startISO && v.startKg != null && v.goal !== 'maintain' && Math.abs(v.target) > 0.01)
+          ? { fromISO: v.startISO, from: toDisp(v.startKg), perWeek: perDisp(v.goal === 'gain' ? Math.abs(v.target) : -Math.abs(v.target)) } : null;
+        const project = (v && v.nowKg != null) ? { from: toDisp(v.nowKg), rate: perDisp(v.rate) } : null;
+        // Only the check-ins that actually moved a number. One notch a week for eight weeks of "no
+        // change" is a picket fence, and it would say nothing.
+        const marks = tab === 'weight' ? (db.checkins || []).filter(c => c && +c.deltaKcal).map(c => c.date) : [];
+        // What each week put in is the Premium half of this card, alongside energy balance.
+        const weekly = (v && window.MISPREMIUM === true) ? weeklyContributions(db, v, 12) : [];
+        return <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl}
+          goal={tab === 'weight' && db.profile.goalWeightKg > 0 ? toDisp(db.profile.goalWeightKg) : null}
+          plan={plan} project={project} marks={marks} weekly={weekly.filter(w => w.start >= cut)} />;
+      })()}
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
       </>}
   </>);
@@ -6100,8 +6208,11 @@ function fmtShortDay(dateISO) { return new Date(dateISO + 'T00:00:00').toLocaleD
 // The week's Density Scores. The average is the number that matters: quality of eating is a pattern,
 // and one heavy Saturday inside a good week is not a bad week. Days with nothing to score are shown
 // as gaps rather than as zeroes, so an unlogged day never reads as a bad one.
-function DensityWeekCard({ db, inline }) {
-  const [help, setHelp] = useState(false);
+/* Whether there is a week of Density Scores to draw at all. It is a free-standing question because
+   a caller that hosts this strip INLINE has to know the answer before it draws the rule above it: a
+   JSX element is truthy whether or not the component renders anything, so `q ? <rule/> : null` drew
+   a divider with nothing under it on every free account. */
+function densityWeekTrend(db) {
   if (window.MISPREMIUM !== true) return null;
   const today = Store.todayISO();
   const dates = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
@@ -6109,7 +6220,12 @@ function DensityWeekCard({ db, inline }) {
     date: d,
     entries: entriesOn(db, d).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })),
   })));
-  if (!trend.daysScored) return null;
+  return trend.daysScored ? trend : null;
+}
+function DensityWeekCard({ db, inline }) {
+  const [help, setHelp] = useState(false);
+  const trend = densityWeekTrend(db);
+  if (!trend) return null;
   const dayLetter = (iso) => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(iso + 'T00:00:00').getDay()];
   const body = (<>
       {help && <DensityExplainer onClose={() => setHelp(false)} />}
@@ -6220,7 +6336,10 @@ function progressVerdict(db) {
     const moved = (p.goalWeightKg < startKg) ? (startKg - nowKg) : (nowKg - startKg);
     done = Math.max(0, Math.min(total, moved));
   }
-  return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg, done, total, startKg };
+  return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg, done, total, startKg,
+    // Where this goal was started FROM, as a date. The chart needs it to anchor the plan line: a
+    // plan drawn from the first point on screen would move every time you changed the range.
+    startISO: anchor ? anchor.date : null, nowISO: ents.length ? ents[ents.length - 1].date : null };
 }
 /* ---------- what you have actually been doing ---------------------------------------------------
    The grid this replaces asked you to decode 84 squares to learn something it never labelled. These
@@ -6277,9 +6396,12 @@ function BehaviourCard({ db }) {
   };
   const stepArrow = (!prev.steps || !now.steps || Math.abs(now.steps - prev.steps) < prev.steps * 0.08) ? null
     : (now.steps > prev.steps ? { t: 'up', l: 'trend_up' } : { t: 'down', l: 'trend_down' });
-  return (<Card className="p-4 mb-4">
-    <div className="flex items-center justify-between gap-3 mb-3">
-      <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">Lately</span>
+  return (<Card className="p-0 mb-4 overflow-hidden">
+    {/* The name goes in the bar with every other panel on this page; the body opens with the switch
+        that decides what the tiles are counting, which is the only control the card has. */}
+    <CardHead title="Lately" rightTone="muted" />
+    <div className="p-4">
+    <div className="flex mb-3">
       <Pill value={range} onChange={setRange} options={[{ v: 7, l: '1W' }, { v: 14, l: '2W' }, { v: 30, l: '1M' }]} />
     </div>
     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
@@ -6295,7 +6417,8 @@ function BehaviourCard({ db }) {
     </div>
     {/* The week's eating, in the card about what you have been doing. The strip stays a WEEK whatever
         the tiles are set to, because it is seven labelled days and not a rolling average. */}
-    {(() => { const q = <DensityWeekCard db={db} inline />; return q ? <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--surface2)' }}>{q}</div> : null; })()}
+    {densityWeekTrend(db) && <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--surface2)' }}><DensityWeekCard db={db} inline /></div>}
+    </div>
   </Card>);
 }
 /* ---------- what the coach changed, and why -----------------------------------------------------
@@ -6335,80 +6458,166 @@ function CoachTimeline({ db }) {
     {all.length > 3 && <div className="mt-3"><TextBtn onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : 'All ' + all.length + ' check-ins'}</TextBtn></div>}
   </Card>);
 }
-function VerdictCard({ db, onWeigh }) {
+/* ---------- what each week put in --------------------------------------------------------------
+   The derivative of the trend line, one bar per week, in the goal's own direction so a bar going up
+   always means progress whether you are cutting or gaining. Drawn UNDER the chart on the chart's own
+   axis, because these are the same weeks as the line: the bar for week six sits directly beneath the
+   segment of trend it produced, which is the whole argument for putting them together. */
+function weeklyContributions(db, v, maxWeeks) {
+  if (!v || !v.startISO) return [];
+  const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
+  const ents = (db.weight_entries || []).filter(e => val(e) != null).sort((a, b) => a.date.localeCompare(b.date));
+  if (ents.length < 2) return [];
+  // The trend on a given day, or the nearest reading before it. Weeks with no weigh-in at all
+  // therefore contribute zero rather than a fabricated step.
+  const at = (iso) => { let out = null; for (let i = 0; i < ents.length; i++) { if (ents[i].date <= iso) out = ents[i]; else break; } return out ? val(out) : null; };
+  const today = Store.todayISO();
+  const weeks = [];
+  // Walk BACK from today in seven-day blocks so the last bar always ends on today, which is what the
+  // "now" line on the chart above is pinned to. Anything before the goal started is not this goal's.
+  for (let end = today; end > v.startISO && weeks.length < (maxWeeks || 12); end = shiftISO(end, -7)) {
+    const start = shiftISO(end, -7);
+    if (start < v.startISO) break;
+    const a = at(start), b = at(end);
+    if (a == null || b == null) continue;
+    // Signed so that "toward the goal" is always positive, whichever way the goal points.
+    const moved = v.goal === 'gain' ? (b - a) : (a - b);
+    weeks.unshift({ start, end, kg: +moved.toFixed(2) });
+  }
+  return weeks;
+}
+/* ---------- the milestone ladder ---------------------------------------------------------------
+   The meter it replaces was ten blank cells and a caption. This is the same strip of pixels with a
+   name behind every cell: whole kilos, which is exactly the unit `Game.goalMilestone` already
+   celebrates, so the ladder and the confetti can never disagree about what counts as one. */
+function milestoneLadder(v) {
+  if (!v || !(v.total > 0.2)) return null;
+  // ONE CELL PER WHOLE KILO, because that is the unit Game.goalMilestone already fires confetti
+  // for: a ladder counting 0.94 kg steps would light a cell on a day nothing was celebrated, and
+  // celebrate on a day no cell moved. The last cell is the goal itself when the distance does not
+  // land on a whole number. On a long goal the step grows rather than the count, so the strip stays
+  // countable - past a dozen cells it is a texture, not a ladder, which is its whole job.
+  const step = Math.max(1, Math.ceil(v.total / 12));
+  const cells = Math.max(1, Math.ceil(v.total / step - 1e-9));
+  const doneCells = Math.min(cells, Math.floor(v.done / step + 1e-9));
+  const nextKg = Math.min(v.total, (doneCells + 1) * step);
+  // Weeks to the NEXT cell, at the rate the verdict just quoted. The goal's own ETA is in the
+  // sentence above; this is the near one, which is the one that gets people through a Tuesday.
+  const speed = Math.abs(v.rate);
+  const weeks = (speed > 0.05 && nextKg > v.done) ? Math.max(1, Math.round((nextKg - v.done) / speed)) : null;
+  return { cells, doneCells: Math.min(cells, doneCells), nextKg, weeks, atGoal: doneCells >= cells };
+}
+/* THE CYCLE, as ONE panel.
+   The answer, the distance, the weight and the action used to be two cards and four crates between
+   them. They are one thought - is the plan working, how far through am I, what do I weigh, what do
+   you want me to do about it - so they are bands of one panel now, which costs a frame, a shadow
+   and a 16px gap less each time.
+
+   Train's progress screen settled how this app answers a question of this shape: the buddy's head
+   leans over the top edge, the name and the verdict sit in the bar, and ONE sentence carries the
+   answer with its figures in bold. Evidence goes underneath, never above. The head is half the
+   height of a terrarium, and the overlap is what makes it read as a character rather than an avatar
+   sitting in a row. */
+function CyclePanel({ db, onWeigh, footer }) {
   const v = progressVerdict(db);
   const unit = (db.profile || {}).weight_unit;
   const today = Store.todayISO();
   const todays = (db.weight_entries || []).find(w => w.date === today && w.scale_weight != null);
-  const color = !v ? 'var(--text)' : v.tone === 'good' ? 'var(--good-ink)' : v.tone === 'warn' ? 'var(--fat-ink)' : 'var(--danger-ink)';
-  // Magnitude only. The sentence already says "Losing" or "Gaining", and fmtWeightDelta would put a
-  // "+" in front of it.
+  // Magnitude only. The sentence says "losing" or "gaining", and fmtWeightDelta would put a sign in
+  // front of a word that already carries one.
   const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
-  const rateStr = v ? mag(v.rate) : '';
-  const tgtStr = v ? mag(v.target) : '';
-  return (<Card className="p-0 mb-3 overflow-hidden">
-    <CardHead title="This cycle" right={v ? v.headline : null} />
-    <div className="p-3.5">
-    {v ? <>
-      {/* The headline moved onto the title bar, where the design puts the cycle's verdict. Repeating
-          it at 19px directly underneath was the card saying the same three words twice. */}
-      <div className="text-[12px] text-[#8A8A90] leading-relaxed">
-        {v.goal === 'maintain'
-          ? <>Your trend is moving {rateStr} a week. You are aiming to hold steady.</>
-          : <>{v.rate < 0 ? 'Losing' : v.rate > 0 ? 'Gaining' : 'Holding at'} <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{rateStr}</span> a week against a target of <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{tgtStr}</span>.</>}
-        {v.weeksToGoal != null && <> At this rate you reach <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{fmtWeight(v.goalWeightKg, unit)}</span> in about <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{v.weeksToGoal}</span> week{v.weeksToGoal === 1 ? '' : 's'}.</>}
+  const tone = v ? v.tone : 'none';
+  const ink = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : tone === 'bad' ? 'var(--danger-ink)' : 'var(--muted)';
+  // Mixed into the card's own surface rather than picked by hand, so both themes tint their own
+  // paper instead of one of them getting a colour borrowed from the other.
+  const tint = tone === 'good' ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+    : tone === 'warn' ? 'color-mix(in srgb, var(--warn) 14%, var(--surface2))'
+    : tone === 'bad' ? 'color-mix(in srgb, var(--danger) 12%, var(--surface2))'
+    : 'var(--surface2)';
+  const b = (x) => <span className="tnum font-bold">{x}</span>;
+  const lad = milestoneLadder(v);
+  // Only when the news is bad, and only the most likely cause. A coach that says "behind plan" and
+  // nothing else has diagnosed nothing; the numbers that explain it are computed further down the
+  // page, and joining them was being left to the reader.
+  const why = (() => {
+    if (!v || (v.tone !== 'warn' && v.tone !== 'bad')) return null;
+    const cov = cycleCoverage(db, today);
+    const bs = behaviourStats(db, 14);
+    const gaps = [];
+    if (cov.logWindow >= 4 && cov.logged < Math.ceil(cov.logWindow * 0.7)) gaps.push('you logged ' + cov.logged + ' of ' + cov.logWindow + ' days, so the intake side is part-guessed');
+    else if (bs.loggedDays >= 4 && bs.proteinHit < bs.loggedDays * 0.5) gaps.push('protein came in under target on most days');
+    if (cov.weighWindow >= 4 && cov.weighed < 3) gaps.push('only ' + cov.weighed + ' weigh-in' + (cov.weighed === 1 ? '' : 's') + ' this cycle, which the trend needs more of');
+    return gaps.length ? gaps[0] : null;
+  })();
+  return (
+    <div className="relative mb-4" style={{ paddingTop: 20 }}>
+      <div className="absolute" style={{ left: 14, top: 0, zIndex: 2, border: '3px solid var(--border)', lineHeight: 0 }}>
+        <BuddyHead buddy={db.buddy || {}} size={58} />
       </div>
-      {/* Only when the news is bad, and only the most likely cause. A coach that says "behind plan"
-          and nothing else has diagnosed nothing; the numbers that explain it are already computed
-          two cards down, and joining them was being left to the reader. */}
-      {(v.tone === 'warn' || v.tone === 'bad') && (() => {
-        const cov = cycleCoverage(db, today);
-        const b = behaviourStats(db, 14);
-        const gaps = [];
-        if (cov.logWindow >= 4 && cov.logged < Math.ceil(cov.logWindow * 0.7)) gaps.push('you logged ' + cov.logged + ' of ' + cov.logWindow + ' days, so the intake side is part-guessed');
-        else if (b.loggedDays >= 4 && b.proteinHit < b.loggedDays * 0.5) gaps.push('protein came in under target on most days');
-        if (cov.weighWindow >= 4 && cov.weighed < 3) gaps.push('only ' + cov.weighed + ' weigh-in' + (cov.weighed === 1 ? '' : 's') + ' this cycle, which the trend needs more of');
-        if (!gaps.length) return null;
-        return <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>Most likely why: {gaps[0]}.</div>;
-      })()}
-    </> : <div className="text-[12px] text-[#8A8A90] leading-relaxed">Weigh in for a week or so and this will tell you whether your plan is working, and how far off you are if it is not.</div>}
-    {/* How far through the goal you are. The sentence above says the rate and the date; this says
-        the distance, which is the bit that gets more motivating the closer it gets. */}
-    {v && v.total > 0.2 && (() => {
-      const pct = Math.round(v.done / v.total * 100);
-      return <div className="mt-3">
-        <div className="flex items-baseline justify-between gap-2 mb-1">
-          <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
-          <span className="tnum text-[11px] text-[#8A8A90]">{fmtWeightDelta(v.done, unit).replace(/^[+−]/, '')} of {fmtWeightDelta(v.total, unit).replace(/^[+−]/, '')}</span>
+      <Card className="p-0 overflow-hidden">
+        <CardHead title="This cycle" right={v ? v.headline : null} rightTone={tone === 'good' ? 'accent' : 'muted'} padLeft={84} />
+        <div className="px-3.5 pt-3 pb-3.5" style={{ background: tint, borderBottom: '2px solid var(--border)' }}>
+          <div className="pf text-[9px] uppercase mb-1.5" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+          <div className="text-[13.5px] leading-relaxed">
+            {v ? <>
+              {v.goal === 'maintain'
+                ? <>Your trend is moving {b(mag(v.rate))} a week, and you are aiming to hold steady.</>
+                : <>{v.rate < 0 ? 'You are losing' : v.rate > 0 ? 'You are gaining' : 'You are holding at'} {b(mag(v.rate))} a week against a target of {b(mag(v.target))}.</>}
+              {v.weeksToGoal != null && <> At this rate you reach {b(fmtWeight(v.goalWeightKg, unit))} in about {b(v.weeksToGoal)} week{v.weeksToGoal === 1 ? '' : 's'}.</>}
+            </> : <>Weigh in for a week or so and I will tell you whether your plan is working, and how far off you are if it is not.</>}
+          </div>
+          {why && <div className="text-[12.5px] leading-relaxed mt-2" style={{ color: ink }}>Most likely why: {why}.</div>}
         </div>
-        <PipMeter value={pct} target={100} cells={10} scale={1} color="var(--good)" small overIsFine />
-      </div>;
-    })()}
-    {/* Coverage, as a caveat rather than a card. The verdict above is only as good as the days it is
-        built from, and a 258px grid on the same page never actually said that: it sat below as a
-        separate score, 65% of it empty, while the headline claimed certainty it had not earned. */}
-    {v && (() => {
-      const cov = cycleCoverage(db, today);
-      // A cycle that started yesterday is not thin data, it is a new cycle, and saying "0 of 1 days
-      // logged, treat this as a rough read" the morning after a check-in undercuts a verdict that is
-      // read off three weeks of trend and has not changed at all.
-      const young = cov.logWindow < 4;
-      const thin = !young && (cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2);
-      return <div className="text-[10px] mt-2 leading-snug" style={{ color: thin ? 'var(--fat-ink)' : 'var(--muted)' }}>
-        {young ? 'New cycle, ' : thin ? 'Thin data so far: ' : 'This cycle, '}{cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}{thin ? ', so treat this as a rough read.' : '.'}
-      </div>;
-    })()}
-    {/* The weight, once. It used to be stated three times inside 130px: a button caption, a headline
-        figure and a "last reading" suffix, all 83 kg. */}
-    <div className="flex items-end justify-between gap-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
-      <div>
-        <span className="text-2xl font-bold tnum">{v ? fmtWeight(v.nowKg, unit) : '–'}</span>
-        <div className="text-[10px] text-[#8A8A90] mt-0.5">trend weight{todays ? ' · weighed today' : ''}</div>
-      </div>
-      {onWeigh && !todays && <button onClick={onWeigh} className="pixel-btn px-3 py-2 text-[10px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN</button>}
+        <div className="p-3.5">
+          {lad && <>
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="tnum text-[11px] text-[#8A8A90]">{fmtWeightDelta(v.done, unit).replace(/^[+\u2212]/, '')} of {fmtWeightDelta(v.total, unit).replace(/^[+\u2212]/, '')}</span>
+            </div>
+            <div className="flex gap-1">
+              {Array.from({ length: lad.cells }, (_, i) => {
+                const done = i < lad.doneCells, next = i === lad.doneCells;
+                return <div key={i} className="flex-1 h-5" style={{
+                  border: '2px solid ' + (next ? 'var(--accent)' : 'var(--border)'),
+                  background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)',
+                }} />;
+              })}
+            </div>
+            {!lad.atGoal && <div className="flex justify-between mt-1.5">
+              <span className="pf text-[8px] uppercase" style={{ color: 'var(--muted2)' }}>Milestones</span>
+              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>
+                Next {fmtWeightDelta(lad.nextKg, unit).replace(/^[+\u2212]/, '')}{lad.weeks ? ', about ' + lad.weeks + ' week' + (lad.weeks === 1 ? '' : 's') : ''}
+              </span>
+            </div>}
+          </>}
+          {/* Coverage, as a caveat rather than a card. The verdict above is only as good as the days
+              it is built from, and a 258px grid on the same page never actually said that. */}
+          {v && (() => {
+            const cov = cycleCoverage(db, today);
+            // A cycle that started yesterday is not thin data, it is a new cycle.
+            const young = cov.logWindow < 4;
+            const thin = !young && (cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2);
+            return <div className="text-[10px] mt-3 leading-snug" style={{ color: thin ? 'var(--fat-ink)' : 'var(--muted)' }}>
+              {young ? 'New cycle, ' : thin ? 'Thin data so far: ' : 'This cycle, '}{cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}{thin ? ', so treat this as a rough read.' : '.'}
+            </div>;
+          })()}
+        </div>
+        {/* The weight, once. It used to be stated three times inside 130px: a button caption, a
+            headline figure and a "last reading" suffix, all 83 kg. */}
+        <div className="flex items-end justify-between gap-3 px-3.5 py-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+          <div>
+            <span className="text-2xl font-bold tnum">{v ? fmtWeight(v.nowKg, unit) : '\u2013'}</span>
+            <div className="text-[10px] text-[#8A8A90] mt-0.5">trend weight{todays ? ' \u00b7 weighed today' : ''}</div>
+          </div>
+          {onWeigh && !todays && <button onClick={onWeigh} className="pixel-btn px-3 py-2 text-[10px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN</button>}
+        </div>
+        {/* The check-in, on the panel's own bottom edge rather than in a second crate under it. It
+            is the action this verdict implies: the cycle it asks you to close is the cycle the card
+            is about, and two frames around one thought is what this pass exists to remove. */}
+        {footer && <div className="px-3.5 py-3" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>{footer}</div>}
+      </Card>
     </div>
-    </div>
-  </Card>);
+  );
 }
 /* The chart, with the two switches it actually needs, in place.
    The drill-down this replaces opened a destination whose first tab was the same chart again, which
@@ -6421,13 +6630,26 @@ function ProgressPanel({ db, update, onWeigh }) {
   const [range, setRange] = useState(90);
   const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
   const RANGES = [{ v: 30, l: '1M' }, { v: 90, l: '3M' }, { v: 180, l: '6M' }, { v: 365, l: '1Y' }, { v: 'all', l: 'All' }];
+  // Words, not the switch's abbreviation: the delta beside it is a change OVER something, and "3M"
+  // sitting in a segmented control two rows up was the only thing saying over what.
+  const RANGE_WORDS = { 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' };
+  const metricName = metric === 'weight' ? 'Trend weight' : metric === 'bodyfat' ? 'Body fat' : 'Lean mass';
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <Pill value={range} onChange={setRange} options={RANGES} />
-        {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
+    /* The only panel on this page that used to open with no title bar, so the chart read as a loose
+       plot rather than as one of the page's cards. What it charts belongs in the bar; the row under
+       it carries the two switches, and the label slot inside the chart carries the period. */
+    <Card className="p-0 mb-4 overflow-hidden">
+      <CardHead title={metricName} rightTone="muted" />
+      {/* pb-0 because TrendCard's bare Panel brings its own bottom margin; padding it again left
+          43px of empty card under the legend. */}
+      <div className="p-4 pb-0">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <Pill value={range} onChange={setRange} options={RANGES} />
+          {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
+        </div>
+        <TrendCard db={db} tab={metric} range={range} bare
+          header={<span className="text-[11px] text-[#8A8A90]">{RANGE_WORDS[range]}</span>} />
       </div>
-      <TrendCard db={db} tab={metric} range={range} bare />
     </Card>
   );
 }
@@ -6484,6 +6706,110 @@ function CycleSpark({ db, days = 90, w = 104, h = 34 }) {
   );
 }
 
+/* =====================================================================
+   REARRANGING TODAY
+   Every card on this screen opens with the same ink bar, and the bar is also the grip: hold one and
+   the page drops into this layer. The cards COLLAPSE to their bars while you are in it, which is the
+   whole trick - four rows fit on one screen, so dragging never has to fight the page scroll, which
+   is what kills drag-and-drop on a phone.
+
+   What does not appear here: the buddy's asks, a due check-in, a trip banner, the onboarding
+   checklist. Those are answers the day is waiting on rather than furniture, so they stay pinned
+   above the cards wherever the cards end up.
+   ===================================================================== */
+const TODAY_BLOCKS = ['buddy', 'cycle', 'plan', 'recovery'];
+// Tolerant of a stored order written by an older or newer build: unknown keys are dropped, missing
+// ones are appended in their default position, so a block added in a later release still appears.
+function todayOrderOf(db) {
+  const saved = ((db.profile || {}).todayOrder || []).filter(k => TODAY_BLOCKS.indexOf(k) !== -1);
+  return saved.concat(TODAY_BLOCKS.filter(k => saved.indexOf(k) === -1));
+}
+function RearrangeLayer({ db, order, onDone, onSave }) {
+  const [list, setList] = useState(order);
+  const [held, setHeld] = useState(null);
+  const rows = useRef({});
+  useBackClose(onDone);
+  const LABEL = { buddy: buddyName(db), cycle: 'This cycle', plan: "Today's plan", recovery: 'Recovery' };
+  // The live order lives in a ref as well as in state: state draws it, the ref is what a drag reads
+  // and what the save writes. A drag that ended without its pointerup ever arriving (a cancel, a
+  // second finger, a synthetic event) used to leave its listeners attached, and the next release
+  // then fired BOTH handlers - the older one last, writing an order two drags out of date.
+  const listRef = useRef(order);
+  const dragRef = useRef(null);
+  function endDrag(save) {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    window.removeEventListener('pointermove', d.move);
+    window.removeEventListener('pointerup', d.up);
+    window.removeEventListener('pointercancel', d.up);
+    setHeld(null);
+    if (save) onSave(listRef.current.slice());
+  }
+  function down(key, e) {
+    e.preventDefault();
+    endDrag(false);                       // single flight: a new grab always supersedes an old one
+    setHeld(key);
+    const move = (ev) => {
+      const y = ev.clientY, cur = listRef.current, i = cur.indexOf(key);
+      // Swap with whichever row the finger is actually over. Measured boxes rather than a fixed row
+      // height, so it stays honest if a buddy's name ever wraps the bar onto two lines.
+      const over = cur.findIndex(k => { const el = rows.current[k]; if (!el) return false; const r = el.getBoundingClientRect(); return y > r.top && y < r.bottom; });
+      if (over !== -1 && over !== i) {
+        const next = cur.slice(); next.splice(i, 1); next.splice(over, 0, key);
+        listRef.current = next; setList(next);
+      }
+    };
+    const up = () => endDrag(true);
+    dragRef.current = { move, up };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+  useEffect(() => () => endDrag(false), []);
+  return (
+    <div className="fixed inset-0 z-[86] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)', touchAction: 'none' }}>
+      <div className="flex items-center justify-between px-5 py-3 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+        <span className="pf text-[11px] uppercase" style={{ color: 'var(--header-text)', letterSpacing: '0.1em' }}>Rearranging Today</span>
+        <Btn kind="accent" onClick={onDone}>Done</Btn>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
+        <div className="text-[12.5px] leading-relaxed mb-5" style={{ color: 'var(--muted)' }}>
+          Hold a bar and drag it. Every card is just its bar in here, so the whole page fits on one screen.
+        </div>
+        {list.map(k => (
+          <div key={k} ref={el => { rows.current[k] = el; }} onPointerDown={e => down(k, e)}
+            className="pixel-box mb-3 select-none" style={{
+              background: 'var(--cardhead-bg)', cursor: 'grab', touchAction: 'none',
+              borderColor: held === k ? 'var(--accent)' : 'var(--border)',
+              boxShadow: held === k ? '8px 8px 0 0 var(--shadow)' : '3px 3px 0 0 var(--shadow)',
+              transform: held === k ? 'translateX(6px)' : 'none',
+            }}>
+            <div className="flex items-center justify-between gap-3 px-3 py-3">
+              <span className="flex items-center gap-3 min-w-0">
+                <Grip color={held === k ? 'var(--accent)' : 'var(--cardhead-text)'} />
+                <span className="pf text-[10px] uppercase truncate" style={{ color: held === k ? 'var(--accent)' : 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{LABEL[k]}</span>
+              </span>
+              {held === k && <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--cardhead-text)', opacity: 0.7 }}>Moving</span>}
+            </div>
+          </div>
+        ))}
+        <div className="p-3.5 mt-6" style={{ border: '2px dashed var(--muted2)' }}>
+          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted2)', letterSpacing: '0.14em' }}>What does not move</div>
+          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+            Your buddy's asks, a due check-in, a trip banner and the onboarding checklist are answers the day is waiting on, not furniture. They stay at the top wherever the cards end up.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// Six dots. The one thing on a bar that says "this is a handle" without a word on it.
+function Grip({ color }) {
+  return <span className="shrink-0" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 3px)', gap: 3 }} aria-hidden="true">
+    {Array.from({ length: 6 }, (_, i) => <i key={i} style={{ display: 'block', width: 3, height: 3, background: color }} />)}
+  </span>;
+}
 function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
   const today = Store.todayISO();
   const unit = (db.profile || {}).weight_unit;
@@ -6509,43 +6835,78 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
     </Card>
   );
 
-  const sub = v.goal === 'maintain'
+  // The old readout, kept: the weight, the rate and what it is judged against, in one 10px row. The
+  // hook above it is what makes you tap; this is what makes the tap unnecessary on the days you only
+  // wanted the number. Dropping it would have left Today with your weight nowhere on it.
+  const sub = fmtWeight(v.nowKg, unit) + ' · ' + (v.goal === 'maintain'
     ? mag(v.rate) + ' a week · holding steady'
-    : (v.rate < 0 ? '−' : v.rate > 0 ? '+' : '') + mag(v.rate) + ' a week · target ' + mag(v.target);
+    : (v.rate < 0 ? '−' : v.rate > 0 ? '+' : '') + mag(v.rate) + ' a week · target ' + mag(v.target));
+  // ONE short line, and it is the same sentence Progress opens with, cut to its first clause. The
+  // strip's job changed when Progress changed: it is a PREVIEW of the screen behind it now, not a
+  // summary that happens to overlap. Same buddy, same tint, same verdict word, same ladder.
+  const line = v.goal === 'maintain'
+    ? <>Holding steady, {mag(v.rate)} a week.</>
+    : v.weeksToGoal != null
+      ? <>About <b className="tnum">{v.weeksToGoal}</b> week{v.weeksToGoal === 1 ? '' : 's'} to <b className="tnum">{fmtWeight(v.goalWeightKg, unit)}</b> if you carry on like this.</>
+      : <>{v.rate < 0 ? 'Losing' : v.rate > 0 ? 'Gaining' : 'Holding at'} <b className="tnum">{mag(v.rate)}</b> a week against a target of <b className="tnum">{mag(v.target)}</b>.</>;
+  const ink = v.tone === 'good' ? 'var(--good-ink)' : v.tone === 'warn' ? 'var(--fat-ink)' : 'var(--danger-ink)';
+  const tint = v.tone === 'good' ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+    : v.tone === 'warn' ? 'color-mix(in srgb, var(--warn) 14%, var(--surface2))'
+    : 'color-mix(in srgb, var(--danger) 12%, var(--surface2))';
+  const lad = milestoneLadder(v);
   return (
-    <Card className="p-0 mb-4 overflow-hidden">
-      {/* The verdict rides the title bar, exactly as it does on Progress, so the same three words
-          mean the same thing in both places. Only a good one takes the accent: a gold "Behind plan"
-          reads as a prize. */}
-      <CardHead title="This cycle" right={v.headline} rightTone={v.tone === 'good' ? 'accent' : 'muted'} />
-      {/* The whole row opens Progress, and carries a chevron saying so. A readout that is secretly a
-          link is the fault design-plans/28 caught in Train; this is the same row with the affordance
-          on it. */}
-      <button onClick={onOpen} className="w-full text-left flex items-center gap-3 px-3 py-2.5">
-        <div className="min-w-0">
-          <div className="tnum text-[20px] font-bold leading-[1.15]">{fmtWeight(v.nowKg, unit)}</div>
-          <div className="tnum text-[10px] leading-[1.3] mt-px" style={{ color: 'var(--muted)' }}>{sub}</div>
-        </div>
-        <div className="flex-1" />
-        <CycleSpark db={db} />
-        <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
-      </button>
-      {state === 'due' && (
-        <div className="px-3 py-2 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <span className="text-[12px]">Weekly check-in due</span>
-          <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
-        </div>
-      )}
-      {/* The caveat travels WITH the verdict rather than sitting two screens away from it, so a
-          rough read is never mistaken for a confident one. Same sentence Progress uses. */}
-      {state === 'thin' && (
-        <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>
-            Thin data so far: {cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}, so treat this as a rough read.
-          </span>
-        </div>
-      )}
-    </Card>
+    <div className="relative mb-4" style={{ paddingTop: 18 }}>
+      <div className="absolute" style={{ left: 14, top: 0, zIndex: 2, border: '3px solid var(--border)', lineHeight: 0 }}>
+        <BuddyHead buddy={db.buddy || {}} size={48} />
+      </div>
+      <Card className="p-0 overflow-hidden">
+        {/* The verdict rides the title bar, exactly as it does on Progress, so the same three words
+            mean the same thing in both places. Only a good one takes the accent: a gold "Behind
+            plan" reads as a prize. */}
+        <CardHead title="This cycle" right={v.headline} rightTone={v.tone === 'good' ? 'accent' : 'muted'} padLeft={74} />
+        {/* The whole readout opens Progress, and carries a chevron saying so. A readout that is
+            secretly a link is the fault design-plans/28 caught in Train. */}
+        <button onClick={onOpen} className="w-full text-left block">
+          <div className="px-3.5 pt-2.5 pb-3" style={{ background: tint, borderBottom: '2px solid var(--border)' }}>
+            <div className="pf text-[8px] uppercase mb-1" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+            <div className="text-[13px] leading-snug">{line}</div>
+          </div>
+          <div className="px-3.5 py-2.5">
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{lad ? fmtWeightDelta(v.done, unit).replace(/^[+−]/, '') + ' of ' + fmtWeightDelta(v.total, unit).replace(/^[+−]/, '') : 'Progress'}</span>
+                <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
+              </span>
+            </div>
+            {lad && <div className="flex gap-1">
+              {Array.from({ length: lad.cells }, (_, i) => {
+                const done = i < lad.doneCells, next = i === lad.doneCells;
+                return <div key={i} className="flex-1" style={{ height: 14,
+                  border: '2px solid ' + (next ? 'var(--accent)' : 'var(--border)'),
+                  background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)' }} />;
+              })}
+            </div>}
+            <div className={'tnum text-[10px] ' + (lad ? 'mt-1.5' : '')} style={{ color: 'var(--muted)' }}>{sub}</div>
+          </div>
+        </button>
+        {state === 'due' && (
+          <div className="px-3 py-2 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            <span className="text-[12px]">Weekly check-in due</span>
+            <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
+          </div>
+        )}
+        {/* The caveat travels WITH the verdict rather than sitting two screens away from it, so a
+            rough read is never mistaken for a confident one. Same sentence Progress uses. */}
+        {state === 'thin' && (
+          <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>
+              Thin data so far: {cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}, so treat this as a rough read.
+            </span>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 // A plain full-screen layer with a header and a back button, for content that is a list rather than
@@ -6562,8 +6923,43 @@ function FullSheet({ title, onClose, children }) {
   </div>);
 }
 
+/* ---------- energy balance ----------------------------------------------------------------------
+   The one block that joins what you ATE to what you WEIGH, and the hole this app had: it showed
+   today's intake and a count of days logged, and never once plotted intake against the target or
+   against the burn. It is also the honest answer to "why am I behind plan", which the verdict card
+   could previously only guess at in a single line of prose.
+
+   Against the burn it is your real deficit; against the target it is an adherence audit. Both are
+   the same bars measured from a different line, which is why it is a lens and not two cards.
+
+   The burn is today's LEARNED figure applied across the window, not a per-day series. That is the
+   approximation MacroFactor avoids by keeping an expenditure history; ours moves slowly enough over
+   four weeks that the shape is right, and the sentence underneath quotes the average rather than any
+   single day so nothing is claimed that the method cannot carry. */
+function energyBalance(db, tdee, days) {
+  const today = Store.todayISO();
+  const out = [];
+  let ate = 0, tgt = 0, n = 0;
+  for (let i = days - 1; i >= 0; i--) {
+    const d = shiftISO(today, -i);
+    const ents = entriesOn(db, d);
+    // A day with nothing logged is a GAP, not a zero-calorie day. Drawing it as a 2,500 deficit is
+    // the single easiest way to make this chart lie.
+    const kcal = ents.length ? Math.round(sumMacros(ents).kcal) : null;
+    const target = plannedKcalOn(db, d);
+    // Today is still being logged, so it is shown but never counted into the averages.
+    const partial = d === today;
+    if (kcal != null && !partial) { ate += kcal; tgt += target || 0; n++; }
+    out.push({ date: d, kcal, target, partial, vsBurn: kcal == null ? null : kcal - tdee, vsTarget: (kcal == null || !target) ? null : kcal - target });
+  }
+  return { days: out, avgAte: n ? Math.round(ate / n) : null, avgTarget: n ? Math.round(tgt / n) : null, loggedDays: n };
+}
 function ExpenditureCard({ db, plan }) {
   const [showMath, setShowMath] = useState(false);
+  // The lens: the same bars, measured from a different line. Against the burn it is your real
+  // deficit; against the target it is an audit of how closely you followed the plan.
+  const [lens, setLens] = useState('burn');
+  const isPremium = window.MISPREMIUM === true;
   const today = Store.todayISO();
   const t = currentTargets(db);
   const kcalByDate = {};
@@ -6580,9 +6976,9 @@ function ExpenditureCard({ db, plan }) {
   if (!est.ok) {
     const weighGap = Math.max(0, est.needWeigh - est.weighDays), logGap = Math.max(0, est.needLog - est.loggedDays);
     return (
-      <Card className="p-5 mb-4">
-        <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
-        <div className="text-[13px] font-semibold mb-1">Still learning your burn</div>
+      <Card className="p-0 mb-4 overflow-hidden">
+        <CardHead title="Energy" right="Still learning" rightTone="muted" />
+        <div className="p-5">
         <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">After a fortnight of weigh-ins and logged days, I can work out how many calories you actually burn a day, from what you eat versus how your weight moves.</div>
         <div className="grid grid-cols-2 gap-2">
           <MiniStat label={weighGap > 0 ? weighGap + ' more to go' : 'enough'} value={est.weighDays + '/' + est.needWeigh} ok={weighGap === 0} />
@@ -6592,81 +6988,175 @@ function ExpenditureCard({ db, plan }) {
             can say anything, and unlabelled it read as another version of your weekly coverage. */}
         <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins · last 14 days</div><div>days logged · last 14 days</div></div>
         {typeof plan === 'function' ? plan(null) : plan}
+        </div>
       </Card>
     );
   }
   if (est.implausible) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return (
-      <Card className="p-5 mb-4">
-        <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
-        <div className="text-[13px] font-semibold mb-1">Still settling</div>
+      <Card className="p-0 mb-4 overflow-hidden">
+        <CardHead title="Energy" right="Still settling" rightTone="muted" />
+        <div className="p-5">
         <div className="text-[12px] text-[#8A8A90] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
         {typeof plan === 'function' ? plan(null) : plan}
+        </div>
       </Card>
     );
   }
-  const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
   const confLabel = est.confidence === 'high' ? 'DIALLED IN' : est.confidence === 'medium' ? 'GETTING THERE' : 'STILL LEARNING';
+  const bal = isPremium ? energyBalance(db, est.tdee, 28) : null;
   const fcColor = est.forecast.dir === 'hold' ? 'var(--good)' : est.forecast.dir === 'unknown' ? 'var(--muted)' : 'var(--fat)';
   return (
-    <Card className="p-5 mb-4">
-      {/* Header: what this is, plus how sure we are (labelled so LOW reads as confidence, not "your burn is low"). */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="pf text-[8px] text-[#8A8A90]">DAILY BURN</div>
-        <span className="pf text-[7px] px-2 py-1 shrink-0" style={{ color: confColor, border: '2px solid ' + confColor }}>{confLabel}</span>
+    /* The header carries the two facts this card exists for: what it is, and the gap between what
+       you ate and what you burn. The confidence badge stands in until there is a balance to show.
+       A bordered pill floating inside the card was a second frame drawn to say one word. */
+    <Card className="p-0 mb-4 overflow-hidden">
+      <CardHead title="Energy" right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
+      <div className="p-4">
+        {/* THE BALANCE, leading, because it is the only thing on this page that joins what you ate
+            to what you weigh - and because the burn below it is the line it is measured against. */}
+        {bal ? <>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <Pill value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} />
+            <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0">28 days</span>
+          </div>
+          <BalanceBars days={bal.days} lens={lens} />
+          <div className="grid grid-cols-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+            <div className="pr-2.5">
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Ate</div>
+              <div className="text-2xl font-bold tnum" style={{ color: 'var(--hero)' }}>{bal.avgAte != null ? bal.avgAte.toLocaleString() : '\u2013'}</div>
+            </div>
+            <div className="px-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Target</div>
+              <div className="text-2xl font-bold tnum">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '\u2013'}</div>
+            </div>
+            <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Burn</div>
+              <div className="text-2xl font-bold tnum">{est.tdee.toLocaleString()}</div>
+            </div>
+          </div>
+          {/* The chain, said once, in a sentence: what you ate, what that is worth per week, and
+              whether it matches what you asked for. Nobody should have to do this arithmetic. */}
+          {bal.avgAte != null && (() => {
+            const gap = bal.avgAte - est.tdee;
+            const perWeek = Math.abs(gap) * 7 / E.KCAL_PER_KG;
+            const wanted = Math.abs(db.profile.rateKgPerWeek || 0);
+            const dir = gap < 0 ? 'deficit' : 'surplus';
+            const cmp = (wanted > 0.05 && perWeek > 0.05)
+              ? (perWeek > wanted * 1.2 ? ' That is more than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
+                : perWeek < wanted * 0.8 ? ' That is less than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
+                : ' Which is the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.') : '';
+            return <div className="text-[12px] text-[#8A8A90] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+              You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
+            </div>;
+          })()}
+        </> : <PremiumTease
+          headline="See the deficit you actually ran"
+          blurb="Premium plots what you ate against what you burn, day by day, so a week that went sideways explains itself instead of being guessed at."
+          ghost={<BalanceBars days={null} lens="burn" />} />}
+
+        {/* THE BURN, and the arithmetic behind it. It stopped being its own card when it became the
+            line the balance above is measured against, and it was already being printed up there as
+            one of three averages. */}
+        <div className="mt-3.5 pt-3.5" style={{ borderTop: '2px solid var(--surface2)' }}>
+          {(() => {
+            const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
+            const sign = est.direction === 'up' ? '\u2212' : '+'; // gaining => burn is below intake; losing => above
+            return <>
+              <div className="flex items-center justify-between gap-3">
+                <button onClick={() => setShowMath(v => !v)} className="hit text-[11px] inline-flex items-center gap-1" aria-expanded={showMath}>
+                  <span style={{ color: 'var(--good-ink)' }}>How your burn was worked out</span>
+                  <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
+                </button>
+                <span className="tnum text-[11px] text-[#8A8A90] shrink-0">{est.low.toLocaleString()}–{est.high.toLocaleString()}</span>
+              </div>
+              {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
+                <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
+                {est.direction === 'flat'
+                  ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
+                  : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
+                <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
+              </div>}
+            </>;
+          })()}
+          {(() => {
+            // Burn history: TDEE learned at each past check-in, ending on today's live figure.
+            // Floored at the fresh-start line, so a retired run's curve does not run into this one.
+            const hist = (db.checkins || []).filter(c => c && afterFloor(db, c.date)).map(c => {
+              if (c.tdee > 0) return c.tdee;
+              const t = (db.targets || []).find(x => x.effective_date === c.date && x.estimatedTDEE > 0);
+              return t ? Math.round(t.estimatedTDEE) : null;
+            }).filter(x => x != null);
+            const pts = hist.concat([est.tdee]).slice(-12);
+            if (pts.length < 2) return null;
+            return <div className="flex items-center gap-3 mt-2.5">
+              <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
+              <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--hero)" /></div>
+            </div>;
+          })()}
+        </div>
+
+        {/* What the next weekly check-in is likely to do with your targets, then the target itself. */}
+        {typeof plan === 'function' ? plan(est.tdee) : plan}
+        <div className="text-[11px] mt-3 pt-3" style={{ color: fcColor, borderTop: '2px solid var(--surface2)' }}>Next weekly check-in: {est.forecast.text}.</div>
+        {/* How much of the above rests on real days. It used to be two stat tiles in a card of their
+            own, printing two different denominators, which is a report card rather than a caveat. */}
+        {(() => {
+          const b = behaviourStats(db, 14);
+          if (!b.loggedDays) return null;
+          return <div className="text-[10px] mt-2" style={{ color: 'var(--muted2)' }}>
+            Resting on {b.complete} of 14 days fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
+          </div>;
+        })()}
       </div>
-      {/* The number leads. Five lines of explanation used to run before it, every time, on a card
-          whose whole job is to show one figure, and the disclosure that explains it is two lines
-          below anyway. The one-line gloss stays because "burn" alone is ambiguous. */}
-      <div className="flex items-baseline gap-2">
-        <span className="text-4xl tnum" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span>
-        <span className="text-[11px] text-[#8A8A90]">kcal / day</span>
-      </div>
-      <div className="text-[11px] text-[#8A8A90] mt-0.5 tnum">most likely {est.low.toLocaleString()}–{est.high.toLocaleString()}</div>
-      {/* Tap to reveal the arithmetic behind the number, so the adaptive figure feels earned, not magic. */}
-      {(() => {
-        const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
-        const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
-        return <>
-          <button onClick={() => setShowMath(v => !v)} className="hit text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
-            <span style={{ color: 'var(--good-ink)' }}>how this was worked out</span>
-            <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
-          </button>
-          {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
-            <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
-            {est.direction === 'flat'
-              ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
-              : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
-            <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
-          </div>}
-        </>;
-      })()}
-      {(() => {
-        // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
-        // older check-ins fall back to the adaptive targets history), ending on today's live figure.
-        // Floored at the fresh-start line. The check-in ledger is KEPT through a fresh start now, so
-        // without this the chart draws the old run's burn curve running straight into the new one,
-        // on a screen that has just promised the app forgot that figure. The arithmetic was never
-        // affected; the picture said otherwise, which is its own kind of wrong.
-        const hist = (db.checkins || []).filter(c => c && afterFloor(db, c.date)).map(c => {
-          if (c.tdee > 0) return c.tdee;
-          const t = (db.targets || []).find(x => x.effective_date === c.date && x.estimatedTDEE > 0);
-          return t ? Math.round(t.estimatedTDEE) : null;
-        }).filter(x => x != null);
-        const pts = hist.concat([est.tdee]).slice(-12);
-        if (pts.length < 2) return null;
-        return <div className="mt-3 pt-3 border-t border-[#262629]">
-          <div className="pf text-[8px] text-[#8A8A90] mb-1">BURN OVER TIME</div>
-          <MiniSpark points={pts} color="var(--hero)" />
-        </div>;
-      })()}
-      {/* What the next weekly check-in is likely to do with your targets. */}
-      {typeof plan === 'function' ? plan(est.tdee) : plan}
-      <div className="text-[11px] mt-3 pt-3 border-t border-[#262629]" style={{ color: fcColor }}>Next weekly check-in: {est.forecast.text}.</div>
     </Card>
   );
 }
+/* The balance bars. Countable cells like every other meter here, measured from a rule in the middle:
+   below the line is a deficit, above it a surplus. A day with nothing logged draws NOTHING, because
+   an unlogged day rendered as a 2,500 kcal deficit is the easiest possible way to make this lie.
+   `days === null` draws the ghost used behind the Premium pitch. */
+function BalanceBars({ days, lens }) {
+  const CELL = 5, GAP = 1, ROWS = 6;
+  const ghost = !days;
+  const list = days || Array.from({ length: 28 }, (_, i) => ({ date: 'g' + i, kcal: 1, vsBurn: [-3, -2, -4, 1, -3, -5, -2, -1, -4, -3, -2, -4, -5, -1, -3, -2, -4, -3, 1, -2, -5, -3, -1, -4, -2, -3, -4, -2][i] * 130, vsTarget: 0 }));
+  const vals = list.map(d => (lens === 'target' ? d.vsTarget : d.vsBurn));
+  const peak = Math.max(400, ...vals.filter(v => v != null).map(Math.abs));
+  const perCell = peak / ROWS;
+  const H = ROWS * (CELL + GAP);
+  return (
+    <div className="flex items-stretch" style={{ gap: 1 }} aria-hidden="true">
+      {list.map((d, i) => {
+        const v = vals[i];
+        const n = v == null ? 0 : Math.max(1, Math.round(Math.abs(v) / perCell));
+        const over = v != null && v > 0;
+        const cells = Array.from({ length: Math.min(ROWS, n) }, (_, c) => (
+          <i key={c} style={{ display: 'block', height: CELL, marginBottom: GAP, background: ghost ? 'var(--track)' : over ? 'var(--warn)' : 'var(--good)', opacity: d.partial ? 0.45 : 1 }} />
+        ));
+        return (<div key={d.date} className="flex-1 min-w-0">
+          <div style={{ height: H, display: 'flex', flexDirection: 'column-reverse', justifyContent: 'flex-start' }}>{over ? cells : null}</div>
+          <div style={{ height: 2, background: 'var(--border)' }} />
+          <div style={{ height: H }}>{over ? null : cells}</div>
+        </div>);
+      })}
+    </div>
+  );
+}
+/* The house shape for a locked block: it says what it is and what it would tell you, with the SHAPE
+   of the data ghosted behind it. A padlock over a blank card tells nobody what they are missing. */
+function PremiumTease({ headline, blurb, ghost }) {
+  return (<div>
+    {ghost && <div style={{ opacity: 0.5 }}>{ghost}</div>}
+    <div className="text-[13px] font-bold mt-3">{headline}</div>
+    <div className="text-[12px] text-[#8A8A90] leading-snug mt-1">{blurb}</div>
+    <div className="mt-2.5">
+      <TextBtn onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }}>Try Premium free &rsaquo;</TextBtn>
+    </div>
+  </div>);
+}
+// Signed kcal, for the one place a figure has to say which side of the line it is on.
+function fmtSignedKcal(n) { const r = Math.round(n); return (r > 0 ? '+' : r < 0 ? '\u2212' : '') + Math.abs(r).toLocaleString(); }
 function DietBreakCard({ db, update }) {
   const today = Store.todayISO();
   const [ask, setAsk] = useState(false);
@@ -10718,12 +11208,12 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
           dot, a label, three bordered chips and a chevron on one line, which was five objects deep on
           a row that says three numbers. The import spends a title bar and three plain cells instead,
           and the dot moves onto the title bar where the card's own verdict belongs. */}
-      <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-2" style={{ borderBottom: '2px solid var(--border)' }}>
+      <div data-cardbar className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
         <span className="flex items-center gap-2 min-w-0">
           <span style={{ width: 7, height: 7, background: coach.color, boxShadow: '0 0 6px ' + coach.color }} />
-          <span className="pf uppercase truncate" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--text)' }}>Recovery</span>
+          <span className="pf uppercase truncate" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--cardhead-text)' }}>Recovery</span>
         </span>
-        <button type="button" onClick={() => setExpanded(e => !e)} aria-expanded={expanded} className="hit pf uppercase shrink-0" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--muted)' }}>
+        <button type="button" onClick={() => setExpanded(e => !e)} aria-expanded={expanded} className="hit pf uppercase shrink-0" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--accent)' }}>
           {expanded ? 'Less ›' : 'All ›'}
         </button>
       </div>
@@ -11748,6 +12238,30 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // (The old missed-log/weigh showNudge is superseded by the buddy's always-present coach line.)
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
+  // The order this person put their cards in, and the hold-to-move that changes it.
+  const todayOrder = todayOrderOf(db);
+  const [arranging, setArranging] = useState(false);
+  const holdRef = useRef(null);
+  // A long press that STARTED on a card's ink bar, and did not turn into a scroll. Anywhere else on
+  // a card is an ordinary tap: the bar is the grip, so only the bar arms this.
+  function armHold(e) {
+    if (arranging) return;
+    const bar = e.target && e.target.closest && e.target.closest('[data-cardbar]');
+    if (!bar || !bar.closest('[data-block]')) return;
+    const y0 = e.clientY, x0 = e.clientX;
+    const cancel = (ev) => {
+      if (ev && ev.type === 'pointermove' && Math.abs(ev.clientY - y0) < 9 && Math.abs(ev.clientX - x0) < 9) return;
+      clearTimeout(holdRef.current); holdRef.current = null;
+      window.removeEventListener('pointermove', cancel); window.removeEventListener('pointerup', cancel); window.removeEventListener('pointercancel', cancel);
+    };
+    holdRef.current = setTimeout(() => {
+      cancel();
+      try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
+      setArranging(true);
+    }, 450);
+    window.addEventListener('pointermove', cancel); window.addEventListener('pointerup', cancel); window.addEventListener('pointercancel', cancel);
+  }
+  useEffect(() => () => clearTimeout(holdRef.current), []);
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
   // The buddy speaks with one voice in the habitat. buddyMessage picks the single top thing to say;
   // here we wire each action string to a handler (the decision stays pure and testable in buddyMessage).
@@ -11915,93 +12429,104 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
           on first paint. It earns its height rather than taking it: quiet when the ladder has
           nothing due, taller only when it is actually saying something. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
-        away={forageNow.status === 'away'} stats={habitatStats} />
+      {/* THE CARDS, in whatever order this person put them in. Each one is wrapped so the page
+          knows which block a long-press landed on; the ink bar is the grip (see RearrangeLayer). */}
+      {(() => {
+        const BLOCKS = {
+          buddy: (<>
+        <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
+          away={forageNow.status === 'away'} stats={habitatStats} />
 
-      {/* THE WEEKLY READ, restored to the screen it was promised on. Between the buddy and the plan
-          because the order down this page is the order of the questions: how am I doing (the buddy's
-          status strip), is the plan working (this), what do I eat today (the plan). Hidden during egg
-          incubation, where the onboarding checklist is already asking for the first weigh-in and a
-          second ask for it would be the same nag twice. */}
-      {!eggIncubating && <CycleStrip db={db} onOpen={() => setView('goals')} onCheckIn={onCheckIn} onWeigh={onWeigh} />}
-
-      {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
-          Balance is a power tool behind Adjust; everything secondary is in More below.
-          The heading and the lens control used to float above the card on their own row. The card
-          already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
-          detached from the numbers it changes. Both now live on the card's own top line. */}
-      {/* THE BREAKDOWN, in the buddy box's mould. It was a p-5 card wearing the accent ring and
-          leading with a 48px number, which was right while it was the only thing on Today carrying
-          figures. The status strip above now answers "how am I doing" in the first glance, so this
-          card's job changed from headline to detail: it is where you come to see WHICH macro is
-          short and to shift the balance, not to find out the total.
-          So it takes the same construction as the box above - one object with a divided interior,
-          a nameplate row on top, bands split by a rule of the card's own border weight - instead of
-          the padded box with hairline separators it used to be. Two cards built the same way read as
-          one screen; two cards built differently read as two products. */}
-      {/* TODAY'S PLAN, band for band as the import draws it: a title bar carrying the lens control,
-          the energy band (one big figure, its caption, the target on the right, one hero meter), the
-          three macro rows, a two-up FIBRE | DENSITY split, and the balance footer on an inset strip.
-          The two secondary measures moved OUT of the macro list and into the split for a reason: as
-          a fourth and fifth row they read as two more macros, which is exactly what neither of them
-          is. Side by side under a rule they read as what they are - the day's two quality checks. */}
-      <Card className="p-0 mb-4 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[9px]" style={{ borderBottom: '2px solid var(--border)' }}>
-          <span className="pf text-[10px] uppercase" style={{ color: 'var(--text)', letterSpacing: '0.12em' }}>Today's plan</span>
-          <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
-        </div>
-        <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
-          <EnergyBand et={et} tot={tot} mode={mode} />
-        </div>
-        <div className="px-3 pt-3 pb-3.5 flex flex-col gap-2.5">
-          <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} ink={PRO_T} mode={mode} hero />
-          <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
-          <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
-        </div>
-        <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
-            <FibreCell tot={tot} et={et} mode={mode} />
+          </>),
+          /* THE WEEKLY READ. Its default place is between the buddy and the plan, because the
+             default order down this page is the order of the questions: how am I doing, is the plan
+             working, what do I eat today. Hidden during egg incubation, where the onboarding
+             checklist is already asking for the first weigh-in and a second ask would be the same
+             nag twice. */
+          cycle: (!eggIncubating ? <CycleStrip db={db} onOpen={() => setView('goals')} onCheckIn={onCheckIn} onWeigh={onWeigh} /> : null),
+          plan: (<>
+        {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
+            Balance is a power tool behind Adjust; everything secondary is in More below.
+            The heading and the lens control used to float above the card on their own row. The card
+            already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
+            detached from the numbers it changes. Both now live on the card's own top line. */}
+        {/* THE BREAKDOWN, in the buddy box's mould. It was a p-5 card wearing the accent ring and
+            leading with a 48px number, which was right while it was the only thing on Today carrying
+            figures. The status strip above now answers "how am I doing" in the first glance, so this
+            card's job changed from headline to detail: it is where you come to see WHICH macro is
+            short and to shift the balance, not to find out the total.
+            So it takes the same construction as the box above - one object with a divided interior,
+            a nameplate row on top, bands split by a rule of the card's own border weight - instead of
+            the padded box with hairline separators it used to be. Two cards built the same way read as
+            one screen; two cards built differently read as two products. */}
+        {/* TODAY'S PLAN, band for band as the import draws it: a title bar carrying the lens control,
+            the energy band (one big figure, its caption, the target on the right, one hero meter), the
+            three macro rows, a two-up FIBRE | DENSITY split, and the balance footer on an inset strip.
+            The two secondary measures moved OUT of the macro list and into the split for a reason: as
+            a fourth and fifth row they read as two more macros, which is exactly what neither of them
+            is. Side by side under a rule they read as what they are - the day's two quality checks. */}
+        <Card className="p-0 mb-4 overflow-hidden">
+          {/* The real ink bar, not a pale imitation of one. Every card on this screen opens the same
+              way now - and the bar is also the grip you hold to move the card (see REARRANGE). */}
+          <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Today's plan</span>
+            <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
           </div>
-          <div className="px-3 py-2.5 flex flex-col gap-1.5">
-            <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
+          <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
+            <EnergyBand et={et} tot={tot} mode={mode} />
           </div>
-        </div>
-        {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
-        <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <Collapsible variant="inline" label={<span style={{ fontSize: 12.5, color: 'var(--text)' }}>Balance carbs &amp; fat{override.shiftKcal ? <> · <strong style={{ color: 'var(--fat-ink)' }}>{(override.shiftKcal > 0 ? '+' : '−') + Math.abs(override.shiftKcal)}</strong> kcal adjusted</> : null}</span>} sub="Adjust ›">
-            <div className="text-[12px]" style={{ color: 'var(--muted)', marginBottom: 12 }}>Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
-            <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
-            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-            <div className="flex justify-between items-center mt-3">
-              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
-              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
+          <div className="px-3 pt-3 pb-3.5 flex flex-col gap-2.5">
+            <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} ink={PRO_T} mode={mode} hero />
+            <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
+            <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
+          </div>
+          <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
+              <FibreCell tot={tot} et={et} mode={mode} />
             </div>
-          </Collapsible>
-        </div>
-        {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
-        {(et.cyc !== 0 || et.carry !== 0) && (() => {
-          const adj = et.eff.kcal - et.base.kcal;
-          const cd = et.carryDetail;
-          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
-          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-          return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
-            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
-          </div>;
-        })()}
-      </Card>
-
+            <div className="px-3 py-2.5 flex flex-col gap-1.5">
+              <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
+            </div>
+          </div>
+          {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
+          <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            <Collapsible variant="inline" label={<span style={{ fontSize: 12.5, color: 'var(--text)' }}>Balance carbs &amp; fat{override.shiftKcal ? <> · <strong style={{ color: 'var(--fat-ink)' }}>{(override.shiftKcal > 0 ? '+' : '−') + Math.abs(override.shiftKcal)}</strong> kcal adjusted</> : null}</span>} sub="Adjust ›">
+              <div className="text-[12px]" style={{ color: 'var(--muted)', marginBottom: 12 }}>Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
+              <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
+              <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+              <div className="flex justify-between items-center mt-3">
+                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
+                {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
+                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
+              </div>
+            </Collapsible>
+          </div>
+          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
+          {(et.cyc !== 0 || et.carry !== 0) && (() => {
+            const adj = et.eff.kcal - et.base.kcal;
+            const cd = et.carryDetail;
+            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
+            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+            return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
+              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
+              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
+            </div>;
+          })()}
+        </Card>
+          </>),
+          recovery: (<>
+        {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
+            data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
+        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
+          </>),
+        };
+        return todayOrder.map(k => BLOCKS[k] ? <div key={k} data-block={k} onPointerDown={armHold}>{BLOCKS[k]}</div> : null);
+      })()}
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
-
-      {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
-          data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
-      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
-
       {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
@@ -12017,6 +12542,12 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       })()}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
+      {/* The way in, said once and quietly. Hold-to-move is the gesture, but a gesture nobody is
+          told about is a feature nobody has: this is the line that tells them, and it costs one row
+          at the very bottom of the page rather than a grip on all four bars. */}
+      <div className="text-center mt-3"><TextBtn onClick={() => setArranging(true)}>Rearrange this page</TextBtn></div>
+      {arranging && <RearrangeLayer db={db} order={todayOrder} onDone={() => setArranging(false)}
+        onSave={(next) => update(d => { d.profile = Object.assign({}, d.profile, { todayOrder: next }); })} />}
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
     </div>
   );
@@ -15167,13 +15698,13 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; {backLabel || 'You'}</button>}
-      <PageHeader kicker="What you're working towards" title="Progress" />
+      {/* The kicker asks the question this page exists to answer, the way Train's progress screen
+          asks "Am I getting stronger?". A page whose kicker describes its contents leaves the buddy
+          answering a question nobody was shown. */}
+      <PageHeader kicker="Is the plan working?" title="Progress" />
 
-      {/* THE ANSWER. */}
-      <VerdictCard db={db} onWeigh={onWeigh} />
-
-      {/* THE ACTION IT IMPLIES, right underneath it rather than four cards down. */}
-      {!db.paused && (() => {
+      {/* THE ANSWER, THE EVIDENCE AND THE ACTION, in one panel. */}
+      <CyclePanel db={db} onWeigh={onWeigh} footer={db.paused ? null : (() => {
         // A full week, not five days. Offering the button at five is what produced cycles too short
         // to read: people check in when invited, and the shorter the window the more one salty day
         // dominates it. checkinStatus holds that line and the chosen check-in day together.
@@ -15186,7 +15717,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
         // screen. It is offered rather than hidden, with what it costs said plainly, because a short
         // cycle is noisier rather than invalid, and checkInDecision already refuses to steer off a
         // cycle it cannot read (see readReliability).
-        if (!st.due) return <Card className="p-3.5 mb-4">
+        if (!st.due) return <>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="pf text-[9px] uppercase text-[#8A8A90]">Next check-in</div>
@@ -15194,18 +15725,16 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
             </div>
             {st.nextISO && <div className="text-[11px] text-[#8A8A90] shrink-0 text-right">{fmtShortDay(st.nextISO)}</div>}
           </div>
-          <div className="mt-2.5 pt-2.5 border-t border-[#262629]"><TextBtn onClick={() => setForceCheckin(true)}>Check in now anyway &rsaquo;</TextBtn></div>
-        </Card>;
-        return <Card className="p-3.5 mb-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="pf text-[9px] uppercase text-[#8A8A90]">Weekly check-in</div>
-              <div className="text-[12.5px] font-bold mt-0.5">Due now</div>
-            </div>
-            <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
+          <div className="mt-2"><TextBtn onClick={() => setForceCheckin(true)}>Check in now anyway &rsaquo;</TextBtn></div>
+        </>;
+        return <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="pf text-[9px] uppercase text-[#8A8A90]">Weekly check-in</div>
+            <div className="text-[12.5px] font-bold mt-0.5">Due now</div>
           </div>
-        </Card>;
-      })()}
+          <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
+        </div>;
+      })()} />
 
       {/* THE EVIDENCE: what your body did. */}
       <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
@@ -15235,9 +15764,9 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
         </div>;
       }} />
 
-      {/* WHAT YOU DID. */}
-      <BehaviourCard db={db} />
-
+      {/* Lately is gone from this page. Its two tiles printed two different denominators and are
+          now one caption under the figures they qualify, and the density week went with the Food
+          tab, where a day-by-day strip of what you ate has somewhere to live. */}
       {/* THE RECORD, in place rather than behind a door. */}
       <CoachTimeline db={db} />
       <Collapsible label="Weigh-in log"><WeighInLog db={db} update={update} bare /></Collapsible>
