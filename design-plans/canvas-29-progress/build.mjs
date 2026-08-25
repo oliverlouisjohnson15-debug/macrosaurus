@@ -18,7 +18,7 @@ const P = { // :root / .theme-light  -- paper terrarium
   dangerInk:'#A93826', cardheadBg:'#241f2e', cardheadText:'#f4f1ea', navOff:'#ddd7f2',
   onHeaderAccent:'#FFD05E', weight:'#5B4FA6', pro:'#C7472F', carb:'#3D6FB4', fat:'#E0A21B',
   proInk:'#A93826', carbInk:'#2F5E9E', hero:'#2E7D6B', shadow:'#241f2e', scene:'#fdf1e7',
-  sceneGround:'#f3e4d4', terraInk:'#5b5060', terraFaint:'#dad4e0', grey:'#8A8A90',
+  sceneGround:'#f3e4d4', terraInk:'#5b5060', terraFaint:'#dad4e0', grey:'#8A8A90', pipGap:'#241f2e',
 };
 const D = { // .theme-dark -- neon on black
   bg:'#050507', card:'#0c0c11', surface2:'#101017', track:'#1a1a22', border:'#2f2f3a',
@@ -27,7 +27,7 @@ const D = { // .theme-dark -- neon on black
   dangerInk:'#FF5A4D', cardheadBg:'#15151c', cardheadText:'#e8e8ea', navOff:'#7c7c88',
   onHeaderAccent:'#3DFF62', weight:'#9B7BFF', pro:'#3DFF62', carb:'#35E0E8', fat:'#FF4FD0',
   proInk:'#3DFF62', carbInk:'#35E0E8', hero:'#3DFF62', shadow:'#2f2f3a', scene:'#07070b',
-  sceneGround:'#20202a', terraInk:'#3a3a48', terraFaint:'#2d2d3a', grey:'#8A8A90',
+  sceneGround:'#20202a', terraInk:'#3a3a48', terraFaint:'#2d2d3a', grey:'#8A8A90', pipGap:'#000000',
 };
 
 /* type: the app's two faces. Silkscreen for chrome/labels/numbers, Plex Mono at 13.5px for prose. */
@@ -35,6 +35,10 @@ const PF = (px, ls = '0.08em') => `font-family:'Silkscreen',ui-monospace,monospa
 const MONO = `font-family:'IBM Plex Mono',ui-monospace,'Courier New',monospace;`;
 const TNUM = `font-variant-numeric:tabular-nums;letter-spacing:-0.02em;`;
 const BOX = t => `border:3px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};`;
+// Btn, kind="accent". NB `.pixel-btn` carries `border: 3px !important` (styles.css:382), which
+// silently kills the `borderWidth: 2` app.jsx:3568 sets inline -- the trap documented at
+// styles.css:361. The shipped button is 3px, pf 11px, px-4 py-3.
+const btn = (t, label) => `<button style="${PF(11,'0.06em')}border:3px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};background:${t.accent};color:${t.onAccent};padding:12px 16px;text-transform:uppercase;cursor:pointer;flex-shrink:0;">${label}</button>`;
 
 /* ---- the app's own components, copied by anatomy ---- */
 // CardHead: filled ink strip, px-2.5 py-[7px], 2px rule under, pf 10px tracked 0.12em.
@@ -51,7 +55,7 @@ const pageHeader = (t, kicker, title) => `
       </div>`;
 // PipMeter: 3px frame, 1px ink gaps, 13px cells (9px when small).
 const pip = (t, lit, cells, color, small, notch) => `
-      <div style="display:flex;gap:1px;border:3px solid ${t.border};background:${t.border};position:relative;">
+      <div style="display:flex;gap:1px;border:3px solid ${t.border};background:${t.pipGap};position:relative;">
         ${Array.from({ length: cells }, (_, i) => `<i style="flex:1 1 0;height:${small ? 9 : 13}px;background:${i < lit ? color : t.track};display:block;"></i>`).join('')}
         ${notch != null ? `<span style="position:absolute;top:-3px;bottom:-3px;width:3px;background:${t.text};opacity:0.55;left:calc(${notch / cells * 100}% + 1px);"></span>` : ''}
       </div>`;
@@ -83,7 +87,7 @@ const cycleStrip = (t, state) => {
   const footer = state === 'due' ? `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:2px solid ${t.border};background:${t.surface2};">
         <span style="${MONO}font-size:12px;color:${t.text};">Weekly check-in due</span>
-        <button style="${PF(10,'0.06em')}border:2px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};background:${t.accent};color:${t.onAccent};padding:8px 14px;text-transform:uppercase;cursor:pointer;">Check in</button>
+        ${btn(t, 'Check in')}
       </div>` : state === 'thin' ? `
       <div style="padding:8px 12px;border-top:2px solid ${t.border};background:${t.surface2};">
         <span style="${MONO}font-size:11px;line-height:1.4;color:${t.fatInk};">Thin data so far: 3 of 7 days logged and 1 of 7 weigh-ins, so treat this as a rough read.</span>
@@ -93,7 +97,7 @@ const cycleStrip = (t, state) => {
       ${cardHead(t, 'This cycle', 'No read yet', t.cardheadText)}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;">
         <span style="${MONO}font-size:12px;line-height:1.5;color:${t.muted};">Weigh in for a week or so and this will tell you whether your plan is working.</span>
-        <button style="${PF(10,'0.06em')}border:2px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};background:${t.accent};color:${t.onAccent};padding:8px 12px;text-transform:uppercase;cursor:pointer;flex-shrink:0;">Weigh in</button>
+        ${btn(t, 'Weigh in')}
       </div>
     </div>`;
   const verdict = state === 'thin' ? 'Rough read' : 'On track';
@@ -102,8 +106,8 @@ const cycleStrip = (t, state) => {
       ${cardHead(t, 'This cycle', verdict, state === 'thin' ? t.cardheadText : t.accent)}
       <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;">
         <div style="min-width:0;">
-          <div style="${MONO}${TNUM}font-size:20px;font-weight:700;color:${t.text};">83.1 kg</div>
-          <div style="${MONO}${TNUM}font-size:10px;color:${t.muted};margin-top:1px;">&minus;0.4 a week &middot; target 0.5</div>
+          <div style="${MONO}${TNUM}font-size:20px;line-height:1.15;font-weight:700;color:${t.text};">83.1 kg</div>
+          <div style="${MONO}${TNUM}font-size:10px;line-height:1.3;color:${t.muted};margin-top:1px;">&minus;0.4 a week &middot; target 0.5</div>
         </div>
         <div style="flex-grow:1;"></div>
         ${spark(t, 104, 34, true)}
@@ -117,7 +121,7 @@ const cycleStrip = (t, state) => {
 const header = t => `
     <div style="height:63px;box-sizing:border-box;background:${t.header};border-bottom:3px solid ${t.border};display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0;">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;background:#111;border:3px solid #000;box-shadow:3px 3px 0 0 ${t.shadow};display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+        <div style="width:36px;height:36px;background:#111;border:3px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
           <svg width="20" height="20" viewBox="0 0 12 14" shape-rendering="crispEdges"><path d="M4 0h4v1h2v2h1v3h1v5h-1v2h-2v1H3v-1H1v-2H0V6h1V3h1V1h2z" fill="#fff"/></svg>
         </div>
         <div style="line-height:1.15;">
@@ -128,7 +132,7 @@ const header = t => `
           </div>
         </div>
       </div>
-      <div style="height:36px;box-sizing:border-box;background:#111;border:3px solid #000;box-shadow:3px 3px 0 0 ${t.shadow};display:flex;align-items:center;gap:6px;padding:0 10px;color:#fff;">
+      <div style="height:36px;box-sizing:border-box;background:#111;border:3px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};display:flex;align-items:center;gap:6px;padding:0 10px;color:#fff;">
         ${ic('gear', 20, '#fff')}<span style="${PF(8)}">YOU</span>
       </div>
     </div>`;
@@ -188,9 +192,11 @@ const planCard = t => `
       </div>
     </div>`;
 
-// The bottom bar. `items` is the tab list; the FAB always sits in the middle.
+// The bottom bar, with the shipped component's geometry: BottomNav slices the tab list
+// 2 | FAB | rest (app.jsx:18017-18023), and the FAB is a `flex-1` SIBLING rather than a fixed
+// cell -- so a fifth tab makes six equal flex children share 374px, ~62px each.
 const bottomNav = (t, items, active) => {
-  const half = Math.ceil(items.length / 2);
+  const half = 2;   // BOTTOM_NAV.slice(0, 2) ... FAB ... BOTTOM_NAV.slice(2)
   const cell = ([k, l]) => `
       <div style="flex:1 1 0;min-width:0;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:${k === active ? t.onHeaderAccent : t.navOff};">
         ${ic(k === 'dashboard' ? 'dash' : k === 'foodlog' ? 'food' : k === 'recipes' ? 'recipe' : k === 'train' ? 'dumbbell' : 'goal', 24, k === active ? t.onHeaderAccent : t.navOff)}
@@ -199,7 +205,7 @@ const bottomNav = (t, items, active) => {
   return `
     <div style="height:64px;box-sizing:border-box;background:${t.header};border-top:3px solid ${t.border};display:flex;align-items:center;padding:0 8px;flex-shrink:0;position:relative;">
       ${items.slice(0, half).map(cell).join('')}
-      <div style="flex:0 0 auto;display:flex;justify-content:center;width:76px;">
+      <div style="flex:1 1 0;display:flex;justify-content:center;">
         <div style="width:68px;height:68px;box-sizing:border-box;border:3px solid ${t.hero === t.good && t.bg === '#050507' ? '#3DFF62' : t.border};box-shadow:3px 3px 0 0 ${t.shadow};background:${t.card};display:flex;align-items:center;justify-content:center;margin-top:-72px;">
           ${ic('plus', 48, t.bg === '#050507' ? '#3DFF62' : t.border)}
         </div>
@@ -283,7 +289,7 @@ const youScreen = t => `
               <span style="${MONO}${TNUM}font-size:24px;font-weight:700;color:${t.text};">83.1 kg</span>
               <div style="${MONO}font-size:10px;color:${t.grey};margin-top:2px;">trend weight</div>
             </div>
-            <button style="${PF(10,'0.06em')}border:2px solid ${t.border};box-shadow:3px 3px 0 0 ${t.shadow};background:${t.accent};color:${t.onAccent};padding:8px 12px;text-transform:uppercase;cursor:pointer;flex-shrink:0;">Weigh in</button>
+            ${btn(t, 'Weigh in')}
           </div>
         </div>
       </div>
@@ -308,14 +314,14 @@ fs.writeFileSync(path.join(here, 'OptionC.dc.html'), doc('Option C',
 
 // The strip's other states. It costs 82px at rest and only grows when it has earned it.
 const stateSheet = t => `
-  <div style="width:430px;box-sizing:border-box;background:${t.bg};color:${t.text};${MONO}font-size:13.5px;padding:28px 20px 32px;-webkit-font-smoothing:antialiased;">
+  <div style="width:430px;box-sizing:border-box;background:${t.bg};color:${t.text};${MONO}font-size:13.5px;line-height:1.55;padding:28px 20px 32px;-webkit-font-smoothing:antialiased;">
     <div style="${PF(9)}color:${t.grey};text-transform:uppercase;">What the strip does</div>
     <h1 style="${PF(18)}margin:12px 0 6px;font-weight:400;">Four states</h1>
     <div style="${MONO}font-size:12px;line-height:1.6;color:${t.muted};margin-bottom:24px;">It earns its height rather than taking it &mdash; one row at rest, taller only when it is actually saying something. The same rule the buddy box already follows.</div>
-    ${[['Resting &mdash; 82px', 'rest', 'The ordinary morning. The verdict, the trend weight, the shape of the last 90 days, and a way in.'],
-       ['Check-in due &mdash; 128px', 'due', 'The one ask the app currently makes only through a coach line a shop nudge can outrank.'],
-       ['Thin data &mdash; 134px', 'thin', 'The caveat travels with the verdict, so a rough read is never mistaken for a confident one.'],
-       ['Nothing to read yet &mdash; 96px', 'empty', 'A fresh account. It asks for the one input that would give it something to say.']]
+    ${[['Resting &mdash; 94px', 'rest', 'The ordinary morning. The verdict, the trend weight, the shape of the last 90 days, and a way in.'],
+       ['Check-in due &mdash; 158px', 'due', 'The one ask the app currently makes only through a coach line a shop nudge can outrank. Most of the extra height is the app&rsquo;s own accent Btn, which is 46px of it.'],
+       ['Thin data &mdash; 143px', 'thin', 'The caveat travels with the verdict, so a rough read is never mistaken for a confident one.'],
+       ['Nothing to read yet &mdash; 115px', 'empty', 'A fresh account. It asks for the one input that would give it something to say.']]
       .map(([label, state, note]) => `
     <div style="margin-bottom:26px;">
       <div style="${PF(9)}color:${t.accentInk};text-transform:uppercase;margin-bottom:8px;">${label}</div>
@@ -327,6 +333,6 @@ fs.writeFileSync(path.join(here, 'BandStates.dc.html'), doc('Band states', state
 
 // Option A after dark, because the two themes do not share a palette.
 fs.writeFileSync(path.join(here, 'Dark.dc.html'), doc('After dark',
-  phone(D, pageHeader(D, 'Tuesday 25 August', 'Today') + habitat(D) + cycleStrip(D, 'due') + planCard(D), bottomNav(D, NAV4, 'dashboard'))));
+  phone(D, pageHeader(D, 'Tuesday 25 August', 'Today') + habitat(D) + cycleStrip(D, 'rest') + planCard(D), bottomNav(D, NAV4, 'dashboard'))));
 
 console.log('wrote 6 artboards');
