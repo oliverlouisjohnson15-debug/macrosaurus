@@ -6717,7 +6717,7 @@ function CycleSpark({ db, days = 90, w = 104, h = 34 }) {
    checklist. Those are answers the day is waiting on rather than furniture, so they stay pinned
    above the cards wherever the cards end up.
    ===================================================================== */
-const TODAY_BLOCKS = ['buddy', 'cycle', 'plan', 'recovery'];
+const TODAY_BLOCKS = ['buddy', 'plan', 'recovery'];
 // Tolerant of a stored order written by an older or newer build: unknown keys are dropped, missing
 // ones are appended in their default position, so a block added in a later release still appears.
 function todayOrderOf(db) {
@@ -6729,7 +6729,7 @@ function RearrangeLayer({ db, order, onDone, onSave }) {
   const [held, setHeld] = useState(null);
   const rows = useRef({});
   useBackClose(onDone);
-  const LABEL = { buddy: buddyName(db), cycle: 'This cycle', plan: "Today's plan", recovery: 'Recovery' };
+  const LABEL = { buddy: buddyName(db), plan: "Today's plan", recovery: 'Recovery' };
   // The live order lives in a ref as well as in state: state draws it, the ref is what a drag reads
   // and what the save writes. A drag that ended without its pointerup ever arriving (a cancel, a
   // second finger, a synthetic event) used to leave its listeners attached, and the next release
@@ -7535,7 +7535,10 @@ function engagementNudge(db, today) {
   // Predictive: when the trend supports an honest projection, the buddy names the finish line. Makes it
   // feel like it's reading your progress, not just reminding you to log.
   const proj = goalProjection(db);
-  if (proj && fresh('nudge_eta', 6)) cands.push({ key: 'nudge_eta', text: proj.text + " I'm counting down the weeks right alongside you.", cta: 'See progress', action: 'progress' });
+  /* nudge_eta is retired under option B. It said "at this rate you will be there in N weeks, see
+     progress" - which is now the clause on the end of every line the buddy says, and a card band
+     underneath it with the chevron on. A nudge that repeats the card it is sitting in is the noise
+     this whole pass exists to remove. */
   // Cook-from-fridge: only worth suggesting once there are enough saved recipes to match against, so a
   // tap actually lands on results rather than an empty "nothing to match yet" screen.
   if ((db.recipes || []).length >= 3 && fresh('nudge_fridge', 8)) cands.push({ key: 'nudge_fridge', text: "Got food that needs using up? Snap your fridge or cupboard and I'll find recipes you can make right now.", cta: 'Cook from my fridge', action: 'cook_fridge' });
@@ -8001,7 +8004,12 @@ function buddyMessage(db, today, streak, asleep) {
   // 5. (Weigh cadence used to be asked here; weighAsk now owns it, up at step 2b, because nothing
   // else the buddy says about weighing works until the cadence is known.)
   // 6. Ask: a proactive yes/no (currently an overdue check-in). "Not now" snoozes it via nudgesDismissed.
-  const ask = buddyBreakout(db, today);
+  /* THE CHECK-IN ASK IS NOT THE BUDDY'S ANY MORE (option B). The card carries "Weekly check-in
+     due" with the button on it, three bands below this sentence, and when both existed the same
+     screen asked for the same thing twice: once as a question with a Yes, once as a button. The
+     card's version wins because it sits directly under the verdict that motivates it.
+     buddyBreakout is left standing for the day this ladder needs a proactive ask again. */
+  const ask = null;
   if (ask) return { kind: 'ask', text: ask.text,
     primary: { label: ask.yes, act: ask.action },
     secondary: { label: 'Not now', act: 'snooze', snoozeKey: ask.key } };
@@ -8207,7 +8215,13 @@ function StatusStrip({ stats, streak }) {
     </div>
   );
 }
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, away }) {
+/* OPTION B, LOCAL TRIAL: ONE BOX.
+   The habitat and the weekly read were two cards on Today with the same animal talking out of both,
+   100px apart, and when a check-in was due they asked for it twice. Here they are one object: the
+   world, then the buddy's line with the week's read on the end of it, then the day's figures, then
+   how far through the goal you are, then the check-in. One frame, one voice, five bands.
+   `week` carries everything the read needs; when it is absent this card is exactly what it was. */
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, away, week }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   /* `stuffed` keys off dayState, NOT off the mood. buddyMood ranks 'content' above 'stuffed', so a
@@ -8286,7 +8300,9 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
       className={'relative px-3 pt-3 pb-3.5' + (bare ? ' active:opacity-80' : '')}
       style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="flex items-center justify-between gap-2 mb-2.5">
-        <span className="pf px-1.5 py-[2px] text-[9px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', lineHeight: 1.4, letterSpacing: '0.12em' }}>{plate}</span>
+        {/* A LABEL, not a button. It sat in the accent, which is the one colour on this card that
+            is supposed to mean "press me", and there were five things wearing it. */}
+        <span className="pf px-1.5 py-[2px] text-[9px] uppercase" style={{ color: 'var(--muted)', border: '2px solid var(--muted2)', lineHeight: 1.4, letterSpacing: '0.12em' }}>{plate}</span>
         {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit flex items-center justify-center text-[14px] active:opacity-60" style={{ color: 'var(--muted2)' }}><Icon.close width="16" /></button>}
       </div>
       {body}
@@ -8305,6 +8321,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
           with a labelled window in it. */}
       <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
         <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
+        {/* The mood keeps this slot. The verdict had it for a day and it was the wrong thing to
+            greet somebody with: "BEHIND PLAN" in the title bar of the home screen, every morning,
+            is a report card you cannot put down. How you are doing against the plan is a question
+            with a whole module behind it, and it is answered there. */}
         <span className="pf text-[10px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb)' : away ? 'var(--carb)' : 'var(--accent)', letterSpacing: '0.12em' }}>
           {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : away ? 'Foraging' : mood.label}
         </span>
@@ -8343,6 +8363,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
           ))}
         </div>, 'To hatch')}
       {msg && !incubating && box(<>
+        {/* The read rides on the end of a STATEMENT, never on the end of a question. Appended to
+            "how often will you weigh in?" it read as a non-sequitur: two subjects in one paragraph,
+            with the answer buttons underneath belonging to only the first of them. A lesson is the
+            same case - the buddy is teaching, and the week is not the lesson. */}
         <div className="text-base">{msg.text}</div>
         {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
         {/* The weigh-in answers itself: the scale number goes in on the spot. */}
@@ -8356,11 +8380,72 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         )}
         {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
           <div className="flex gap-2 mt-2">
-            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
+            {/* ONE GOLD PER CARD. On a day the check-in is due, THAT is what is being asked of you,
+                and this steps down to the fill the secondary already uses - same object, same face,
+                less shout. Every other day it is the loudest thing here, as it should be. */}
+            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5"
+              style={(week && week.due) ? { background: 'var(--surface2)' } : { background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
             {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
           </div>
         )}
       </>, kind)}
+      {/* THE WEEK, as bands of this card rather than a card of its own. The whole readout opens
+          Progress and carries a chevron saying so. */}
+      {week && !incubating && <>
+        {/* THE JOURNEY, not the report card. Start weight on the left, goal weight on the right, and
+            the distance you have actually covered called out in the good ink. Whether that distance
+            is ahead of or behind the rate you agreed to is a real question with a whole module
+            behind it, and it is asked and answered THERE - printing "behind plan" on the home screen
+            beside a number somebody worked for is how a good week starts feeling like a bad one.
+            The way into that module is a labelled row, not a lone chevron: the old readout was a
+            link with nothing on it that said so. */}
+        {/* A 3px rule, not a 2px one. The day is above it and the road is below it, and this design
+            already spends 3px on the edge between two KINDS of thing and 2px on the divisions
+            inside one. Six identical rules said all six bands were the same kind of thing. */}
+        <div style={{ height: 3, background: 'var(--border)' }} />
+        <div className="px-3 pt-3 pb-3">
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2.5" style={{ letterSpacing: '0.14em' }}>Your journey</div>
+          {/* Alone on its line, so nothing competes with it. */}
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold tnum" style={{ color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
+            <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
+          </div>
+          <div className="text-[11px] mt-1 tnum" style={{ color: 'var(--muted)' }}>{week.since}</div>
+          {week.lad && <>
+            <div className="flex gap-1 mt-3">
+              {Array.from({ length: week.lad.cells }, (_, i) => {
+                const done = i < week.lad.doneCells, next = i === week.lad.doneCells;
+                // The next rung keeps its shape but gives up the gold: it is where you are going,
+                // not something to press.
+                return <div key={i} className="flex-1" style={{ height: 16,
+                  border: '2px solid ' + (next ? 'var(--good-ink)' : 'var(--border)'),
+                  background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)' }} />;
+              })}
+            </div>
+            {/* The two ends of the road, named. This is the whole reframing in one row: where you
+                started and where you are going, rather than where you were supposed to be by now. */}
+            <div className="flex justify-between mt-1.5">
+              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.startStr} start</span>
+              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>Goal {week.goalStr}</span>
+            </div>
+          </>}
+          {week.nextLine && <div className="text-[12.5px] mt-3" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</div>}
+        </div>
+        {/* THE WAY IN. It was a chevron on the end of a readout, which is a link with nothing on it
+            that says so. A full-width row with a sentence on it and somewhere to put your thumb. */}
+        <button onClick={week.onOpen} className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left active:opacity-80"
+          style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          <span className="text-[12.5px]">See your full progress</span>
+          <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
+        </button>
+        {week.due && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <span className="text-[12.5px]">Weekly check-in due</span>
+          <Btn kind="accent" onClick={week.onCheckIn}>Check in</Btn>
+        </div>}
+        {week.thin && <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>{week.thin}</span>
+        </div>}
+      </>}
       {/* THE DOCK IS PARKED. It was a camera plus a "Talk to <name>…" field routing into the AI
           conversation sheet. Pulled deliberately rather than deleted: the conversation is metered at
           ten free replies a month, which is roughly one chat every three days, and a permanently
@@ -12238,6 +12323,53 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // (The old missed-log/weigh showNudge is superseded by the buddy's always-present coach line.)
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
+  /* OPTION B: the week, computed once here and handed to the buddy card, which now carries it.
+     Everything in it came off CycleStrip unchanged - the same verdict, the same ladder, the same
+     numbers row, the same check-in state - so the two surfaces cannot drift apart while both exist. */
+  const week = (() => {
+    const v = progressVerdict(db);
+    if (!v || eggIncubating) return null;
+    const unit = (db.profile || {}).weight_unit;
+    const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
+    const st = db.paused ? null : checkinStatus(db, today);
+    const cov = cycleCoverage(db, today);
+    const state = E.cycleStripState({ verdict: v, checkin: st, coverage: cov });
+    const lad = milestoneLadder(v);
+    /* The clause the buddy used to append is retired. It said where you were headed at this rate,
+       and the band underneath now says the nearer and better version of that in its own voice. The
+       buddy talks about today; the band talks about the road. One subject each. */
+    const line = null;
+    /* THE HEADLINE IS THE DISTANCE COVERED, and it is the only figure in the pixel face down here.
+       A NUMERAL AND A LABEL, never a numeral carrying words: every other big number in this app is
+       drawn that way (1101 KCAL LEFT, 2,582 KCAL/DAY), and "1.6 kg down" set as one pixel string was
+       the odd one out - the face is for figures and chrome, and it makes heavy weather of prose.
+       `moved` gates the celebration honestly: on day one, or on a run that has gone the other way,
+       there is nothing to congratulate and the card says where you are instead of inventing a win. */
+    const moved = v.goal !== 'maintain' && v.done > 0.1;
+    const num = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) : Math.abs(kg).toFixed(1));
+    const uLabel = unit === 'st_lb' ? 'lb' : 'kg';
+    const big = moved ? num(v.done) : num(v.nowKg);
+    const bigLabel = moved ? uLabel + (v.goal === 'gain' ? ' gained' : ' down') : uLabel + ' today';
+    /* THE NEAR GOAL, not the far one. "5.0 kg to go" was the biggest number on the card, and for the
+       first half of any diet it GROWS. The goal-gradient effect is about the piece within reach, so
+       this is the same distance cut down to the next rung of the ladder. */
+    const nextLine = (!lad || lad.atGoal || v.goal === 'maintain') ? null
+      : moved ? <><b className="tnum">{num(lad.nextKg - v.done)} {uLabel}</b> to your next milestone.</>
+      : <>Your first milestone is <b className="tnum">{num(lad.nextKg)} {uLabel}</b> away.</>;
+    return {
+      v, lad, line, moved, big, bigLabel, nextLine,
+      // The weight lives on the quiet line under the celebration now, with the date this road was
+      // started. Dropping it outright would leave Today with your weight nowhere on it.
+      since: moved ? fmtWeight(v.nowKg, unit) + (v.startISO ? ' · since ' + fmtShortDay(v.startISO) : '') : 'just getting started',
+      startStr: v.startKg != null ? fmtWeight(v.startKg, unit) : '',
+      goalStr: v.goalWeightKg > 0 ? fmtWeight(v.goalWeightKg, unit) : '',
+      due: state === 'due',
+      thin: state === 'thin'
+        ? 'Thin data so far: ' + cov.logged + ' of ' + cov.logWindow + ' day' + (cov.logWindow === 1 ? '' : 's') + ' logged and ' + cov.weighed + ' of ' + cov.weighWindow + ' weigh-in' + (cov.weighWindow === 1 ? '' : 's') + ', so treat this as a rough read.'
+        : null,
+      onOpen: () => setView('goals'), onCheckIn,
+    };
+  })();
   // The order this person put their cards in, and the hold-to-move that changes it.
   const todayOrder = todayOrderOf(db);
   const [arranging, setArranging] = useState(false);
@@ -12435,15 +12567,13 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         const BLOCKS = {
           buddy: (<>
         <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
-          away={forageNow.status === 'away'} stats={habitatStats} />
+          away={forageNow.status === 'away'} stats={habitatStats} week={week} />
 
           </>),
-          /* THE WEEKLY READ. Its default place is between the buddy and the plan, because the
-             default order down this page is the order of the questions: how am I doing, is the plan
-             working, what do I eat today. Hidden during egg incubation, where the onboarding
-             checklist is already asking for the first weigh-in and a second ask would be the same
-             nag twice. */
-          cycle: (!eggIncubating ? <CycleStrip db={db} onOpen={() => setView('goals')} onCheckIn={onCheckIn} onWeigh={onWeigh} /> : null),
+          /* THE WEEKLY READ IS NOT A CARD ANY MORE. It is bands of the buddy's own box above, which
+             is the whole of option B. CycleStrip itself is left standing and still tested: if this
+             trial does not survive contact, putting the card back is one line here. */
+          cycle: null,
           plan: (<>
         {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
             Balance is a power tool behind Adjust; everything secondary is in More below.
