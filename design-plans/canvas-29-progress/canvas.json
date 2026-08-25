@@ -1,0 +1,21 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Option A" },
+    { "id": "page-2", "name": "Options not taken" }
+  ],
+  "artboards": [
+    { "file": "TodayNow.dc.html",   "page": "page-1", "x": 0,    "y": 0, "w": 390, "h": 844,  "title": "Today, as it ships" },
+    { "file": "Main.dc.html",       "page": "page-1", "x": 510,  "y": 0, "w": 390, "h": 844,  "title": "Option A — the This cycle strip" },
+    { "file": "Dark.dc.html",       "page": "page-1", "x": 1020, "y": 0, "w": 390, "h": 844,  "title": "Option A, after dark" },
+    { "file": "BandStates.dc.html", "page": "page-1", "x": 1530, "y": 0, "w": 430, "h": 1180, "title": "The strip's four states" },
+    { "file": "OptionB.dc.html",    "page": "page-2", "x": 0,    "y": 0, "w": 390, "h": 844,  "title": "Option B — Progress back in the tab bar" },
+    { "file": "OptionC.dc.html",    "page": "page-2", "x": 510,  "y": 0, "w": 390, "h": 844,  "title": "Option C — Progress becomes a tab of You" }
+  ],
+  "annotations": [
+    { "id": "note-before", "page": "page-1", "x": 0, "y": -330, "w": 390, "text": "THE FINDING\n\napp.jsx:17967 records why Progress left the tab bar, and why that was safe: \"nothing daily is lost, because the verdict, the weight spark and the weekly check-in prompt all live on the StatusCard there.\"\n\nStatusCard no longer exists — that comment is its last mention in the file. The demotion was paid for with a Today presence that was later deleted, and nobody restored it.\n\nThis frame is the consequence: nothing on Today answers whether the plan is working." },
+    { "id": "note-a", "page": "page-1", "x": 510, "y": -330, "w": 390, "text": "OPTION A — CHOSEN\n\nRestore the compensation, not the tab. One strip between the buddy and the plan: verdict, trend weight, the 90-day shape, one tap into the full page.\n\nMeasured on the shipped build: 111px at rest, 176px when a check-in is due. It grows only when the check-in is due or the read is thin — the rule BuddyHabitat already follows.\n\nCOST, measured: it pushes Today's plan from 82px-visible to entirely below the fold on a free account. The day's headline numbers are still above it, on the buddy's status strip; what moves down is the detail card.\n\nStill open: this makes Progress VISIBLE, not a destination. The settings-overview card stays its only front door until something like Option C lands." },
+    { "id": "note-b", "page": "page-2", "x": 0, "y": -330, "w": 390, "text": "OPTION B — not taken\n\nProgress back in the tab bar. Drawn at the shipped component's real geometry: BottomNav's FAB is a flex-1 sibling, so a fifth tab makes six equal children share 374px — ~62px each, and PROGRESS at 9px Silkscreen tracked 0.08em does not fit its cell.\n\nThe frequency argument that moved it out also still stands: a weekly read holding a daily slot, and Today still saying nothing about progress." },
+    { "id": "note-c", "page": "page-2", "x": 510, "y": -330, "w": 390, "text": "OPTION C — not taken (yet)\n\nThe strip You already has grows to Progress | Settings | Account, lands on Progress, and the settings-overview card that carries it today goes.\n\nThis is the half that actually answers \"hidden in settings\" — Option A makes Progress visible on Today, but reaching the full page still means going through a settings list.\n\nTradeoff: the header button still says YOU behind a gear, which then under-promises what is behind it." }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
