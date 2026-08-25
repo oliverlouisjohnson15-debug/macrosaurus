@@ -1,0 +1,3 @@
+# The seeded canvas is a 2.6 MB build output: the Claude Design editor payload with the
+# artboards below baked into it. Regenerate with seed-canvas.mjs rather than storing it.
+progress-on-today.html
