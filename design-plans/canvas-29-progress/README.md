@@ -22,9 +22,15 @@ last mention in the file. The demotion was paid for with a Today presence that w
 
 A "This cycle" strip between the buddy box and Today's plan: `CardHead` carrying the verdict,
 one row of trend weight + the 90-day spark + a chevron, and a footer that appears only when it
-has something to add. 94px at rest, leaving the plan card clear of the fold (~683px of the
-693px usable). It grows to 158px when the check-in is due, 143px on a thin read, and 115px on a
-fresh account with nothing to say yet.
+has something to add.
+
+Measured on the shipped build in Chromium at 390x844 (not estimated off these frames): **111px
+at rest, 176px when a check-in is due** - 31px title bar, 74px body, 65px footer, 6px frame.
+
+The cost, also measured: on a free account (upsell showing, buddy resting) it pushes Today's
+plan from 82px-visible to entirely below the fold. The day's headline figures - kcal left,
+protein left - are still above it on the buddy's status strip, so what moves down is the detail
+card rather than the daily loop itself. Worth knowing before deciding the placement is right.
 
 It does not make Progress a destination — the settings-overview card stays its only front door.
 Option C on page 2 is the unfinished half of that.

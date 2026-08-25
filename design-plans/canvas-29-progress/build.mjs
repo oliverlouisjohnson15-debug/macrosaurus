@@ -317,11 +317,11 @@ const stateSheet = t => `
   <div style="width:430px;box-sizing:border-box;background:${t.bg};color:${t.text};${MONO}font-size:13.5px;line-height:1.55;padding:28px 20px 32px;-webkit-font-smoothing:antialiased;">
     <div style="${PF(9)}color:${t.grey};text-transform:uppercase;">What the strip does</div>
     <h1 style="${PF(18)}margin:12px 0 6px;font-weight:400;">Four states</h1>
-    <div style="${MONO}font-size:12px;line-height:1.6;color:${t.muted};margin-bottom:24px;">It earns its height rather than taking it &mdash; one row at rest, taller only when it is actually saying something. The same rule the buddy box already follows.</div>
-    ${[['Resting &mdash; 94px', 'rest', 'The ordinary morning. The verdict, the trend weight, the shape of the last 90 days, and a way in.'],
-       ['Check-in due &mdash; 158px', 'due', 'The one ask the app currently makes only through a coach line a shop nudge can outrank. Most of the extra height is the app&rsquo;s own accent Btn, which is 46px of it.'],
-       ['Thin data &mdash; 143px', 'thin', 'The caveat travels with the verdict, so a rough read is never mistaken for a confident one.'],
-       ['Nothing to read yet &mdash; 115px', 'empty', 'A fresh account. It asks for the one input that would give it something to say.']]
+    <div style="${MONO}font-size:12px;line-height:1.6;color:${t.muted};margin-bottom:24px;">It earns its height rather than taking it &mdash; one row at rest, taller only when it is actually saying something. The same rule the buddy box already follows. Heights are measured off the shipped component in Chromium at 390&times;844, not off these frames.</div>
+    ${[['Resting &mdash; 111px measured', 'rest', 'The ordinary morning. The verdict, the trend weight, the shape of the last 90 days, and a way in.'],
+       ['Check-in due &mdash; 176px measured', 'due', 'The one ask the app currently makes only through a coach line a shop nudge can outrank. Most of the extra height is the app&rsquo;s own accent Btn, which is 46px of it.'],
+       ['Thin data &mdash; ~160px', 'thin', 'The caveat travels with the verdict, so a rough read is never mistaken for a confident one.'],
+       ['Nothing to read yet &mdash; ~130px', 'empty', 'A fresh account. It asks for the one input that would give it something to say.']]
       .map(([label, state, note]) => `
     <div style="margin-bottom:26px;">
       <div style="${PF(9)}color:${t.accentInk};text-transform:uppercase;margin-bottom:8px;">${label}</div>
