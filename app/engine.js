@@ -1990,6 +1990,29 @@
     };
   }
 
+  /* THE CYCLE STRIP'S STATE, on Today.
+     The strip earns its height rather than taking it: one row on an ordinary morning, taller only
+     when it has something to add. Which of the four it is, is a decision rather than a rendering
+     detail, so it lives here where it can be tested rather than inside the component.
+
+     The order is a precedence, and it is deliberate. A check-in that is DUE outranks a thin read,
+     because checking in is the thing that would fix the thin read - telling someone their data is
+     patchy while hiding the button that acts on it is the fault this whole strip exists to correct.
+     And no verdict at all outranks everything, because there is nothing yet to be due about.
+
+     `thin` is the same test VerdictCard applies to its own caveat, and it is deliberately NOT
+     applied to a young cycle: a cycle that started yesterday is not thin data, it is a new cycle,
+     and "0 of 1 days logged" the morning after a check-in undercuts a verdict read off three weeks
+     of trend that has not moved at all. */
+  function cycleStripState(o) {
+    o = o || {};
+    if (!o.verdict) return 'empty';
+    if (o.checkin && o.checkin.due) return 'due';
+    var c = o.coverage;
+    if (c && c.logWindow >= 4 && (c.logged < Math.ceil(c.logWindow * 0.6) || c.weighed < 2)) return 'thin';
+    return 'rest';
+  }
+
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
@@ -2014,6 +2037,7 @@
     ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
     nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
     meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
+    cycleStripState: cycleStripState,
     photoUpdatable: photoUpdatable, priorEstimateBrief: priorEstimateBrief,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
