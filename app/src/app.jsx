@@ -6385,6 +6385,123 @@ function ProgressPanel({ db, update, onWeigh }) {
     </Card>
   );
 }
+/* ---------- the cycle strip, on Today ----------------------------------------------------------
+   Progress used to sit in the tab bar. It was moved to You (see NAV_ITEMS) on the argument that
+   nothing daily was lost, "because the parts of Progress you need often are already on Today: the
+   verdict, the weight spark and the weekly check-in prompt all live on the StatusCard there."
+
+   StatusCard was deleted some time after that, and nothing replaced it. So the demotion was paid
+   for with a Today presence that no longer existed: this screen has been running buddy, plan, steps
+   and diet break, and answering nothing at all about whether the plan is working. The weigh and
+   check-in asks survived only as one rung of the buddy's coach line, where a shop nudge outranks
+   them and a dismissal silences them for a cooldown.
+
+   This is that compensation, rebuilt and this time made of components rather than of a promise in a
+   comment. It is NOT a second Progress page: it carries the verdict, the trend weight, the shape of
+   the last 90 days and the one action the cycle is asking for, and every other question it raises -
+   the expenditure chain, behaviour, the coach timeline, the logs - is one tap away on the page it
+   opens. What it costs Today at rest is 94px, which leaves the plan card clear of the fold.
+   ----------------------------------------------------------------------------------------------- */
+
+/* The last 90 days, at 104x34. The full chart on Progress is the instrument; this is the SHAPE, and
+   it is drawn small on purpose - enough to see a plateau or a turn, not enough to invite reading a
+   number off it. The scale readings are dots and the trend is the line, the same split TrendCard
+   draws, because the trend is what the verdict above is actually computed from. */
+function CycleSpark({ db, days = 90, w = 104, h = 34 }) {
+  const today = Store.todayISO();
+  const from = shiftISO(today, -(days - 1));
+  const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
+  const ents = (db.weight_entries || []).filter(e => e.date >= from && val(e) != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (ents.length < 2) return null;
+  const goal = (db.profile || {}).goalWeightKg;
+  const pts = ents.map(e => ({ x: daysBetween(from, e.date), t: val(e), s: e.scale_weight }));
+  // The window has to hold every mark it draws, dots included, or a scale reading below the trend
+  // is silently clipped to the floor and the spark quietly lies about the spread.
+  const vals = pts.reduce((a, p) => a.concat([p.t], p.s != null ? [p.s] : []), []);
+  let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  // The goal line only joins the scale when it is anywhere near the window. On an account 12 kg out
+  // it would otherwise flatten the whole trace against one edge to make room for a line that says
+  // nothing a 34px box can show.
+  const near = goal > 0 && goal >= lo - (hi - lo) - 1 && goal <= hi + (hi - lo) + 1;
+  if (near) { lo = Math.min(lo, goal); hi = Math.max(hi, goal); }
+  const pad = Math.max(0.25, (hi - lo) * 0.12); lo -= pad; hi += pad;
+  const px = x => (x / Math.max(1, days - 1)) * (w - 2) + 1;
+  const py = v => h - 1 - ((v - lo) / (hi - lo)) * (h - 2);
+  return (
+    <svg width={w} height={h} viewBox={'0 0 ' + w + ' ' + h} shapeRendering="crispEdges" aria-hidden="true"
+      style={{ display: 'block', flexShrink: 0 }}>
+      {near && <line x1="0" y1={py(goal).toFixed(1)} x2={w} y2={py(goal).toFixed(1)} stroke="var(--accent-ink)" strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />}
+      {pts.map((p, i) => p.s != null && <rect key={i} x={(px(p.x) - 1).toFixed(1)} y={(py(p.s) - 1).toFixed(1)} width="2" height="2" fill="var(--muted)" opacity="0.5" />)}
+      <polyline points={pts.map(p => px(p.x).toFixed(1) + ',' + py(p.t).toFixed(1)).join(' ')} fill="none" stroke="var(--weight)" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
+  const today = Store.todayISO();
+  const unit = (db.profile || {}).weight_unit;
+  const v = progressVerdict(db);
+  // A paused plan has no check-in to be due for - Progress hides that card entirely while paused,
+  // and a strip that asked for one here would be offering an action the other screen refuses.
+  const st = db.paused ? null : checkinStatus(db, today);
+  const cov = v ? cycleCoverage(db, today) : null;
+  const state = E.cycleStripState({ verdict: v, checkin: st, coverage: cov });
+  // Magnitude only, as on Progress: the sign is carried by the glyph in front of it, and
+  // fmtWeightDelta would put a second one there.
+  const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
+
+  if (state === 'empty') return (
+    <Card className="p-0 mb-4 overflow-hidden">
+      <CardHead title="This cycle" right="No read yet" rightTone="muted" />
+      <div className="p-3 flex items-center justify-between gap-3">
+        <span className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+          Weigh in for a week or so and this will tell you whether your plan is working.
+        </span>
+        {onWeigh && <Btn kind="accent" onClick={() => onWeigh(true)}>Weigh in</Btn>}
+      </div>
+    </Card>
+  );
+
+  const sub = v.goal === 'maintain'
+    ? mag(v.rate) + ' a week · holding steady'
+    : (v.rate < 0 ? '−' : v.rate > 0 ? '+' : '') + mag(v.rate) + ' a week · target ' + mag(v.target);
+  return (
+    <Card className="p-0 mb-4 overflow-hidden">
+      {/* The verdict rides the title bar, exactly as it does on Progress, so the same three words
+          mean the same thing in both places. Only a good one takes the accent: a gold "Behind plan"
+          reads as a prize. */}
+      <CardHead title="This cycle" right={v.headline} rightTone={v.tone === 'good' ? 'accent' : 'muted'} />
+      {/* The whole row opens Progress, and carries a chevron saying so. A readout that is secretly a
+          link is the fault design-plans/28 caught in Train; this is the same row with the affordance
+          on it. */}
+      <button onClick={onOpen} className="w-full text-left flex items-center gap-3 px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="tnum text-[20px] font-bold leading-[1.15]">{fmtWeight(v.nowKg, unit)}</div>
+          <div className="tnum text-[10px] leading-[1.3] mt-px" style={{ color: 'var(--muted)' }}>{sub}</div>
+        </div>
+        <div className="flex-1" />
+        <CycleSpark db={db} />
+        <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
+      </button>
+      {state === 'due' && (
+        <div className="px-3 py-2 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          <span className="text-[12px]">Weekly check-in due</span>
+          <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
+        </div>
+      )}
+      {/* The caveat travels WITH the verdict rather than sitting two screens away from it, so a
+          rough read is never mistaken for a confident one. Same sentence Progress uses. */}
+      {state === 'thin' && (
+        <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>
+            Thin data so far: {cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}, so treat this as a rough read.
+          </span>
+        </div>
+      )}
+    </Card>
+  );
+}
 // A plain full-screen layer with a header and a back button, for content that is a list rather than
 // a decision. Matches the Edit plan sheet so the two read as the same kind of place.
 function FullSheet({ title, onClose, children }) {
@@ -11676,6 +11793,13 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
         away={forageNow.status === 'away'} stats={habitatStats} />
 
+      {/* THE WEEKLY READ, restored to the screen it was promised on. Between the buddy and the plan
+          because the order down this page is the order of the questions: how am I doing (the buddy's
+          status strip), is the plan working (this), what do I eat today (the plan). Hidden during egg
+          incubation, where the onboarding checklist is already asking for the first weigh-in and a
+          second ask for it would be the same nag twice. */}
+      {!eggIncubating && <CycleStrip db={db} onOpen={() => setView('goals')} onCheckIn={onCheckIn} onWeigh={onWeigh} />}
+
       {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
           Balance is a power tool behind Adjust; everything secondary is in More below.
           The heading and the lens control used to float above the card on their own row. The card
@@ -14904,17 +15028,20 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, backLabel }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
   const [forceCheckin, setForceCheckin] = useState(false);
-  // Progress is reached from You rather than from the tab bar, so it owns a back affordance. On
-  // desktop it is still a sidebar destination, hence onBack being optional.
+  // Progress is not on the tab bar, so it owns a back affordance - and it is now reached from more
+  // than one place (the You screen, the cycle strip on Today, the buddy's coach line, a milestone,
+  // the weekly recap), so that affordance has to NAME where it is going. A hard-coded "You" sent
+  // somebody who arrived from Today to a screen they had not been on. On desktop it is still a
+  // sidebar destination, hence onBack being optional.
   useBackClose(onBack || null);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; You</button>}
+      {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; {backLabel || 'You'}</button>}
       <PageHeader kicker="What you're working towards" title="Progress" />
 
       {/* THE ANSWER. */}
@@ -19251,7 +19378,14 @@ function App() {
   if (SPRITE_LAB) return <SpriteLab />;
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
-  const [view, setView] = useState('dashboard');
+  const [view, _setView] = useState('dashboard');
+  /* WHERE PROGRESS WAS OPENED FROM. It has no tab of its own and it draws its own way back, so the
+     one thing it cannot know by itself is which screen to draw it to. Recording that here - once,
+     on the way in - is what lets every route into it (the strip on Today, the You screen, the
+     buddy's coach line, a milestone, the weekly recap, a notification) return where it came from,
+     rather than each call site having to remember to say so. */
+  const [goalsFrom, setGoalsFrom] = useState('more');
+  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); _setView(v); };
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.
@@ -19959,7 +20093,7 @@ function App() {
         }}
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
-      {view === 'goals' && <Goals onBack={() => setView('more')} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
+      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
       {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
