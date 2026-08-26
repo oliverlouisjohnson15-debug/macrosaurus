@@ -12753,6 +12753,33 @@ function PixelGrip() {
   const pts = [[1, 1], [4, 1], [1, 3], [4, 3], [1, 5], [4, 5]];
   return <svg viewBox="0 0 6 7" width="14" height="16" fill="currentColor" style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges', display: 'block' }}>{pts.map(([x, y], i) => <rect key={i} x={x} y={y} width="1" height="1" />)}</svg>;
 }
+// THE MEAL'S MACROS, on its title bar. A meal heading used to report calories and nothing else, on
+// the argument that the day card, the meal header and the food row would otherwise say the same
+// thing at three levels of one screen. That was right about the repetition and wrong about which
+// level to cut: the meal is the one of the three you actually decide anything at ("that breakfast
+// was 24 g of protein, so lunch needs to be bigger"), and reading it meant adding the rows up by
+// eye. The day card above still answers "where am I", the rows still answer "what was in it", and
+// this answers "what was that meal".
+// The shape is deliberately the food row's own numbers column, one tier up: calories in the pixel
+// face over P/C/F beneath, both flush right, so the two line up down the card. Colour comes from
+// --*-on-head and NOT --*-ink: the title bar is the one dark ground in the paper theme and the ink
+// tokens are unreadable on it - see the note beside those tokens in styles.css.
+function MealHeadMacros({ macros }) {
+  const parts = [['P', macros.protein, 'var(--pro-on-head)'], ['C', macros.carbs, 'var(--carb-on-head)'], ['F', macros.fat, 'var(--fat-on-head)']];
+  return (
+    <span className="flex items-baseline gap-[7px] shrink-0 tnum">
+      {parts.map(([k, v, c]) => (
+        // The letter stays in the pixel face and a size down, so the FIGURE is what the eye lands
+        // on. Both carry the macro's colour: a grey letter beside a coloured number reads as two
+        // things rather than as one label.
+        <span key={k} className="flex items-baseline gap-[1px]" style={{ color: c }}>
+          <span className="pf text-[8px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
+          <span className="text-[10.5px] font-semibold">{Math.round(v || 0)}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
 function FoodLog({ db, update, openLog, showToast }) {
   const today = Store.todayISO();
   const [date, setDate] = useState(today);
@@ -12945,7 +12972,8 @@ function FoodLog({ db, update, openLog, showToast }) {
     arr.forEach((x, k) => x.sort_order = k);
   });
   const beginMealDrag = (m, me, x, y) => {
-    setMealDrag({ id: m.id, name: m.name, kcal: Math.round(sumMacros(me).kcal), count: me.length });
+    const mm = sumMacros(me);
+    setMealDrag({ id: m.id, name: m.name, kcal: Math.round(mm.kcal), macros: mm, count: me.length });
     setMealGhost({ x, y });
     if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
   };
@@ -13259,19 +13287,21 @@ function FoodLog({ db, update, openLog, showToast }) {
                   : <button onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="16" /></span></button>}
               </div>
               <div className="flex items-start gap-1.5">
-                {/* The meal's calories, and nothing else. Its protein/carbs/fat used to sit here in
-                    three colours, which made the same breakdown appear at three levels on one
-                    screen: the day card at the top, every meal header, and every food row. Only one
-                    of those changes a decision, so the other two are ink without information.
-                    (No meal-level Density Score either: it would sit on the day's per-calorie scale
-                    while the blocks beside each food sit on the per-100 g one, so a meal holding one
-                    food would disagree with the food inside it.) */}
+                {/* The meal's calories over its macros - see MealHeadMacros. Still no meal-level
+                    Density Score: it would sit on the day's per-calorie scale while the blocks
+                    beside each food sit on the per-100 g one, so a meal holding one food would
+                    disagree with the food inside it. */}
                 {/* An empty meal reads as an invitation, not a report. "0 kcal" is the lazy
                     placeholder the empty-state literature warns about: it states a fact nobody
                     needed and makes an ordinary mid-afternoon look like a failure. The dash is
-                    quieter and truer, and the add action right below it is the way out. */}
-                <div className="pf text-[10px] tnum text-right leading-tight" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
-                  {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
+                    quieter and truer, and the add action right below it is the way out - and it
+                    gets no macro line either, for the same reason: "P0 C0 F0" is that same lazy
+                    placeholder three times over. */}
+                <div className="flex flex-col items-end gap-[2px] leading-tight">
+                  <span className="pf text-[10px] tnum" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
+                    {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
+                  </span>
+                  {me.length > 0 && <MealHeadMacros macros={ms} />}
                 </div>
                 <div className="relative" data-no-mealdrag>
                   <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
@@ -13370,7 +13400,10 @@ function FoodLog({ db, update, openLog, showToast }) {
               <span className="shrink-0" style={{ opacity: 0.55 }}><PixelGrip /></span>
               <span className="pf text-[10px] uppercase truncate" style={{ letterSpacing: '0.12em' }}>{mealDrag.name}</span>
             </div>
-            <div className="pf text-[10px] tnum shrink-0" style={{ color: mealDrag.count ? 'var(--accent)' : 'var(--cardhead-text)', opacity: mealDrag.count ? 1 : 0.55, letterSpacing: '0.1em' }}>{mealDrag.count ? mealDrag.kcal + ' kcal' : '–'}</div>
+            <div className="flex flex-col items-end gap-[2px] shrink-0 leading-tight">
+              <span className="pf text-[10px] tnum" style={{ color: mealDrag.count ? 'var(--accent)' : 'var(--cardhead-text)', opacity: mealDrag.count ? 1 : 0.55, letterSpacing: '0.1em' }}>{mealDrag.count ? mealDrag.kcal + ' kcal' : '–'}</span>
+              {mealDrag.count > 0 && <MealHeadMacros macros={mealDrag.macros} />}
+            </div>
           </div>
         </div>;
       })()}

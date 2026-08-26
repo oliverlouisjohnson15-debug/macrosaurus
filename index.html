@@ -149,6 +149,14 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --pro-ink: #A93826;
   --carb-ink: #2F5E9E;
   --fat-ink: #8A6100;
+  /* The same three hues again, for type on a card's TITLE BAR. The bar is the one dark ground in
+     the paper theme, and the ink tokens above are the dark-on-light pass: measured on
+     --cardhead-bg, the protein red comes out at 2.0:1 and the carb blue at 2.5:1, which is not dim,
+     it is unreadable. These are lifted instead of darkened until they clear 4.5:1 there - 6.2, 6.4
+     and 7.6:1 - exactly the move --on-header-accent makes for the gold on the purple bar. */
+  --pro-on-head: #F0907A;
+  --carb-on-head: #7FB0E8;
+  --fat-on-head: #E8B44A;
 }
 /* ============ THE SAME LAYOUT, AFTER DARK ============ */
 /* Ported verbatim from the Claude Design import's `[data-theme="dark"]` block and its `T` map.
@@ -231,6 +239,11 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --pro-ink: #3DFF62;
   --carb-ink: #35E0E8;
   --fat-ink: #FF4FD0;
+  /* On a #15151c title bar the neon trio already runs 12:1 and up, so after dark the on-bar set is
+     just the fills again. Only paper needed the lift. */
+  --pro-on-head: #3DFF62;
+  --carb-on-head: #35E0E8;
+  --fat-on-head: #FF4FD0;
 }
 /* The hairline between meter cells is BLACK after dark, not the border colour: on a near-black
    track a #2f2f3a divider disappears, so the import switches it to rgba(0,0,0,0.85). */
@@ -34962,6 +34975,43 @@ function PixelGrip() {
     height: "1"
   })));
 }
+// THE MEAL'S MACROS, on its title bar. A meal heading used to report calories and nothing else, on
+// the argument that the day card, the meal header and the food row would otherwise say the same
+// thing at three levels of one screen. That was right about the repetition and wrong about which
+// level to cut: the meal is the one of the three you actually decide anything at ("that breakfast
+// was 24 g of protein, so lunch needs to be bigger"), and reading it meant adding the rows up by
+// eye. The day card above still answers "where am I", the rows still answer "what was in it", and
+// this answers "what was that meal".
+// The shape is deliberately the food row's own numbers column, one tier up: calories in the pixel
+// face over P/C/F beneath, both flush right, so the two line up down the card. Colour comes from
+// --*-on-head and NOT --*-ink: the title bar is the one dark ground in the paper theme and the ink
+// tokens are unreadable on it - see the note beside those tokens in styles.css.
+function MealHeadMacros({
+  macros
+}) {
+  const parts = [['P', macros.protein, 'var(--pro-on-head)'], ['C', macros.carbs, 'var(--carb-on-head)'], ['F', macros.fat, 'var(--fat-on-head)']];
+  return /*#__PURE__*/React.createElement("span", {
+    className: "flex items-baseline gap-[7px] shrink-0 tnum"
+  }, parts.map(([k, v, c]) =>
+  /*#__PURE__*/
+  // The letter stays in the pixel face and a size down, so the FIGURE is what the eye lands
+  // on. Both carry the macro's colour: a grey letter beside a coloured number reads as two
+  // things rather than as one label.
+  React.createElement("span", {
+    key: k,
+    className: "flex items-baseline gap-[1px]",
+    style: {
+      color: c
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px]",
+    style: {
+      letterSpacing: '0.06em'
+    }
+  }, k), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10.5px] font-semibold"
+  }, Math.round(v || 0)))));
+}
 function FoodLog({
   db,
   update,
@@ -35369,10 +35419,12 @@ function FoodLog({
     arr.forEach((x, k) => x.sort_order = k);
   });
   const beginMealDrag = (m, me, x, y) => {
+    const mm = sumMacros(me);
     setMealDrag({
       id: m.id,
       name: m.name,
-      kcal: Math.round(sumMacros(me).kcal),
+      kcal: Math.round(mm.kcal),
+      macros: mm,
       count: me.length
     });
     setMealGhost({
@@ -36086,13 +36138,17 @@ function FoodLog({
       })))), /*#__PURE__*/React.createElement("div", {
         className: "flex items-start gap-1.5"
       }, /*#__PURE__*/React.createElement("div", {
-        className: "pf text-[10px] tnum text-right leading-tight",
+        className: "flex flex-col items-end gap-[2px] leading-tight"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pf text-[10px] tnum",
         style: {
           color: me.length ? 'var(--accent)' : 'var(--cardhead-text)',
           opacity: me.length ? 1 : 0.55,
           letterSpacing: '0.1em'
         }
-      }, me.length ? Math.round(ms.kcal) + ' kcal' : '–'), /*#__PURE__*/React.createElement("div", {
+      }, me.length ? Math.round(ms.kcal) + ' kcal' : '–'), me.length > 0 && /*#__PURE__*/React.createElement(MealHeadMacros, {
+        macros: ms
+      })), /*#__PURE__*/React.createElement("div", {
         className: "relative",
         "data-no-mealdrag": true
       }, /*#__PURE__*/React.createElement("button", {
@@ -36377,13 +36433,17 @@ function FoodLog({
         letterSpacing: '0.12em'
       }
     }, mealDrag.name)), /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[10px] tnum shrink-0",
+      className: "flex flex-col items-end gap-[2px] shrink-0 leading-tight"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[10px] tnum",
       style: {
         color: mealDrag.count ? 'var(--accent)' : 'var(--cardhead-text)',
         opacity: mealDrag.count ? 1 : 0.55,
         letterSpacing: '0.1em'
       }
-    }, mealDrag.count ? mealDrag.kcal + ' kcal' : '–')));
+    }, mealDrag.count ? mealDrag.kcal + ' kcal' : '–'), mealDrag.count > 0 && /*#__PURE__*/React.createElement(MealHeadMacros, {
+      macros: mealDrag.macros
+    }))));
   })());
 }
 // Parse a stored qty label (e.g. "150 g", "2 cans", "1 can (500 ml)") back into amount + unit + noun.
