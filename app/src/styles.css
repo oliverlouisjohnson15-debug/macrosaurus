@@ -106,6 +106,14 @@
   --pro-ink: #A93826;
   --carb-ink: #2F5E9E;
   --fat-ink: #8A6100;
+  /* The same three hues again, for type on a card's TITLE BAR. The bar is the one dark ground in
+     the paper theme, and the ink tokens above are the dark-on-light pass: measured on
+     --cardhead-bg, the protein red comes out at 2.0:1 and the carb blue at 2.5:1, which is not dim,
+     it is unreadable. These are lifted instead of darkened until they clear 4.5:1 there - 6.2, 6.4
+     and 7.6:1 - exactly the move --on-header-accent makes for the gold on the purple bar. */
+  --pro-on-head: #F0907A;
+  --carb-on-head: #7FB0E8;
+  --fat-on-head: #E8B44A;
 }
 /* ============ THE SAME LAYOUT, AFTER DARK ============ */
 /* Ported verbatim from the Claude Design import's `[data-theme="dark"]` block and its `T` map.
@@ -188,6 +196,11 @@
   --pro-ink: #3DFF62;
   --carb-ink: #35E0E8;
   --fat-ink: #FF4FD0;
+  /* On a #15151c title bar the neon trio already runs 12:1 and up, so after dark the on-bar set is
+     just the fills again. Only paper needed the lift. */
+  --pro-on-head: #3DFF62;
+  --carb-on-head: #35E0E8;
+  --fat-on-head: #FF4FD0;
 }
 /* The hairline between meter cells is BLACK after dark, not the border colour: on a near-black
    track a #2f2f3a divider disappears, so the import switches it to rgba(0,0,0,0.85). */
