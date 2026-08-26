@@ -53308,26 +53308,67 @@ function App() {
   }, [session]);
   // Subscription status + this month's AI usage (drives the paywall, premium badge and free meter).
   // The webhook writes the subscription row; the user may read only their own (RLS).
+  // A FAILED read is not a free account. Both reads go out with the current access token, and a PWA
+  // resumed from background can fire them in the window where that token has just expired: the reads
+  // 401, and treating that as "no subscription row" silently demotes a paying account to the free
+  // tier until the next full reload. So errors retry with backoff and leave the last known state
+  // alone, and coming back to the foreground re-reads.
   useEffect(() => {
+    if (DEMO) {
+      setSub(null);
+      setAiCalls(0);
+      return;
+    } // demo is local-only; it has no cloud rows to read
     if (!session || !supa) {
       setSub(null);
       setAiCalls(0);
       return;
     }
-    let cancelled = false;
+    let cancelled = false,
+      tries = 0,
+      timer = null;
     const uid = session.user.id;
     const period = new Date().toISOString().slice(0, 7);
-    const load = () => Promise.all([supa.from('subscriptions').select('status, plan, trial_end, current_period_end, cancel_at_period_end').eq('user_id', uid).maybeSingle(), supa.from('ai_usage').select('calls').eq('user_id', uid).eq('period', period).maybeSingle()]).then(function (res) {
-      if (cancelled) return;
-      setSub(res[0] && res[0].data || null);
-      setAiCalls(Number(res[1] && res[1].data && res[1].data.calls || 0));
-    }, function () {});
+    const RETRY_MS = [800, 2500, 6000, 15000];
+    function retry() {
+      if (cancelled || tries >= RETRY_MS.length) return;
+      timer = setTimeout(load, RETRY_MS[tries++]);
+    }
+    function load() {
+      return Promise.all([supa.from('subscriptions').select('status, plan, trial_end, current_period_end, cancel_at_period_end').eq('user_id', uid).maybeSingle(), supa.from('ai_usage').select('calls').eq('user_id', uid).eq('period', period).maybeSingle()]).then(function (res) {
+        if (cancelled) return;
+        // maybeSingle() reports a genuine failure (401 on an expired token, network, RLS) in .error,
+        // and an absent row as data: null. Only the second one means "free".
+        if (res[0] && res[0].error || res[1] && res[1].error) {
+          retry();
+          return;
+        }
+        tries = 0;
+        setSub(res[0].data || null);
+        setAiCalls(Number(res[1].data && res[1].data.calls || 0));
+      }, function () {
+        if (!cancelled) retry();
+      });
+    }
     load();
-    window.MREFRESH_SUB = load; // so the checkout-return handler can re-fetch once the webhook lands
+    window.MREFRESH_SUB = function () {
+      tries = 0;
+      return load();
+    }; // checkout-return handler re-fetches once the webhook lands
+    // Resuming the PWA is the moment the token was refreshed underneath us, so re-read then.
+    const onVisible = function () {
+      if (document.visibilityState === 'visible') {
+        tries = 0;
+        load();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return function () {
       cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
       try {
-        if (window.MREFRESH_SUB === load) delete window.MREFRESH_SUB;
+        if (window.MREFRESH_SUB) delete window.MREFRESH_SUB;
       } catch (_) {}
     };
   }, [session]);
@@ -53405,10 +53446,12 @@ function App() {
     };
   }, [session, !!db]);
   // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
-  // can gate an upsell without threading the flag through every parent. Read at render time.
-  useEffect(() => {
-    window.MISPREMIUM = isPremium;
-  }, [isPremium]);
+  // can gate an upsell without threading the flag through every parent. Read at render time, so it
+  // must be written during render too: from an effect it lands after the commit, and every reader in
+  // the render where Premium first arrives still sees the old value. Writing a global is not state,
+  // so nothing re-renders to correct them, and the locked variant sticks until something else
+  // happens to re-render that subtree.
+  window.MISPREMIUM = isPremium;
   // Stamp the day Premium started, so quality scoring only ever reaches back to the day someone
   // actually subscribed and never spends AI calls filling in food they logged as a free user.
   // Cleared when Premium lapses, so a later resubscription starts its own clock rather than
