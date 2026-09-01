@@ -21,16 +21,47 @@ commit the signing key.**
 
 ## Account
 
-Register as an **organisation** using the D-U-N-S number, not as a personal account.
-Personal accounts created after 13 Nov 2023 must run a closed test with 12 testers
-opted in continuously for 14 days before they can apply for production access.
-Organisation accounts are exempt. One-off £20 registration fee.
+Macrosaurus is a sole trader, not a registered company, so the **organisation**
+account type is not available: Play requires a certificate of incorporation, VAT
+registration certificate, or charity registration to verify an organisation, and a
+D-U-N-S number alone does not satisfy it. D&B issues DUNS numbers to sole traders,
+which is why one exists without any of those documents.
+
+Two routes, and this is the one real decision in the whole launch:
+
+**Incorporate, then register as an organisation.** Registering a limited company with
+Companies House is done online and usually approved within 24 hours; the certificate of
+incorporation is then downloadable free from the company's Filing history on the public
+register. Check the current digital incorporation fee on GOV.UK — it has risen twice
+recently. This keeps the account exempt from the closed-testing requirement below.
+
+**Register a personal account.** No documents beyond personal ID, but personal accounts
+created after 13 Nov 2023 must run a closed test with **12 testers opted in continuously
+for 14 days** before they can apply for production access. The 14 days only start once
+12 testers are actually opted in, so a tester dropping out resets progress. Budget three
+to four weeks in practice, and see step 0 below.
+
+Either way: one-off £20 registration fee, and identity verification takes a few days.
+
+### Step 0 (personal account only): closed testing
+
+If going the personal route, this is the long pole and should start the moment the
+account is verified — before the store listing is written, since a closed test needs
+only an uploaded build.
+
+- Create a **Closed testing** track and upload the first `.aab`
+- Recruit 12 testers by Google account email. They must opt in via the test link and
+  stay opted in; Play counts continuous days, not unique installs
+- After 14 continuous days, the *Apply for production access* form unlocks. It asks how
+  the test was run and what was learned, so keep notes on tester feedback as it comes in
 
 ## Steps
 
 ### 1. Register the developer account
-Organisation type, D-U-N-S number, identity verification. Verification can take a few
-days. Set the public developer name and support email (`olly@macrosaurus.com`).
+At https://play.google.com/console/signup, using the Google account that should own the
+app long-term — it owns the signing keys and payouts and is painful to change later.
+Account type per the decision above. Identity verification takes a few days. Set the
+public developer name and support email (`olly@macrosaurus.com`).
 
 ### 2. Create the app in Play Console
 App name **Macrosaurus**, default language **English (United Kingdom)**, type **App**,
