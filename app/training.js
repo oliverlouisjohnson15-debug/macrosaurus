@@ -3754,6 +3754,260 @@
     return n;
   }
 
+  /* ---- changing a block from a sentence ---------------------------------------------------------
+   * "Swap the barbell incline for the machine press, my gym only has one bench" is a perfectly clear
+   * instruction and, until this existed, the only way to carry it out was fourteen taps: find the
+   * movement, open the picker, search, pick, repeat on the day it also appears on, then remember it
+   * has to hold for four weeks. The written programmes are the worst case, because they are the
+   * blocks people least want to rebuild and most often cannot run exactly as printed - a gym without
+   * a pendulum squat does not make the programme wrong, it makes one line of it wrong.
+   *
+   * So a model reads the sentence and writes down what it wants changed, and THIS applies it. The
+   * split is the same one the rest of the module keeps: the model proposes, the engine decides. It
+   * proposes in the only vocabulary there is - a fixed list of operations, movements named in words -
+   * and everything else is settled here, where it is testable:
+   *
+   *   - Every movement name is resolved against the real library. A name that resolves to nothing is
+   *     REJECTED rather than minted as a custom exercise. Importing somebody else's plan mints them,
+   *     because the alternative is dropping a line of their programme; here the person already has a
+   *     working block and quietly inventing a movement nobody can look up is the worse outcome.
+   *   - Every number goes through setExerciseTarget, so the clamps, the rep-range ordering and the
+   *     "last set is never easier" rule apply exactly as they do to a stepper tap.
+   *   - Weeks already trained are never touched. `fromWeek` is the floor every other editing route
+   *     in this module uses, and an instruction that only reaches week four of four says so.
+   *   - A change reaches EVERY remaining week, because the person is editing a programme rather than
+   *     a Tuesday. Set counts move by their delta rather than to a flat number, so a block that ramps
+   *     three-four-five sets still ramps after being asked for one more set.
+   *
+   * It mutates nothing it was handed: the block comes back as a copy, so a caller can show what
+   * would happen and put the old one back. `applied` and `rejected` are plain sentences, because the
+   * whole feature rests on the person being able to read what it did before they keep it.
+   */
+  // Monday-first, matching this module's own dayOfWeek everywhere else. Written out here rather than
+  // borrowed from the app, because training.js is pure and is tested on its own.
+  var DOW_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var TWEAK_OPS = ['swap', 'add', 'remove', 'sets', 'reps', 'rest', 'effort', 'day', 'rename', 'choice'];
+  // A ceiling on one instruction, so a misread sentence cannot rewrite a block wholesale. Twenty-four
+  // is comfortably more than any real request ("no barbell anywhere" is about eight) and far less
+  // than a programme.
+  var TWEAK_MAX_OPS = 24;
+
+  // The sessions an instruction is talking about: a day name, matched loosely, across every week the
+  // edit is allowed to reach. No name means the whole block.
+  function tweakSessions(block, dayName, fromWeek) {
+    var all = ((block && block.sessions) || []).filter(function (s) {
+      return fromWeek == null || s.week >= fromWeek;
+    });
+    var q = norm(dayName);
+    if (!q) return all;
+    var exact = all.filter(function (s) { return norm(s.name) === q; });
+    if (exact.length) return exact;
+    // "upper" for "Upper 1", "arms" for "Arms and delts". A day name is short and people shorten it
+    // further, and refusing the whole instruction over a missing digit helps nobody.
+    return all.filter(function (s) {
+      var n = norm(s.name);
+      return n.indexOf(q) === 0 || q.indexOf(n) === 0;
+    });
+  }
+  // The movement an instruction names, resolved against what is actually IN the block first. A person
+  // saying "the squat" means the squat in front of them, and the library's nearest match to a bare
+  // "squat" is not necessarily the one their programme prescribes.
+  function tweakExercise(block, name, custom, fromWeek) {
+    var q = cleanName(name);
+    if (!q) return null;
+    var inBlock = {};
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      (s.exercises || []).forEach(function (e) { inBlock[e.exerciseId] = 1; });
+    });
+    var ids = Object.keys(inBlock);
+    var i;
+    for (i = 0; i < ids.length; i++) {
+      var ex = byId(ids[i], custom);
+      if (ex && norm(ex.name) === q) return ids[i];
+    }
+    var d = resolveDetail(name, custom);
+    // A loose match against the whole library is how "chest fly" becomes a cable crossover nobody
+    // asked for. The import screen can afford a shaky read because it shows every line for checking;
+    // this applies straight to a block, so it takes the confident matches only.
+    if (d && (d.how === 'exact' || d.how === 'alias' || d.score >= 0.55)) return d.id;
+    return null;
+  }
+  // Rows in a session that are the named movement. Matched on the movement rather than on one row,
+  // exactly as the block editor's own replace does: the same lift can appear twice in a day.
+  function tweakRows(session, exerciseId) {
+    return (session.exercises || []).filter(function (e) { return e.exerciseId === exerciseId; });
+  }
+  function tweakName(id, custom) { var e = byId(id, custom); return e ? e.name : id; }
+  // "in every week", "in weeks 2 to 4", "in Upper 1" - said once at the end of a sentence so the
+  // person can see how far a change reached without counting sessions.
+  function tweakReach(sessions, block) {
+    var weeks = uniq(sessions.map(function (s) { return s.week; })).sort(function (a, b) { return a - b; });
+    var days = uniq(sessions.map(function (s) { return s.name; }));
+    var total = uniq(((block && block.sessions) || []).map(function (s) { return s.week; })).length;
+    var where = days.length === 1 ? days[0] : days.length + ' days';
+    if (weeks.length >= total) return where + ', all ' + total + ' weeks';
+    if (weeks.length === 1) return where + ', week ' + weeks[0];
+    return where + ', weeks ' + weeks[0] + '-' + weeks[weeks.length - 1];
+  }
+
+  function blockTweak(block, ops, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var fromWeek = opts.fromWeek == null ? null : opts.fromWeek;
+    var out = JSON.parse(JSON.stringify(block || {}));
+    var applied = [], rejected = [];
+    var list = (ops || []).filter(function (o) { return o && TWEAK_OPS.indexOf(o.op) !== -1; });
+    if (list.length > TWEAK_MAX_OPS) {
+      rejected.push('That came back as ' + list.length + ' separate changes, which is more than one instruction should be. Nothing was applied - try asking for one thing at a time.');
+      return { block: JSON.parse(JSON.stringify(block || {})), applied: applied, rejected: rejected, ops: 0 };
+    }
+    list.forEach(function (o) {
+      var sessions = tweakSessions(out, o.day, fromWeek);
+      if (!sessions.length) {
+        rejected.push(o.day ? 'There is no "' + o.day + '" in this block.' : 'There is nothing left in this block to change.');
+        return;
+      }
+      if (o.op === 'rename') {
+        var newName = String(o.name || '').trim().slice(0, 40);
+        if (!newName) { rejected.push('A day cannot be renamed to nothing.'); return; }
+        sessions.forEach(function (s) { s.name = newName; });
+        applied.push('Renamed ' + o.day + ' to ' + newName + '.');
+        return;
+      }
+      if (o.op === 'day') {
+        var dow = Math.round(+o.dayOfWeek);
+        if (!(dow >= 0 && dow <= 6)) { rejected.push('"' + o.day + '" was given a weekday I could not read.'); return; }
+        var moved = 0;
+        sessions.forEach(function (s) { if (setSessionDay(s, dow)) moved++; });
+        if (!moved) { rejected.push('Could not move "' + o.day + '".'); return; }
+        applied.push('Moved ' + (sessions[0].name || o.day) + ' to ' + DOW_NAME[dow] + '.');
+        return;
+      }
+      if (o.op === 'choice') {
+        var chosen = tweakExercise(out, o.exercise, custom, null);
+        var slot = blockChoices(out, custom).filter(function (c) {
+          return norm(c.label).indexOf(norm(o.label || '')) !== -1 || (c.options || []).indexOf(chosen) !== -1;
+        })[0];
+        if (!chosen || !slot) { rejected.push('Could not answer the open slot with "' + (o.exercise || '') + '".'); return; }
+        applyChoice(out, slot.key, chosen);
+        applied.push(slot.label + ': ' + tweakName(chosen, custom) + '.');
+        return;
+      }
+      if (o.op === 'add') {
+        var addId = tweakExercise(out, o.exercise, custom, null);
+        if (!addId) { rejected.push('There is no "' + (o.exercise || '') + '" in the exercise library, so I left it out.'); return; }
+        if (!o.day) { rejected.push('"' + (o.exercise || '') + '" was not given a day to go on, so I left it out.'); return; }
+        var added = 0;
+        sessions.forEach(function (s) {
+          var item = addExerciseToSession(s, addId, custom, addId + '_t' + s.id + '_' + (s.exercises || []).length, out.intensity);
+          if (!item) return;
+          // Prescribed the way THIS block prescribes things, so a movement dropped into a min-max
+          // block does not arrive carrying the volume model's ramp. Same rule as the builder's own
+          // "+ Add movement", which is the control this is standing in for.
+          var fresh = newItemFor(addId, { style: out.style, week: s.week, window: s.window, custom: custom, intensity: out.intensity });
+          item.target = fresh.target;
+          setExerciseTarget(s, item.id, {
+            sets: o.sets == null ? null : o.sets,
+            repLow: o.repLow == null ? null : o.repLow,
+            repHigh: o.repHigh == null ? null : o.repHigh,
+          });
+          added++;
+        });
+        if (!added) { rejected.push('Could not add ' + tweakName(addId, custom) + '.'); return; }
+        applied.push('Added ' + tweakName(addId, custom) + ' to ' + tweakReach(sessions, out) + '.');
+        return;
+      }
+      // Everything below names a movement that has to already be in the block.
+      var id = tweakExercise(out, o.exercise || o.from, custom, fromWeek);
+      if (!id) {
+        rejected.push('There is no "' + (o.exercise || o.from || '') + '" in the weeks I am allowed to change.');
+        return;
+      }
+      var touched = sessions.filter(function (s) { return tweakRows(s, id).length > 0; });
+      if (!touched.length) {
+        rejected.push(tweakName(id, custom) + ' is not in ' + (o.day ? '"' + o.day + '"' : 'the weeks I am allowed to change') + '.');
+        return;
+      }
+      if (o.op === 'remove') {
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { removeExerciseFromSession(s, e.id); });
+        });
+        applied.push('Took ' + tweakName(id, custom) + ' out of ' + tweakReach(touched, out) + '.');
+        return;
+      }
+      if (o.op === 'swap') {
+        var toId = tweakExercise(out, o.to, custom, null);
+        if (!toId) { rejected.push('There is no "' + (o.to || '') + '" in the exercise library, so ' + tweakName(id, custom) + ' was left alone.'); return; }
+        if (toId === id) { rejected.push(tweakName(id, custom) + ' is already what it was asked to become.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { replaceExercise(e, toId); });
+        });
+        applied.push(tweakName(id, custom) + ' → ' + tweakName(toId, custom) + ' (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'sets') {
+        var want = Math.round(+o.sets);
+        if (!(want >= SETS_MIN && want <= SETS_MAX)) { rejected.push('"' + o.sets + '" is not a set count I can use.'); return; }
+        // The DELTA, not the number. A block that ramps two, three, four sets across its weeks is
+        // still meant to ramp after somebody asks for one more set of rows; writing the flat number
+        // into every week would quietly delete the progression the block was built on.
+        var base = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            if (base == null) base = e.target.sets;
+          });
+        });
+        var delta = want - base;
+        if (!delta) { rejected.push(tweakName(id, custom) + ' is already on ' + want + ' sets.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { setExerciseTarget(s, e.id, { sets: e.target.sets + delta }); });
+        });
+        applied.push(tweakName(id, custom) + ': ' + base + ' → ' + want + ' sets (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'reps') {
+        if (o.repLow == null && o.repHigh == null) { rejected.push('No rep range was given for ' + tweakName(id, custom) + '.'); return; }
+        var shown = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            var t = setExerciseTarget(s, e.id, { repLow: o.repLow, repHigh: o.repHigh });
+            if (t && !shown) shown = t.repLow + '-' + t.repHigh;
+          });
+        });
+        applied.push(tweakName(id, custom) + ': ' + shown + ' reps (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'rest') {
+        var secs = Math.round(+o.restSec);
+        if (!(secs >= 15 && secs <= 600)) { rejected.push('"' + o.restSec + '" is not a rest I can use.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { setExerciseTarget(s, e.id, { restSec: secs }); });
+        });
+        applied.push(tweakName(id, custom) + ': rest ' + secs + 's (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'effort') {
+        if (o.rir == null && o.rirLast == null) { rejected.push('No effort target was given for ' + tweakName(id, custom) + '.'); return; }
+        var eff = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            var t = setExerciseTarget(s, e.id, { rir: o.rir, rirLast: o.rirLast });
+            if (t && !eff) eff = t;
+          });
+        });
+        applied.push(tweakName(id, custom) + ': ' + (eff.rirLast != null && eff.rirLast !== eff.rir
+          ? eff.rir + ' RIR, last set ' + eff.rirLast : eff.rir + ' RIR')
+          + ' (' + tweakReach(touched, out) + ').');
+        return;
+      }
+    });
+    // A superset whose partner has been taken out is not a superset, and a block that ends up with a
+    // row labelled A1 and nothing labelled A2 is a block that reads wrong on every screen.
+    (out.sessions || []).forEach(function (s) { dropBrokenSupersets(s); });
+    return { block: out, applied: applied, rejected: rejected, ops: list.length };
+  }
+
   /* ---- a programme that arrives as a spreadsheet -------------------------------------------------
    * A written programme in a spreadsheet does not need a model to read it. It has columns, and the
    * columns say what they mean: the exercise, the working sets, the rep range, the reps in reserve,
@@ -5991,6 +6245,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    blockTweak: blockTweak, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
     PROGRAMMES: PROGRAMMES, programmeOf: programmeOf, programmeBlock: programmeBlock, programmeSummary: programmeSummary,

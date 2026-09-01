@@ -97,6 +97,12 @@ function featureOf(prompt: string): string {
   // The tweak pass that corrects an import from the person's own notes. Same feature and same gate as
   // the read itself: it is the second half of importing a plan, not a thing of its own.
   if (p.includes('You are a strength coach correcting a training plan')) return 'workout_import';
+  // Changing a block the person already owns from a sentence ("swap the pendulum squat, my gym has
+  // not got one"). Its own label rather than workout_import: it is the same paid training feature but
+  // a different act - an import reads a plan in, this edits one that is already here - and they are
+  // worth telling apart in ai_logs, since this one carries the whole exercise library on every call.
+  // Signature must stay in step with BLOCK_TWEAK_PROMPT in app/src/prompts.jsx.
+  if (p.includes('You are a strength coach adjusting a training block')) return 'block_tweak';
   if (p.includes('You are a strength coach looking at a volume audit')) return 'coverage_advice';
   if (p.includes('You are a strength coach writing up a finished')) return 'block_review';
   // The wizard's "tell the coach" shortcut: fills in the days/experience/equipment form from a
@@ -224,6 +230,12 @@ Deno.serve(async (req) => {
           return json({ error: {
             type: 'premium_required', feature: 'workout_import',
             message: 'Importing a workout from a video, PDF or spreadsheet is a Premium feature.',
+          } }, 402);
+        }
+        if (feature === 'block_tweak') {
+          return json({ error: {
+            type: 'premium_required', feature: 'block_tweak',
+            message: 'Changing a training block in your own words is a Premium feature.',
           } }, 402);
         }
         if (feature === 'coverage_advice') {
