@@ -231,9 +231,18 @@ Deno.serve(async (req) => {
 
       case 'reset_user': {
         if (!targetId) return json({ error: { message: 'userId required.' } }, 400);
-        const { error } = await admin.from('user_state').update({ data: {}, updated_at: new Date().toISOString() }).eq('user_id', targetId);
+        // The blob must carry the reset watermark, exactly as the in-app "Reset all data" does. The
+        // client never takes the cloud copy wholesale: it merges its own IndexedDB snapshot with it
+        // (Store.mergeStates), and the ONLY thing that lets the empty side of that merge win is _wipe.
+        // Written as a bare {} this used to be a no-op -- with no watermark the user's own device saw
+        // a copy with no _rev, kept its full history as the newer side, and pushed every last entry
+        // straight back up on its next save. _rev is stamped to the same instant so the row also reads
+        // as the newest revision to anything that only compares those. Store.migrate expands the rest
+        // into a default state on load, so nothing else needs to be spelled out here.
+        const t = Date.now();
+        const { error } = await admin.from('user_state').update({ data: { _wipe: t, _rev: t }, updated_at: new Date().toISOString() }).eq('user_id', targetId);
         if (error) throw error;
-        await audit('reset_user', targetId);
+        await audit('reset_user', targetId, { wipe: t });
         return json({ ok: true });
       }
 

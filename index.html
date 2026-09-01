@@ -3498,13 +3498,29 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     if (!a) return b || null;
     if (!b) return a;
     // Reset watermark. "Reset all data" stamps the fresh, empty baseline with _wipe = t (and _rev = t).
-    // Any copy whose entries all predate t (both its _rev and _wipe are < t) is a pre-reset snapshot:
-    // its entries must NOT be unioned back in, or the union below would silently undo the reset (the
-    // exact bug where a wiped log/engine reappears after closing and reopening the app). The post-reset
-    // baseline, and any edit descended from it, carries _wipe forward and wins wholesale.
+    // A copy that does not carry that watermark is not descended from the reset: it was loaded before
+    // it, and everything it holds is the history the reset threw away. Its entries must NOT be unioned
+    // back in, or the union below would silently undo the reset (the exact bug where a wiped log or
+    // engine reappears after closing and reopening the app). The post-reset baseline, and any edit
+    // descended from it, carries _wipe forward and wins wholesale.
+    //
+    // The test is the WATERMARK ALONE, deliberately, and not "_wipe and _rev both predate the wipe" as
+    // it once was. A second tab or a second device that was open across the reset keeps editing its
+    // pre-reset copy, so its _rev races past t while its _wipe stays 0, and that copy then passed the
+    // old test and unioned every cleared collection straight back. That is the whole of the reported
+    // bug: the reset appeared to work and the history was back at the next sync from the other device.
+    // Comparing only _wipe also takes the two devices' clocks out of it - the values are compared to
+    // each other, never to a local now() - so skew can no longer decide whether a reset holds.
+    //
+    // The price is that a device which was offline ACROSS the reset loses whatever it logged while it
+    // was away, because nothing distinguishes those entries from the pre-reset history sitting beside
+    // them in the same copy. That is the right way round: "Reset all data" is the blunt instrument (see
+    // freshStart below for the one that draws a line instead), and a reset that quietly comes undone is
+    // the worse failure. Everything a device holds AFTER it has merged once carries the watermark, so
+    // this only ever bites the copy that never saw the reset at all.
     var wipe = Math.max((a._wipe || 0), (b._wipe || 0));
     if (wipe) {
-      var preWipe = function (s) { return (s._wipe || 0) < wipe && (s._rev || 0) < wipe; };
+      var preWipe = function (s) { return (s._wipe || 0) < wipe; };
       if (preWipe(a)) return b;
       if (preWipe(b)) return a;
     }

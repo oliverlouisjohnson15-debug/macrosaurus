@@ -420,6 +420,44 @@ test('mergeStates: data logged AFTER a reset is kept, and two post-reset copies 
   assert.deepStrictEqual(m2.log_entries.map(e => e.id), ['x']);
 });
 
+test('mergeStates: a tab left open across a reset cannot resurrect the history', () => {
+  // The reset held on the device that pressed it, then the phone -- open the whole time, so it never
+  // loaded the watermarked baseline -- logged one meal and synced. Its copy carries NO _wipe and a
+  // _rev newer than the reset, which is exactly what used to slip past the guard and union every old
+  // entry back in. The watermark alone decides: the copy that never saw the reset loses wholesale.
+  const t = 1000;
+  const reset = Store.defaultState(); reset._rev = t; reset._wipe = t;
+  const stale = { _rev: t + 500,  // edited AFTER the reset, but descended from before it
+    log_entries: [{ id: 'a', date: '2026-07-08' }, { id: 'fresh', date: '2026-07-20' }],
+    weight_entries: [{ id: 'w1', date: '2026-07-08' }], expenditure: { kcal: 2650, n: 4 } };
+  const m = Store.mergeStates(stale, reset);
+  assert.deepStrictEqual(m.log_entries, []);
+  assert.deepStrictEqual(m.weight_entries, []);
+  assert.strictEqual(m.expenditure, null);
+  assert.strictEqual(m._wipe, t);
+  assert.deepStrictEqual(Store.mergeStates(reset, stale).log_entries, []); // order must not matter
+});
+
+test('mergeStates: the admin panel reset blob is enough to wipe a device', () => {
+  // What admin-api's reset_user writes: an otherwise EMPTY blob carrying just the watermark and the
+  // revision (see the case in supabase/functions/admin-api/index.ts). Written as a bare {} it had no
+  // watermark at all, so the user's own device kept its history as the newer side and pushed the lot
+  // back up: the admin reset looked like it worked and changed nothing.
+  const local = { _rev: 9000,
+    log_entries: [{ id: 'a', date: '2026-07-08' }], weight_entries: [{ id: 'w1', date: '2026-07-08' }],
+    checkins: [{ date: '2026-07-04' }], expenditure: { kcal: 2650, n: 4 } };
+  const t = local._rev + 1;
+  const m = Store.migrate(Store.mergeStates(local, { _wipe: t, _rev: t }));
+  assert.deepStrictEqual(m.log_entries, []);
+  assert.deepStrictEqual(m.weight_entries, []);
+  assert.deepStrictEqual(m.checkins, []);
+  assert.strictEqual(m.expenditure, null);
+  assert.strictEqual(m._wipe, t);          // and the device keeps the watermark, so it stays wiped
+  assert.ok(m.meal_templates.length > 0);  // migrate rebuilt the rest of a default account
+  // The old bare-{} blob is the regression this guards: no watermark, nothing to wipe with.
+  assert.deepStrictEqual(Store.mergeStates(local, {}).log_entries.map(e => e.id), ['a']);
+});
+
 test('mergeStates: null-safe', () => {
   const s = { _rev: 5, log_entries: [{ id: 'a' }] };
   assert.strictEqual(Store.mergeStates(null, s), s);
