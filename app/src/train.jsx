@@ -1296,6 +1296,75 @@ function draftAsPlan(draft, custom) {
   };
 }
 
+/* ---- changing a block you own, from a sentence -------------------------------------------------
+ * The block goes out as a description and comes back as a list of operations, never as a plan (see
+ * BLOCK_TWEAK_PROMPT for why). Training.blockTweak applies them: it resolves every movement name
+ * against the real library, clamps every number through setExerciseTarget, and refuses to touch a
+ * week that has already been trained. So the worst a bad read can do here is propose something that
+ * gets rejected and reported, which is a sentence on screen rather than a broken block.
+ */
+async function aiTweakBlock(payload, wish) {
+  const j = await aiRequest({
+    model: AI_MODEL, max_tokens: 2000,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: BLOCK_TWEAK_PROMPT, cache_control: { type: 'ephemeral' } },
+      // The library is nine kilobytes and identical on every call, so it is its own cached block:
+      // without a breakpoint here every tweak pays for it again.
+      { type: 'text', text: 'THE MOVEMENTS THE APP KNOWS:\n' + payload.library.join('\n'), cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'THE BLOCK:\n' + JSON.stringify(payload.block) },
+      { type: 'text', text: 'THE VOLUME AUDIT FOR ONE WEEK OF IT:\n' + JSON.stringify(payload.audit) },
+      { type: 'text', text: 'ABOUT THEM AND THEIR GYM:\n' + JSON.stringify(payload.about) },
+      { type: 'text', text: 'WHAT THEY WANT CHANGED:\n' + String(wish || '').slice(0, 1500) },
+    ] }],
+  }, { timeoutMs: 120000 });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
+  return parseModelJSON(txt);
+}
+
+/* What the model is shown. One week of the block, because every week has the same shape and sending
+ * four copies of it buys nothing but tokens; the audit, so a request for "more shoulders" is answered
+ * against this person's own ceiling rather than a general opinion; the open slots, so it can answer
+ * one; and the movement list, because a swap it cannot name is a swap that gets rejected downstream.
+ * Library names are the CANONICAL ones - the generated variations resolve through aliases anyway, and
+ * listing all four hundred of them makes the menu harder to choose from, not easier. */
+function blockAsPlan(block, db, week) {
+  const t = tdb(db);
+  const targets = trainTargets(db, block ? block.style : undefined);
+  const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
+  const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  const gym = currentGym(db);
+  return {
+    block: {
+      name: block.name, weeks: block.weeks, style: block.style || 'minmax',
+      weekShown: week, unitOfEffort: 'reps in reserve, 0 means to failure',
+      days: sessions.map(s => ({
+        name: s.name, weekday: WEEKDAYS_FULL[s.dayOfWeek] || null,
+        exercises: Training.sessionItems(s).map(e => ({
+          name: (Training.byId(e.exerciseId, t.custom) || {}).name || e.exerciseId,
+          sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
+          rir: e.target.rir, rirLast: e.target.rirLast == null ? null : e.target.rirLast,
+          restSec: e.target.restSec,
+          openSlot: e.choice ? (e.choice.label || null) : null,
+        })),
+      })),
+    },
+    audit: cov.rows.map(r => ({ muscle: r.label, sets: r.sets, mev: r.mev, mav: r.mav, mrv: r.mrv })),
+    about: {
+      experience: t.prefs.experience,
+      equipment: gym ? Training.gymEquipment(gym).equipment : (t.prefs.equipment || []),
+      gym: gym ? gym.name : null,
+      dislikes: (t.prefs.dislikes || []).map(id => (Training.byId(id, t.custom) || {}).name || id),
+      minutesPerSession: t.prefs.sessionMinutes,
+      openSlots: Training.blockChoices(block, t.custom).map(c => ({
+        label: c.label, options: c.options.map(id => (Training.byId(id, t.custom) || {}).name || id),
+        picked: (Training.byId(c.picked, t.custom) || {}).name || c.picked,
+      })),
+    },
+    library: Training.all(t.custom).filter(e => !e.variantOf && !Training.isCardio(e)).map(e => e.name),
+  };
+}
+
 // Both training write-ups are spoken by the buddy, not by an anonymous coach, so the prompt gets the
 // name of the individual the person is actually raising. {{NAME}} lives in prompts.jsx purely so that
 // file can stay strings and nothing else.

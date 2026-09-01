@@ -904,8 +904,45 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   );
 }
 
+/* ---- what to ask for, on THIS block ------------------------------------------------------------
+ * The blank box is where an AI feature dies. Somebody who has just tapped "Macrosaurus 5 Day" knows
+ * roughly what they want changed and has no idea what this thing will accept, so the honest answer to
+ * a textarea with a placeholder in it is to close it. The research is consistent on the fix: narrow
+ * the possibility space with a small number of concrete suggestions rather than asking an open
+ * question (NN/g on prompt suggestions; Nielsen on prompt augmentation).
+ *
+ * So these are not five stock examples. They are read off the block in front of you: the muscle its
+ * own audit says is short, the muscle it says is past recovery, the kit this gym has not got, the
+ * sessions that run longer than the time you told us you have. Every one of them is a sentence about
+ * something actually true of this plan, which is also what makes them worth tapping.
+ *
+ * Tapping one FILLS the box rather than sending it, because the chip is a starting point and the
+ * person is the one who knows which shoulder it is. Editable suggestion, not a button that fires.
+ */
+function tweakChips(block, cov, t, week) {
+  const out = [];
+  const gap = cov.gaps.filter(g => g.sets < g.mev)[0];
+  if (gap) out.push({ label: 'More ' + gap.label.toLowerCase(), text: 'Add more direct ' + gap.label.toLowerCase() + ' work. Swap something rather than making the sessions longer if you can.' });
+  const over = cov.overs[0];
+  if (over) out.push({ label: 'Less ' + over.label.toLowerCase(), text: 'This is more ' + over.label.toLowerCase() + ' than I can recover from. Take some of it out.' });
+  const gym = (t.gyms || []).filter(g => g.id === t.prefs.currentGymId)[0] || (t.gyms || [])[0] || null;
+  if (gym) {
+    const miss = Training.weekSessions(block, week).reduce((a, s) => a.concat(missingHere(Training.sessionItems(s), gym, t.custom)), []);
+    if (miss.length) out.push({ label: 'Not at my gym', text: 'My gym has not got everything this asks for. Swap anything I cannot do at ' + gym.name + '.' });
+  }
+  const longest = Training.weekSessions(block, week).map(s => sessionMins(s.exercises)).sort((a, b) => b - a)[0] || 0;
+  const budget = t.prefs.sessionMinutes || 60;
+  if (longest > budget + 10) out.push({ label: 'Shorter sessions', text: 'These take about ' + longest + ' minutes and I have ' + budget + '. Get them down without gutting the plan.' });
+  // Two that are true of any block, so the row is never empty and never one lonely chip. The swap is
+  // the single most common thing anybody wants from a written programme, and the shoulder is the
+  // single most common reason they want it.
+  out.push({ label: 'Swap a movement', text: 'Swap ' });
+  if (out.length < 4) out.push({ label: 'Sore shoulder', text: 'My left shoulder does not like pressing overhead at the moment. Change anything that aggravates it.' });
+  return out.slice(0, 4);
+}
+
 // ---- block builder / editor -------------------------------------------------------------------
-function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearDraft, onBack, onStart, onSchedule }) {
+function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, draft, clearDraft, onBack, onStart, onSchedule }) {
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({ daysPerWeek: 4, weeks: 4 }))));
@@ -926,6 +963,19 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   const [openDay, setOpenDay] = useState(null);
   const [openRegion, setOpenRegion] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /* ---- ask for a change, in words ----
+     `wishResult` is the receipt for the change that is currently in the buffer: what went in, what
+     was refused, and the block as it stood a moment before, so putting it back is one tap. The
+     change is applied straight away rather than shown as a proposal to accept, because on this
+     screen nothing is written until the button at the bottom says so - the whole page is already a
+     preview - and the volume panel and the day cards below then answer the question a proposal
+     could not: what does this DO to the week. Applied-then-revertible is the shape the diff-review
+     literature settles on for exactly this case. */
+  const [wish, setWish] = useState('');
+  const [wishBusy, setWishBusy] = useState(false);
+  const [wishResult, setWishResult] = useState(null);   // { note, applied, rejected, before }
+  const [wishErr, setWishErr] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
      week you are looking at. None of it is written until the button at the bottom says so, which is
      the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
@@ -1019,6 +1069,71 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       s.exercises.push(Object.assign({ id: exId + '_' + trainUid(), order: s.exercises.length },
         Training.newItemFor(exId, { style: b.style, week: s.week, window: s.window, custom: t.custom })));
     });
+  }
+  /* Say what you want changed and it changes it.
+   *
+   * The model never returns a plan, only a list of operations (see BLOCK_TWEAK_PROMPT), and
+   * Training.blockTweak is what carries them out: it resolves every movement against the real
+   * library, puts every number through the same clamps a stepper tap uses, and refuses to touch a
+   * week that has already been trained. So this function has no judgement of its own to exercise -
+   * it hands over the block, applies what came back, and shows the receipt.
+   *
+   * Nothing here is saved. The change lands in the same edit buffer as a set stepper, so the exits at
+   * the bottom of the page are still the only thing that writes anything, and Undo puts the block
+   * back exactly as it was.
+   */
+  async function applyWish(text) {
+    const v = String(text == null ? wish : text).trim();
+    // An empty box gets an answer rather than a dead button. Disabling it is the obvious move and the
+    // wrong one: a greyed control tells somebody nothing about WHY it will not go, and this one has
+    // a row of suggestions sitting directly above it that they may not have read as tappable.
+    if (!v) { setWishErr('Tell me what you want changed first. The suggestions above are a place to start.'); return; }
+    if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
+    setWishBusy(true); setWishErr(null); setWishResult(null);
+    try {
+      const reply = await aiTweakBlock(blockAsPlan(block, db, week), v);
+      // The floor every editing route in this module uses: a running block's trained weeks are a
+      // record of what was lifted, not a plan to edit. Null for a block that has not started, which
+      // has no history to protect.
+      const res = Training.blockTweak(block, (reply && reply.changes) || [], {
+        custom: t.custom, fromWeek: prog ? prog.week : null,
+      });
+      const note = ((reply && reply.note) || '').trim();
+      if (res.applied.length) {
+        const before = JSON.parse(JSON.stringify(block));
+        setBlock(res.block);
+        setWishResult({ note: note, applied: res.applied, rejected: res.rejected, before: before, asked: v });
+        setWish('');
+      } else {
+        // Nothing moved. That is an answer, not a failure - "I could not find a chest press machine
+        // in the library" is worth reading - so it is shown the same way a change is, minus the undo.
+        setWishResult({ note: note, applied: [], rejected: res.rejected, before: null, asked: v });
+        if (!note && !res.rejected.length) setWishErr('Nothing in that could be applied to this block. Try naming the movement and the day it is on.');
+      }
+    } catch (e) {
+      setWishErr((e && e.message) || 'I could not do that. Try saying it another way.');
+    }
+    setWishBusy(false);
+  }
+  function undoWish() {
+    if (!wishResult || !wishResult.before) return;
+    setBlock(wishResult.before);
+    setWish(wishResult.asked || '');
+    setWishResult(null);
+  }
+  // Where a programme came from, so the way back to it as written is always one tap. Offered only on
+  // a block that has not been saved yet: rebuilding it mints fresh session ids, and on a block that
+  // is already running those are what the logs point at.
+  const fromProgramme = isNew && block.sourceRef && block.sourceRef.kind === 'programme'
+    ? Training.programmeOf(block.sourceRef.name) : null;
+  function resetToProgramme() {
+    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name });
+    setConfirmReset(false);
+    if (!fresh) return;
+    fresh.id = block.id;
+    setBlock(fresh);
+    setWishResult(null); setWishErr(null);
+    showToast && showToast('Back to ' + fromProgramme.name + ' as written.');
   }
   // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
   // no question about switching, because nothing is being switched. Building a plan and running a
@@ -1234,6 +1349,96 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         </Card>
       )}
 
+      {/* ---- ask for a change, in words ------------------------------------------------------
+          Sits directly under the volume panel and the open slots, which is where somebody has just
+          read what is wrong with the week and has nowhere to act on it: the controls below change
+          one line at a time, and "my gym has not got a pendulum squat" is eleven of those. It is
+          deliberately NOT the loudest thing on the page - the block is the thing you came to read
+          and Start it now is the thing you came to press - so it is a quiet card with a quiet
+          button, sitting above the day cards it changes so that what it did lands in your reading
+          order rather than three screens back up. */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title="Change something" right={isPremium ? 'In your own words' : 'Premium'} />
+        <div className="p-3.5">
+          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+            Say what you want different and I will change the plan, in every week you have not trained yet. Nothing is saved until you say so, and you can put it back.
+          </div>
+
+          {/* Suggestions read off THIS block, not five stock examples. Tapping one fills the box so
+              you can finish the sentence yourself, because the chip knows the plan and only you know
+              which shoulder it is. */}
+          {(() => {
+            const chips = tweakChips(block, cov, t, week);
+            if (!chips.length) return null;
+            return (
+              <div className="flex gap-2 flex-wrap mb-3">
+                {chips.map(c => (
+                  <button key={c.label} onClick={() => setWish(c.text)}
+                    className="pixel-box px-2.5 text-[11px] text-left" style={{ minHeight: 40, background: 'var(--surface2)', color: 'var(--text2)' }}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          <textarea value={wish} onChange={e => setWish(e.target.value)} rows={3}
+            placeholder={'Swap the pendulum squat, my gym has not got one.\nAdd a set of lateral raises to both upper days.\nMove legs to Saturday.'}
+            className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+          <button onClick={() => applyWish()} disabled={wishBusy} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+            {wishBusy ? 'Changing it...' : isPremium ? 'Change the plan' : 'Change the plan · Premium'}
+          </button>
+
+          {wishErr && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--danger)' }}>{wishErr}</div>}
+
+          {/* ---- the receipt ----
+              Every line it changed, said in full, with how far each one reached. This is the whole
+              trust argument of the feature: a block is four weeks of twenty sessions and "done!"
+              over the top of it is not something anybody can check. What it would not do is here
+              too, in the same list, because a change silently skipped is the one that gets found in
+              the gym on Thursday. */}
+          {wishResult && (
+            <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+              {wishResult.note && (
+                /* Unattributed on purpose. The one voice that speaks in Train is the buddy's
+                   (see BuddySays), and this is not speech: it is a receipt for an edit, in the same
+                   register as a toast. Putting it in the dinosaur's mouth would make the companion
+                   the thing that rewrote your programme. */
+                <div className="text-[12.5px] mb-3 leading-relaxed">{wishResult.note}</div>
+              )}
+              {wishResult.applied.map((line, i) => (
+                <div key={'a' + i} className="flex items-start gap-2 mb-2">
+                  <span className="shrink-0 flex items-center justify-center mt-0.5"
+                    style={{ width: 18, height: 18, background: 'var(--good)', color: '#05140a' }}><Tick size={10} /></span>
+                  <span className="text-[12px] leading-snug flex-1 min-w-0" style={{ color: 'var(--text2)' }}>{line}</span>
+                </div>
+              ))}
+              {wishResult.rejected.map((line, i) => (
+                <div key={'r' + i} className="flex items-start gap-2 mb-2">
+                  <span className="shrink-0 pf text-[9px] flex items-center justify-center mt-0.5"
+                    style={{ width: 18, height: 18, background: 'var(--warn)', color: '#241f2e' }}>!</span>
+                  <span className="text-[12px] leading-snug flex-1 min-w-0" style={{ color: 'var(--muted)' }}>{line}</span>
+                </div>
+              ))}
+              {wishResult.before && (
+                <button onClick={undoWish} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>
+                  Undo that change
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* The way back to the programme as it was written. A written plan is the one thing on this
+              screen somebody might be nervous about editing, and knowing the original is one tap away
+              is what makes editing it feel allowed at all. */}
+          {fromProgramme && (
+            <button onClick={() => setConfirmReset(true)} className="w-full text-[11.5px] mt-3 py-2 text-left" style={{ color: 'var(--accent-ink)' }}>
+              Start again from {fromProgramme.name} as written
+            </button>
+          )}
+        </div>
+      </Card>
+
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
           movement, then sets / reps / tempo on one line. Reading the plan and running the plan
           should not look like two different apps. */}
@@ -1423,6 +1628,12 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       })()}
       {confirmDelete && <ConfirmDialog title="Delete this block?" body="The sessions you already logged are kept. Only the plan goes."
         onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
+      {confirmReset && fromProgramme && (
+        <ConfirmDialog title={'Back to ' + fromProgramme.name + '?'}
+          body="Every change you have made to this block goes, and it comes back exactly as the programme is written. Nothing that is saved or logged is touched."
+          confirmLabel="Start again" confirmKind="danger"
+          onConfirm={resetToProgramme} onClose={() => setConfirmReset(false)} />
+      )}
       {confirmSwitch && (() => {
         const prog = Training.blockProgress(confirmSwitch, Store.todayISO());
         return (

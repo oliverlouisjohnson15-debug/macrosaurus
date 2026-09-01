@@ -128,7 +128,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
       onBack={() => go('home')} onStart={() => startSession(sess, blk)} />);
   }
   if (screen.name === 'builder') {
-    return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium}
+    return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} onBack={() => go(screen.from || 'home')}
       onSchedule={(id) => go('schedule', { blockId: id, fresh: true })}
       onStart={screen.blockId ? startSession : null} />);
@@ -254,8 +254,12 @@ function ProgrammeCards({ db, onPick, className }) {
         {/* One sentence. The card is the shortcut for somebody who does not want to be asked seven
             questions, and three lines of prose above the two things you came to tap is the screen
             asking anyway. What the block IS gets read off the rows below it. */}
+        {/* One sentence about what they are, and one about the fact they are not fixed. "Written, not
+            generated" reads as "take it or leave it", and until the second line was here nobody had
+            any reason to think a plan the app ships could be argued with - which is exactly the plan
+            people most often cannot run as printed, because of one machine their gym has not got. */}
         <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-          Four weeks, written rather than generated, every last set taken to where the weight stops moving.
+          Four weeks, written rather than generated, every last set taken to where the weight stops moving. Open one and you can ask for changes in your own words before you start it.
         </div>
         {list.map(p => (
           <button key={p.key} onClick={() => onPick(p.key)}

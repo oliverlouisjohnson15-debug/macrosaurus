@@ -9993,6 +9993,260 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return n;
   }
 
+  /* ---- changing a block from a sentence ---------------------------------------------------------
+   * "Swap the barbell incline for the machine press, my gym only has one bench" is a perfectly clear
+   * instruction and, until this existed, the only way to carry it out was fourteen taps: find the
+   * movement, open the picker, search, pick, repeat on the day it also appears on, then remember it
+   * has to hold for four weeks. The written programmes are the worst case, because they are the
+   * blocks people least want to rebuild and most often cannot run exactly as printed - a gym without
+   * a pendulum squat does not make the programme wrong, it makes one line of it wrong.
+   *
+   * So a model reads the sentence and writes down what it wants changed, and THIS applies it. The
+   * split is the same one the rest of the module keeps: the model proposes, the engine decides. It
+   * proposes in the only vocabulary there is - a fixed list of operations, movements named in words -
+   * and everything else is settled here, where it is testable:
+   *
+   *   - Every movement name is resolved against the real library. A name that resolves to nothing is
+   *     REJECTED rather than minted as a custom exercise. Importing somebody else's plan mints them,
+   *     because the alternative is dropping a line of their programme; here the person already has a
+   *     working block and quietly inventing a movement nobody can look up is the worse outcome.
+   *   - Every number goes through setExerciseTarget, so the clamps, the rep-range ordering and the
+   *     "last set is never easier" rule apply exactly as they do to a stepper tap.
+   *   - Weeks already trained are never touched. `fromWeek` is the floor every other editing route
+   *     in this module uses, and an instruction that only reaches week four of four says so.
+   *   - A change reaches EVERY remaining week, because the person is editing a programme rather than
+   *     a Tuesday. Set counts move by their delta rather than to a flat number, so a block that ramps
+   *     three-four-five sets still ramps after being asked for one more set.
+   *
+   * It mutates nothing it was handed: the block comes back as a copy, so a caller can show what
+   * would happen and put the old one back. `applied` and `rejected` are plain sentences, because the
+   * whole feature rests on the person being able to read what it did before they keep it.
+   */
+  // Monday-first, matching this module's own dayOfWeek everywhere else. Written out here rather than
+  // borrowed from the app, because training.js is pure and is tested on its own.
+  var DOW_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var TWEAK_OPS = ['swap', 'add', 'remove', 'sets', 'reps', 'rest', 'effort', 'day', 'rename', 'choice'];
+  // A ceiling on one instruction, so a misread sentence cannot rewrite a block wholesale. Twenty-four
+  // is comfortably more than any real request ("no barbell anywhere" is about eight) and far less
+  // than a programme.
+  var TWEAK_MAX_OPS = 24;
+
+  // The sessions an instruction is talking about: a day name, matched loosely, across every week the
+  // edit is allowed to reach. No name means the whole block.
+  function tweakSessions(block, dayName, fromWeek) {
+    var all = ((block && block.sessions) || []).filter(function (s) {
+      return fromWeek == null || s.week >= fromWeek;
+    });
+    var q = norm(dayName);
+    if (!q) return all;
+    var exact = all.filter(function (s) { return norm(s.name) === q; });
+    if (exact.length) return exact;
+    // "upper" for "Upper 1", "arms" for "Arms and delts". A day name is short and people shorten it
+    // further, and refusing the whole instruction over a missing digit helps nobody.
+    return all.filter(function (s) {
+      var n = norm(s.name);
+      return n.indexOf(q) === 0 || q.indexOf(n) === 0;
+    });
+  }
+  // The movement an instruction names, resolved against what is actually IN the block first. A person
+  // saying "the squat" means the squat in front of them, and the library's nearest match to a bare
+  // "squat" is not necessarily the one their programme prescribes.
+  function tweakExercise(block, name, custom, fromWeek) {
+    var q = cleanName(name);
+    if (!q) return null;
+    var inBlock = {};
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      (s.exercises || []).forEach(function (e) { inBlock[e.exerciseId] = 1; });
+    });
+    var ids = Object.keys(inBlock);
+    var i;
+    for (i = 0; i < ids.length; i++) {
+      var ex = byId(ids[i], custom);
+      if (ex && norm(ex.name) === q) return ids[i];
+    }
+    var d = resolveDetail(name, custom);
+    // A loose match against the whole library is how "chest fly" becomes a cable crossover nobody
+    // asked for. The import screen can afford a shaky read because it shows every line for checking;
+    // this applies straight to a block, so it takes the confident matches only.
+    if (d && (d.how === 'exact' || d.how === 'alias' || d.score >= 0.55)) return d.id;
+    return null;
+  }
+  // Rows in a session that are the named movement. Matched on the movement rather than on one row,
+  // exactly as the block editor's own replace does: the same lift can appear twice in a day.
+  function tweakRows(session, exerciseId) {
+    return (session.exercises || []).filter(function (e) { return e.exerciseId === exerciseId; });
+  }
+  function tweakName(id, custom) { var e = byId(id, custom); return e ? e.name : id; }
+  // "in every week", "in weeks 2 to 4", "in Upper 1" - said once at the end of a sentence so the
+  // person can see how far a change reached without counting sessions.
+  function tweakReach(sessions, block) {
+    var weeks = uniq(sessions.map(function (s) { return s.week; })).sort(function (a, b) { return a - b; });
+    var days = uniq(sessions.map(function (s) { return s.name; }));
+    var total = uniq(((block && block.sessions) || []).map(function (s) { return s.week; })).length;
+    var where = days.length === 1 ? days[0] : days.length + ' days';
+    if (weeks.length >= total) return where + ', all ' + total + ' weeks';
+    if (weeks.length === 1) return where + ', week ' + weeks[0];
+    return where + ', weeks ' + weeks[0] + '-' + weeks[weeks.length - 1];
+  }
+
+  function blockTweak(block, ops, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var fromWeek = opts.fromWeek == null ? null : opts.fromWeek;
+    var out = JSON.parse(JSON.stringify(block || {}));
+    var applied = [], rejected = [];
+    var list = (ops || []).filter(function (o) { return o && TWEAK_OPS.indexOf(o.op) !== -1; });
+    if (list.length > TWEAK_MAX_OPS) {
+      rejected.push('That came back as ' + list.length + ' separate changes, which is more than one instruction should be. Nothing was applied - try asking for one thing at a time.');
+      return { block: JSON.parse(JSON.stringify(block || {})), applied: applied, rejected: rejected, ops: 0 };
+    }
+    list.forEach(function (o) {
+      var sessions = tweakSessions(out, o.day, fromWeek);
+      if (!sessions.length) {
+        rejected.push(o.day ? 'There is no "' + o.day + '" in this block.' : 'There is nothing left in this block to change.');
+        return;
+      }
+      if (o.op === 'rename') {
+        var newName = String(o.name || '').trim().slice(0, 40);
+        if (!newName) { rejected.push('A day cannot be renamed to nothing.'); return; }
+        sessions.forEach(function (s) { s.name = newName; });
+        applied.push('Renamed ' + o.day + ' to ' + newName + '.');
+        return;
+      }
+      if (o.op === 'day') {
+        var dow = Math.round(+o.dayOfWeek);
+        if (!(dow >= 0 && dow <= 6)) { rejected.push('"' + o.day + '" was given a weekday I could not read.'); return; }
+        var moved = 0;
+        sessions.forEach(function (s) { if (setSessionDay(s, dow)) moved++; });
+        if (!moved) { rejected.push('Could not move "' + o.day + '".'); return; }
+        applied.push('Moved ' + (sessions[0].name || o.day) + ' to ' + DOW_NAME[dow] + '.');
+        return;
+      }
+      if (o.op === 'choice') {
+        var chosen = tweakExercise(out, o.exercise, custom, null);
+        var slot = blockChoices(out, custom).filter(function (c) {
+          return norm(c.label).indexOf(norm(o.label || '')) !== -1 || (c.options || []).indexOf(chosen) !== -1;
+        })[0];
+        if (!chosen || !slot) { rejected.push('Could not answer the open slot with "' + (o.exercise || '') + '".'); return; }
+        applyChoice(out, slot.key, chosen);
+        applied.push(slot.label + ': ' + tweakName(chosen, custom) + '.');
+        return;
+      }
+      if (o.op === 'add') {
+        var addId = tweakExercise(out, o.exercise, custom, null);
+        if (!addId) { rejected.push('There is no "' + (o.exercise || '') + '" in the exercise library, so I left it out.'); return; }
+        if (!o.day) { rejected.push('"' + (o.exercise || '') + '" was not given a day to go on, so I left it out.'); return; }
+        var added = 0;
+        sessions.forEach(function (s) {
+          var item = addExerciseToSession(s, addId, custom, addId + '_t' + s.id + '_' + (s.exercises || []).length, out.intensity);
+          if (!item) return;
+          // Prescribed the way THIS block prescribes things, so a movement dropped into a min-max
+          // block does not arrive carrying the volume model's ramp. Same rule as the builder's own
+          // "+ Add movement", which is the control this is standing in for.
+          var fresh = newItemFor(addId, { style: out.style, week: s.week, window: s.window, custom: custom, intensity: out.intensity });
+          item.target = fresh.target;
+          setExerciseTarget(s, item.id, {
+            sets: o.sets == null ? null : o.sets,
+            repLow: o.repLow == null ? null : o.repLow,
+            repHigh: o.repHigh == null ? null : o.repHigh,
+          });
+          added++;
+        });
+        if (!added) { rejected.push('Could not add ' + tweakName(addId, custom) + '.'); return; }
+        applied.push('Added ' + tweakName(addId, custom) + ' to ' + tweakReach(sessions, out) + '.');
+        return;
+      }
+      // Everything below names a movement that has to already be in the block.
+      var id = tweakExercise(out, o.exercise || o.from, custom, fromWeek);
+      if (!id) {
+        rejected.push('There is no "' + (o.exercise || o.from || '') + '" in the weeks I am allowed to change.');
+        return;
+      }
+      var touched = sessions.filter(function (s) { return tweakRows(s, id).length > 0; });
+      if (!touched.length) {
+        rejected.push(tweakName(id, custom) + ' is not in ' + (o.day ? '"' + o.day + '"' : 'the weeks I am allowed to change') + '.');
+        return;
+      }
+      if (o.op === 'remove') {
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { removeExerciseFromSession(s, e.id); });
+        });
+        applied.push('Took ' + tweakName(id, custom) + ' out of ' + tweakReach(touched, out) + '.');
+        return;
+      }
+      if (o.op === 'swap') {
+        var toId = tweakExercise(out, o.to, custom, null);
+        if (!toId) { rejected.push('There is no "' + (o.to || '') + '" in the exercise library, so ' + tweakName(id, custom) + ' was left alone.'); return; }
+        if (toId === id) { rejected.push(tweakName(id, custom) + ' is already what it was asked to become.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { replaceExercise(e, toId); });
+        });
+        applied.push(tweakName(id, custom) + ' → ' + tweakName(toId, custom) + ' (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'sets') {
+        var want = Math.round(+o.sets);
+        if (!(want >= SETS_MIN && want <= SETS_MAX)) { rejected.push('"' + o.sets + '" is not a set count I can use.'); return; }
+        // The DELTA, not the number. A block that ramps two, three, four sets across its weeks is
+        // still meant to ramp after somebody asks for one more set of rows; writing the flat number
+        // into every week would quietly delete the progression the block was built on.
+        var base = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            if (base == null) base = e.target.sets;
+          });
+        });
+        var delta = want - base;
+        if (!delta) { rejected.push(tweakName(id, custom) + ' is already on ' + want + ' sets.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { setExerciseTarget(s, e.id, { sets: e.target.sets + delta }); });
+        });
+        applied.push(tweakName(id, custom) + ': ' + base + ' → ' + want + ' sets (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'reps') {
+        if (o.repLow == null && o.repHigh == null) { rejected.push('No rep range was given for ' + tweakName(id, custom) + '.'); return; }
+        var shown = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            var t = setExerciseTarget(s, e.id, { repLow: o.repLow, repHigh: o.repHigh });
+            if (t && !shown) shown = t.repLow + '-' + t.repHigh;
+          });
+        });
+        applied.push(tweakName(id, custom) + ': ' + shown + ' reps (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'rest') {
+        var secs = Math.round(+o.restSec);
+        if (!(secs >= 15 && secs <= 600)) { rejected.push('"' + o.restSec + '" is not a rest I can use.'); return; }
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) { setExerciseTarget(s, e.id, { restSec: secs }); });
+        });
+        applied.push(tweakName(id, custom) + ': rest ' + secs + 's (' + tweakReach(touched, out) + ').');
+        return;
+      }
+      if (o.op === 'effort') {
+        if (o.rir == null && o.rirLast == null) { rejected.push('No effort target was given for ' + tweakName(id, custom) + '.'); return; }
+        var eff = null;
+        touched.forEach(function (s) {
+          tweakRows(s, id).forEach(function (e) {
+            var t = setExerciseTarget(s, e.id, { rir: o.rir, rirLast: o.rirLast });
+            if (t && !eff) eff = t;
+          });
+        });
+        applied.push(tweakName(id, custom) + ': ' + (eff.rirLast != null && eff.rirLast !== eff.rir
+          ? eff.rir + ' RIR, last set ' + eff.rirLast : eff.rir + ' RIR')
+          + ' (' + tweakReach(touched, out) + ').');
+        return;
+      }
+    });
+    // A superset whose partner has been taken out is not a superset, and a block that ends up with a
+    // row labelled A1 and nothing labelled A2 is a block that reads wrong on every screen.
+    (out.sessions || []).forEach(function (s) { dropBrokenSupersets(s); });
+    return { block: out, applied: applied, rejected: rejected, ops: list.length };
+  }
+
   /* ---- a programme that arrives as a spreadsheet -------------------------------------------------
    * A written programme in a spreadsheet does not need a model to read it. It has columns, and the
    * columns say what they mean: the exercise, the working sets, the rep range, the reps in reserve,
@@ -12230,6 +12484,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    blockTweak: blockTweak, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
     PROGRAMMES: PROGRAMMES, programmeOf: programmeOf, programmeBlock: programmeBlock, programmeSummary: programmeSummary,
@@ -13305,6 +13560,34 @@ const WORKOUT_BATCH_NOTE = 'THIS SOURCE IS ONE OF {{N}}. The person has uploaded
 // The 'You are a strength coach correcting a training plan' phrase is the signature ai-proxy
 // classifies as workout_import, so keep it in step with featureOf() in ai-proxy/index.ts.
 const WORKOUT_TWEAK_PROMPT = 'You are a strength coach correcting a training plan someone has just imported into their app, using notes they have written about what is wrong with it. You are given the plan as JSON exactly as the app read it, and what the person wants changed. Apply ONLY what they asked for, and return the WHOLE plan in the same shape, including every day and every movement you did not touch. Rules: keep movement names, day names, sets, reps, RIR and tempo EXACTLY as given unless the person asked for that specific thing to change. Never change a number they did not mention. If they name a movement to swap, replace it and carry its sets, reps and tempo over unless they said otherwise. If they ask for something to come out, remove it. If they ask for something to go in, add it with sets and reps that match the rest of that day rather than numbers of your own invention. If they say a movement was read wrongly and tell you what it really was, use their name for it. If they tell you which weekday a session is, put it in the day name. Never add advice, warm-ups, cardio, extra sets or extra movements that they did not ask for, and never "improve" a plan that someone else wrote: it is not yours to make better. If something they asked for is ambiguous or you cannot do it, leave that part alone and say so plainly. Any movement you add or rename needs a muscle guess for the same reason it did on the first read: give your best-guess "muscle" code(s) (ch=chest, fd=front delts, sd=side delts, rd=rear delts, lt=lats, ub=upper back, lb=lower back, bi=biceps, tr=triceps, fa=forearms, ab=abs, ob=obliques, qu=quads, ha=hamstrings, gl=glutes, ad=adductors, ca=calves), "equipment" (barbell, dumbbell, machine, cable, smith, ez, kettlebell, trapbar, bodyweight, band) and "pattern" ("compound"|"isolation"|"core"), so the app can add it even if its name does not match the library. Carry a touched movement\'s existing guess forward unchanged unless the correction changes what it actually is. Respond ONLY with compact JSON: {"name": string, "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null, "muscle": [string], "equipment": string, "pattern": "compound"|"isolation"|"core"}]}]}. dayOfWeek = 0 for Monday through 6 for Sunday when the person says which day it is, otherwise null. note = one short sentence saying what you changed, or what you could not do and why. British English in all text fields, keeping the JSON keys exactly as specified.';
+
+/* Changing a block you already own, from a sentence.
+ * ----------------------------------------------------------------------------
+ * The opposite job to WORKOUT_TWEAK_PROMPT above, and worth being clear about why both exist. That
+ * one CORRECTS a plan somebody else wrote, which the app read out of a screenshot and may have read
+ * wrong; it is forbidden from improving anything, because the plan is not ours to improve. This one
+ * changes a plan the person owns and is about to run - one of the written Macrosaurus programmes,
+ * usually - because their gym has no pendulum squat, their shoulder does not like overhead work, or
+ * they want another set of rows. They are asking for a judgement, so it is allowed to make one.
+ *
+ * It returns OPERATIONS, not a plan. A whole-plan round trip is what the import path does, and it is
+ * right there: an import has no structure worth preserving, because it is being built for the first
+ * time. A block does. It carries session ids with logs pointing at them, open "your choice" slots,
+ * the programme author's own notes and substitutions, warm-up counts, per-week technique work and
+ * four weeks of structure - and every one of those is lost the moment the plan makes a round trip
+ * through a model. Operations touch the lines they name and nothing else, which is also what makes
+ * the change reviewable: Training.blockTweak turns each one into a sentence the person reads before
+ * they keep it.
+ *
+ * Everything it names is resolved against the real library by Training.blockTweak, every number goes
+ * through the same clamps a stepper tap does, and weeks already trained are out of reach. So this
+ * cannot invent a movement, cannot write an impossible set count, and cannot rewrite history.
+ *
+ * The 'You are a strength coach adjusting a training block' phrase is the signature ai-proxy
+ * classifies as the premium block_tweak feature, so keep it in step with featureOf() in
+ * ai-proxy/index.ts.
+ * ==========================================================================*/
+const BLOCK_TWEAK_PROMPT = 'You are a strength coach adjusting a training block for the person who is about to run it. They own this plan and they are asking you to change it, so unlike reading somebody else\'s programme you are allowed to exercise judgement - but only over what they actually asked about. You are given the block as JSON, a volume audit of one week of it, what kit they have, and the list of movements the app knows. Turn their request into a list of OPERATIONS. You never return the plan itself: the app applies your operations to the real block, so anything you do not mention is left exactly as it is.\n\nHOW TO CHOOSE:\n1. Do what they asked, and only what they asked. A request about one movement changes that movement. Never tidy up, rebalance or "improve" the rest of the block on your own initiative: they did not ask, and this is a written programme whose author had reasons.\n2. Name movements ONLY from the movement list you are given, copied exactly as spelled there. If nothing in the list does the job they described, do not invent one and do not reach for something that is not really the same movement: leave that part out and say so in "note".\n3. When they ask for something in general terms ("more side delts", "my gym has no barbell", "swap anything that needs a bench"), work out yourself which lines that means and return one operation per line. Prefer swapping over adding: a week has a fixed size, and adding sets to a plan that was written to a volume is how somebody ends up unable to recover from it.\n4. The audit gives each muscle\'s current weekly sets and its MEV floor, MAV band and MRV ceiling. If what they asked for would push a muscle past its MRV, do the version that stops at the ceiling and say plainly in "note" what you held back and why. If it would leave a muscle under its MEV, do it anyway - it is their plan - but say so.\n5. Match the block\'s own prescription. A movement you add should carry sets and reps in line with the day it lands on, not numbers of your own taste. Leave sets, reps, rest and effort out of an "add" and the app prescribes them the way this block prescribes everything else, which is usually the right answer.\n6. Do not prescribe rehab, do not diagnose pain or injury, and if they mention either, work around it if they told you how and say in "note" that anything that hurts is worth showing a qualified professional.\n\nWHAT YOU CANNOT DO, and must say so in "note" rather than approximating: add or remove a whole training day, change how many days a week the block runs, change how many weeks it is, or change the week they are currently on. Those are a different block, and the app has a builder for it.\n\nRespond ONLY with compact JSON: {"note": string, "changes": [operation]}. Each operation is one of:\n{"op":"swap","from":"<movement in the block>","to":"<movement from the list>","day":"<day name>"|null} - replace one movement with another. day null means every day it appears on, which is usually what somebody means.\n{"op":"add","day":"<day name>","exercise":"<movement from the list>","sets":number|null,"repLow":number|null,"repHigh":number|null} - day is required.\n{"op":"remove","exercise":"<movement in the block>","day":"<day name>"|null}\n{"op":"sets","exercise":"<movement in the block>","day":"<day name>"|null,"sets":number} - the number of working sets it should end up on.\n{"op":"reps","exercise":"<movement in the block>","day":"<day name>"|null,"repLow":number,"repHigh":number}\n{"op":"rest","exercise":"<movement in the block>","day":"<day name>"|null,"restSec":number}\n{"op":"effort","exercise":"<movement in the block>","day":"<day name>"|null,"rir":number,"rirLast":number|null} - reps left in reserve; 0 means taken to failure.\n{"op":"day","day":"<day name>","dayOfWeek":number} - which weekday that session falls on, 0 for Monday through 6 for Sunday.\n{"op":"rename","day":"<day name>","name":"<new name>"}\n{"op":"choice","label":"<the open slot\'s label>","exercise":"<movement from the list>"} - answers a slot the programme deliberately left open.\n\nEvery "day" must be a day name copied exactly from the block you were given. Return between one and about a dozen operations; if a request genuinely needs more than that, do the most important part of it and say in "note" what you left. note = one or two short sentences, addressed to them, saying what you changed and anything you could not do or held back, in plain British English with no headings, bullet points, markdown, em dashes or emojis. Return {"note": "...", "changes": []} when you cannot do any of it. Keep the JSON keys exactly as specified.';
 
 /* THE TRAINING VOICE IS THE BUDDY'S VOICE
  * ----------------------------------------------------------------------------
@@ -55985,6 +56268,7 @@ function TrainTab({
       update: update,
       showToast: showToast,
       isPremium: isPremium,
+      onUpgrade: onUpgrade,
       blockId: screen.blockId,
       draft: screen.draft,
       clearDraft: screen.clearDraft,
@@ -56276,7 +56560,7 @@ function ProgrammeCards({
     style: {
       color: 'var(--muted)'
     }
-  }, "Four weeks, written rather than generated, every last set taken to where the weight stops moving."), list.map(p => /*#__PURE__*/React.createElement("button", {
+  }, "Four weeks, written rather than generated, every last set taken to where the weight stops moving. Open one and you can ask for changes in your own words before you start it."), list.map(p => /*#__PURE__*/React.createElement("button", {
     key: p.key,
     onClick: () => onPick(p.key),
     className: "w-full text-left p-3 mb-2 last:mb-0 flex items-center gap-2.5",
@@ -61103,12 +61387,68 @@ function BlockWizard({
   }, "Nothing is saved until you say so."));
 }
 
+/* ---- what to ask for, on THIS block ------------------------------------------------------------
+ * The blank box is where an AI feature dies. Somebody who has just tapped "Macrosaurus 5 Day" knows
+ * roughly what they want changed and has no idea what this thing will accept, so the honest answer to
+ * a textarea with a placeholder in it is to close it. The research is consistent on the fix: narrow
+ * the possibility space with a small number of concrete suggestions rather than asking an open
+ * question (NN/g on prompt suggestions; Nielsen on prompt augmentation).
+ *
+ * So these are not five stock examples. They are read off the block in front of you: the muscle its
+ * own audit says is short, the muscle it says is past recovery, the kit this gym has not got, the
+ * sessions that run longer than the time you told us you have. Every one of them is a sentence about
+ * something actually true of this plan, which is also what makes them worth tapping.
+ *
+ * Tapping one FILLS the box rather than sending it, because the chip is a starting point and the
+ * person is the one who knows which shoulder it is. Editable suggestion, not a button that fires.
+ */
+function tweakChips(block, cov, t, week) {
+  const out = [];
+  const gap = cov.gaps.filter(g => g.sets < g.mev)[0];
+  if (gap) out.push({
+    label: 'More ' + gap.label.toLowerCase(),
+    text: 'Add more direct ' + gap.label.toLowerCase() + ' work. Swap something rather than making the sessions longer if you can.'
+  });
+  const over = cov.overs[0];
+  if (over) out.push({
+    label: 'Less ' + over.label.toLowerCase(),
+    text: 'This is more ' + over.label.toLowerCase() + ' than I can recover from. Take some of it out.'
+  });
+  const gym = (t.gyms || []).filter(g => g.id === t.prefs.currentGymId)[0] || (t.gyms || [])[0] || null;
+  if (gym) {
+    const miss = Training.weekSessions(block, week).reduce((a, s) => a.concat(missingHere(Training.sessionItems(s), gym, t.custom)), []);
+    if (miss.length) out.push({
+      label: 'Not at my gym',
+      text: 'My gym has not got everything this asks for. Swap anything I cannot do at ' + gym.name + '.'
+    });
+  }
+  const longest = Training.weekSessions(block, week).map(s => sessionMins(s.exercises)).sort((a, b) => b - a)[0] || 0;
+  const budget = t.prefs.sessionMinutes || 60;
+  if (longest > budget + 10) out.push({
+    label: 'Shorter sessions',
+    text: 'These take about ' + longest + ' minutes and I have ' + budget + '. Get them down without gutting the plan.'
+  });
+  // Two that are true of any block, so the row is never empty and never one lonely chip. The swap is
+  // the single most common thing anybody wants from a written programme, and the shoulder is the
+  // single most common reason they want it.
+  out.push({
+    label: 'Swap a movement',
+    text: 'Swap '
+  });
+  if (out.length < 4) out.push({
+    label: 'Sore shoulder',
+    text: 'My left shoulder does not like pressing overhead at the moment. Change anything that aggravates it.'
+  });
+  return out.slice(0, 4);
+}
+
 // ---- block builder / editor -------------------------------------------------------------------
 function BlockBuilder({
   db,
   update,
   showToast,
   isPremium,
+  onUpgrade,
   blockId,
   draft,
   clearDraft,
@@ -61139,6 +61479,19 @@ function BlockBuilder({
   const [openDay, setOpenDay] = useState(null);
   const [openRegion, setOpenRegion] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /* ---- ask for a change, in words ----
+     `wishResult` is the receipt for the change that is currently in the buffer: what went in, what
+     was refused, and the block as it stood a moment before, so putting it back is one tap. The
+     change is applied straight away rather than shown as a proposal to accept, because on this
+     screen nothing is written until the button at the bottom says so - the whole page is already a
+     preview - and the volume panel and the day cards below then answer the question a proposal
+     could not: what does this DO to the week. Applied-then-revertible is the shape the diff-review
+     literature settles on for exactly this case. */
+  const [wish, setWish] = useState('');
+  const [wishBusy, setWishBusy] = useState(false);
+  const [wishResult, setWishResult] = useState(null); // { note, applied, rejected, before }
+  const [wishErr, setWishErr] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
      week you are looking at. None of it is written until the button at the bottom says so, which is
      the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
@@ -61252,6 +61605,96 @@ function BlockBuilder({
         custom: t.custom
       })));
     });
+  }
+  /* Say what you want changed and it changes it.
+   *
+   * The model never returns a plan, only a list of operations (see BLOCK_TWEAK_PROMPT), and
+   * Training.blockTweak is what carries them out: it resolves every movement against the real
+   * library, puts every number through the same clamps a stepper tap uses, and refuses to touch a
+   * week that has already been trained. So this function has no judgement of its own to exercise -
+   * it hands over the block, applies what came back, and shows the receipt.
+   *
+   * Nothing here is saved. The change lands in the same edit buffer as a set stepper, so the exits at
+   * the bottom of the page are still the only thing that writes anything, and Undo puts the block
+   * back exactly as it was.
+   */
+  async function applyWish(text) {
+    const v = String(text == null ? wish : text).trim();
+    // An empty box gets an answer rather than a dead button. Disabling it is the obvious move and the
+    // wrong one: a greyed control tells somebody nothing about WHY it will not go, and this one has
+    // a row of suggestions sitting directly above it that they may not have read as tappable.
+    if (!v) {
+      setWishErr('Tell me what you want changed first. The suggestions above are a place to start.');
+      return;
+    }
+    if (!isPremium) {
+      onUpgrade && onUpgrade('workout_import');
+      return;
+    }
+    setWishBusy(true);
+    setWishErr(null);
+    setWishResult(null);
+    try {
+      const reply = await aiTweakBlock(blockAsPlan(block, db, week), v);
+      // The floor every editing route in this module uses: a running block's trained weeks are a
+      // record of what was lifted, not a plan to edit. Null for a block that has not started, which
+      // has no history to protect.
+      const res = Training.blockTweak(block, reply && reply.changes || [], {
+        custom: t.custom,
+        fromWeek: prog ? prog.week : null
+      });
+      const note = (reply && reply.note || '').trim();
+      if (res.applied.length) {
+        const before = JSON.parse(JSON.stringify(block));
+        setBlock(res.block);
+        setWishResult({
+          note: note,
+          applied: res.applied,
+          rejected: res.rejected,
+          before: before,
+          asked: v
+        });
+        setWish('');
+      } else {
+        // Nothing moved. That is an answer, not a failure - "I could not find a chest press machine
+        // in the library" is worth reading - so it is shown the same way a change is, minus the undo.
+        setWishResult({
+          note: note,
+          applied: [],
+          rejected: res.rejected,
+          before: null,
+          asked: v
+        });
+        if (!note && !res.rejected.length) setWishErr('Nothing in that could be applied to this block. Try naming the movement and the day it is on.');
+      }
+    } catch (e) {
+      setWishErr(e && e.message || 'I could not do that. Try saying it another way.');
+    }
+    setWishBusy(false);
+  }
+  function undoWish() {
+    if (!wishResult || !wishResult.before) return;
+    setBlock(wishResult.before);
+    setWish(wishResult.asked || '');
+    setWishResult(null);
+  }
+  // Where a programme came from, so the way back to it as written is always one tap. Offered only on
+  // a block that has not been saved yet: rebuilding it mints fresh session ids, and on a block that
+  // is already running those are what the logs point at.
+  const fromProgramme = isNew && block.sourceRef && block.sourceRef.kind === 'programme' ? Training.programmeOf(block.sourceRef.name) : null;
+  function resetToProgramme() {
+    const fresh = Training.programmeBlock(block.sourceRef.name, {
+      custom: t.custom,
+      startISO: startISO,
+      name: name
+    });
+    setConfirmReset(false);
+    if (!fresh) return;
+    fresh.id = block.id;
+    setBlock(fresh);
+    setWishResult(null);
+    setWishErr(null);
+    showToast && showToast('Back to ' + fromProgramme.name + ' as written.');
   }
   // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
   // no question about switching, because nothing is being switched. Building a plan and running a
@@ -61533,7 +61976,115 @@ function BlockBuilder({
         color: on ? 'var(--on-accent)' : 'var(--text2)'
       }
     }, ex ? ex.name : id);
-  }))))), /*#__PURE__*/React.createElement("div", {
+  }))))), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden mb-4"
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: "Change something",
+    right: isPremium ? 'In your own words' : 'Premium'
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Say what you want different and I will change the plan, in every week you have not trained yet. Nothing is saved until you say so, and you can put it back."), (() => {
+    const chips = tweakChips(block, cov, t, week);
+    if (!chips.length) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 flex-wrap mb-3"
+    }, chips.map(c => /*#__PURE__*/React.createElement("button", {
+      key: c.label,
+      onClick: () => setWish(c.text),
+      className: "pixel-box px-2.5 text-[11px] text-left",
+      style: {
+        minHeight: 40,
+        background: 'var(--surface2)',
+        color: 'var(--text2)'
+      }
+    }, c.label)));
+  })(), /*#__PURE__*/React.createElement("textarea", {
+    value: wish,
+    onChange: e => setWish(e.target.value),
+    rows: 3,
+    placeholder: 'Swap the pendulum squat, my gym has not got one.\nAdd a set of lateral raises to both upper days.\nMove legs to Saturday.',
+    className: "w-full pixel-box px-3 py-3 text-[13px] mb-2",
+    style: {
+      background: 'var(--surface2)',
+      color: 'var(--text)'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => applyWish(),
+    disabled: wishBusy,
+    className: "pixel-box w-full h-11 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, wishBusy ? 'Changing it...' : isPremium ? 'Change the plan' : 'Change the plan · Premium'), wishErr && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-2 leading-snug",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, wishErr), wishResult && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pt-3",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, wishResult.note &&
+  /*#__PURE__*/
+  /* Unattributed on purpose. The one voice that speaks in Train is the buddy's
+     (see BuddySays), and this is not speech: it is a receipt for an edit, in the same
+     register as a toast. Putting it in the dinosaur's mouth would make the companion
+     the thing that rewrote your programme. */
+  React.createElement("div", {
+    className: "text-[12.5px] mb-3 leading-relaxed"
+  }, wishResult.note), wishResult.applied.map((line, i) => /*#__PURE__*/React.createElement("div", {
+    key: 'a' + i,
+    className: "flex items-start gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "shrink-0 flex items-center justify-center mt-0.5",
+    style: {
+      width: 18,
+      height: 18,
+      background: 'var(--good)',
+      color: '#05140a'
+    }
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 10
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] leading-snug flex-1 min-w-0",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, line))), wishResult.rejected.map((line, i) => /*#__PURE__*/React.createElement("div", {
+    key: 'r' + i,
+    className: "flex items-start gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "shrink-0 pf text-[9px] flex items-center justify-center mt-0.5",
+    style: {
+      width: 18,
+      height: 18,
+      background: 'var(--warn)',
+      color: '#241f2e'
+    }
+  }, "!"), /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] leading-snug flex-1 min-w-0",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, line))), wishResult.before && /*#__PURE__*/React.createElement("button", {
+    onClick: undoWish,
+    className: "pixel-box w-full h-11 text-[12px] mt-2",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "Undo that change")), fromProgramme && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmReset(true),
+    className: "w-full text-[11.5px] mt-3 py-2 text-left",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Start again from ", fromProgramme.name, " as written"))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, sessions.map(s => {
     const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
@@ -61798,6 +62349,13 @@ function BlockBuilder({
     body: "The sessions you already logged are kept. Only the plan goes.",
     onConfirm: remove,
     onClose: () => setConfirmDelete(false)
+  }), confirmReset && fromProgramme && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Back to ' + fromProgramme.name + '?',
+    body: "Every change you have made to this block goes, and it comes back exactly as the programme is written. Nothing that is saved or logged is touched.",
+    confirmLabel: "Start again",
+    confirmKind: "danger",
+    onConfirm: resetToProgramme,
+    onClose: () => setConfirmReset(false)
   }), confirmSwitch && (() => {
     const prog = Training.blockProgress(confirmSwitch, Store.todayISO());
     return /*#__PURE__*/React.createElement(ConfirmDialog, {
@@ -64376,6 +64934,113 @@ function draftAsPlan(draft, custom) {
         };
       })
     }))
+  };
+}
+
+/* ---- changing a block you own, from a sentence -------------------------------------------------
+ * The block goes out as a description and comes back as a list of operations, never as a plan (see
+ * BLOCK_TWEAK_PROMPT for why). Training.blockTweak applies them: it resolves every movement name
+ * against the real library, clamps every number through setExerciseTarget, and refuses to touch a
+ * week that has already been trained. So the worst a bad read can do here is propose something that
+ * gets rejected and reported, which is a sentence on screen rather than a broken block.
+ */
+async function aiTweakBlock(payload, wish) {
+  const j = await aiRequest({
+    model: AI_MODEL,
+    max_tokens: 2000,
+    messages: [{
+      role: 'user',
+      content: [{
+        type: 'text',
+        text: BLOCK_TWEAK_PROMPT,
+        cache_control: {
+          type: 'ephemeral'
+        }
+      },
+      // The library is nine kilobytes and identical on every call, so it is its own cached block:
+      // without a breakpoint here every tweak pays for it again.
+      {
+        type: 'text',
+        text: 'THE MOVEMENTS THE APP KNOWS:\n' + payload.library.join('\n'),
+        cache_control: {
+          type: 'ephemeral'
+        }
+      }, {
+        type: 'text',
+        text: 'THE BLOCK:\n' + JSON.stringify(payload.block)
+      }, {
+        type: 'text',
+        text: 'THE VOLUME AUDIT FOR ONE WEEK OF IT:\n' + JSON.stringify(payload.audit)
+      }, {
+        type: 'text',
+        text: 'ABOUT THEM AND THEIR GYM:\n' + JSON.stringify(payload.about)
+      }, {
+        type: 'text',
+        text: 'WHAT THEY WANT CHANGED:\n' + String(wish || '').slice(0, 1500)
+      }]
+    }]
+  }, {
+    timeoutMs: 120000
+  });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
+  return parseModelJSON(txt);
+}
+
+/* What the model is shown. One week of the block, because every week has the same shape and sending
+ * four copies of it buys nothing but tokens; the audit, so a request for "more shoulders" is answered
+ * against this person's own ceiling rather than a general opinion; the open slots, so it can answer
+ * one; and the movement list, because a swap it cannot name is a swap that gets rejected downstream.
+ * Library names are the CANONICAL ones - the generated variations resolve through aliases anyway, and
+ * listing all four hundred of them makes the menu harder to choose from, not easier. */
+function blockAsPlan(block, db, week) {
+  const t = tdb(db);
+  const targets = trainTargets(db, block ? block.style : undefined);
+  const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
+  const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  const gym = currentGym(db);
+  return {
+    block: {
+      name: block.name,
+      weeks: block.weeks,
+      style: block.style || 'minmax',
+      weekShown: week,
+      unitOfEffort: 'reps in reserve, 0 means to failure',
+      days: sessions.map(s => ({
+        name: s.name,
+        weekday: WEEKDAYS_FULL[s.dayOfWeek] || null,
+        exercises: Training.sessionItems(s).map(e => ({
+          name: (Training.byId(e.exerciseId, t.custom) || {}).name || e.exerciseId,
+          sets: e.target.sets,
+          repLow: e.target.repLow,
+          repHigh: e.target.repHigh,
+          rir: e.target.rir,
+          rirLast: e.target.rirLast == null ? null : e.target.rirLast,
+          restSec: e.target.restSec,
+          openSlot: e.choice ? e.choice.label || null : null
+        }))
+      }))
+    },
+    audit: cov.rows.map(r => ({
+      muscle: r.label,
+      sets: r.sets,
+      mev: r.mev,
+      mav: r.mav,
+      mrv: r.mrv
+    })),
+    about: {
+      experience: t.prefs.experience,
+      equipment: gym ? Training.gymEquipment(gym).equipment : t.prefs.equipment || [],
+      gym: gym ? gym.name : null,
+      dislikes: (t.prefs.dislikes || []).map(id => (Training.byId(id, t.custom) || {}).name || id),
+      minutesPerSession: t.prefs.sessionMinutes,
+      openSlots: Training.blockChoices(block, t.custom).map(c => ({
+        label: c.label,
+        options: c.options.map(id => (Training.byId(id, t.custom) || {}).name || id),
+        picked: (Training.byId(c.picked, t.custom) || {}).name || c.picked
+      }))
+    },
+    library: Training.all(t.custom).filter(e => !e.variantOf && !Training.isCardio(e)).map(e => e.name)
   };
 }
 
