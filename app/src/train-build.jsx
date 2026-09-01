@@ -942,7 +942,7 @@ function tweakChips(block, cov, t, week) {
 }
 
 // ---- block builder / editor -------------------------------------------------------------------
-function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, draft, clearDraft, onBack, onStart, onSchedule }) {
+function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, draft, clearDraft, tweak, onBack, onStart, onSchedule }) {
   const t = tdb(db);
   const saved = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
   const [block, setBlock] = useState(() => JSON.parse(JSON.stringify(draft || saved || Training.generateBlock({ daysPerWeek: 4, weeks: 4 }))));
@@ -976,6 +976,17 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const [wishResult, setWishResult] = useState(null);   // { note, applied, rejected, before }
   const [wishErr, setWishErr] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  /* Arrived here from "Change this block" on the Train tab, which asks a question this screen has to
+     answer straight away. The card is below the name, the start date, the week picker and the volume
+     panel - all of which are the right order for somebody who came to READ the block, and the wrong
+     one for somebody who came to change it. So the screen opens on it rather than making them find
+     it. Guarded because jsdom has no scrollIntoView, and a missing scroll must never take a screen
+     down with it. */
+  const wishRef = useRef(null);
+  useEffect(() => {
+    if (!tweak || !wishRef.current || !wishRef.current.scrollIntoView) return;
+    try { wishRef.current.scrollIntoView({ block: 'center' }); } catch (_) { /* never fatal */ }
+  }, [tweak]);
   /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
      week you are looking at. None of it is written until the button at the bottom says so, which is
      the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
@@ -1357,6 +1368,9 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           and Start it now is the thing you came to press - so it is a quiet card with a quiet
           button, sitting above the day cards it changes so that what it did lands in your reading
           order rather than three screens back up. */}
+      {/* The ref sits on a wrapper, not on Card: Card is a plain function component, so a ref handed
+          to it is not a prop and never reaches the DOM node. */}
+      <div ref={wishRef}>
       <Card className="p-0 overflow-hidden mb-4">
         <CardHead title="Change something" right={isPremium ? 'In your own words' : 'Premium'} />
         <div className="p-3.5">
@@ -1438,6 +1452,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           )}
         </div>
       </Card>
+      </div>
 
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
           movement, then sets / reps / tempo on one line. Reading the plan and running the plan

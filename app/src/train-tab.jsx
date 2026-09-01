@@ -129,7 +129,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} onBack={() => go(screen.from || 'home')}
+      blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} tweak={screen.tweak} onBack={() => go(screen.from || 'home')}
       onSchedule={(id) => go('schedule', { blockId: id, fresh: true })}
       onStart={screen.blockId ? startSession : null} />);
   }
@@ -669,6 +669,26 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             </button>
           )}
         </Card>
+
+        {/* ---- the way to change the plan, from the screen you actually read it on ----------------
+            The block editor is where a plan gets changed and that is still right: it is a deliberate
+            act on a four-week programme, not a thing to do by accident. What was wrong was that it
+            was the ONLY way in, three taps down behind a button called "Blocks" and a screen headed
+            "Edit block" - so the question this answers ("my gym has not got a pendulum squat") was
+            being asked in front of a week that offered no way to ask it.
+
+            So the route is here, against the week it changes, and it is quiet: the loud thing on
+            this screen is the session you are about to do, and it stays that way. ---- */}
+        <button onClick={() => go('builder', { blockId: block.id, from: 'home', tweak: true })}
+          className="w-full pixel-box p-3.5 mb-4 flex items-center gap-2.5 text-left" style={{ background: 'var(--surface2)' }}>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-semibold leading-tight">Change this block</span>
+            <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
+              Say what you want different and I will change the weeks you have not trained yet.
+            </span>
+          </span>
+          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+        </button>
       </>)}
 
       {block && blockDone && (
