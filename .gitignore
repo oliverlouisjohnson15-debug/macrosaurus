@@ -6,3 +6,13 @@ node_modules/
 *.bak
 app/dist/
 .claude/worktrees/
+
+# Android / TWA build output — never commit the signing key
+android.keystore
+*.jks
+*.aab
+*.apk
+*.idsig
+twa-manifest.json.bak
+android/
+.gradle/

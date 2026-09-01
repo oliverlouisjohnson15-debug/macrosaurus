@@ -1,0 +1,59 @@
+{
+  "packageId": "com.macrosaurus.app",
+  "host": "app.macrosaurus.com",
+  "name": "Macrosaurus",
+  "launcherName": "Macrosaurus",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#5B4FA6",
+  "themeColorDark": "#5B4FA6",
+  "navigationColor": "#5B4FA6",
+  "navigationColorDark": "#5B4FA6",
+  "navigationDividerColor": "#5B4FA6",
+  "navigationDividerColorDark": "#5B4FA6",
+  "backgroundColor": "#e7e3da",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://app.macrosaurus.com/icon-512.png",
+  "maskableIconUrl": "https://app.macrosaurus.com/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "macrosaurus"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Log food",
+      "shortName": "Log food",
+      "url": "/?action=log",
+      "chosenIconUrl": "https://app.macrosaurus.com/icon-192.png"
+    },
+    {
+      "name": "Scan barcode",
+      "shortName": "Scan",
+      "url": "/?action=scan",
+      "chosenIconUrl": "https://app.macrosaurus.com/icon-192.png"
+    },
+    {
+      "name": "Weigh in",
+      "shortName": "Weigh in",
+      "url": "/?action=weigh",
+      "chosenIconUrl": "https://app.macrosaurus.com/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.macrosaurus.com/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://app.macrosaurus.com/",
+  "minSdkVersion": 23,
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "appVersion": "1.0.0"
+}
