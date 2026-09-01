@@ -16880,8 +16880,22 @@ const FRESH_ROWS = [
   { key: 'recipes', label: 'Recipes, shopping list & meal plan', desc: 'Your cookbook, the pantry list and anything planned on the calendar' },
   { key: 'training', label: 'Training', desc: 'Blocks, logged sessions, custom exercises, gyms and your training settings' },
 ];
+// The groups a fresh start does not reach, and a full reset does. Kept as a separate list because a
+// fresh start is about the NUMBERS starting again - offering to delete the creature you raised on the
+// way to a calorie target would be a strange thing to put in front of someone.
+const RESET_EXTRA_ROWS = [
+  { key: 'profile', label: 'Body details & plan', desc: 'Your height, age, goal, pace and the targets built from them. Setup runs again either way; this decides whether it opens on your answers or a blank form' },
+  { key: 'buddy', label: 'Your buddy', desc: 'The creature you raised: its name, species, evolution and the cosmetics it wears. You pick a new egg afterwards' },
+  { key: 'game', label: 'Fight, Amber & trophies', desc: 'Ladder rank, wins, prestige, your Amber balance, habitat upgrades and every badge earned' },
+  { key: 'health', label: 'Steps, sleep & readiness', desc: 'Readings synced from Google Health. The connection itself stays, so a linked account fills the recent days back in' },
+];
+// Everything the reset screen can offer: the diary groups a fresh start already knew, then the rest.
+const RESET_ROWS = FRESH_ROWS.concat(RESET_EXTRA_ROWS);
 // Everything is kept unless the user opens the drawer and says otherwise.
 const FRESH_DEFAULTS = () => { const k = {}; FRESH_ROWS.forEach(r => { k[r.key] = true; }); return k; };
+// The reset screen is the mirror image: you came here to delete, so everything arrives ticked for
+// deletion and you untick what you cannot bear to lose.
+const RESET_DEFAULTS = () => { const k = {}; RESET_ROWS.forEach(r => { k[r.key] = false; }); return k; };
 
 // Keep or delete, as two words rather than ON and OFF: this is the one screen in the app where a
 // toggle's meaning cannot be guessed from the thing it sits next to, and guessing wrong is expensive.
@@ -16965,6 +16979,74 @@ function FreshStartScreen({ db, onBack, onConfirm, onExport }) {
         : 'Nothing is deleted. ')
         + 'Today becomes the starting line for your plan, the app forgets what it had learned about your calorie burn, and setup runs again so you can re-pick your goal.'}
       confirmLabel={deleting.length ? 'Delete & set up again' : 'Set up again'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
+  </SubScreen>);
+}
+
+/* Reset, the blunt instrument - but itemised. It used to be one button and one warning: everything
+   went, including the training blocks and the cookbook, which is a bad trade for someone who only
+   wanted the diary gone. Same machinery as Fresh start underneath (Store.freshStart with a keep map),
+   so what a reset clears is a LIST the merge understands rather than a bonfire it cannot reason
+   about - which is what stops a second device quietly putting it all back. */
+function ResetScreen({ db, onBack, onConfirm, onExport }) {
+  const [keep, setKeep] = useState(RESET_DEFAULTS);
+  const [confirming, setConfirming] = useState(false);
+  const toggle = (k) => setKeep(x => Object.assign({}, x, { [k]: !x[k] }));
+  const deleting = RESET_ROWS.filter(r => !keep[r.key]);
+  const keeping = RESET_ROWS.filter(r => keep[r.key]);
+  const all = () => setKeep(RESET_DEFAULTS());
+  const none = () => { const k = {}; RESET_ROWS.forEach(r => { k[r.key] = true; }); setKeep(k); };
+  const loggedDays = new Set((db.log_entries || []).map(e => e.date)).size;
+  const sessions = ((db.training || {}).logs || []).length;
+  // What each row would actually cost, in this account's own numbers. A row that reads "Food log" is
+  // abstract; one that reads "528 entries across 96 days" is a decision someone can actually make.
+  const COUNTS = {
+    log: loggedDays ? (db.log_entries || []).length + ' entries across ' + loggedDays + ' days' : null,
+    weight: (db.weight_entries || []).length ? (db.weight_entries || []).length + ' readings' : null,
+    checkins: (db.checkins || []).length ? (db.checkins || []).length + ' check-ins' : null,
+    foods: (db.foods || []).length ? (db.foods || []).length + ' saved' : null,
+    recipes: (db.recipes || []).length ? (db.recipes || []).length + ' recipes' : null,
+    training: sessions ? sessions + ' sessions, ' + (((db.training || {}).blocks) || []).length + ' blocks' : null,
+    buddy: (db.buddy && db.buddy.name) || null,
+    game: (db.fight && db.fight.wins) ? 'rank ' + (db.fight.rank || 0) + ', ' + db.fight.wins + ' wins' : null,
+    health: Object.keys(db.steps || {}).length ? Object.keys(db.steps || {}).length + ' days' : null,
+  };
+  return (<SubScreen title="Reset data" onBack={onBack}
+    intro="Choose what goes. Everything arrives marked for deletion; tap anything you want to keep. Your login, your subscription and your admin access are never touched.">
+    <div className="flex gap-2 mb-3">
+      <button onClick={all} className="pf text-[9px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>DELETE ALL</button>
+      <button onClick={none} className="pf text-[9px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>KEEP ALL</button>
+    </div>
+    {RESET_ROWS.map(r => <KeepRow key={r.key} label={r.label} keep={!!keep[r.key]} onClick={() => toggle(r.key)}
+      desc={COUNTS[r.key] ? COUNTS[r.key] + ' \u00b7 ' + r.desc : r.desc} />)}
+
+    <Card className="p-4 mt-4 mb-4">
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Whatever you choose</div>
+      <ul className="text-[12px] leading-relaxed space-y-1.5" style={{ color: 'var(--text2)' }}>
+        <li><b>Setup runs again</b>, and today becomes the starting line: your targets, your calorie burn and how long you have been dieting all begin here.</li>
+        <li>The app forgets the burn it had learned, and any diet break or paused goal ends.</li>
+        <li>Your login stays. So does your subscription, and your admin access if you have it.</li>
+        {!!keeping.length && <li><b>Kept:</b> {keeping.map(r => r.label.toLowerCase()).join(', ')}.</li>}
+      </ul>
+    </Card>
+
+    <div className="text-[11px] leading-relaxed mb-3 px-1" style={{ color: 'var(--text2)' }}>
+      None of this can be undone. Export your data first if you want a copy.
+      {onExport && <> <TextBtn onClick={onExport}>Export my data</TextBtn></>}
+      {!keep.log && !keep.checkins ? ' With the log and the check-ins both going, your old targets go with them.' : ''}
+    </div>
+
+    <Btn kind="danger" className="w-full" disabled={!deleting.length} style={deleting.length ? undefined : { opacity: 0.45 }} onClick={() => setConfirming(true)}>
+      {deleting.length === RESET_ROWS.length ? 'Reset everything' : deleting.length ? 'Delete ' + deleting.length + ' thing' + (deleting.length === 1 ? '' : 's') : 'Nothing selected'}
+    </Btn>
+    <button onClick={onBack} className="w-full py-3 text-[12px] mt-2" style={{ color: 'var(--text2)' }}>Cancel</button>
+
+    {confirming && <ConfirmDialog title={deleting.length === RESET_ROWS.length ? 'Reset everything?' : 'Delete these?'}
+      confirmKind="danger"
+      body={'This permanently deletes: ' + deleting.map(r => r.label.toLowerCase()).join(', ') + '. It cannot be undone.'
+        + (keeping.length ? ' Kept: ' + keeping.map(r => r.label.toLowerCase()).join(', ') + '.' : '')
+        + ' Setup runs again afterwards so you can re-pick your goal.'}
+      confirmLabel={deleting.length === RESET_ROWS.length ? 'Reset everything' : 'Delete & set up again'}
+      onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
   </SubScreen>);
 }
 
@@ -17468,7 +17550,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
   const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
-  const [resetOpen, setResetOpen] = useState(false); const [legal, setLegal] = useState(null);
+  const [legal, setLegal] = useState(null);
   const [feedback, setFeedback] = useState(false);
   async function doDelete() { setDelBusy(true); setDelErr(''); try { await onDeleteAccount(); } catch (e) { setDelErr(e.message || 'Something went wrong.'); setDelBusy(false); } }
   function exportData() {
@@ -17497,6 +17579,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     integrations: () => <IntegrationsScreen db={db} update={update} onBack={back} showToast={showToast} />,
     health: () => <HealthScreen db={db} update={update} onBack={back} />,
     freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} onExport={exportData} />,
+    reset: () => <ResetScreen db={db} onBack={back} onConfirm={onReset} onExport={exportData} />,
   };
   if (screen && SCREENS[screen]) return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
@@ -17554,12 +17637,11 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
             and somebody whose numbers feel wrong looks in their plan settings, not in the danger
             zone. It lives under Your plan now. What is left here genuinely is irreversible. */}
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
-        <MenuRow label="Reset all data" desc="Wipe everything, training and recipes included, and start over. Keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
+        <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
         <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
-      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your numbers to start again, use Fresh start under Settings → Your plan: it draws a line at today and deletes nothing." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
       {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
@@ -21050,7 +21132,40 @@ function App() {
     showToast('Saved ' + recipe.title + ' as a meal you can quick-log');
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
-  function resetAll() { const f2 = Store.defaultState(); const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
+  /* Reset, itemised (ResetScreen). `keep` says which groups survive, exactly as a fresh start does,
+     and the surgery is Store.freshStart for both: one code path, one field list, one watermark the
+     merge understands. That last part is the point. The old reset handed back defaultState under a
+     _wipe watermark, which says "everything before now is gone" and nothing about WHAT went, so a
+     device that had not seen it could only be discarded whole or not at all. A keep map travels: a
+     copy that never saw the reset loses precisely the groups the reset cleared and keeps the rest.
+     When every group is going, the wipe watermark goes on TOO, as a belt to the braces: it is the
+     one statement an older build still understands, and the case where losing an unsynced edit is
+     exactly what was asked for anyway. */
+  function resetAll(keep) {
+    const k = keep || {};
+    const everything = Store.RESET_GROUPS.every(g => !k[g]);
+    const today = Store.todayISO();
+    setDb(prev => {
+      // The fallback plan is only worth building when the profile it would be built FROM survives.
+      // Clearing the profile means the wizard opens blank and needsSetup gates the render, so there
+      // is no dashboard waiting behind it to read a target off - and inventing one from body details
+      // the user just deleted is how you end up with numbers nobody agreed to.
+      let weightKg = 0, target = null;
+      if (k.profile) {
+        const weighed = (prev.weight_entries || []).filter(w => w && w.scale_weight != null);
+        const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+        weightKg = (latest && latest.scale_weight) || (prev.profile && prev.profile.weightKg) || 0;
+        const prof = withActivity(Object.assign({}, prev.profile, weightKg ? { weightKg: +weightKg.toFixed(2) } : {}));
+        target = Object.assign(E.computeInitialTargets(prof), { source: 'reset' });
+      }
+      // groups: the reset screen is the one caller allowed to reach past the diary (see freshCleared).
+      const n = Store.freshStart(prev, { today, keep: k, weightKg, target, groups: Store.RESET_GROUPS });
+      if (everything) { const t = Date.now(); n._wipe = t; n._rev = t; }
+      if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); }
+      return n;
+    });
+    setView('dashboard'); // Store.freshStart flags onboarding.needsSetup; the render gate takes it from here
+  }
   // A fresh start, with `keep` saying which groups survive it (see Store.FRESH_PARTS). Store.freshStart
   // does the state surgery and explains what it clears and why; the job here is to re-anchor the plan
   // in the same breath, because a state with no target at all has no plan and the dashboard reads its
