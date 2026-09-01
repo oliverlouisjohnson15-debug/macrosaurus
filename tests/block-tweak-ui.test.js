@@ -174,3 +174,42 @@ test('a free account is sent to the paywall rather than to the model', async () 
     assert.equal(called, false, 'nothing was sent');
   } finally { ui.unmount(); A.aiTweakBlock = real; }
 });
+
+/* The way IN, from the screen people actually read their week on.
+ *
+ * The builder is the right home for changing a plan, and for a while it was the ONLY way in: three
+ * taps down, behind a button called "Blocks", on a screen headed "Edit block". That is how a feature
+ * ships and stays invisible - which is exactly what happened. */
+test('the Train tab offers a way to change the block you are looking at', () => {
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5, sessionMinutes: 60 });
+  const db = accountWith(block);
+  let went = null;
+  const ui = mount(A.TrainHome, {
+    db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block,
+    onOpen() {}, onResume() {}, onFreeform() {}, go: (name, opts) => { went = { name, opts }; },
+  });
+  try {
+    assert.ok(ui.has('Change this block'), 'the route is on the week you are reading: ' + ui.text.slice(0, 600));
+    ui.click('Change this block');
+    assert.equal(went && went.name, 'builder');
+    assert.equal(went.opts.blockId, block.id, 'it opens the block you were looking at');
+    assert.equal(went.opts.tweak, true, 'and asks the builder to open on the change card');
+  } finally { ui.unmount(); }
+});
+
+test('a finished block is not offered a plan to change', () => {
+  // The block is over; the thing to do with it is read the review, not edit weeks that have all been
+  // trained. Train home draws a different card entirely in that state.
+  const block = T.generateBlock({ style: 'minmax', shape: 'minmax6', weeks: 6, daysPerWeek: 5, sessionMinutes: 60 });
+  const db = accountWith(block);
+  const start = new Date(Date.parse(A.Store.todayISO() + 'T00:00:00Z') - 70 * 86400000);
+  block.startISO = start.toISOString().slice(0, 10);
+  db.training.blocks = [block];
+  const ui = mount(A.TrainHome, {
+    db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block,
+    onOpen() {}, onResume() {}, onFreeform() {}, go() {},
+  });
+  try {
+    assert.ok(!ui.has('Change this block'), 'nothing to change on a block that is over: ' + ui.text.slice(0, 400));
+  } finally { ui.unmount(); }
+});

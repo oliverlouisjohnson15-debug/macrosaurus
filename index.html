@@ -56272,6 +56272,7 @@ function TrainTab({
       blockId: screen.blockId,
       draft: screen.draft,
       clearDraft: screen.clearDraft,
+      tweak: screen.tweak,
       onBack: () => go(screen.from || 'home'),
       onSchedule: id => go('schedule', {
         blockId: id,
@@ -57022,7 +57023,33 @@ function TrainHome({
       borderTop: '2px solid var(--border)',
       background: 'var(--surface2)'
     }
-  }, "Back to week ", prog.week))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
+  }, "Back to week ", prog.week)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => go('builder', {
+      blockId: block.id,
+      from: 'home',
+      tweak: true
+    }),
+    className: "w-full pixel-box p-3.5 mb-4 flex items-center gap-2.5 text-left",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-[13px] font-semibold leading-tight"
+  }, "Change this block"), /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11.5px] mt-0.5 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Say what you want different and I will change the weeks you have not trained yet.")), /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "16",
+    height: "16",
+    style: {
+      color: 'var(--muted2)',
+      flexShrink: 0
+    }
+  }))), block && blockDone && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4",
     style: {
       background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
@@ -61452,6 +61479,7 @@ function BlockBuilder({
   blockId,
   draft,
   clearDraft,
+  tweak,
   onBack,
   onStart,
   onSchedule
@@ -61492,6 +61520,21 @@ function BlockBuilder({
   const [wishResult, setWishResult] = useState(null); // { note, applied, rejected, before }
   const [wishErr, setWishErr] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  /* Arrived here from "Change this block" on the Train tab, which asks a question this screen has to
+     answer straight away. The card is below the name, the start date, the week picker and the volume
+     panel - all of which are the right order for somebody who came to READ the block, and the wrong
+     one for somebody who came to change it. So the screen opens on it rather than making them find
+     it. Guarded because jsdom has no scrollIntoView, and a missing scroll must never take a screen
+     down with it. */
+  const wishRef = useRef(null);
+  useEffect(() => {
+    if (!tweak || !wishRef.current || !wishRef.current.scrollIntoView) return;
+    try {
+      wishRef.current.scrollIntoView({
+        block: 'center'
+      });
+    } catch (_) {/* never fatal */}
+  }, [tweak]);
   /* Everything on this screen is an edit buffer: sets, movements, the name, the start date, the
      week you are looking at. None of it is written until the button at the bottom says so, which is
      the right model for a screen where one tap changes twelve weeks - and it meant the back arrow
@@ -61976,7 +62019,9 @@ function BlockBuilder({
         color: on ? 'var(--on-accent)' : 'var(--text2)'
       }
     }, ex ? ex.name : id);
-  }))))), /*#__PURE__*/React.createElement(Card, {
+  }))))), /*#__PURE__*/React.createElement("div", {
+    ref: wishRef
+  }, /*#__PURE__*/React.createElement(Card, {
     className: "p-0 overflow-hidden mb-4"
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: "Change something",
@@ -62084,7 +62129,7 @@ function BlockBuilder({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "Start again from ", fromProgramme.name, " as written"))), /*#__PURE__*/React.createElement("div", {
+  }, "Start again from ", fromProgramme.name, " as written")))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, sessions.map(s => {
     const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
