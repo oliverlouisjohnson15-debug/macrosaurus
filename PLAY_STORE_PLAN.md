@@ -21,33 +21,27 @@ commit the signing key.**
 
 ## Account
 
-Macrosaurus is a sole trader, not a registered company, so the **organisation**
-account type is not available: Play requires a certificate of incorporation, VAT
-registration certificate, or charity registration to verify an organisation, and a
-D-U-N-S number alone does not satisfy it. D&B issues DUNS numbers to sole traders,
-which is why one exists without any of those documents.
+**Personal account**, not organisation. Play verifies an organisation with a certificate
+of incorporation, VAT certificate or charity registration; a D-U-N-S number alone does
+not satisfy it, and Macrosaurus is a sole trader with none of those. Incorporating
+purely to get the organisation account type would mean annual accounts, a confirmation
+statement and corporation tax returns — not worth taking on pre-revenue to skip a
+two-week wait. Revisit if and when there is revenue; apps can be migrated between Play
+accounts later.
 
-Two routes, and this is the one real decision in the whole launch:
-
-**Incorporate, then register as an organisation.** Registering a limited company with
-Companies House is done online and usually approved within 24 hours; the certificate of
-incorporation is then downloadable free from the company's Filing history on the public
-register. Check the current digital incorporation fee on GOV.UK — it has risen twice
-recently. This keeps the account exempt from the closed-testing requirement below.
-
-**Register a personal account.** No documents beyond personal ID, but personal accounts
+The cost of the personal route is the closed-testing requirement: personal accounts
 created after 13 Nov 2023 must run a closed test with **12 testers opted in continuously
-for 14 days** before they can apply for production access. The 14 days only start once
-12 testers are actually opted in, so a tester dropping out resets progress. Budget three
-to four weeks in practice, and see step 0 below.
+for 14 days** before they can apply for production access.
 
-Either way: one-off £20 registration fee, and identity verification takes a few days.
+One-off £20 registration fee (per account, so if it was already paid partway through an
+organisation signup, ask Play support to switch the account type rather than paying
+again). Identity verification takes a few days.
 
-### Step 0 (personal account only): closed testing
+### Step 0: closed testing
 
-If going the personal route, this is the long pole and should start the moment the
-account is verified — before the store listing is written, since a closed test needs
-only an uploaded build.
+This is the long pole and should start the moment the account is verified — before the
+store listing is written, since a closed test needs only an uploaded build. Descriptions
+and screenshots can be produced while the 14 days run.
 
 - Create a **Closed testing** track and upload the first `.aab`
 - Recruit 12 testers by Google account email. They must opt in via the test link and
@@ -60,7 +54,7 @@ only an uploaded build.
 ### 1. Register the developer account
 At https://play.google.com/console/signup, using the Google account that should own the
 app long-term — it owns the signing keys and payouts and is painful to change later.
-Account type per the decision above. Identity verification takes a few days. Set the
+Account type: **Personal**. Identity verification takes a few days. Set the
 public developer name and support email (`olly@macrosaurus.com`).
 
 ### 2. Create the app in Play Console
