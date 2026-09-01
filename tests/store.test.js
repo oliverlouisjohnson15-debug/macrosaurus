@@ -458,6 +458,62 @@ test('mergeStates: the admin panel reset blob is enough to wipe a device', () =>
   assert.deepStrictEqual(Store.mergeStates(local, {}).log_entries.map(e => e.id), ['a']);
 });
 
+test('freshStart: a reset can keep the training module and clear everything else', () => {
+  // What the reset screen asks for when only Training is left ticked to keep.
+  const st = Object.assign(Store.defaultState(), {
+    log_entries: [{ id: 'a', date: '2026-07-08' }], weight_entries: [{ id: 'w', date: '2026-07-08' }],
+    checkins: [{ date: '2026-07-04' }], foods: [{ id: 'f' }], recipes: [{ id: 'r' }],
+    expenditure: { kcal: 2650, n: 4 }, amber_ledger: [{ id: 'am', delta: 40 }], habitat: ['pond'],
+    items: { belt: 1 }, badges: { checkins: 9, inRange: 4 },
+    buddy: { stage: 3, name: 'Chompers', speciesId: 'rex', cosmetics: ['hat'] },
+    fight: { rank: 7, wins: 18, trophies: 1, prestige: 0 },
+    steps: { '2026-07-08': 9000 }, profile: { weightKg: 82, goalType: 'cut' },
+    onboarding: { eggPicked: true, welcomed: true },
+    training: { blocks: [{ id: 'b1' }], logs: [{ id: 'l1', dateISO: '2026-07-08' }], custom: [{ id: 'c1' }], prefs: { units: 'kg' } },
+  });
+  const n = Store.freshStart(st, { today: '2026-09-01', now: 500, keep: { training: true }, groups: Store.RESET_GROUPS });
+  assert.deepStrictEqual(n.training.logs.map(l => l.id), ['l1']);   // the one thing kept
+  assert.deepStrictEqual(n.training.blocks.map(b => b.id), ['b1']);
+  assert.strictEqual(n.training.prefs.units, 'kg');
+  assert.deepStrictEqual(n.log_entries, []);
+  assert.deepStrictEqual(n.recipes, []);
+  assert.strictEqual(n.expenditure, null);
+  assert.strictEqual(n.buddy.name, '');            // the creature goes
+  assert.strictEqual(n.fight.wins, 0);
+  assert.deepStrictEqual(n.amber_ledger, []);
+  assert.deepStrictEqual(n.habitat, []);
+  assert.deepStrictEqual(n.items, {});
+  assert.strictEqual(n.badges.checkins, 0);
+  assert.deepStrictEqual(n.steps, {});
+  assert.strictEqual(n.profile, null);
+  assert.strictEqual(n.onboarding.eggPicked, false); // ...so the egg picker can run again
+  assert.strictEqual(n.onboarding.needsSetup, true);
+  assert.ok(n._soft.cleared.indexOf('buddy') >= 0 && n._soft.cleared.indexOf('training') < 0);
+});
+
+test('freshStart: a device that never saw the reset cannot put a cleared group back', () => {
+  // The reported bug, in its softer form: the phone stayed open across the reset, so its copy has no
+  // _soft mark and a _rev well past it. It must lose exactly what the reset cleared - and keep the
+  // group the reset was told to spare, which is the whole reason this is a list and not a bonfire.
+  const before = Object.assign(Store.defaultState(), {
+    log_entries: [{ id: 'a', date: '2026-07-08' }], buddy: { stage: 3, name: 'Chompers', cosmetics: [] },
+    fight: { rank: 7, wins: 18, prestige: 0 }, expenditure: { kcal: 2650, n: 4 },
+    training: { blocks: [], logs: [{ id: 'l1', dateISO: '2026-07-08' }], custom: [] },
+  });
+  const reset = Store.freshStart(before, { today: '2026-09-01', now: 1000, keep: { training: true }, groups: Store.RESET_GROUPS });
+  // The stale copy keeps editing afterwards: same pre-reset contents, a _rev past the mark.
+  const stale = Object.assign(JSON.parse(JSON.stringify(before)), { _rev: 5000 });
+  stale.training.logs.push({ id: 'l2', dateISO: '2026-09-01' }); // ...and logs a session while it is at it
+  const m = Store.mergeStates(stale, reset);
+  assert.deepStrictEqual(m.log_entries, []);
+  assert.strictEqual(m.buddy.name, '');
+  assert.strictEqual(m.fight.wins, 0);
+  assert.strictEqual(m.expenditure, null);
+  // Kept groups still union normally: that is what separates this guard from the wipe.
+  assert.deepStrictEqual(m.training.logs.map(l => l.id).sort(), ['l1', 'l2']);
+  assert.deepStrictEqual(Store.mergeStates(reset, stale).log_entries, []); // order must not matter
+});
+
 test('mergeStates: null-safe', () => {
   const s = { _rev: 5, log_entries: [{ id: 'a' }] };
   assert.strictEqual(Store.mergeStates(null, s), s);

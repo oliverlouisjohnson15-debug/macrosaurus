@@ -391,6 +391,24 @@
     // Declared windows outlive the run that declared them: a holiday from the old cut still bridges
     // the streak and still shapes targets, so it has to be something you can put down.
     weekplans: ['week_plans'],
+    // ---- The groups below are what "reset everything" reaches that a fresh start never did. They
+    // are listed here, in the same map, so the reset screen and the merge read one source of truth:
+    // anything the user can tick is a group the merge already knows how to keep cleared.
+    // The individual you raised - name, species, evolution, the cosmetics it wears. Its own choice,
+    // because clearing the diary and clearing the creature are genuinely different wishes.
+    buddy:    ['buddy'],
+    // Everything the game side has banked. Grouped rather than split: Amber spent on a habitat piece
+    // and the piece it bought cannot sensibly go separately, and a trophy without the ladder that
+    // won it is not a thing anyone means to keep.
+    game:     ['fight', 'items', 'game_awards', 'amber_ledger', 'habitat', 'badges'],
+    // Readings synced in from Google Health. The CONNECTION is deliberately NOT touched: this empties
+    // the Move, Sleep and Readiness history, and a still-linked account re-syncs its recent window the
+    // next time the app opens. Unlinking lives in Settings, where it can be undone by relinking.
+    health:   ['steps', 'sleep', 'health'],
+    // Your body details, and with them the plan built on top. Setup is owed after any reset anyway,
+    // so the real question this asks is whether the wizard opens on your last answers or on a blank
+    // form. Clearing it is what makes the account read as new rather than as yours-but-emptied.
+    profile:  ['profile'],
   };
   // Cleared no matter what is kept, and listed here (rather than only assigned below) because the
   // merge has to know them too: a device that never saw the reset still holds the old expenditure.
@@ -398,11 +416,19 @@
 
   // Which fields a given `keep` map clears. The single source of truth for both the reset itself and
   // the merge that has to keep it cleared, so the two can never fall out of step.
-  function freshCleared(keep) {
+  // WHICH groups a given operation is even allowed to clear, which is not the same question as which
+  // ones it was told to keep. A fresh start reaches the diary and nothing else: it must never touch
+  // the buddy, the game or the profile, and since an absent flag means CLEAR, the only thing standing
+  // between it and the creature you raised is this list. The reset screen passes RESET_GROUPS to opt
+  // into the rest. Default is the fresh-start set, so every existing caller keeps its old contract.
+  var FRESH_GROUPS = ['log', 'weight', 'checkins', 'streak', 'foods', 'recipes', 'training', 'weekplans'];
+  var RESET_GROUPS = FRESH_GROUPS.concat(['buddy', 'game', 'health', 'profile']);
+
+  function freshCleared(keep, groups) {
     var k = keep || {};
     var out = FRESH_ALWAYS.slice();
-    Object.keys(FRESH_PARTS).forEach(function (part) {
-      if (!k[part]) out = out.concat(FRESH_PARTS[part]);
+    (groups || FRESH_GROUPS).forEach(function (part) {
+      if (!k[part] && FRESH_PARTS[part]) out = out.concat(FRESH_PARTS[part]);
     });
     // The target history stands or falls with the days that read it (see the coupling note above).
     if (!k.log && !k.checkins) out.push('targets');
@@ -416,7 +442,7 @@
     var now = o.now || Date.now();
     var s = JSON.parse(JSON.stringify(state || defaultState()));
     var d0 = defaultState();
-    var cleared = freshCleared(keep);
+    var cleared = freshCleared(keep, o.groups);
 
     // Bank the streak FIRST, before the entries that prove it are thrown away. The streak is not
     // stored, it is derived from the dates carrying a log, a weigh-in or a session (see
@@ -447,6 +473,10 @@
     // closing the tab halfway through cannot leave someone on a dashboard whose numbers they never
     // agreed to. Cleared by saveProfile when the wizard is finished.
     s.onboarding = Object.assign({}, s.onboarding, { needsSetup: true });
+    // Clearing the buddy has to un-flag the egg pick too, or the app hands back an account with no
+    // creature and no way to choose one: the picker is gated on eggPicked, and every other route to
+    // a buddy assumes one already exists. Only when the buddy is actually going.
+    if (cleared.indexOf('buddy') >= 0) s.onboarding.eggPicked = false;
 
     if (o.weightKg > 0) {
       var kg = Math.round(o.weightKg * 100) / 100;
@@ -605,7 +635,13 @@
     var ma = softMark(a), mb = softMark(b);
     var mark = (!ma || (mb && mb.at > ma.at)) ? mb : ma;
     if (mark && mark.at) {
-      var preSoft = function (s) { var m = softMark(s); return (m ? m.at : 0) < mark.at && (s._rev || 0) < mark.at; };
+      // Watermark alone, for the same reason the wipe guard above compares only _wipe: the copy that
+      // resurrects a cleared group is precisely the tab or device that was open ACROSS the reset, and
+      // its _rev races past the mark the moment it saves. Requiring _rev to predate the mark handed
+      // that copy a free pass and let it union every cleared collection back in. This guard is gentler
+      // than the wipe: a pre-reset copy is not discarded, it only loses the fields the reset chose to
+      // clear, so a session logged offline in the gym still arrives as long as training was kept.
+      var preSoft = function (s) { var m = softMark(s); return (m ? m.at : 0) < mark.at; };
       if (preSoft(newer)) newer = withoutCleared(newer, mark.cleared);
       if (preSoft(older)) older = withoutCleared(older, mark.cleared);
       // Rebind a and b to the stripped copies. The unions below read newer/older, but the field-wise
@@ -825,6 +861,8 @@
     reset: reset,
     freshStart: freshStart,
     FRESH_PARTS: FRESH_PARTS,
+    FRESH_GROUPS: FRESH_GROUPS,
+    RESET_GROUPS: RESET_GROUPS,
     freshCleared: freshCleared,
   };
 
