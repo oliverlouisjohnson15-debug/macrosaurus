@@ -1057,7 +1057,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       : 'Set ' + ((work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length)
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
-                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
+                      : work.length + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
               {open
@@ -1534,7 +1534,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             {
               label: 'Sets and reps',
               sub: items[menuOpen].target
-                ? items[menuOpen].target.sets + ' × ' + items[menuOpen].target.repLow + '-' + items[menuOpen].target.repHigh + ' at ' + items[menuOpen].target.rir + ' RIR'
+                ? items[menuOpen].target.sets + ' × ' + Training.repLabel(items[menuOpen].target) + ' at ' + items[menuOpen].target.rir + ' RIR'
                 : 'Set the prescription for today',
               disabled: !items[menuOpen].target,
               onClick: () => setTargetFor(menuOpen),

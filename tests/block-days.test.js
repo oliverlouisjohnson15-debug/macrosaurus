@@ -180,3 +180,133 @@ test('dropping a day says which day went', () => {
     assert.ok(ui.has('Took out '), 'and it names what left: ' + ui.text.slice(0, 600));
   } finally { ui.unmount(); }
 });
+
+/* ---- and asked before anything is read ---------------------------------------------------------
+ * `days` is not only a setting for the block we write. It is handed to the reader as which day-count
+ * track to pull out of a source, and it is what a brought plan is laid across - so asking it AFTER
+ * the upload step meant five screenshots of a five-day week were read at whatever the last block
+ * happened to be. The question has to be in front of somebody before they tap "Choose file(s)".
+ */
+const { render } = require('./helpers/app.js');
+
+function wizard() {
+  const db = accountWith(A.Training.generateBlock({ daysPerWeek: 4, weeks: 4 }));
+  db.training.blocks = [];
+  return { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} };
+}
+
+test('the day count is asked on the step that reads your screenshots, above the upload', () => {
+  const r = render(A.BlockWizard, wizard());
+  assert.ok(/Days a week/.test(r.text), 'it is on the opening step: ' + r.text.slice(0, 300));
+  assert.ok(/Bring a programme/.test(r.text), 'so is the import');
+  assert.ok(r.text.indexOf('Days a week') < r.text.indexOf('Bring a programme'),
+    'and it is answered first: ' + r.text.slice(0, 400));
+  assert.ok(/How you want to train/.test(r.text), 'the style question is still first of all');
+  assert.ok(r.text.indexOf('How you want to train') < r.text.indexOf('Days a week'),
+    'style before days, since the style is what moves the default');
+});
+
+test('the import says it reads at that count, and follows a plan that brought its own', () => {
+  const r = render(A.BlockWizard, wizard());
+  assert.ok(/day count set above/.test(r.text), 'it points at the control, which is above it now');
+  assert.ok(/the count follows it/.test(r.text), 'and says an untouched count follows the source');
+});
+
+test('the day count is asked once, and the sessions step says where it stands', () => {
+  const ui = mount(A.BlockWizard, wizard());
+  try {
+    const asks = (ui.text.match(/Days a week/g) || []).length;
+    assert.equal(asks, 1, 'one control, not two that can disagree');
+    pressDays(ui, 5);
+    ui.click('Next · Sessions');
+    assert.ok(ui.has('5 sessions a week'), 'the next step carries the answer: ' + ui.text.slice(0, 400));
+    assert.ok(ui.has('Change it'), 'and says where to change it rather than asking again');
+    ui.click('Change it');
+    assert.ok(ui.has('Bring a programme'), 'which goes back to the step it is on');
+  } finally { ui.unmount(); }
+});
+
+/* ---- the five-day bodybuilding split ------------------------------------------------------------
+ * Transcribed from five screenshots of the app it was written in, which is a worse source than a
+ * spreadsheet and so needs its own guard: that what ships is what those screenshots say, movement
+ * for movement, set for set and rep for rep. The transcription is by hand; this is the check on it.
+ */
+const bb5 = () => A.Training.programmeOf('bb5');
+const day = (name) => bb5().template.filter(d => d.name === name)[0];
+const said = (name) => day(name).exercises.map(e => e.sourceName + ' ' + e.target.sets + 'x' + e.target.repLow + ' @' + e.target.tempo);
+
+test('the five-day bodybuilding split ships as its author wrote it', () => {
+  assert.equal(bb5().name, 'Macrosaurus 5 Day Bodybuilding');
+  assert.equal(bb5().daysPerWeek, 5);
+  assert.deepEqual(bb5().template.map(d => d.name), ['Upper 1', 'Lower 1', 'Arms and delts', 'Upper 2', 'Lower 2']);
+  assert.deepEqual(said('Upper 1'), [
+    'Smith Machine Incline Press 2x6 @2110',
+    'Machine Lat Pulldown 2x8 @2110',
+    'Decline Chest Fly 2x8 @2110',
+    'T-Bar Row (Mega Mass) 2x6 @2110',
+    'T-Bar Row 1x8 @2110',
+    'Hanging Leg Raises 2x8 @2110',
+  ]);
+  assert.deepEqual(said('Lower 1'), [
+    'Pendulum Squat 2x8 @2110',
+    'Split Squat Smith Machine 1x6 @2110',
+    'Hamstring Curl 2x8 @2110',
+    'Machine Adduction 2x8 @2110',
+    'Leg Extensions 2x8 @2110',
+  ]);
+  assert.deepEqual(said('Arms and delts'), [
+    'DB Seated Shoulder Press 2x8 @3110',
+    'Machine Lateral Raise 2x10 @2110',
+    'Machine Rear Delt Fly 1x10 @2110',
+    'Alternating Dumbbell Hammer Curl 2x8 @2110',
+    'French Press (OHTX) 2x6 @2110',
+    'Machine Preacher Curl 2x6 @2110',
+    'Cable Tricep Pushdown 2x8 @2110',
+  ]);
+  // The two repeat days are the same session, bar the movement each finishes on and one tempo -
+  // which is exactly what the screenshots show, and the easiest thing to get wrong by hand.
+  assert.deepEqual(said('Upper 2').slice(0, 5), said('Upper 1').slice(0, 5));
+  assert.equal(said('Upper 2')[5], 'Machine Ab Crunch 2x8 @2110');
+  assert.deepEqual(said('Lower 2').slice(1), said('Lower 1').slice(1));
+  assert.equal(said('Lower 2')[0], 'Pendulum Squat 2x8 @3110');
+});
+
+test('every movement in it is a real one, resolved to what the plan actually asked for', () => {
+  const T2 = A.Training;
+  for (const d of bb5().template) {
+    for (const e of d.exercises) {
+      assert.ok(T2.byId(e.exerciseId), e.sourceName + ' points at nothing in the library');
+      // The name as the plan writes it must resolve to the same movement the template hard-codes,
+      // so importing this plan and running the shipped copy cannot disagree about what it is.
+      assert.equal(T2.resolve(e.sourceName), e.exerciseId, e.sourceName + ' does not resolve to itself');
+      assert.ok((e.alts || []).every(a => T2.byId(a)), e.sourceName + ' offers a substitution that does not exist');
+    }
+  }
+});
+
+test('it runs as written: four weeks that all prescribe the same thing', () => {
+  const T2 = A.Training;
+  const b = T2.programmeBlock('bb5', {});
+  assert.equal(b.weeks, 4);
+  assert.equal(b.shape, 'as-written');
+  assert.equal(b.style, 'minmax');
+  const sig = (w) => T2.weekSessions(b, w).map(s => T2.sessionItems(s)
+    .map(e => [e.exerciseId, e.target.sets, e.target.repLow, e.target.repHigh, e.target.tempo].join('|')).join(',')).join('/');
+  assert.equal(sig(4), sig(1), 'week 4 should prescribe exactly what week 1 does');
+});
+
+test('a rep count written as one number is read back as one number', () => {
+  const T2 = A.Training;
+  // The plan says eight reps, not eight to eight. Ten call sites used to render the pair raw.
+  assert.equal(T2.repLabel({ repLow: 8, repHigh: 8 }), '8');
+  assert.equal(T2.repLabel({ repLow: 6, repHigh: 8 }), '6-8');
+  assert.equal(T2.repLabel({ repLow: 10, repHigh: null }), '10');
+  assert.equal(T2.repLabel({}), '');
+  const b = T2.programmeBlock('bb5', {});
+  const db = accountWith(b);
+  const s = T2.weekSessions(b, 1)[0];
+  const r = render(A.SessionPlayer, {
+    db, update() {}, showToast() {}, sessionId: s.id, blockId: b.id, onExit() {}, onFocusMode() {}, gym: null,
+  });
+  assert.ok(!/\b(\d+)-\1\b/.test(r.text), 'nothing should read "8-8": ' + (r.text.match(/[^ ]*\d-\d[^ ]*/) || [''])[0]);
+});

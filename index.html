@@ -6431,6 +6431,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     'db_incline|Incline dumbbell press|dumbbell|horizPress|ch,fd|tr|len',
     'db_fly|Dumbbell fly|dumbbell|isolation|ch||len',
     'db_incline_fly|Incline dumbbell fly|dumbbell|isolation|ch||len',
+    'db_decline_fly|Decline dumbbell fly|dumbbell|isolation|ch||len',
     'cable_fly|Cable fly|cable|isolation|ch||mid',
     'cable_fly_low|Low-to-high cable fly|cable|isolation|ch||mid',
     'cable_fly_high|High-to-low cable fly|cable|isolation|ch||mid',
@@ -6774,6 +6775,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     'bent_knee_dragon_flag|Bent-knee dragon flag|bodyweight|core|ab|ob|len',
     'lying_leg_raise|Lying leg raise|bodyweight|core|ab||sho',
     'smith_machine_lunge|Smith machine lunge|smith|lunge|qu,gl|ad|len',
+    'smith_split_squat|Smith machine split squat|smith|lunge|qu,gl|ad,ha|len',
     'dumbbell_lunge|Dumbbell lunge|dumbbell|lunge|qu,gl|ha,ad|mid',
     'barbell_lunge|Barbell lunge|barbell|lunge|qu,gl|ha,ad|mid',
     'standing_plate_abduction|Standing plate abduction|dumbbell|isolation|gl||sho',
@@ -6953,12 +6955,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // Names a coaching app writes that the library has no token in common with, so no amount of
     // scoring reaches them. A "chest fly" is not called that anywhere in the table; a French press
     // is an overhead extension under another name; "decline" on a fly means the high-to-low angle.
-    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'cable_fly_high',
+    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'db_decline_fly',
     'decline fly': 'cable_fly_high', 'incline chest fly': 'db_incline_fly',
     'french press': 'overhead_ez', 'french presses': 'overhead_ez',
-    'triceps pushdown': 'rope_pushdown', 'cable triceps pushdown': 'bar_pushdown',
-    'cable tricep pushdown': 'bar_pushdown', 'triceps pushdowns': 'rope_pushdown',
-    'split squat smith machine': 'split_squat', 'smith machine split squat': 'split_squat',
+    'triceps pushdown': 'rope_pushdown', 'triceps pushdowns': 'rope_pushdown',
+    // A plan that says "cable tricep pushdown" has named the cable and NOT the attachment, so the
+    // answer is the generic pressdown rather than the app picking the bar on their behalf - which
+    // is the same answer the five-day programme's own note gives: rope or bar, whichever sits
+    // better on your elbows.
+    'cable triceps pushdown': 'triceps_pressdown', 'cable tricep pushdown': 'triceps_pressdown',
+    'split squat smith machine': 'smith_split_squat', 'smith machine split squat': 'smith_split_squat',
     'machine adduction': 'hip_adduction', 'machine abduction': 'hip_abduction',
     'machine ab crunch': 'machine_crunch',
   };
@@ -7007,6 +7013,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     'chest supported t bar row': 'tbar_row_supported', 'chest-supported t-bar row': 'tbar_row_supported',
     '1 arm reverse pec deck': 'reverse_pec_deck_single', 'one arm reverse pec deck': 'reverse_pec_deck_single',
     'smith machine jm press': 'jm_press_smith',
+    /* Read off the third written programme (see PROGRAMMES). Each of these was resolving to a real
+       movement that is NOT the one the plan asked for, which is the worst kind of import miss: it
+       looks like it worked. A hammer curl is not a supinated curl, a split squat in a Smith machine
+       is not a free-weight split squat, and a fly on a decline bench is not a cable crossover. */
+    'alternating dumbbell hammer curl': 'hammer_curl', 'alternating db hammer curl': 'hammer_curl',
+    'decline fly': 'db_decline_fly', 'decline dumbbell fly': 'db_decline_fly',
+    'decline db fly': 'db_decline_fly',
+    'machine rear delt fly': 'machine_rear_delt', 'machine reverse fly': 'machine_rear_delt',
+    'french press': 'overhead_ez', 'ohtx': 'overhead_ez',
   };
   Object.keys(COACH_ALIASES).forEach(function (k) { if (!ALIASES[k]) ALIASES[k] = COACH_ALIASES[k]; });
 
@@ -7499,6 +7514,19 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
   // Weekly sets per muscle for a set of session prescriptions (the PLAN side).
   // `sessions` is a list of { exercises: [{ exerciseId, target:{sets} }] }.
+  /* A prescription's reps, said the way it was written. A rep RANGE is what this app prescribes and
+     what most plans are written in, but plenty are not: a coach who writes "8 reps, 2110 tempo"
+     means eight, and rendering that back as "8-8 reps" everywhere makes the app look like it cannot
+     read. One helper rather than ten call sites each deciding for themselves. */
+  function repLabel(target) {
+    var t = target || {};
+    var lo = t.repLow, hi = t.repHigh;
+    if (lo == null && hi == null) return '';
+    if (lo == null) return String(hi);
+    if (hi == null || +hi === +lo) return String(lo);
+    return lo + '-' + hi;
+  }
+
   function plannedVolume(sessions, custom) {
     var out = {};
     MUSCLES.forEach(function (m) { out[m] = 0; });
@@ -8522,10 +8550,21 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
    * DAY_MUSCLES above is the volume model's answer and it is a fine one for a style where movements
    * are cheap and sets are what is being rationed. Min-max rations movements: five or six a session,
    * one or two sets each, so every slot spent is a slot not spent on something else. Read straight
-   * off the two written programmes (see PROGRAMMES) - which is why there are no adductors, obliques
-   * or lower back anywhere in it, and why forearms appear on the arms day and nowhere else. Four of
-   * the nine movements on their arms and delts day are forearm work; nothing else in either
-   * programme picks a movement for grip.
+   * off the written programmes (see PROGRAMMES) - which is why there are no obliques or lower back
+   * anywhere in it, and why forearms appear on the arms day and nowhere else. Four of the nine
+   * movements on the arms and delts day of the first two are forearm work; nothing else in any of
+   * them picks a movement for grip.
+   *
+   * Adductors are the one place the three programmes disagree: the third (see PROGRAMMES) trains
+   * them directly on BOTH of its lower days, two sets each, and the other two never do. They are
+   * deliberately still not in this map, and the reason is worth writing down rather than
+   * rediscovering. Putting them in does not merely allow an adductor movement, it SPENDS one of the
+   * five or six slots a min-max session has on a muscle whose landmarks (MINMAX_LANDMARKS) put its
+   * floor at zero because the squat and the lunge already pay it. One programme is not enough to
+   * move a landmark, and moving the day map without the landmark would have the generator
+   * programming a muscle the same file says needs no direct work. Somebody who wants it can bring
+   * the programme that has it, or ask for it in words on the block screen - both of which put the
+   * choice with the person rather than in a default.
    */
   var MINMAX_DAY_MUSCLES = {
     full: ['qu', 'ch', 'lt', 'ha', 'sd', 'ca'],
@@ -10211,7 +10250,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         touched.forEach(function (s) {
           tweakRows(s, id).forEach(function (e) {
             var t = setExerciseTarget(s, e.id, { repLow: o.repLow, repHigh: o.repHigh });
-            if (t && !shown) shown = t.repLow + '-' + t.repHigh;
+            if (t && !shown) shown = repLabel(t);
           });
         });
         applied.push(tweakName(id, custom) + ': ' + shown + ' reps (' + tweakReach(touched, out) + ').');
@@ -10537,8 +10576,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
 
   /* ---- the programmes the app ships with --------------------------------------------------------
-   * Two written programmes, in the app, ready to run: a four-day and a five-day. They are the house
-   * method as an actual plan rather than as a set of rules - what the generator is aiming at when it
+   * Three written programmes, in the app, ready to run: a four-day, a five-day, and a five-day
+   * bodybuilding split. They are the house method as an actual plan rather than as a set of rules - what the generator is aiming at when it
    * builds somebody a block, and what somebody who does not want to answer questions can just start.
    *
    * WHAT THEY ARE. One week each, exactly as written: the movements in their order, the working
@@ -10554,8 +10593,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
    * and every last set is an all-out set from the first session. The techniques are the block after
    * this one (applyTechniques), not a thing to open with.
    *
-   * Generated by tools/gen-programmes.mjs from the source spreadsheets. Edit the sheet and re-run
-   * it; do not hand-edit what is below, because a plan re-typed by hand is a plan with a typo in it.
+   * The first two are generated by tools/gen-programmes.mjs from the source spreadsheets: edit the
+   * sheet and re-run it, and do not hand-edit those two, because a plan re-typed by hand is a plan
+   * with a typo in it. The third came from screenshots rather than a sheet and is written out by
+   * hand - its own note below says which parts of it are the author's and which are ours.
    */
   var PROGRAMMES = [
   { key: "mac4", name: "Macrosaurus 4 Day", daysPerWeek: 4, template: [
@@ -10570,6 +10611,33 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     {"name":"Upper 2","kind":"upper","dayOfWeek":3,"exercises":[{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["close_grip_pull_up","1_arm_cable_pulldown"],"warmups":3,"planNote":"Lean back by ~15° and drive your elbows down as you squeeze your shoulder blades together. This should feel like a mix of lats and mid-traps.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"tbar_row_supported","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","chest_supported_row"],"warmups":3,"planNote":"Flare elbows out at roughly 45° and squeeze your shoulder blades together hard at the top of each rep.","sourceName":"Chest-Supported T-Bar Row"},{"exerciseId":"shrug_machine","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["shrug_bb","shrug_in_cable"],"warmups":2,"planNote":"Think about shrugging \"up to your ears\". Use straps, if possible.","sourceName":"Machine Shrug"},{"exerciseId":"machine_press","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":240},"alts":["smith_bench","db_bench"],"warmups":3,"planNote":"1 second pause at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Machine Chest Press"},{"exerciseId":"high_cable_lateral_raise","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["db_lateral","machine_lateral"],"warmups":1,"planNote":"Set the cable at roughly hip height. Let your hand go slightly past your midline at the bottom of each rep to get a deep stretch on the side delt.","sourceName":"High-Cable Lateral Raise"},{"exerciseId":"1_arm_reverse_pec_deck","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_reverse_dumbbell_fly","reverse_cable_crossover"],"warmups":1,"planNote":"Sweep the weight out to create the largest semi-circle possible with your arm.","sourceName":"1-Arm Reverse Pec Deck"},{"exerciseId":"cable_crunch","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["weighted_crunch","machine_crunch2"],"warmups":1,"planNote":"Round your lower back as you crunch. Maintain a mind-muscle connection with your 6-pack.","sourceName":"Cable Crunch"}]},
     {"name":"Lower 2","kind":"lower","dayOfWeek":4,"exercises":[{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic2","sissy_squat"],"warmups":2,"planNote":"Set the seat back as far as it will go while still feeling comfortable. Grab the handles as hard as you can to pull your butt down into the seat (using straps can help here).","sourceName":"Leg Extension"},{"exerciseId":"rdl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":2,"rirLast":1,"restSec":150},"alts":["db_rdl","seated_cable_deadlift"],"warmups":3,"planNote":"Stick your glutes straight back as you lower the bar straight down, centered over the middle of your foot. Get a nice deep stretch at the bottom, but keep your spine neutral (don't round forward).","sourceName":"Barbell RDL"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["hip_thrust","45_hyperextension"],"warmups":3,"planNote":"Squeeze your glutes hard at the top and control the weight on the way down.","sourceName":"Machine Hip Thrust"},{"exerciseId":"leg_press","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":150},"alts":["smith_squat","barbell_squat"],"warmups":3,"planNote":"Feet lower on the platform for more quad focus. Get as deep as you can without excessive back rounding.","sourceName":"Leg Press"},{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
     {"name":"Arms and delts","kind":"arms","dayOfWeek":5,"exercises":[{"exerciseId":"bayesian_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["incline_curl","standing_dumbbell_curl"],"warmups":1,"planNote":"As you curl, optionally lean forward to prevent the cable from hitting your wrist at the top. Control the negative and feel a deep stretch at the bottom of each rep.","sourceName":"Bayesian Cable Curl"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","skull_crusher"],"warmups":1,"planNote":"Feel a deep stretch on the triceps throughout the entire negative.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"zottman_curl_modified","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["hammer_curl","preacher_hammer_curl"],"warmups":1,"planNote":"Hammer curl on the way up and supinated curl (palms up) on the way down.","sourceName":"Modified Zottman Curl"},{"exerciseId":"cable_kickback_tri","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["dip_machine","close_grip_dip"],"warmups":1,"planNote":"Keep your upper arm behind your torso throughout the ROM.","sourceName":"Cable Triceps Kickback"},{"exerciseId":"wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_curl"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Curl"},{"exerciseId":"dumbbell_wrist_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_extension"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Extension"},{"exerciseId":"alternating_dumbbell_curl","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["bb_curl","ez_curl"],"warmups":1,"planNote":"Slow, controlled reps!","sourceName":"Alternating DB Curl"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["high_cable_lateral_raise","db_lateral"],"warmups":1,"planNote":"Focus on squeezing your side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"dead_hang","target":{"sets":2,"repLow":6,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Try to add a few more seconds each week!","sourceName":"Dead Hang (optional)"}]}
+  ] },
+  /* ---- the third one, and the only one that did not come off a spreadsheet ----------------------
+   * A five-day bodybuilding split, transcribed from the app it was written in: upper, lower, arms
+   * and delts, upper, lower, with the two upper days and the two lower days running the same
+   * movements as each other. One or two working sets on everything, six to ten reps, and a tempo on
+   * every line - the same bet the other two make, arrived at by somebody else.
+   *
+   * WHAT IS THEIRS AND WHAT IS OURS, because the source is five screenshots rather than a sheet and
+   * a plan half-invented is worse than no plan. Theirs: every movement, its order in the session,
+   * the working sets, the reps, and the tempo. Ours, because the screenshots do not state them:
+   * the rest between sets (by how much of you the movement uses, as everywhere else here), the
+   * effort targets (the house min-max prescription - the last set of everything all-out, a rep in
+   * reserve on the first set of anything you could get hurt failing), the substitutions, the
+   * weekdays, and the notes. Where a name was written loosely it is resolved to the library's
+   * movement and the author's own wording is kept on the line (see sourceName).
+   *
+   * WHY IT SHIPS. Two of the three days here are not in either of the other programmes: an upper day
+   * built on a Smith incline and two T-bar rows, and a lower day that trains the adductors twice a
+   * week. It is also the shape people most often arrive with - "5 day split" - which is worth being
+   * able to hand somebody without asking them to photograph anything.
+   */
+  { key: "bb5", name: "Macrosaurus 5 Day Bodybuilding", daysPerWeek: 5, template: [
+    {"name":"Upper 1","kind":"upper","dayOfWeek":0,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded, and let the machine's fixed path let you push the last set properly.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["lat_pulldown_wide_grip","close_grip_lat_pulldown"],"warmups":2,"planNote":"Drive your elbows down and in, and let your shoulder blades rise at the top of every rep to get the lats long.","sourceName":"Machine Lat Pulldown"},{"exerciseId":"db_decline_fly","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_fly_high","pec_deck"],"warmups":1,"planNote":"On a decline bench, so the line of pull sits across the lower and mid pec. Stretch, do not drop.","sourceName":"Decline Chest Fly"},{"exerciseId":"tbar_row","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__wide","tbar_row_supported"],"warmups":2,"planNote":"The wide multi-grip handle. Elbows out at about 45° and squeeze the shoulder blades together at the top.","sourceName":"T-Bar Row (Mega Mass)"},{"exerciseId":"tbar_row","target":{"sets":1,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__neutral","chest_supported_row"],"warmups":1,"planNote":"The back-off set: same movement, lighter, two more reps, taken to where the weight stops moving.","sourceName":"T-Bar Row"},{"exerciseId":"hanging_leg_raise","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["captains_chair_leg_raise","hanging_knee_raise"],"warmups":1,"planNote":"Curl the pelvis up rather than swinging the legs out. Straps if your grip goes first.","sourceName":"Hanging Leg Raises"}]},
+    {"name":"Lower 1","kind":"lower","dayOfWeek":1,"exercises":[{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["hack_squat","back_squat"],"warmups":3,"planNote":"As deep as your hips will let you go without the pelvis tucking. The pendulum path keeps the load on the quads at the bottom, which is the point of it.","sourceName":"Pendulum Squat"},{"exerciseId":"smith_split_squat","target":{"sets":1,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":180,"tempo":"2110"},"alts":["bulgarian","split_squat"],"warmups":2,"planNote":"Minimise what the back leg contributes. Six hard reps on each side.","sourceName":"Split Squat Smith Machine"},{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["seated_leg_curl","standing_leg_curl"],"warmups":2,"planNote":"Set the machine so the stretch at the bottom is as big as it will go, and keep your hips down on the pad as you curl.","sourceName":"Hamstring Curl"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Let the knees travel out far enough to feel the stretch before you squeeze back in. The adductors are most of the inside of a thigh and almost nothing else in a week trains them.","sourceName":"Machine Adduction"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["leg_ext_single","sissy_squat"],"warmups":1,"planNote":"Seat back as far as is comfortable, grip the handles hard and pull your hips into the seat.","sourceName":"Leg Extensions"}]},
+    {"name":"Arms and delts","kind":"arms","dayOfWeek":3,"exercises":[{"exerciseId":"db_ohp","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"3110"},"alts":["machine_ohp","seated_machine_press"],"warmups":2,"planNote":"Seated with the back supported, three seconds down. Dumbbells to about ear height, not a bounce off the shoulders.","sourceName":"DB Seated Shoulder Press"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":10,"repHigh":10,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["high_cable_lateral_raise","db_lateral"],"warmups":1,"planNote":"Lead with the elbow and squeeze the side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"machine_rear_delt","target":{"sets":1,"repLow":10,"repHigh":10,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_rear_fly","rear_delt_fly"],"warmups":1,"planNote":"Sweep the arms out into the biggest semi-circle you can, and stop before the elbows bend.","sourceName":"Machine Rear Delt Fly"},{"exerciseId":"hammer_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["rope_hammer","crossbody_curl"],"warmups":1,"planNote":"Neutral grip the whole way, one arm at a time. This is the brachialis and the forearm as much as the biceps.","sourceName":"Alternating Dumbbell Hammer Curl"},{"exerciseId":"overhead_ez","target":{"sets":2,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["overhead_cable_triceps_extension","overhead_dumbbell_triceps_extension"],"warmups":1,"planNote":"Overhead triceps extension with an EZ bar. Elbows in, and a deep stretch at the bottom of every rep - that is where the long head grows.","sourceName":"French Press (OHTX)"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Upper arms pinned to the pad, and let the arm straighten all the way at the bottom.","sourceName":"Machine Preacher Curl"},{"exerciseId":"triceps_pressdown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["rope_pushdown","bar_pushdown"],"warmups":1,"planNote":"Rope or bar, whichever sits better on your elbows. Lock the upper arms to your sides.","sourceName":"Cable Tricep Pushdown"}]},
+    {"name":"Upper 2","kind":"upper","dayOfWeek":4,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded, and let the machine's fixed path let you push the last set properly.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["lat_pulldown_wide_grip","close_grip_lat_pulldown"],"warmups":2,"planNote":"Drive your elbows down and in, and let your shoulder blades rise at the top of every rep to get the lats long.","sourceName":"Machine Lat Pulldown"},{"exerciseId":"db_decline_fly","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_fly_high","pec_deck"],"warmups":1,"planNote":"On a decline bench, so the line of pull sits across the lower and mid pec. Stretch, do not drop.","sourceName":"Decline Chest Fly"},{"exerciseId":"tbar_row","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__wide","tbar_row_supported"],"warmups":2,"planNote":"The wide multi-grip handle. Elbows out at about 45° and squeeze the shoulder blades together at the top.","sourceName":"T-Bar Row (Mega Mass)"},{"exerciseId":"tbar_row","target":{"sets":1,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__neutral","chest_supported_row"],"warmups":1,"planNote":"The back-off set: same movement, lighter, two more reps, taken to where the weight stops moving.","sourceName":"T-Bar Row"},{"exerciseId":"machine_crunch","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_crunch","weighted_crunch"],"warmups":1,"planNote":"Round the lower back into the crunch and keep the abs, not the hip flexors, doing it.","sourceName":"Machine Ab Crunch"}]},
+    {"name":"Lower 2","kind":"lower","dayOfWeek":5,"exercises":[{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":240,"tempo":"3110"},"alts":["hack_squat","back_squat"],"warmups":3,"planNote":"As deep as your hips will let you go without the pelvis tucking. The pendulum path keeps the load on the quads at the bottom, which is the point of it.","sourceName":"Pendulum Squat"},{"exerciseId":"smith_split_squat","target":{"sets":1,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":180,"tempo":"2110"},"alts":["bulgarian","split_squat"],"warmups":2,"planNote":"Minimise what the back leg contributes. Six hard reps on each side.","sourceName":"Split Squat Smith Machine"},{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["seated_leg_curl","standing_leg_curl"],"warmups":2,"planNote":"Set the machine so the stretch at the bottom is as big as it will go, and keep your hips down on the pad as you curl.","sourceName":"Hamstring Curl"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Let the knees travel out far enough to feel the stretch before you squeeze back in. The adductors are most of the inside of a thigh and almost nothing else in a week trains them.","sourceName":"Machine Adduction"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["leg_ext_single","sissy_squat"],"warmups":1,"planNote":"Seat back as far as is comfortable, grip the handles hard and pull your hips into the seat.","sourceName":"Leg Extensions"}]}
   ] }
 ];
 
@@ -12586,6 +12654,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     BANDS: BANDS, SHAPES: SHAPES, SPLITS: SPLITS, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
     PRIMARY_WEIGHT: PRIMARY_WEIGHT, SECONDARY_WEIGHT: SECONDARY_WEIGHT,
     byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve, cleanName: cleanName,
+    repLabel: repLabel,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
@@ -56949,7 +57018,7 @@ function TrainHome({
     const lead = items[0];
     const leadEx = Training.byId(lead.exerciseId, t.custom);
     const effort = style.toFailure ? (lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0 ? 'stopping short this week' : lead.target.rir > 0 ? 'last set to failure' : 'to failure' : lead.target.rir + ' RIR';
-    return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' ' + lead.target.sets + '×' + lead.target.repLow + '-' + lead.target.repHigh + ' · ' + effort + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
+    return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' ' + lead.target.sets + '×' + Training.repLabel(lead.target) + ' · ' + effort + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
   })()), /*#__PURE__*/React.createElement("button", {
     onClick: () => live && onResume ? onResume(next.session, block) : onOpen(next.session, block),
     className: "pixel-btn w-full mt-3.5 py-3.5 pf text-[12px] uppercase",
@@ -58678,7 +58747,7 @@ function SessionPlayer({
         }, open ? work.every(s => s.done)
         // Open and finished: "Set 2 of 2" reads as one still to do, on a card whose
         // every row is already green.
-        ? 'All ' + work.length + ' sets logged' : 'Set ' + (work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? style.toFailure ? tgt.rir > 0 ? ' · last set to failure' : ' to failure' : ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
+        ? 'All ' + work.length + ' sets logged' : 'Set ' + (work.findIndex(s => !s.done) + 1 || work.length) + ' of ' + work.length : done ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged' : work.length + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? style.toFailure ? tgt.rir > 0 ? ' · last set to failure' : ' to failure' : ' at ' + tgt.rir + ' RIR' : ' reps'))), open ? /*#__PURE__*/React.createElement("span", {
           className: "shrink-0",
           style: {
             color: 'var(--cardhead-text)'
@@ -59168,7 +59237,7 @@ function SessionPlayer({
       // common on-the-day edit there is and it belongs where the work is happening.
       {
         label: 'Sets and reps',
-        sub: items[menuOpen].target ? items[menuOpen].target.sets + ' × ' + items[menuOpen].target.repLow + '-' + items[menuOpen].target.repHigh + ' at ' + items[menuOpen].target.rir + ' RIR' : 'Set the prescription for today',
+        sub: items[menuOpen].target ? items[menuOpen].target.sets + ' × ' + Training.repLabel(items[menuOpen].target) + ' at ' + items[menuOpen].target.rir + ' RIR' : 'Set the prescription for today',
         disabled: !items[menuOpen].target,
         onClick: () => setTargetFor(menuOpen)
       }, {
@@ -60587,6 +60656,11 @@ function BlockWizard({
   // and five days is the shape it is written for, so that is the day count it arrives on.
   const [style, setStyle] = useState(plannedStyle(t.prefs));
   const [days, setDays] = useState(t.prefs.daysPerWeek || (t.prefs.style === 'landmarks' ? 4 : 5));
+  /* Whether the day count on screen is an ANSWER or still a default. It matters because a source
+     brings a day count of its own: five screenshots of a five-day week say what the person trains
+     more plainly than a number they have not looked at yet. So an untouched count follows what
+     arrives (see followDraftDays) and a deliberate one is never overwritten by a file. */
+  const daysTouched = useRef(!!t.prefs.daysPerWeek);
   // Recovery is lower in a deficit and low volume holds muscle perfectly well, so somebody who has
   // told the food side of the app they are cutting has already answered this question.
   const cutting = (db.profile || {}).goalType === 'cut';
@@ -60734,6 +60808,20 @@ function BlockWizard({
     tr.draft = d;
   }
 
+  /* A plan that brought its own day count. Somebody who uploads five days of screenshots has told
+     us how many days a week they train, and reading that back at four - because four is what the
+     last block happened to be - loses the day they photographed last and never says which. So the
+     count follows the source, unless they have answered the question themselves, and it says so
+     rather than moving a control behind their back. Only within what the builder can lay out: a
+     twelve-day sheet is not a twelve-day week. */
+  function followDraftDays(count) {
+    if (daysTouched.current) return '';
+    const n = Math.round(+count) || 0;
+    if (!(n >= 2 && n <= 6) || n === days) return '';
+    setDays(n);
+    return ' Set to ' + n + ' days a week to match, which you can change above.';
+  }
+
   // Read one or more files into the draft basket. Each is read on its own, because a screenshot or
   // a page is one session: batching them into a single call would blur four days into one soup and
   // lose which movement belonged to which day. A single PDF holding a whole programme is still one
@@ -60864,11 +60952,12 @@ function BlockWizard({
       return;
     }
     setReadErr(false);
+    const follow = followDraftDays(basket.length + added);
     setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft'
     // Said out loud, because a screen that reads "5 days added" for 5 files and then shows 3 is
     // the app quietly disagreeing with itself. Overlapping screenshots are the normal case, not
     // an error, so this is a note on what happened rather than a warning.
-    + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '') + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.') + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
+    + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '') + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.') + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.') + follow);
   }
 
   // The answer to that question. "Exactly" means exactly: the blocks go on the shelf as the sheet
@@ -60922,7 +61011,8 @@ function BlockWizard({
       setReadBusy('');
       // Same subtraction as the file reader does: a post that covers a day already in the basket
       // merges into it, so what landed is the growth, not what came back.
-      setReadNote(added ? added + (added === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.' : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.');
+      const follow = followDraftDays(basket.length + added);
+      setReadNote((added ? added + (added === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.' : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.') + follow);
     } catch (e) {
       setReadErr(true);
       setReadNote(e && e.message || 'That did not work. Try another way in.');
@@ -60972,7 +61062,12 @@ function BlockWizard({
     setWishNote(null);
     try {
       const r = await aiParseTrainingWish(v);
-      if (r.daysPerWeek) setDays(Math.max(2, Math.min(6, Math.round(r.daysPerWeek))));
+      // "Four days a week" said out loud is an answer, same as pressing 4 is, so a file read after
+      // it does not get to overrule it.
+      if (r.daysPerWeek) {
+        daysTouched.current = true;
+        setDays(Math.max(2, Math.min(6, Math.round(r.daysPerWeek))));
+      }
       if (r.sessionMinutes) setMinutes(Math.max(30, Math.min(120, Math.round(r.sessionMinutes))));
       if (r.experience) setExperience(r.experience);
       if (r.goal) setGoal(r.goal);
@@ -61057,8 +61152,8 @@ function BlockWizard({
     });
   }
   const STEP_TITLE = {
-    1: 'Style',
-    2: 'Schedule',
+    1: 'Style & days',
+    2: 'Sessions',
     3: 'Volume',
     4: 'Kit & build'
   };
@@ -61120,7 +61215,51 @@ function BlockWizard({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "So far"), soFar, ". Redraws as you answer."), wizStep === 1 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
+  }, "So far"), soFar, ". Redraws as you answer."), wizStep === 1 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(TrainField, {
+    label: "How you want to train",
+    effect: style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short',
+    hint: Training.STYLES[style].blurb
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: style,
+    onChange: v => {
+      setStyle(v);
+      // The block length belongs to the style: min-max runs six weeks off an intro week, the
+      // volume model four. Only moved when the person has not chosen one for themselves.
+      if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax4' : 'build4');
+      // Five days is the min-max week and four is the volume model's default shape. Only moved
+      // when the person has not set a day count of their own - here, last time, or by bringing a
+      // plan that had one - so a deliberate answer is never overwritten by changing your mind
+      // about the style.
+      if (!daysTouched.current) setDays(v === 'minmax' ? 5 : 4);
+    },
+    options: [{
+      v: 'minmax',
+      l: 'Min-max'
+    }, {
+      v: 'landmarks',
+      l: 'Volume'
+    }]
+  })), cutting && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5",
+    style: {
+      background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))',
+      color: 'var(--text2)'
+    }
+  }, style === 'minmax' ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.' : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'), /*#__PURE__*/React.createElement(TrainField, {
+    label: "Days a week",
+    effect: preview ? preview.sessions.length + ' sessions' : '',
+    hint: draftDays > 0 && asBrought ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.' : style === 'minmax' ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.' : 'How many sessions you get, and how many days I read out of anything you bring below.'
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: days,
+    onChange: n => {
+      daysTouched.current = true;
+      setDays(n);
+    },
+    options: [2, 3, 4, 5, 6].map(n => ({
+      v: n,
+      l: String(n)
+    }))
+  })), /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -61132,7 +61271,7 @@ function BlockWizard({
     style: {
       color: 'var(--muted)'
     }
-  }, "A PDF, a spreadsheet, a coach's message, a reel, or just the text. However many days it is written across, I build it at the day count you set below: what I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing."), /*#__PURE__*/React.createElement("div", {
+  }, "A PDF, a spreadsheet, a coach's message, a reel, or just the text. I read it at the day count set above - which is also which track I pull from a plan written across several - and if what you bring is plainly a five-day week, the count follows it. What I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing."), /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement(Pill, {
     value: tab,
@@ -61223,7 +61362,7 @@ function BlockWizard({
     }
   }, "I can read ", exact.file.name, " exactly: ", /*#__PURE__*/React.createElement("b", {
     className: "tnum"
-  }, exact.res.blocks.reduce((a, b) => a + b.weeks, 0), " weeks"), ", ", exact.res.blocks[0].daysPerWeek, " days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count and intensity you set below."), /*#__PURE__*/React.createElement("button", {
+  }, exact.res.blocks.reduce((a, b) => a + b.weeks, 0), " weeks"), ", ", exact.res.blocks[0].daysPerWeek, " days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count set above and the intensity you set below."), /*#__PURE__*/React.createElement("button", {
     onClick: takeExactly,
     className: "pixel-box w-full h-11 text-[12.5px] mb-2",
     style: {
@@ -61304,54 +61443,31 @@ function BlockWizard({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, wishNote)), /*#__PURE__*/React.createElement(TrainField, {
-    label: "How you want to train",
-    effect: style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short',
-    hint: Training.STYLES[style].blurb
-  }, /*#__PURE__*/React.createElement(Seg, {
-    value: style,
-    onChange: v => {
-      setStyle(v);
-      // The block length belongs to the style: min-max runs six weeks off an intro week, the
-      // volume model four. Only moved when the person has not chosen one for themselves.
-      if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax4' : 'build4');
-      // Five days is the min-max week and four is the volume model's default shape. Only moved
-      // when the person has not set a day count of their own, so a deliberate answer is never
-      // overwritten by changing your mind about the style.
-      if (!t.prefs.daysPerWeek) setDays(v === 'minmax' ? 5 : 4);
-    },
-    options: [{
-      v: 'minmax',
-      l: 'Min-max'
-    }, {
-      v: 'landmarks',
-      l: 'Volume'
-    }]
-  })), cutting && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5",
-    style: {
-      background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))',
-      color: 'var(--text2)'
-    }
-  }, style === 'minmax' ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.' : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'), /*#__PURE__*/React.createElement("button", {
+  }, wishNote)), /*#__PURE__*/React.createElement("button", {
     onClick: () => setWizStep(2),
     className: "pixel-btn w-full h-14 font-bold mb-2",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "Next · Schedule ›")), wizStep === 2 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(TrainField, {
-    label: "Days a week",
-    effect: preview ? preview.sessions.length + ' sessions' : '',
-    hint: draftDays > 0 && asBrought ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.' : style === 'minmax' ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.' : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.'
-  }, /*#__PURE__*/React.createElement(Seg, {
-    value: days,
-    onChange: setDays,
-    options: [2, 3, 4, 5, 6].map(n => ({
-      v: n,
-      l: String(n)
-    }))
-  })), /*#__PURE__*/React.createElement(TrainField, {
+  }, "Next · Sessions ›")), wizStep === 2 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 px-3 py-2.5",
+    style: {
+      background: 'var(--surface2)',
+      borderLeft: '3px solid var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase block mb-1",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Days a week"), days, " sessions a week.", ' ', /*#__PURE__*/React.createElement("button", {
+    onClick: () => setWizStep(1),
+    className: "underline",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Change it")), /*#__PURE__*/React.createElement(TrainField, {
     label: "How long a session",
     effect: preview ? preview.movesEach + ' movements' : '',
     hint: draftDays > 0 && !asBrought ? 'Decides how many movements I choose for myself. Movements you brought are kept on top of that, so a long plan makes a longer session rather than a shorter plan.' : 'Decides how many movements fit.'
@@ -62505,7 +62621,7 @@ function BlockBuilder({
       style: {
         color: 'var(--muted)'
       }
-    }, /*#__PURE__*/React.createElement("span", null, it.target.repLow, "-", it.target.repHigh, " reps"), /*#__PURE__*/React.createElement("span", null, it.target.tempo || '2010', " tempo"))))), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", null, Training.repLabel(it.target), " reps"), /*#__PURE__*/React.createElement("span", null, it.target.tempo || '2010', " tempo"))))), /*#__PURE__*/React.createElement("div", {
       className: "text-[10.5px] mt-3 leading-snug",
       style: {
         color: 'var(--muted2)'
@@ -62785,7 +62901,7 @@ function SessionPreview({
       style: {
         color: 'var(--muted)'
       }
-    }, it.target.sets, " x ", it.target.repLow, "-", it.target.repHigh, " · ", it.target.rir, " RIR", it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''), it.baseExerciseId && /*#__PURE__*/React.createElement("span", {
+    }, it.target.sets, " x ", Training.repLabel(it.target), " · ", it.target.rir, " RIR", it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''), it.baseExerciseId && /*#__PURE__*/React.createElement("span", {
       className: "block text-[11px] mt-0.5",
       style: {
         color: 'var(--muted2)'
@@ -62812,7 +62928,7 @@ function SessionPreview({
         border: '2px solid var(--border)',
         background: 'var(--surface2)'
       }
-    }, it.target.sets, " x ", it.target.repLow, "-", it.target.repHigh));
+    }, it.target.sets, " x ", Training.repLabel(it.target)));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in pb-2"
@@ -62947,7 +63063,7 @@ function SessionPreview({
       })
     }, {
       label: 'Sets and reps',
-      sub: item.target.sets + ' x ' + item.target.repLow + '-' + item.target.repHigh + ' at ' + item.target.rir + ' RIR',
+      sub: item.target.sets + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR',
       onClick: () => setTuning(item.id)
     }, {
       label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
@@ -66018,7 +66134,7 @@ function SharedBlockPreview({
     style: {
       color: 'var(--muted)'
     }
-  }, e.target.sets, " x ", e.target.repLow, "-", e.target.repHigh))))), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
+  }, e.target.sets, " x ", Training.repLabel(e.target)))))), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       bumpPublicBlockRuns(pub.id);
       onAdopt(result.block);
@@ -66367,7 +66483,7 @@ function BlockDraft({
         style: {
           color: 'var(--muted)'
         }
-      }, e.target.sets, " x ", e.target.repLow, "-", e.target.repHigh, e.target.tempo ? ' · ' + e.target.tempo : ''), /*#__PURE__*/React.createElement("button", {
+      }, e.target.sets, " x ", Training.repLabel(e.target), e.target.tempo ? ' · ' + e.target.tempo : ''), /*#__PURE__*/React.createElement("button", {
         onClick: () => edit(d => {
           d.days[di].exercises.splice(ei, 1);
         }),

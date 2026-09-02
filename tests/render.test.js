@@ -70,10 +70,15 @@ test('the tab offers the programmes the app ships with', () => {
   assert.ok(/5 days a week/.test(r.text) && /hard sets/.test(r.text));
   // And the split, in the same words the session runner will use.
   assert.ok(r.has('Arms and delts'), 'the day names should be on it: ' + r.text.slice(0, 300));
+  assert.ok(r.has('Macrosaurus 5 Day Bodybuilding'), 'and the five-day bodybuilding split');
   // Named the same way as each other. "Default" on one and not the other is two schemes for two
-  // things sitting side by side.
+  // things sitting side by side. The house shape is "Macrosaurus <n> Day", with room for a word
+  // after it where two programmes run the same number of days and the name has to say which is
+  // which - it must never be a second scheme, a "Default", or a sentence.
   const names = A.Training.PROGRAMMES.map(p => p.name);
-  assert.deepEqual(names.map(n => n.replace(/\d/, 'N')), names.map(() => 'Macrosaurus N Day'), names.join(' / '));
+  for (const n of names) {
+    assert.match(n, /^Macrosaurus \d Day( [A-Z][a-z]+)?$/, n + ' is not named like the others');
+  }
 });
 
 // ---- the session runner ------------------------------------------------------------------------

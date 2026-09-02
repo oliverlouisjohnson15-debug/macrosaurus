@@ -78,10 +78,14 @@ test('a coach tag in front of every movement does not cost the plan its movement
     // Was 'machine_incline' ("Incline press machine"), which dropped the word smith. The library
     // holds the sheet's own "Smith Machine Incline Press" now, and it is the better answer.
     ['CAM - SMITH MACHINE INCLINE PRESS', 'smith_machine_incline_press'],
-    ['CAM - DECLINE CHEST FLY', 'cable_fly_high'],
+    // Was 'cable_fly_high', which is the same line of pull done on a cable stack and was the best
+    // the library could do while it held no fly performed on a decline bench. It holds one now.
+    ['CAM - DECLINE CHEST FLY', 'db_decline_fly'],
     ['CAM - DB SEATED SHOULDER PRESS', 'db_ohp'],
     ['CAM - FRENCH PRESS (OHTX)', 'overhead_ez'],
-    ['CAM - CABLE TRICEP PUSHDOWN', 'bar_pushdown'],
+    // The cable is named, the attachment is not, so it lands on the generic pressdown rather than
+    // the app choosing a bar for them. Was 'bar_pushdown'.
+    ['CAM - CABLE TRICEP PUSHDOWN', 'triceps_pressdown'],
     ['CAM - MACHINE PREACHER CURL', 'machine_preacher'],
     ['CAM - HANGING LEG RAISES', 'hanging_leg_raise'],
     ['CAM - MACHINE ADDUCTION', 'hip_adduction'],
@@ -104,15 +108,18 @@ test('a rare word outweighs a common one, so the specific movement wins', () => 
   // Both of these used to tie on a flat token count and fall to whichever sat earlier in the table.
   // Against a library that holds ONLY "Hammer curl" and "Dumbbell curl", the rare word decides and
   // the hammer curl wins. It no longer holds only those: the four-day programme prescribes an
-  // "Alternating Dumbbell Curl" and that is now an entry of its own, which matches three of these
-  // four words. Two real movements, one ambiguous query - and the honest note is that this scores
-  // the way it does because the query names the third movement, which the library does not have.
-  assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'alternating_dumbbell_curl');
+  // "Alternating Dumbbell Curl" and that is an entry of its own, which matches three of these four
+  // words - so scoring alone handed a hammer curl query a supinated curl, which is a different
+  // movement, not a near miss. The five-day bodybuilding programme prescribes this by name, so it
+  // is settled by an alias rather than left to whichever entry scores higher.
+  assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'hammer_curl');
   // "DB hammer curls" and "Hammer curl" are one movement: the library leaves the dumbbell implicit
   // and a spreadsheet spells it out, and the entry is already equipment: dumbbell either way.
   assert.equal(T.resolve('DB HAMMER CURLS'), 'hammer_curl');
   assert.equal(T.resolve('HAMMER CURL'), 'hammer_curl');
-  assert.equal(T.resolve('SPLIT SQUAT SMITH MACHINE'), 'split_squat', 'not a bilateral Smith squat');
+  // Not a bilateral Smith squat, and no longer a free-weight split squat either: the library holds
+  // the movement the plan actually prescribes.
+  assert.equal(T.resolve('SPLIT SQUAT SMITH MACHINE'), 'smith_split_squat');
   // A plain "hamstring curl" in a machine-based plan is the machine, not a Nordic.
   assert.equal(T.resolve('HAMSTRING CURL'), 'lying_leg_curl');
 });
@@ -193,13 +200,26 @@ test('assistance work does not get a day named after it', () => {
 // ---- did we match the right kit? -------------------------------------------------------------------
 
 test('a movement matched to equipment the plan did not ask for is reported', () => {
+  // The plan says a machine; the nearest movement the library holds is a dumbbell one. That is the
+  // match being made, and the person is told rather than left to find it in the gym on Thursday.
   const { mismatches } = T.importTemplate({ days: [{ name: 'Day 2', exercises: [
-    { name: 'CAM - SPLIT SQUAT SMITH MACHINE', sets: 1 },
+    { name: 'Machine wrist curl', sets: 1 },
     { name: 'CAM - PENDULUM SQUAT', sets: 2 },
   ] }] });
   assert.equal(mismatches.length, 1);
-  assert.ok(mismatches[0].said.includes('smith'));
+  assert.ok(mismatches[0].said.includes('machine'));
   assert.equal(mismatches[0].got, 'dumbbell');
+});
+
+test('a movement the library has in the plan\'s own kit is not a mismatch at all', () => {
+  // "Split Squat Smith Machine" used to land on the dumbbell split squat and get reported as kit
+  // the plan did not ask for. The library holds the Smith machine version now, so there is nothing
+  // to report: the honest fix for a mismatch is the movement, not a better warning about it.
+  const { mismatches, template } = T.importTemplate({ days: [{ name: 'Day 2', exercises: [
+    { name: 'CAM - SPLIT SQUAT SMITH MACHINE', sets: 1 },
+  ] }] });
+  assert.deepEqual(mismatches, []);
+  assert.equal(template[0].exercises[0].exerciseId, 'smith_split_squat');
 });
 
 test('a plate-loaded machine matching a cable stack is not worth flagging', () => {
@@ -1223,12 +1243,29 @@ test('both shipped programmes are four weeks, all-out from the first session', (
 });
 
 test('a shipped programme sits inside the landmarks it is the reference for', () => {
+  // The two the landmarks were read off. If either of these falls outside them, one of the two is
+  // wrong and it matters which.
   const targets = T.defaultTargets({ style: 'minmax' });
-  for (const p of T.PROGRAMMES) {
-    const cov = T.coverage(T.blockWeekVolume(T.programmeBlock(p.key), 1), targets);
+  for (const key of ['mac4', 'mac5']) {
+    const p = T.programmeOf(key);
+    const cov = T.coverage(T.blockWeekVolume(T.programmeBlock(key), 1), targets);
     assert.deepEqual(cov.gaps.map(g => g.muscle), [], p.name + ' is short of our own floor');
     assert.deepEqual(cov.overs.map(g => g.muscle), [], p.name + ' is over our own ceiling');
   }
+});
+
+test('the programme that is somebody else\'s does not have to agree with us, and says where it does not', () => {
+  /* The five-day bodybuilding split is transcribed from somebody else's plan rather than derived
+     from our landmarks, and it does not sit inside them: it prescribes no calf work at all, one set
+     of side delts fewer than our floor, and more lat work than our ceiling. That is not a defect in
+     the transcription and it is not ours to quietly correct - "as written" means as written, and
+     the coverage panel on the block screen says all three out loud the moment somebody opens it.
+     What this test protects is that the gap stays EXACTLY this: a fourth muscle drifting out of
+     range would mean the transcription changed, and nobody would otherwise notice. */
+  const targets = T.defaultTargets({ style: 'minmax' });
+  const cov = T.coverage(T.blockWeekVolume(T.programmeBlock('bb5'), 1), targets);
+  assert.deepEqual(cov.gaps.map(g => g.muscle).sort(), ['ca', 'sd'], 'what it is short of');
+  assert.deepEqual(cov.overs.map(g => g.muscle), ['lt'], 'and what it runs past our ceiling');
 });
 
 test('a shipped programme leaves the movements it left open, open', () => {
@@ -2794,7 +2831,7 @@ test('the source name reaches the imported item, and the library match stays und
   ] }] });
   const it = template[0].exercises[0];
   assert.equal(it.sourceName, 'Smith machine split squat');
-  assert.equal(it.exerciseId, 'split_squat', 'the maths still counts a real library movement');
+  assert.equal(it.exerciseId, 'smith_split_squat', 'the maths still counts a real library movement');
 });
 
 test('only a movement worth a second look is marked', () => {
@@ -2805,7 +2842,10 @@ test('only a movement worth a second look is marked', () => {
     'CAM - FRENCH PRESS (OHTX)', 'CAM - MACHINE REAR DELT FLY'];
   const { template } = T.importTemplate({ days: [{ name: 'D', exercises: names.map(n => ({ name: n, sets: 2, repLow: 8 })) }] });
   const marked = template[0].exercises.filter(e => e.check).map(e => e.sourceName);
-  assert.deepEqual(marked.sort(), ['French press', 'Machine rear delt fly', 'Smith machine split squat'].sort());
+  // Two of the three that used to be marked here are no longer guesses: the library holds the Smith
+  // machine split squat and the machine rear delt, so those lines are exact and say nothing. The
+  // French press is still worth a look - it is a name for a movement, not the movement's name.
+  assert.deepEqual(marked.sort(), ['French press']);
 });
 
 test('a plural is not a substitution worth flagging', () => {

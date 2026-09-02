@@ -1849,7 +1849,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
           {s.exercises.map(e => (
             <div key={e.id} className="flex items-baseline justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
               <span className="text-[12px] truncate"><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
-              <span className="text-[11px] tnum whitespace-nowrap" style={{ color: 'var(--muted)' }}>{e.target.sets} x {e.target.repLow}-{e.target.repHigh}</span>
+              <span className="text-[11px] tnum whitespace-nowrap" style={{ color: 'var(--muted)' }}>{e.target.sets} x {Training.repLabel(e.target)}</span>
             </div>
           ))}
         </Card>
@@ -2092,7 +2092,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
                 )}
                 <span className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
-                    {e.target.sets} x {e.target.repLow}-{e.target.repHigh}
+                    {e.target.sets} x {Training.repLabel(e.target)}
                     {e.target.tempo ? ' · ' + e.target.tempo : ''}
                   </span>
                   <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label={'Remove ' + shown} className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>

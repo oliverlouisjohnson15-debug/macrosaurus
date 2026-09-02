@@ -241,6 +241,11 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   // and five days is the shape it is written for, so that is the day count it arrives on.
   const [style, setStyle] = useState(plannedStyle(t.prefs));
   const [days, setDays] = useState(t.prefs.daysPerWeek || (t.prefs.style === 'landmarks' ? 4 : 5));
+  /* Whether the day count on screen is an ANSWER or still a default. It matters because a source
+     brings a day count of its own: five screenshots of a five-day week say what the person trains
+     more plainly than a number they have not looked at yet. So an untouched count follows what
+     arrives (see followDraftDays) and a deliberate one is never overwritten by a file. */
+  const daysTouched = useRef(!!t.prefs.daysPerWeek);
   // Recovery is lower in a deficit and low volume holds muscle perfectly well, so somebody who has
   // told the food side of the app they are cutting has already answered this question.
   const cutting = ((db.profile || {}).goalType === 'cut');
@@ -359,6 +364,20 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     tr.draft = d;
   }
 
+  /* A plan that brought its own day count. Somebody who uploads five days of screenshots has told
+     us how many days a week they train, and reading that back at four - because four is what the
+     last block happened to be - loses the day they photographed last and never says which. So the
+     count follows the source, unless they have answered the question themselves, and it says so
+     rather than moving a control behind their back. Only within what the builder can lay out: a
+     twelve-day sheet is not a twelve-day week. */
+  function followDraftDays(count) {
+    if (daysTouched.current) return '';
+    const n = Math.round(+count) || 0;
+    if (!(n >= 2 && n <= 6) || n === days) return '';
+    setDays(n);
+    return ' Set to ' + n + ' days a week to match, which you can change above.';
+  }
+
   // Read one or more files into the draft basket. Each is read on its own, because a screenshot or
   // a page is one session: batching them into a single call would blur four days into one soup and
   // lose which movement belonged to which day. A single PDF holding a whole programme is still one
@@ -452,13 +471,15 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       return;
     }
     setReadErr(false);
+    const follow = followDraftDays(basket.length + added);
     setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft'
       // Said out loud, because a screen that reads "5 days added" for 5 files and then shows 3 is
       // the app quietly disagreeing with itself. Overlapping screenshots are the normal case, not
       // an error, so this is a note on what happened rather than a warning.
       + (repeats ? ', and ' + (repeats === 1 ? 'one that repeated a day you already had' : repeats + ' that repeated days you already had') + ' (I kept the fuller reading)' : '')
       + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.')
-      + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
+      + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.')
+      + follow);
   }
 
   // The answer to that question. "Exactly" means exactly: the blocks go on the shelf as the sheet
@@ -497,9 +518,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       setReadBusy('');
       // Same subtraction as the file reader does: a post that covers a day already in the basket
       // merges into it, so what landed is the growth, not what came back.
-      setReadNote(added
+      const follow = followDraftDays(basket.length + added);
+      setReadNote((added
         ? added + (added === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.'
-        : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.');
+        : 'That was a day you already had, so I kept the fuller reading of it rather than adding it twice.') + follow);
     } catch (e) {
       setReadErr(true);
       setReadNote((e && e.message) || 'That did not work. Try another way in.');
@@ -535,7 +557,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     setWishBusy(true); setWishNote(null);
     try {
       const r = await aiParseTrainingWish(v);
-      if (r.daysPerWeek) setDays(Math.max(2, Math.min(6, Math.round(r.daysPerWeek))));
+      // "Four days a week" said out loud is an answer, same as pressing 4 is, so a file read after
+      // it does not get to overrule it.
+      if (r.daysPerWeek) { daysTouched.current = true; setDays(Math.max(2, Math.min(6, Math.round(r.daysPerWeek)))); }
       if (r.sessionMinutes) setMinutes(Math.max(30, Math.min(120, Math.round(r.sessionMinutes))));
       if (r.experience) setExperience(r.experience);
       if (r.goal) setGoal(r.goal);
@@ -584,7 +608,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     onDraft(block, { clearDraft: draftDays > 0 });
   }
 
-  const STEP_TITLE = { 1: 'Style', 2: 'Schedule', 3: 'Volume', 4: 'Kit & build' };
+  const STEP_TITLE = { 1: 'Style & days', 2: 'Sessions', 3: 'Volume', 4: 'Kit & build' };
   // The answer so far, read straight off state rather than kept as a second copy of it, so it can
   // never say something the questions below it disagree with.
   const soFar = [
@@ -626,15 +650,62 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       )}
 
+      {wizStep === 1 && (<>
+      {/* The first question, because it is the only one that changes what every answer below MEANS.
+          Four sets on one style is a warm-up and on the other it is most of a muscle's week. */}
+      <TrainField label="How you want to train"
+        effect={style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short'}
+        hint={Training.STYLES[style].blurb}>
+        <Seg value={style} onChange={v => {
+          setStyle(v);
+          // The block length belongs to the style: min-max runs six weeks off an intro week, the
+          // volume model four. Only moved when the person has not chosen one for themselves.
+          if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax4' : 'build4');
+          // Five days is the min-max week and four is the volume model's default shape. Only moved
+          // when the person has not set a day count of their own - here, last time, or by bringing a
+          // plan that had one - so a deliberate answer is never overwritten by changing your mind
+          // about the style.
+          if (!daysTouched.current) setDays(v === 'minmax' ? 5 : 4);
+        }} options={[{ v: 'minmax', l: 'Min-max' }, { v: 'landmarks', l: 'Volume' }]} />
+      </TrainField>
+      {/* The one place the food side of the app gets to answer a training question. Recovery is
+          lower in a deficit, and low volume holds muscle perfectly well, so somebody cutting has
+          already told us which of the two they should be on. */}
+      {cutting && (
+        <div className="text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5"
+          style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))', color: 'var(--text2)' }}>
+          {style === 'minmax'
+            ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.'
+            : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'}
+        </div>
+      )}
+
+      {/* Asked HERE, above the import, and not on the schedule step it used to live on.
+          `days` is not only a setting for the block we write: it is handed to the reader (see
+          readFiles) as which day-count track to pull out of a source that offers more than one, and
+          it is what a brought plan is then laid across. Asked after the upload, it was a question
+          about a plan that had already been read at somebody else's default - so five screenshots
+          of a five-day week came back as four days, and the day you photographed last was the day
+          that went missing. */}
+      <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
+        hint={draftDays > 0 && asBrought
+          ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.'
+          : (style === 'minmax'
+            ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.'
+            : 'How many sessions you get, and how many days I read out of anything you bring below.')}>
+        <Seg value={days} onChange={n => { daysTouched.current = true; setDays(n); }} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
+      </TrainField>
+
       {/* Bringing something beats describing it, and describing it beats filling in a form, so it is
           step 1's optional branch: entirely skippable for a block built from nothing, and out of the
-          way on every step after this one. Whatever comes in here is INSPIRATION, not a photocopy -
+          way on every step after this one. It sits UNDER the two questions it is read against -
+          which style, and how many days - because both are inputs to the reading rather than
+          settings applied to it afterwards. Whatever comes in here is INSPIRATION, not a photocopy:
           the engine still owns the numbers, at the shape and intensity chosen further on. */}
-      {wizStep === 1 && (<>
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          A PDF, a spreadsheet, a coach's message, a reel, or just the text. However many days it is written across, I build it at the day count you set below: what I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing.
+          A PDF, a spreadsheet, a coach's message, a reel, or just the text. I read it at the day count set above - which is also which track I pull from a plan written across several - and if what you bring is plainly a five-day week, the count follows it. What I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing.
         </div>
 
         <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'file', l: 'File' }, { v: 'link', l: 'Link' }, { v: 'paste', l: 'Paste' }]} /></div>
@@ -682,7 +753,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           <div className="p-3.5 mt-3" style={{ border: '2px solid var(--accent)', background: 'var(--surface2)' }}>
             <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>That is a written programme</div>
             <div className="text-[12.5px] leading-relaxed mb-3" style={{ color: 'var(--text2)' }}>
-              I can read {exact.file.name} exactly: <b className="tnum">{exact.res.blocks.reduce((a, b) => a + b.weeks, 0)} weeks</b>, {exact.res.blocks[0].daysPerWeek} days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count and intensity you set below.
+              I can read {exact.file.name} exactly: <b className="tnum">{exact.res.blocks.reduce((a, b) => a + b.weeks, 0)} weeks</b>, {exact.res.blocks[0].daysPerWeek} days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count set above and the intensity you set below.
             </div>
             <button onClick={takeExactly} className="pixel-box w-full h-11 text-[12.5px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
               Take it exactly as written
@@ -731,47 +802,21 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {wishNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{wishNote}</div>}
       </Card>
 
-      {/* The first question, because it is the only one that changes what every answer below MEANS.
-          Four sets on one style is a warm-up and on the other it is most of a muscle's week. */}
-      <TrainField label="How you want to train"
-        effect={style === 'minmax' ? '1-2 sets, to failure' : 'more sets, stopping short'}
-        hint={Training.STYLES[style].blurb}>
-        <Seg value={style} onChange={v => {
-          setStyle(v);
-          // The block length belongs to the style: min-max runs six weeks off an intro week, the
-          // volume model four. Only moved when the person has not chosen one for themselves.
-          if (!t.prefs.shape) setShape(v === 'minmax' ? 'minmax4' : 'build4');
-          // Five days is the min-max week and four is the volume model's default shape. Only moved
-          // when the person has not set a day count of their own, so a deliberate answer is never
-          // overwritten by changing your mind about the style.
-          if (!t.prefs.daysPerWeek) setDays(v === 'minmax' ? 5 : 4);
-        }} options={[{ v: 'minmax', l: 'Min-max' }, { v: 'landmarks', l: 'Volume' }]} />
-      </TrainField>
-      {/* The one place the food side of the app gets to answer a training question. Recovery is
-          lower in a deficit, and low volume holds muscle perfectly well, so somebody cutting has
-          already told us which of the two they should be on. */}
-      {cutting && (
-        <div className="text-[12px] mb-4 -mt-1 leading-snug px-3 py-2.5"
-          style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))', color: 'var(--text2)' }}>
-          {style === 'minmax'
-            ? 'You are eating in a deficit, so this is the one I would pick anyway: recovery is lower down there and low volume holds muscle perfectly well.'
-            : 'You are eating in a deficit. Min-max is the safer bet while you are cutting - there is less to recover from, and low volume holds muscle just fine.'}
-        </div>
-      )}
       <button onClick={() => setWizStep(2)} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        Next · Schedule ›
+        Next · Sessions ›
       </button>
       </>)}
 
       {wizStep === 2 && (<>
-      <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
-        hint={draftDays > 0 && asBrought
-          ? 'Which track I pull from a source that offers more than one. "As brought" below runs their days as written, so this does not change the count.'
-          : (style === 'minmax'
-            ? 'Five is the shape min-max is written for: upper, lower, rest, upper, lower, arms, rest. Fewer works, and the rest days move with it.'
-            : 'How many sessions you get, whatever a plan you brought happened to be written across. Also which track I pull from a source that offers more than one.')}>
-        <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
-      </TrainField>
+      {/* The day count is answered on step 1, with the import, because the reader needs it. This
+          step is what a session is, not how many of them there are - so it says where the count
+          stands and where to go to change it, rather than asking twice and letting two controls
+          disagree about the same number. */}
+      <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
+        <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
+        {days} sessions a week.{' '}
+        <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--accent-ink)' }}>Change it</button>
+      </div>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
         hint={draftDays > 0 && !asBrought
           ? 'Decides how many movements I choose for myself. Movements you brought are kept on top of that, so a long plan makes a longer session rather than a shorter plan.'
@@ -1619,7 +1664,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                         <button onClick={() => setSets(s.id, it.id, 1)} className="pixel-box w-7 h-7 text-[13px]" style={{ background: 'var(--surface2)' }}>+</button>
                       </div>
                       <div className="flex-1 flex items-baseline justify-end gap-3 text-[11px] tnum" style={{ color: 'var(--muted)' }}>
-                        <span>{it.target.repLow}-{it.target.repHigh} reps</span>
+                        <span>{Training.repLabel(it.target)} reps</span>
                         <span>{it.target.tempo || '2010'} tempo</span>
                       </div>
                     </div>
@@ -1869,7 +1914,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
           <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-            {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
+            {it.target.sets} x {Training.repLabel(it.target)} &middot; {it.target.rir} RIR
             {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
           </span>
           {/* What you did last time is the number you actually want before you set off. */}
@@ -1898,7 +1943,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
         <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
         <span className="pf text-[10px] tnum shrink-0 px-2 py-1" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          {it.target.sets} x {it.target.repLow}-{it.target.repHigh}
+          {it.target.sets} x {Training.repLabel(it.target)}
         </span>
       </span>
     );
@@ -2013,7 +2058,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <ActionSheet kicker="Movement" title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
           actions={[
             { label: 'Replace it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
-            { label: 'Sets and reps', sub: item.target.sets + ' x ' + item.target.repLow + '-' + item.target.repHigh + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
+            { label: 'Sets and reps', sub: item.target.sets + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
             {
               label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
               sub: item.supersetGroup ? 'Do it on its own again' : (items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup

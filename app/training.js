@@ -192,6 +192,7 @@
     'db_incline|Incline dumbbell press|dumbbell|horizPress|ch,fd|tr|len',
     'db_fly|Dumbbell fly|dumbbell|isolation|ch||len',
     'db_incline_fly|Incline dumbbell fly|dumbbell|isolation|ch||len',
+    'db_decline_fly|Decline dumbbell fly|dumbbell|isolation|ch||len',
     'cable_fly|Cable fly|cable|isolation|ch||mid',
     'cable_fly_low|Low-to-high cable fly|cable|isolation|ch||mid',
     'cable_fly_high|High-to-low cable fly|cable|isolation|ch||mid',
@@ -535,6 +536,7 @@
     'bent_knee_dragon_flag|Bent-knee dragon flag|bodyweight|core|ab|ob|len',
     'lying_leg_raise|Lying leg raise|bodyweight|core|ab||sho',
     'smith_machine_lunge|Smith machine lunge|smith|lunge|qu,gl|ad|len',
+    'smith_split_squat|Smith machine split squat|smith|lunge|qu,gl|ad,ha|len',
     'dumbbell_lunge|Dumbbell lunge|dumbbell|lunge|qu,gl|ha,ad|mid',
     'barbell_lunge|Barbell lunge|barbell|lunge|qu,gl|ha,ad|mid',
     'standing_plate_abduction|Standing plate abduction|dumbbell|isolation|gl||sho',
@@ -714,12 +716,16 @@
     // Names a coaching app writes that the library has no token in common with, so no amount of
     // scoring reaches them. A "chest fly" is not called that anywhere in the table; a French press
     // is an overhead extension under another name; "decline" on a fly means the high-to-low angle.
-    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'cable_fly_high',
+    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'db_decline_fly',
     'decline fly': 'cable_fly_high', 'incline chest fly': 'db_incline_fly',
     'french press': 'overhead_ez', 'french presses': 'overhead_ez',
-    'triceps pushdown': 'rope_pushdown', 'cable triceps pushdown': 'bar_pushdown',
-    'cable tricep pushdown': 'bar_pushdown', 'triceps pushdowns': 'rope_pushdown',
-    'split squat smith machine': 'split_squat', 'smith machine split squat': 'split_squat',
+    'triceps pushdown': 'rope_pushdown', 'triceps pushdowns': 'rope_pushdown',
+    // A plan that says "cable tricep pushdown" has named the cable and NOT the attachment, so the
+    // answer is the generic pressdown rather than the app picking the bar on their behalf - which
+    // is the same answer the five-day programme's own note gives: rope or bar, whichever sits
+    // better on your elbows.
+    'cable triceps pushdown': 'triceps_pressdown', 'cable tricep pushdown': 'triceps_pressdown',
+    'split squat smith machine': 'smith_split_squat', 'smith machine split squat': 'smith_split_squat',
     'machine adduction': 'hip_adduction', 'machine abduction': 'hip_abduction',
     'machine ab crunch': 'machine_crunch',
   };
@@ -768,6 +774,15 @@
     'chest supported t bar row': 'tbar_row_supported', 'chest-supported t-bar row': 'tbar_row_supported',
     '1 arm reverse pec deck': 'reverse_pec_deck_single', 'one arm reverse pec deck': 'reverse_pec_deck_single',
     'smith machine jm press': 'jm_press_smith',
+    /* Read off the third written programme (see PROGRAMMES). Each of these was resolving to a real
+       movement that is NOT the one the plan asked for, which is the worst kind of import miss: it
+       looks like it worked. A hammer curl is not a supinated curl, a split squat in a Smith machine
+       is not a free-weight split squat, and a fly on a decline bench is not a cable crossover. */
+    'alternating dumbbell hammer curl': 'hammer_curl', 'alternating db hammer curl': 'hammer_curl',
+    'decline fly': 'db_decline_fly', 'decline dumbbell fly': 'db_decline_fly',
+    'decline db fly': 'db_decline_fly',
+    'machine rear delt fly': 'machine_rear_delt', 'machine reverse fly': 'machine_rear_delt',
+    'french press': 'overhead_ez', 'ohtx': 'overhead_ez',
   };
   Object.keys(COACH_ALIASES).forEach(function (k) { if (!ALIASES[k]) ALIASES[k] = COACH_ALIASES[k]; });
 
@@ -1260,6 +1275,19 @@
 
   // Weekly sets per muscle for a set of session prescriptions (the PLAN side).
   // `sessions` is a list of { exercises: [{ exerciseId, target:{sets} }] }.
+  /* A prescription's reps, said the way it was written. A rep RANGE is what this app prescribes and
+     what most plans are written in, but plenty are not: a coach who writes "8 reps, 2110 tempo"
+     means eight, and rendering that back as "8-8 reps" everywhere makes the app look like it cannot
+     read. One helper rather than ten call sites each deciding for themselves. */
+  function repLabel(target) {
+    var t = target || {};
+    var lo = t.repLow, hi = t.repHigh;
+    if (lo == null && hi == null) return '';
+    if (lo == null) return String(hi);
+    if (hi == null || +hi === +lo) return String(lo);
+    return lo + '-' + hi;
+  }
+
   function plannedVolume(sessions, custom) {
     var out = {};
     MUSCLES.forEach(function (m) { out[m] = 0; });
@@ -2283,10 +2311,21 @@
    * DAY_MUSCLES above is the volume model's answer and it is a fine one for a style where movements
    * are cheap and sets are what is being rationed. Min-max rations movements: five or six a session,
    * one or two sets each, so every slot spent is a slot not spent on something else. Read straight
-   * off the two written programmes (see PROGRAMMES) - which is why there are no adductors, obliques
-   * or lower back anywhere in it, and why forearms appear on the arms day and nowhere else. Four of
-   * the nine movements on their arms and delts day are forearm work; nothing else in either
-   * programme picks a movement for grip.
+   * off the written programmes (see PROGRAMMES) - which is why there are no obliques or lower back
+   * anywhere in it, and why forearms appear on the arms day and nowhere else. Four of the nine
+   * movements on the arms and delts day of the first two are forearm work; nothing else in any of
+   * them picks a movement for grip.
+   *
+   * Adductors are the one place the three programmes disagree: the third (see PROGRAMMES) trains
+   * them directly on BOTH of its lower days, two sets each, and the other two never do. They are
+   * deliberately still not in this map, and the reason is worth writing down rather than
+   * rediscovering. Putting them in does not merely allow an adductor movement, it SPENDS one of the
+   * five or six slots a min-max session has on a muscle whose landmarks (MINMAX_LANDMARKS) put its
+   * floor at zero because the squat and the lunge already pay it. One programme is not enough to
+   * move a landmark, and moving the day map without the landmark would have the generator
+   * programming a muscle the same file says needs no direct work. Somebody who wants it can bring
+   * the programme that has it, or ask for it in words on the block screen - both of which put the
+   * choice with the person rather than in a default.
    */
   var MINMAX_DAY_MUSCLES = {
     full: ['qu', 'ch', 'lt', 'ha', 'sd', 'ca'],
@@ -3972,7 +4011,7 @@
         touched.forEach(function (s) {
           tweakRows(s, id).forEach(function (e) {
             var t = setExerciseTarget(s, e.id, { repLow: o.repLow, repHigh: o.repHigh });
-            if (t && !shown) shown = t.repLow + '-' + t.repHigh;
+            if (t && !shown) shown = repLabel(t);
           });
         });
         applied.push(tweakName(id, custom) + ': ' + shown + ' reps (' + tweakReach(touched, out) + ').');
@@ -4298,8 +4337,8 @@
   }
 
   /* ---- the programmes the app ships with --------------------------------------------------------
-   * Two written programmes, in the app, ready to run: a four-day and a five-day. They are the house
-   * method as an actual plan rather than as a set of rules - what the generator is aiming at when it
+   * Three written programmes, in the app, ready to run: a four-day, a five-day, and a five-day
+   * bodybuilding split. They are the house method as an actual plan rather than as a set of rules - what the generator is aiming at when it
    * builds somebody a block, and what somebody who does not want to answer questions can just start.
    *
    * WHAT THEY ARE. One week each, exactly as written: the movements in their order, the working
@@ -4315,8 +4354,10 @@
    * and every last set is an all-out set from the first session. The techniques are the block after
    * this one (applyTechniques), not a thing to open with.
    *
-   * Generated by tools/gen-programmes.mjs from the source spreadsheets. Edit the sheet and re-run
-   * it; do not hand-edit what is below, because a plan re-typed by hand is a plan with a typo in it.
+   * The first two are generated by tools/gen-programmes.mjs from the source spreadsheets: edit the
+   * sheet and re-run it, and do not hand-edit those two, because a plan re-typed by hand is a plan
+   * with a typo in it. The third came from screenshots rather than a sheet and is written out by
+   * hand - its own note below says which parts of it are the author's and which are ours.
    */
   var PROGRAMMES = [
   { key: "mac4", name: "Macrosaurus 4 Day", daysPerWeek: 4, template: [
@@ -4331,6 +4372,33 @@
     {"name":"Upper 2","kind":"upper","dayOfWeek":3,"exercises":[{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["close_grip_pull_up","1_arm_cable_pulldown"],"warmups":3,"planNote":"Lean back by ~15° and drive your elbows down as you squeeze your shoulder blades together. This should feel like a mix of lats and mid-traps.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"tbar_row_supported","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","chest_supported_row"],"warmups":3,"planNote":"Flare elbows out at roughly 45° and squeeze your shoulder blades together hard at the top of each rep.","sourceName":"Chest-Supported T-Bar Row"},{"exerciseId":"shrug_machine","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["shrug_bb","shrug_in_cable"],"warmups":2,"planNote":"Think about shrugging \"up to your ears\". Use straps, if possible.","sourceName":"Machine Shrug"},{"exerciseId":"machine_press","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":240},"alts":["smith_bench","db_bench"],"warmups":3,"planNote":"1 second pause at the bottom of each rep while maintaining tension on the pecs.","sourceName":"Machine Chest Press"},{"exerciseId":"high_cable_lateral_raise","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["db_lateral","machine_lateral"],"warmups":1,"planNote":"Set the cable at roughly hip height. Let your hand go slightly past your midline at the bottom of each rep to get a deep stretch on the side delt.","sourceName":"High-Cable Lateral Raise"},{"exerciseId":"1_arm_reverse_pec_deck","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_reverse_dumbbell_fly","reverse_cable_crossover"],"warmups":1,"planNote":"Sweep the weight out to create the largest semi-circle possible with your arm.","sourceName":"1-Arm Reverse Pec Deck"},{"exerciseId":"cable_crunch","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["weighted_crunch","machine_crunch2"],"warmups":1,"planNote":"Round your lower back as you crunch. Maintain a mind-muscle connection with your 6-pack.","sourceName":"Cable Crunch"}]},
     {"name":"Lower 2","kind":"lower","dayOfWeek":4,"exercises":[{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic2","sissy_squat"],"warmups":2,"planNote":"Set the seat back as far as it will go while still feeling comfortable. Grab the handles as hard as you can to pull your butt down into the seat (using straps can help here).","sourceName":"Leg Extension"},{"exerciseId":"rdl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":2,"rirLast":1,"restSec":150},"alts":["db_rdl","seated_cable_deadlift"],"warmups":3,"planNote":"Stick your glutes straight back as you lower the bar straight down, centered over the middle of your foot. Get a nice deep stretch at the bottom, but keep your spine neutral (don't round forward).","sourceName":"Barbell RDL"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["hip_thrust","45_hyperextension"],"warmups":3,"planNote":"Squeeze your glutes hard at the top and control the weight on the way down.","sourceName":"Machine Hip Thrust"},{"exerciseId":"leg_press","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":150},"alts":["smith_squat","barbell_squat"],"warmups":3,"planNote":"Feet lower on the platform for more quad focus. Get as deep as you can without excessive back rounding.","sourceName":"Leg Press"},{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","donkey_calf"],"warmups":1,"planNote":"1-2 second pause at the bottom of each rep. Instead of just going up onto your toes, think about rolling your ankle back and forth on the balls of your feet.","sourceName":"Standing Calf Raise"}]},
     {"name":"Arms and delts","kind":"arms","dayOfWeek":5,"exercises":[{"exerciseId":"bayesian_curl","target":{"sets":2,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["incline_curl","standing_dumbbell_curl"],"warmups":1,"planNote":"As you curl, optionally lean forward to prevent the cable from hitting your wrist at the top. Control the negative and feel a deep stretch at the bottom of each rep.","sourceName":"Bayesian Cable Curl"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","skull_crusher"],"warmups":1,"planNote":"Feel a deep stretch on the triceps throughout the entire negative.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"zottman_curl_modified","target":{"sets":1,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["hammer_curl","preacher_hammer_curl"],"warmups":1,"planNote":"Hammer curl on the way up and supinated curl (palms up) on the way down.","sourceName":"Modified Zottman Curl"},{"exerciseId":"cable_kickback_tri","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["dip_machine","close_grip_dip"],"warmups":1,"planNote":"Keep your upper arm behind your torso throughout the ROM.","sourceName":"Cable Triceps Kickback"},{"exerciseId":"wrist_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_curl"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Curl"},{"exerciseId":"dumbbell_wrist_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_wrist_extension"],"warmups":1,"planNote":"Smooth, controlled reps.","sourceName":"DB Wrist Extension"},{"exerciseId":"alternating_dumbbell_curl","target":{"sets":1,"repLow":6,"repHigh":8,"rir":0,"rirLast":0,"restSec":90},"alts":["bb_curl","ez_curl"],"warmups":1,"planNote":"Slow, controlled reps!","sourceName":"Alternating DB Curl"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["high_cable_lateral_raise","db_lateral"],"warmups":1,"planNote":"Focus on squeezing your side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"dead_hang","target":{"sets":2,"repLow":6,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"warmups":1,"planNote":"Try to add a few more seconds each week!","sourceName":"Dead Hang (optional)"}]}
+  ] },
+  /* ---- the third one, and the only one that did not come off a spreadsheet ----------------------
+   * A five-day bodybuilding split, transcribed from the app it was written in: upper, lower, arms
+   * and delts, upper, lower, with the two upper days and the two lower days running the same
+   * movements as each other. One or two working sets on everything, six to ten reps, and a tempo on
+   * every line - the same bet the other two make, arrived at by somebody else.
+   *
+   * WHAT IS THEIRS AND WHAT IS OURS, because the source is five screenshots rather than a sheet and
+   * a plan half-invented is worse than no plan. Theirs: every movement, its order in the session,
+   * the working sets, the reps, and the tempo. Ours, because the screenshots do not state them:
+   * the rest between sets (by how much of you the movement uses, as everywhere else here), the
+   * effort targets (the house min-max prescription - the last set of everything all-out, a rep in
+   * reserve on the first set of anything you could get hurt failing), the substitutions, the
+   * weekdays, and the notes. Where a name was written loosely it is resolved to the library's
+   * movement and the author's own wording is kept on the line (see sourceName).
+   *
+   * WHY IT SHIPS. Two of the three days here are not in either of the other programmes: an upper day
+   * built on a Smith incline and two T-bar rows, and a lower day that trains the adductors twice a
+   * week. It is also the shape people most often arrive with - "5 day split" - which is worth being
+   * able to hand somebody without asking them to photograph anything.
+   */
+  { key: "bb5", name: "Macrosaurus 5 Day Bodybuilding", daysPerWeek: 5, template: [
+    {"name":"Upper 1","kind":"upper","dayOfWeek":0,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded, and let the machine's fixed path let you push the last set properly.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["lat_pulldown_wide_grip","close_grip_lat_pulldown"],"warmups":2,"planNote":"Drive your elbows down and in, and let your shoulder blades rise at the top of every rep to get the lats long.","sourceName":"Machine Lat Pulldown"},{"exerciseId":"db_decline_fly","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_fly_high","pec_deck"],"warmups":1,"planNote":"On a decline bench, so the line of pull sits across the lower and mid pec. Stretch, do not drop.","sourceName":"Decline Chest Fly"},{"exerciseId":"tbar_row","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__wide","tbar_row_supported"],"warmups":2,"planNote":"The wide multi-grip handle. Elbows out at about 45° and squeeze the shoulder blades together at the top.","sourceName":"T-Bar Row (Mega Mass)"},{"exerciseId":"tbar_row","target":{"sets":1,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__neutral","chest_supported_row"],"warmups":1,"planNote":"The back-off set: same movement, lighter, two more reps, taken to where the weight stops moving.","sourceName":"T-Bar Row"},{"exerciseId":"hanging_leg_raise","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["captains_chair_leg_raise","hanging_knee_raise"],"warmups":1,"planNote":"Curl the pelvis up rather than swinging the legs out. Straps if your grip goes first.","sourceName":"Hanging Leg Raises"}]},
+    {"name":"Lower 1","kind":"lower","dayOfWeek":1,"exercises":[{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["hack_squat","back_squat"],"warmups":3,"planNote":"As deep as your hips will let you go without the pelvis tucking. The pendulum path keeps the load on the quads at the bottom, which is the point of it.","sourceName":"Pendulum Squat"},{"exerciseId":"smith_split_squat","target":{"sets":1,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":180,"tempo":"2110"},"alts":["bulgarian","split_squat"],"warmups":2,"planNote":"Minimise what the back leg contributes. Six hard reps on each side.","sourceName":"Split Squat Smith Machine"},{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["seated_leg_curl","standing_leg_curl"],"warmups":2,"planNote":"Set the machine so the stretch at the bottom is as big as it will go, and keep your hips down on the pad as you curl.","sourceName":"Hamstring Curl"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Let the knees travel out far enough to feel the stretch before you squeeze back in. The adductors are most of the inside of a thigh and almost nothing else in a week trains them.","sourceName":"Machine Adduction"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["leg_ext_single","sissy_squat"],"warmups":1,"planNote":"Seat back as far as is comfortable, grip the handles hard and pull your hips into the seat.","sourceName":"Leg Extensions"}]},
+    {"name":"Arms and delts","kind":"arms","dayOfWeek":3,"exercises":[{"exerciseId":"db_ohp","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"3110"},"alts":["machine_ohp","seated_machine_press"],"warmups":2,"planNote":"Seated with the back supported, three seconds down. Dumbbells to about ear height, not a bounce off the shoulders.","sourceName":"DB Seated Shoulder Press"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":10,"repHigh":10,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["high_cable_lateral_raise","db_lateral"],"warmups":1,"planNote":"Lead with the elbow and squeeze the side delt to move the weight.","sourceName":"Machine Lateral Raise"},{"exerciseId":"machine_rear_delt","target":{"sets":1,"repLow":10,"repHigh":10,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_rear_fly","rear_delt_fly"],"warmups":1,"planNote":"Sweep the arms out into the biggest semi-circle you can, and stop before the elbows bend.","sourceName":"Machine Rear Delt Fly"},{"exerciseId":"hammer_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["rope_hammer","crossbody_curl"],"warmups":1,"planNote":"Neutral grip the whole way, one arm at a time. This is the brachialis and the forearm as much as the biceps.","sourceName":"Alternating Dumbbell Hammer Curl"},{"exerciseId":"overhead_ez","target":{"sets":2,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["overhead_cable_triceps_extension","overhead_dumbbell_triceps_extension"],"warmups":1,"planNote":"Overhead triceps extension with an EZ bar. Elbows in, and a deep stretch at the bottom of every rep - that is where the long head grows.","sourceName":"French Press (OHTX)"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Upper arms pinned to the pad, and let the arm straighten all the way at the bottom.","sourceName":"Machine Preacher Curl"},{"exerciseId":"triceps_pressdown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["rope_pushdown","bar_pushdown"],"warmups":1,"planNote":"Rope or bar, whichever sits better on your elbows. Lock the upper arms to your sides.","sourceName":"Cable Tricep Pushdown"}]},
+    {"name":"Upper 2","kind":"upper","dayOfWeek":4,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":240,"tempo":"2110"},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded, and let the machine's fixed path let you push the last set properly.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["lat_pulldown_wide_grip","close_grip_lat_pulldown"],"warmups":2,"planNote":"Drive your elbows down and in, and let your shoulder blades rise at the top of every rep to get the lats long.","sourceName":"Machine Lat Pulldown"},{"exerciseId":"db_decline_fly","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_fly_high","pec_deck"],"warmups":1,"planNote":"On a decline bench, so the line of pull sits across the lower and mid pec. Stretch, do not drop.","sourceName":"Decline Chest Fly"},{"exerciseId":"tbar_row","target":{"sets":2,"repLow":6,"repHigh":6,"rir":1,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__wide","tbar_row_supported"],"warmups":2,"planNote":"The wide multi-grip handle. Elbows out at about 45° and squeeze the shoulder blades together at the top.","sourceName":"T-Bar Row (Mega Mass)"},{"exerciseId":"tbar_row","target":{"sets":1,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":150,"tempo":"2110"},"alts":["tbar_row__neutral","chest_supported_row"],"warmups":1,"planNote":"The back-off set: same movement, lighter, two more reps, taken to where the weight stops moving.","sourceName":"T-Bar Row"},{"exerciseId":"machine_crunch","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_crunch","weighted_crunch"],"warmups":1,"planNote":"Round the lower back into the crunch and keep the abs, not the hip flexors, doing it.","sourceName":"Machine Ab Crunch"}]},
+    {"name":"Lower 2","kind":"lower","dayOfWeek":5,"exercises":[{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":8,"repHigh":8,"rir":1,"rirLast":0,"restSec":240,"tempo":"3110"},"alts":["hack_squat","back_squat"],"warmups":3,"planNote":"As deep as your hips will let you go without the pelvis tucking. The pendulum path keeps the load on the quads at the bottom, which is the point of it.","sourceName":"Pendulum Squat"},{"exerciseId":"smith_split_squat","target":{"sets":1,"repLow":6,"repHigh":6,"rir":0,"rirLast":0,"restSec":180,"tempo":"2110"},"alts":["bulgarian","split_squat"],"warmups":2,"planNote":"Minimise what the back leg contributes. Six hard reps on each side.","sourceName":"Split Squat Smith Machine"},{"exerciseId":"lying_leg_curl","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["seated_leg_curl","standing_leg_curl"],"warmups":2,"planNote":"Set the machine so the stretch at the bottom is as big as it will go, and keep your hips down on the pad as you curl.","sourceName":"Hamstring Curl"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Let the knees travel out far enough to feel the stretch before you squeeze back in. The adductors are most of the inside of a thigh and almost nothing else in a week trains them.","sourceName":"Machine Adduction"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":8,"rir":0,"rirLast":0,"restSec":90,"tempo":"2110"},"alts":["leg_ext_single","sissy_squat"],"warmups":1,"planNote":"Seat back as far as is comfortable, grip the handles hard and pull your hips into the seat.","sourceName":"Leg Extensions"}]}
   ] }
 ];
 
@@ -6347,6 +6415,7 @@
     BANDS: BANDS, SHAPES: SHAPES, SPLITS: SPLITS, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
     PRIMARY_WEIGHT: PRIMARY_WEIGHT, SECONDARY_WEIGHT: SECONDARY_WEIGHT,
     byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve, cleanName: cleanName,
+    repLabel: repLabel,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,

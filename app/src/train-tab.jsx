@@ -500,7 +500,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                         : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
                       : lead.target.rir + ' RIR';
                     return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' '
-                      + lead.target.sets + '×' + lead.target.repLow + '-' + lead.target.repHigh + ' · ' + effort
+                      + lead.target.sets + '×' + Training.repLabel(lead.target) + ' · ' + effort
                       + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
                   })()}
               </div>
