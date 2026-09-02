@@ -164,7 +164,9 @@ check('the block builder', (spy) => {
       blockId: d.training.blocks[0].id, onBack: spy, onStart: spy,
     },
   };
-});
+// "5" is the day count this block already runs at, and the days control is a group like any other:
+// pressing the answer you have got is correctly a no-op.
+}, ['5']);
 
 check('the training settings', (spy) => {
   const d = db();

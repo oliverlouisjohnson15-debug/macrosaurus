@@ -4601,6 +4601,138 @@
       });
   }
 
+  /* ---- how many days a week this block runs ----------------------------------------------------
+   *
+   * The day count was the one answer the wizard asked that nothing afterwards could change.
+   * Everything else about a block is editable in place - the movements, the sets, the names, the
+   * weekdays - and "I can train five days now, not four" meant building the whole thing again from
+   * nothing. That is the wrong price for a change of shift pattern, and it is the change people
+   * actually make: the programme is fine, the diary moved.
+   *
+   * So this is deliberately NOT a regenerate. The days you already have are the days you keep -
+   * same movements, same sets, same names, same weekdays, same session ids, so a block already
+   * running keeps every log pointing at it.
+   *
+   *   Going up ADDS the session the wider week is missing. The candidates come from a block
+   *   generated at the new count with THIS block's own settings, and the one taken is the kind of
+   *   day the current week has least of: a four-day upper/lower week going to five gains the day it
+   *   has not got rather than a fourth upper.
+   *
+   *   Going down takes days off the END of the week, because that is the only end anybody means by
+   *   "drop a day", and names the ones that went so nothing disappears quietly.
+   *
+   * Weeks already trained are out of reach, the same floor every other editing route here uses:
+   * pass fromWeek and everything before it comes back verbatim.
+   */
+  function uniqueDayName(name, taken) {
+    if (taken.indexOf(name) === -1) return name;
+    var base = String(name).replace(/\s+[A-Z]$/, '');
+    for (var i = 0; i < 8; i++) {
+      var n = base + ' ' + String.fromCharCode(65 + i);
+      if (taken.indexOf(n) === -1) return n;
+    }
+    return name + ' 2';
+  }
+
+  function setDaysPerWeek(block, days, opts) {
+    opts = opts || {};
+    var out = JSON.parse(JSON.stringify(block || {}));
+    var template = templateOf(out);
+    var was = template.length;
+    // A number we cannot read is a no-op, not a reason to drop somebody to two days a week.
+    var asked = Math.round(+days);
+    var want = isFinite(asked) ? clamp(asked, 2, 6) : was;
+    var res = { block: out, days: was, was: was, added: [], removed: [], changed: false };
+    if (!was || want === was) return res;
+
+    if (want < was) {
+      res.removed = template.slice(want).map(function (d) { return d.name; });
+      template = template.slice(0, want);
+    } else {
+      /* The donor. One week is all that is read off it - it exists to answer "what is the fifth day
+         of a five-day week on this style" and nothing else - so it is built on a plain four-week
+         shape rather than this block's, which might make its only week a deload. */
+      var donor = generateBlock(Object.assign({}, opts, {
+        daysPerWeek: want, weeks: 1, shape: 'build4',
+        style: out.style, intensity: out.intensity, goal: out.goal,
+      }));
+      var pool = templateOf(donor);
+      // Which KIND of day this week is short of, judged against the week the new day count is meant
+      // to run. Taking the split's trailing days instead would hand a four-day upper/lower week a
+      // third lower day and call it a five-day split.
+      var have = {}, need = {};
+      template.forEach(function (d) { have[d.kind] = (have[d.kind] || 0) + 1; });
+      pool.forEach(function (d) { need[d.kind] = (need[d.kind] || 0) + 1; });
+      var deficit = {};
+      Object.keys(need).forEach(function (k) { deficit[k] = need[k] - (have[k] || 0); });
+      var chosen = [];
+      pool.forEach(function (d) {
+        if (chosen.length >= want - was) return;
+        if ((deficit[d.kind] || 0) > 0) { deficit[d.kind]--; chosen.push(d); }
+      });
+      // A week that already covers every kind the new one asks for still needs the extra session,
+      // so it gets the split's own next day rather than nothing.
+      pool.forEach(function (d) {
+        if (chosen.length >= want - was) return;
+        if (chosen.indexOf(d) === -1) chosen.push(d);
+      });
+      var taken = template.map(function (d) { return d.name; });
+      chosen.forEach(function (d) { d.name = uniqueDayName(d.name, taken); taken.push(d.name); });
+      res.added = chosen.map(function (d) { return d.name; });
+      template = template.concat(chosen);
+    }
+
+    /* Where the new days land. A style that prescribes its own week (min-max: two on, one off, two
+       on, arms, off) gets the whole week re-laid, because there the rest days ARE the method and a
+       fifth session dropped into a spare slot is not the same prescription. Everything else keeps
+       the weekdays it has - somebody may have spent a while putting them where their life is - and
+       the new day takes the first free weekday the recommended week offers. */
+    var dows = recommendedDows(out, want);
+    if (prescribesDays(out)) {
+      template.forEach(function (d, i) { d.dayOfWeek = dows[i] == null ? i % 7 : dows[i]; });
+    } else {
+      var used = {};
+      template.slice(0, Math.min(was, want)).forEach(function (d) { used[d.dayOfWeek] = 1; });
+      template.forEach(function (d, i) {
+        if (i < Math.min(was, want)) return;
+        var free = dows.concat([0, 1, 2, 3, 4, 5, 6]).filter(function (n) { return !used[n]; })[0];
+        d.dayOfWeek = free == null ? (i % 7) : free;
+        used[d.dayOfWeek] = 1;
+      });
+    }
+    // Re-key every line against the day it now sits on. Item ids are derived from the day's index in
+    // the template, so a donor day that was its week's first and is now its fifth would otherwise
+    // carry ids that collide with the day it was appended after.
+    template.forEach(function (d, i) {
+      (d.exercises || []).forEach(function (e, ei) { e.id = e.exerciseId + '_t' + i + '_' + ei; });
+    });
+
+    var built = blockFromTemplate(template, Object.assign({}, opts, {
+      weeks: out.weeks || 4, shape: out.shape, style: out.style, intensity: out.intensity,
+      goal: out.goal, daysPerWeek: want, name: out.name, startISO: out.startISO,
+      source: out.source, sourceRef: out.sourceRef || null,
+    }));
+    // The rebuilt block is THIS block, not a new one: same id, so every log, schedule row and
+    // session id that pointed at it still does. Session and line ids are minted from the block id,
+    // so swapping the freshly minted one back for the old carries all of them with it.
+    built = JSON.parse(JSON.stringify(built).split(built.id).join(out.id));
+    var final = Object.assign({}, out, built);
+
+    // Weeks already trained are a record of what was lifted rather than a plan to edit, so they come
+    // back exactly as they were - at the day count they were actually run at.
+    var floor = opts.fromWeek == null ? null : Math.max(1, Math.round(+opts.fromWeek));
+    if (floor && floor > 1) {
+      final.sessions = (out.sessions || []).filter(function (s) { return s.week < floor; })
+        .concat(final.sessions.filter(function (s) { return s.week >= floor; }));
+      res.fromWeek = floor;
+    }
+
+    res.block = final;
+    res.days = want;
+    res.changed = true;
+    return res;
+  }
+
   /* What gets published, and how it is read back.
    *
    * The shared library's template column has always been a bare array of days, and a block's STYLE
@@ -6245,7 +6377,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
-    blockTweak: blockTweak, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
+    blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
     PROGRAMMES: PROGRAMMES, programmeOf: programmeOf, programmeBlock: programmeBlock, programmeSummary: programmeSummary,

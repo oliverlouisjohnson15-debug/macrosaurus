@@ -976,6 +976,8 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const [wishResult, setWishResult] = useState(null);   // { note, applied, rejected, before }
   const [wishErr, setWishErr] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  // { text, before, was } - the receipt for a day-count change, and the block as it stood before it.
+  const [daysResult, setDaysResult] = useState(null);
   /* Arrived here from "Change this block" on the Train tab, which asks a question this screen has to
      answer straight away. The card is below the name, the start date, the week picker and the volume
      panel - all of which are the right order for somebody who came to READ the block, and the wrong
@@ -1021,6 +1023,45 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const choices = Training.blockChoices(block, t.custom);
   const techniques = Training.weekSessions(block, 1).reduce((a, s) => a + (s.exercises || []).filter(e => e.technique).length, 0);
 
+  /* ---- changing the day count -------------------------------------------------------------------
+     Training.setDaysPerWeek does the work and this shows the receipt, exactly as the wish box above
+     does: the change is applied into the same edit buffer as a set stepper, so nothing is written
+     until the exits at the bottom of the page say so, and Undo puts the block back as it was.
+
+     The floor is the one every editing route on this screen uses. A block three weeks in keeps those
+     three weeks at the day count they were actually run at, because they are a record of what was
+     lifted rather than a plan to edit. */
+  const dayCount = block.daysPerWeek || Training.weekSessions(block, 1).length;
+  function applyDays(n) {
+    if (n === dayCount) return;
+    const before = JSON.parse(JSON.stringify(block));
+    const res = Training.setDaysPerWeek(block, n, {
+      custom: t.custom, targets: targets, gym: currentGym(db),
+      dislikes: t.prefs.dislikes, sessionMinutes: t.prefs.sessionMinutes || 60,
+      fromWeek: prog ? prog.week : null,
+    });
+    if (!res.changed) return;
+    const say = (a) => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+    const parts = [];
+    if (res.added.length) parts.push('Added ' + say(res.added) + ', every week.');
+    if (res.removed.length) parts.push('Took out ' + say(res.removed) + '.');
+    if (res.fromWeek > 1) parts.push('Week' + (res.fromWeek > 2 ? 's 1 to ' + (res.fromWeek - 1) : ' 1') + ' you have already trained, so ' + (res.fromWeek > 2 ? 'they were' : 'it was') + ' left alone.');
+    // The sets moved because the week did, and a block that quietly gained thirty sets is worth a
+    // sentence: the volume panel above is already redrawn, this says which way to look.
+    const shown = Math.max(week, res.fromWeek || 1);
+    const sets = Training.weekSessions(res.block, shown)
+      .reduce((a, s) => a + (s.exercises || []).reduce((x, e) => x + ((e.target && e.target.sets) || 0), 0), 0);
+    parts.push('Week ' + shown + ' is now ' + sets + ' hard sets across ' + res.days + ' days.');
+    setBlock(res.block);
+    setOpenDay(null);
+    setDaysResult({ text: parts.join(' '), before: before, was: res.was });
+  }
+  function undoDays() {
+    if (!daysResult) return;
+    setBlock(daysResult.before);
+    setOpenDay(null);
+    setDaysResult(null);
+  }
   function edit(fn) { setBlock(b => { const n = JSON.parse(JSON.stringify(b)); fn(n); return n; }); }
   function setSets(sessionId, itemId, delta) {
     edit(b => {
@@ -1175,6 +1216,11 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         if (!later) tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
         tr.blocks.push(out);
       }
+      // A day count changed here is a change of mind about your WEEK, not about this block alone, so
+      // the next thing you build starts from the answer you just gave rather than asking again. Only
+      // when it was actually changed on this visit: opening an old three-day block to read it must
+      // not quietly move your default.
+      if (daysResult) tr.prefs = Object.assign({}, tr.prefs, { daysPerWeek: out.daysPerWeek });
       // A block built out of the draft basket consumes it, so the same days cannot be built twice.
       if (clearDraft) tr.draft = null;
     });
@@ -1453,6 +1499,43 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         </div>
       </Card>
       </div>
+
+      {/* ---- how many days a week ---------------------------------------------------------------
+          The one answer from the build wizard that used to be final. Every other thing on this
+          screen can be changed after the fact, and the day count - the answer most likely to go out
+          of date, because it is about your week rather than your training - sent you back to build
+          the block again from scratch.
+
+          It sits directly above the day cards it adds to and takes from, so the change lands in
+          your reading order rather than three screens away, and it behaves like the other change
+          control on this page: applied straight away, with a receipt naming every session that
+          arrived or left, and one tap to put it back. Nothing here is written until the button at
+          the bottom of the page says so. */}
+      <Card className="p-4 mb-4">
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <div className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Days a week</div>
+          <div className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
+            {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} in week {week}
+          </div>
+        </div>
+        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+          {Training.prescribesDays(block)
+            ? 'The days you have are kept as they are. Going up adds the session this week is missing; going down takes days off the end. Min-max prescribes its own week, so the rest days move with the count.'
+            : 'The days you have are kept as they are - same movements, same sets, same weekdays. Going up adds the session this week is missing; going down takes days off the end.'}
+          {prog && prog.week > 1 ? ' Weeks you have already trained are left exactly as they were.' : ''}
+        </div>
+        <Seg value={dayCount} onChange={applyDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
+        {/* The receipt. A day count is one tap and up to six weeks of sessions, so "5" going bold is
+            not an answer to what just happened to the plan. */}
+        {daysResult && (
+          <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{daysResult.text}</div>
+            <button onClick={undoDays} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>
+              Put it back to {daysResult.was} days
+            </button>
+          </div>
+        )}
+      </Card>
 
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
           movement, then sets / reps / tempo on one line. Reading the plan and running the plan
