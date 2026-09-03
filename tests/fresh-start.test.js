@@ -430,3 +430,61 @@ test('a second fresh start does not un-bank the first', () => {
   const second = Store.freshStart(first, { today: later, now: 6000, keep: DELETE_TRACKING, weightKg: 82, target: TARGET });
   assert.strictEqual(streakOf(second, later), FIXTURE_STREAK + 1);
 });
+
+/* ---- The reset that came back ----
+   A build before the watermark-alone guard let a second tab's pre-reset copy through the merge and
+   then stamped the reset's watermark onto the union. What comes out is a state that holds the whole
+   of the cleared history AND claims to be descended from the reset, so every merge after it reads
+   the resurrected entries as real and the reset stays undone for ever. These are the tests for the
+   floor that heals it (Store.enforceCleared): the mark carries the DAY of the reset, and nothing
+   dated before it belongs in a collection the reset cleared. */
+const poisoned = () => {
+  const reset = run(livedIn(), KEEP_NONE);            // a real reset: everything cleared, marked
+  const old = livedIn(); old._rev = 9000;             // the tab that never saw it, still writing
+  const bad = Object.assign({}, old, { _wipe: reset._wipe || 0, _soft: reset._soft, _rev: 9000 });
+  return JSON.parse(JSON.stringify(bad));
+};
+
+test('a copy wearing the reset watermark cannot keep the cleared history', () => {
+  const m = Store.mergeStates(poisoned(), run(livedIn(), KEEP_NONE));
+  // The line is drawn between days: everything before the day of the reset goes, and the day itself
+  // is the first day of the new run (nothing in the fixture is dated after it).
+  assert.deepStrictEqual(m.log_entries.map(e => e.date), [TODAY], 'the history before the line stays cleared');
+  assert.deepStrictEqual(m.weight_entries.map(w => w.date), [TODAY], 'only the seed reading the reset wrote');
+  assert.deepStrictEqual(m.checkins, []);
+  assert.deepStrictEqual(m.streak_credit, []);
+  assert.deepStrictEqual(m.training.logs, []);
+  assert.deepStrictEqual(Object.keys(m.day_meals), [TODAY], 'the day the line falls on is the new run\'s first day');
+  assert.deepStrictEqual(Object.keys(m.day_overrides), [TODAY]);
+  assert.strictEqual(streakOf(m, TODAY), 1, 'and the 41-day run it was propping up is back to day one');
+});
+
+test('a poisoned copy heals on load, with no second copy to merge against', () => {
+  const m = Store.migrate(poisoned());
+  assert.deepStrictEqual(m.log_entries.map(e => e.date), [TODAY]);
+  assert.deepStrictEqual(m.weight_entries, []);
+  assert.strictEqual(streakOf(m, TODAY), 1);
+});
+
+test('the floor keeps what was written AFTER the reset, whatever day it is dated', () => {
+  const s = run(livedIn(), KEEP_NONE);
+  // Sunday's entry for Saturday's dinner, back-filled across the line: id minted after the mark.
+  const backfilled = { id: (6000).toString(36).padStart(8, '0'), date: shiftISO(TODAY, -1), meal_id: 'm_1', computed_macros: { kcal: 500 } };
+  const idAfterMark = Date.now().toString(36) + 'zzzzz';
+  s.log_entries = [backfilled, { id: idAfterMark, date: shiftISO(TODAY, -2), meal_id: 'm_1', computed_macros: { kcal: 400 } }];
+  const m = Store.migrate(JSON.parse(JSON.stringify(s)));
+  assert.deepStrictEqual(m.log_entries.map(e => e.id), [idAfterMark],
+    'an entry minted after the reset survives a date before the line; a pre-reset one does not');
+});
+
+test('a fresh start that KEPT the log does not have its log floored', () => {
+  const s = run(livedIn(), KEEP_ALL);
+  const m = Store.migrate(JSON.parse(JSON.stringify(s)));
+  assert.strictEqual(m.log_entries.length, 5, 'nothing was cleared, so nothing is floored');
+  assert.strictEqual(m.training.logs.length, 1);
+});
+
+test('the legacy bare-timestamp mark carries no line, so it floors nothing', () => {
+  const s = livedIn(); s._soft = 5000;
+  assert.strictEqual(Store.migrate(JSON.parse(JSON.stringify(s))).log_entries.length, 5);
+});

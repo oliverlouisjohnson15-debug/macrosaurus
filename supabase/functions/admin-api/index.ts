@@ -25,6 +25,18 @@ function decodeJwt(token: string): { sub?: string; email?: string } {
 }
 
 const period = () => new Date().toISOString().slice(0, 7);
+// Everything an admin reset clears, which is every group the in-app reset screen offers. Mirrors
+// Store.freshCleared({}, Store.RESET_GROUPS) in app/store.js; the two must agree, because this list
+// is what the client enforces the reset line with (Store.enforceCleared). Kept as a literal rather
+// than imported: an edge function cannot reach into the browser bundle.
+const RESET_CLEARED = [
+  'expenditure', 'pending_adjustment', 'diet_break', 'last_break_end', 'diet_break_snooze',
+  'log_entries', 'day_meals', 'day_overrides', 'weight_entries', 'checkins',
+  'streak_credit', 'freezes', 'records', 'foods', 'saved_meals',
+  'recipes', 'shopping_list', 'pantry', 'meal_plan', 'training', 'week_plans',
+  'buddy', 'fight', 'items', 'game_awards', 'amber_ledger', 'habitat', 'badges',
+  'steps', 'sleep', 'health', 'profile', 'targets',
+];
 async function defaultCap(admin: any): Promise<number> {
   const { data } = await admin.from('app_config').select('default_cap_usd').eq('id', 1).maybeSingle();
   return data ? Number(data.default_cap_usd) : FALLBACK_CAP_USD;
@@ -239,8 +251,14 @@ Deno.serve(async (req) => {
         // straight back up on its next save. _rev is stamped to the same instant so the row also reads
         // as the newest revision to anything that only compares those. Store.migrate expands the rest
         // into a default state on load, so nothing else needs to be spelled out here.
+        // The soft mark rides along with it, carrying the DAY of the reset and the list of everything
+        // it clears. The watermark alone can only discard a copy that admits to being older, which
+        // leaves nothing to say for a copy that has wrongly been stamped with it; the line is applied
+        // to the merged result instead, on every load and every merge (Store.enforceCleared), so a
+        // reset stays done even after a build that let one come undone.
         const t = Date.now();
-        const { error } = await admin.from('user_state').update({ data: { _wipe: t, _rev: t }, updated_at: new Date().toISOString() }).eq('user_id', targetId);
+        const on = new Date(t).toISOString().slice(0, 10);
+        const { error } = await admin.from('user_state').update({ data: { _wipe: t, _rev: t, _soft: { at: t, on, cleared: RESET_CLEARED }, fresh_start: on }, updated_at: new Date().toISOString() }).eq('user_id', targetId);
         if (error) throw error;
         await audit('reset_user', targetId, { wipe: t });
         return json({ ok: true });

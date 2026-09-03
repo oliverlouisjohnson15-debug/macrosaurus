@@ -233,6 +233,10 @@
       var latestCheckin = s.checkins.reduce(function (m, c) { return (c && c.date && c.date > m) ? c.date : m; }, '');
       if (latestCheckin && (!s.last_checkin || latestCheckin > s.last_checkin)) s.last_checkin = latestCheckin;
     }
+    // A reset that was undone before this build shipped is sitting in the copy being loaded right
+    // now, watermark and all, and there may never be another merge to catch it. Applying the mark on
+    // load is what makes the healing certain rather than eventual (see enforceCleared).
+    enforceCleared(s, softMark(s));
     return healMacros(s);
   }
 
@@ -502,7 +506,12 @@
     // The watermark, the narrower counterpart to _wipe. Without it the very next merge from a device
     // that has not seen the reset unions every cleared collection straight back in. It carries the
     // LIST of what was cleared, because unlike a wipe, what a fresh start clears is a choice.
-    s._soft = { at: now, cleared: cleared };
+    // `on` is the same line as fresh_start, and it is what makes the mark ENFORCEABLE rather than
+    // merely advisory: a watermark can only ever discard a copy that admits to being older, and a
+    // copy that has wrongly been stamped with the watermark (see enforceCleared) admits to nothing.
+    // The date says what the reset MEANT - nothing dated before this day belongs in a cleared
+    // collection - so it can be applied to the merged result itself, every time, for ever.
+    s._soft = { at: now, on: today, cleared: cleared };
     s._rev = now;
     return s;
   }
@@ -515,8 +524,84 @@
     // Tolerates the first shape this shipped in, a bare timestamp, which meant the default set.
     var m = s && s._soft;
     if (!m) return null;
-    if (typeof m === 'number') return { at: m, cleared: DEFAULT_CLEARED };
-    return { at: +m.at || 0, cleared: Array.isArray(m.cleared) ? m.cleared : DEFAULT_CLEARED };
+    if (typeof m === 'number') return { at: m, on: null, cleared: DEFAULT_CLEARED };
+    return { at: +m.at || 0, on: m.on || null, cleared: Array.isArray(m.cleared) ? m.cleared : DEFAULT_CLEARED };
+  }
+
+  /* ---- Keeping a reset cleared, when the watermark alone cannot ----
+     The watermark above decides between two COPIES: a copy that does not carry it is not descended
+     from the reset and loses. That is enough right up until a copy carries the watermark and the
+     cleared history both, and then it is enough of nothing - every later merge reads it as descended
+     from the reset and unions the resurrected entries on for ever.
+
+     That state is not hypothetical: builds before the watermark-alone guard (see mergeStates) let a
+     second tab's pre-reset copy through on a racing _rev and then stamped the watermark onto the
+     union, and any device that reset from one of those builds is still carrying the result. Nothing
+     downstream can tell those entries from real ones, so the reset stays undone no matter how many
+     times the app is reopened.
+
+     So the mark carries a DATE as well as a time, and it is enforced on the RESULT rather than used
+     to pick a winner: in a collection the reset cleared, nothing dated before the line survives. It
+     is idempotent, it heals a copy that is already poisoned the first time it is read, and it needs
+     no agreement between devices.
+
+     The one thing it must not eat is a day back-filled AFTER the reset - somebody logging Saturday's
+     dinner on Sunday, either side of a line drawn between them. Ids minted by uid() begin with the
+     millisecond they were created, so an entry that was WRITTEN after the mark is kept whatever day
+     it is dated: the floor only removes entries that predate the line in both senses. Entries with
+     no readable id are pre-reset history by definition (nothing this app writes lacks one), and the
+     date-keyed maps have no id to read, so those go on the date alone. */
+  function idTime(id) {
+    if (typeof id !== 'string' || id.length < 8) return 0;
+    var t = parseInt(id.slice(0, 8), 36);
+    // A plausible ms timestamp only: anything else is an id from somewhere other than uid().
+    return (t >= 1e12 && t <= 4e12) ? t : 0;
+  }
+  // Fields the floor knows how to read a date off. Anything not listed here is left alone: the
+  // watermark still protects it, and inventing a date for a recipe or a saved food to prune it by
+  // would be guessing.
+  var CLEAR_DATED = {
+    log_entries: 'date', weight_entries: 'date', checkins: 'date', targets: 'effective_date',
+    week_plans: 'end',
+  };
+  var CLEAR_MAPS = ['day_meals', 'day_overrides'];
+  function enforceCleared(s, mark) {
+    if (!s || !mark || !mark.on || !mark.cleared || !mark.cleared.length) return s;
+    var on = mark.on, at = +mark.at || 0;
+    var gone = {}; mark.cleared.forEach(function (f) { gone[f] = 1; });
+    // Strictly BEFORE the line. The day of the reset is the first day of the new run and everything
+    // on it is being written now, so a same-day entry is left alone rather than judged on an id that
+    // an import or an older id scheme may not have minted. The line is what the user was promised -
+    // "my burn is logged from Tuesday" - and it is drawn between days, not inside one.
+    var stale = function (item, dateKey) {
+      var d = item && item[dateKey];
+      return !!d && d < on && idTime(item.id) < at;
+    };
+    Object.keys(CLEAR_DATED).forEach(function (f) {
+      if (!gone[f] || !Array.isArray(s[f])) return;
+      s[f] = s[f].filter(function (x) { return !stale(x, CLEAR_DATED[f]); });
+    });
+    CLEAR_MAPS.forEach(function (f) {
+      if (!gone[f] || !s[f] || typeof s[f] !== 'object') return;
+      var out = {};
+      Object.keys(s[f]).forEach(function (d) { if (!(d < on)) out[d] = s[f][d]; });
+      s[f] = out;
+    });
+    // Banked streak days and forgiven misses are bare dates with nothing to date their writing by,
+    // and both are only ever historical, so the line alone decides.
+    if (gone.streak_credit && Array.isArray(s.streak_credit)) {
+      s.streak_credit = s.streak_credit.filter(function (d) { return !(d && d < on); });
+    }
+    if (gone.freezes && s.freezes && Array.isArray(s.freezes.frozen)) {
+      s.freezes = Object.assign({}, s.freezes, { frozen: s.freezes.frozen.filter(function (d) { return !(d && d < on); }) });
+    }
+    // Training is cleared as one object; its logs are the dated part of it.
+    if (gone.training && s.training && Array.isArray(s.training.logs)) {
+      s.training = Object.assign({}, s.training, {
+        logs: s.training.logs.filter(function (l) { return !(l && l.dateISO && l.dateISO < on && idTime(l.id) < at); }),
+      });
+    }
+    return s;
   }
   function withoutCleared(s, fields) {
     var d0 = defaultState();
@@ -845,7 +930,9 @@
     // merge with a device that never saw the reset (which would otherwise carry no date at all).
     var fsA = (a && a.fresh_start) || '', fsB = (b && b.fresh_start) || '';
     if (fsA || fsB) out.fresh_start = fsA >= fsB ? fsA : fsB;
-    return out;
+    // Last, on the result: the guards above choose between copies, and this is what holds when both
+    // of them carry the watermark and only one of them should (see enforceCleared).
+    return enforceCleared(out, mark);
   }
 
   var Store = {
@@ -864,6 +951,7 @@
     FRESH_GROUPS: FRESH_GROUPS,
     RESET_GROUPS: RESET_GROUPS,
     freshCleared: freshCleared,
+    enforceCleared: enforceCleared,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Store;
