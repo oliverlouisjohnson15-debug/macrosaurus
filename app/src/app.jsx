@@ -8527,10 +8527,14 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
           </div>
           <div className="text-[11px] mt-1 tnum" style={{ color: 'var(--muted)' }}>{week.since}</div>
-          {week.lad && <>
+          {/* ONE ROW OF CELLS, whatever is being counted in it. On an established account it is the
+              milestone ladder; in the first week it is the seven days the trend is waiting for, and
+              the labels underneath say which. The day the read lands, the ladder takes the row over
+              rather than a row appearing. */}
+          {week.bar && <>
             <div className="flex gap-1 mt-3">
-              {Array.from({ length: week.lad.cells }, (_, i) => {
-                const done = i < week.lad.doneCells, next = i === week.lad.doneCells;
+              {Array.from({ length: week.bar.cells }, (_, i) => {
+                const done = i < week.bar.doneCells, next = i === week.bar.doneCells;
                 // The next rung keeps its shape but gives up the gold: it is where you are going,
                 // not something to press.
                 return <div key={i} className="flex-1" style={{ height: 16,
@@ -8541,8 +8545,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             {/* The two ends of the road, named. This is the whole reframing in one row: where you
                 started and where you are going, rather than where you were supposed to be by now. */}
             <div className="flex justify-between mt-1.5">
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.startStr} start</span>
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>Goal {week.goalStr}</span>
+              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.leftLabel}</span>
+              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.rightLabel}</span>
             </div>
           </>}
           {week.nextLine && <div className="text-[12.5px] mt-3" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</div>}
@@ -12222,6 +12226,100 @@ function useNutrientBackfill(db, update, date, isPremium) {
     })();
   }, [pending, date, isPremium, premiumSince]);
 }
+/* THE JOURNEY BAND on the buddy card, worked out in one place so it can be read without rendering
+   a screen. It used to be an IIFE inside Dashboard, which is how it went a whole release returning
+   null for every account in its first week with nothing catching it: Dashboard cannot be rendered
+   in a test, so the only surface anybody could check was CycleStrip - a component Today stopped
+   drawing when the read moved onto the buddy card (see BLOCKS.cycle). Out here it is ordinary
+   arithmetic with ordinary tests.
+   Returns null only when there is genuinely no journey: an egg still incubating, or a profile with
+   no goal on it yet. Handlers are added by the caller. */
+function journeyBand(db, today, eggIncubating) {
+  if (eggIncubating) return null;
+  const unit = (db.profile || {}).weight_unit;
+  const num = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) : Math.abs(kg).toFixed(1));
+  const uLabel = unit === 'st_lb' ? 'lb' : 'kg';
+  const v = progressVerdict(db);
+  /* ---- The week before there is a week to read ----
+     Without a verdict this returned null, and null is not an empty state: the whole journey band
+     came off the buddy card and Today said nothing at all about the plan. That is a blank screen
+     for the first week of every account, and again after every reset - and then the band appears
+     fully formed one morning, which reads as the app changing rather than as your own data
+     arriving.
+
+     So the same object is built either way and the band is always drawn. What changes is what the
+     row of cells counts: the seven days a trend needs (firstReadProgress, the same arithmetic
+     progressVerdict itself waits on) instead of the distance to your goal. The big figure stays
+     your weight, exactly as it is on a road that has not moved yet, and the way into Progress
+     stays where it is. On the day the read lands nothing appears or shifts - the ladder takes the
+     cells over from the countdown. */
+  if (!v) {
+    // No goal yet means no journey to draw; the setup wizard is the thing being waited for, and
+    // it has its own gate on the render above.
+    if (!(db.profile && db.profile.goalType)) return null;
+    const fr = firstReadProgress(db);
+    const doneCells = Math.min(fr.span, fr.need);
+    return {
+      starting: true,
+      big: fr.latestKg != null ? num(fr.latestKg) : '\u2013',
+      bigLabel: fr.latestKg != null ? uLabel + ' today' : 'nothing weighed yet',
+      since: fr.readings
+        ? fr.readings + ' reading' + (fr.readings === 1 ? '' : 's') + ' so far'
+        : 'step on the scales to start',
+      bar: { cells: fr.need, doneCells: doneCells,
+        leftLabel: doneCells + ' of ' + fr.need + ' days',
+        rightLabel: fr.expected ? 'First read ' + fmtShortDay(fr.expected) : 'First read in a week' },
+      nextLine: fr.readings
+        ? <><b className="tnum">{fr.daysLeft}</b> more day{fr.daysLeft === 1 ? '' : 's'} of weigh-ins and I can tell you whether this is working.</>
+        : <>Weigh in for a week and I can tell you whether this is working.</>,
+      due: false, thin: null, moved: false, lad: null, line: null, v: null,
+    };
+  }
+  const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
+  const st = db.paused ? null : checkinStatus(db, today);
+  const cov = cycleCoverage(db, today);
+  const state = E.cycleStripState({ verdict: v, checkin: st, coverage: cov });
+  const lad = milestoneLadder(v);
+  /* The clause the buddy used to append is retired. It said where you were headed at this rate,
+     and the band underneath now says the nearer and better version of that in its own voice. The
+     buddy talks about today; the band talks about the road. One subject each. */
+  const line = null;
+  /* THE HEADLINE IS THE DISTANCE COVERED, and it is the only figure in the pixel face down here.
+     A NUMERAL AND A LABEL, never a numeral carrying words: every other big number in this app is
+     drawn that way (1101 KCAL LEFT, 2,582 KCAL/DAY), and "1.6 kg down" set as one pixel string was
+     the odd one out - the face is for figures and chrome, and it makes heavy weather of prose.
+     `moved` gates the celebration honestly: on day one, or on a run that has gone the other way,
+     there is nothing to congratulate and the card says where you are instead of inventing a win. */
+  const moved = v.goal !== 'maintain' && v.done > 0.1;
+  const big = moved ? num(v.done) : num(v.nowKg);
+  const bigLabel = moved ? uLabel + (v.goal === 'gain' ? ' gained' : ' down') : uLabel + ' today';
+  /* THE NEAR GOAL, not the far one. "5.0 kg to go" was the biggest number on the card, and for the
+     first half of any diet it GROWS. The goal-gradient effect is about the piece within reach, so
+     this is the same distance cut down to the next rung of the ladder. */
+  const nextLine = (!lad || lad.atGoal || v.goal === 'maintain') ? null
+    : moved ? <><b className="tnum">{num(lad.nextKg - v.done)} {uLabel}</b> to your next milestone.</>
+    : <>Your first milestone is <b className="tnum">{num(lad.nextKg)} {uLabel}</b> away.</>;
+  return {
+    v, lad, line, moved, big, bigLabel, nextLine,
+    // One shape for the cell row, whichever state drew it, so the two cannot drift apart in
+    // geometry the way they drifted apart in existence.
+    bar: lad ? { cells: lad.cells, doneCells: lad.doneCells,
+    leftLabel: (v.startKg != null ? fmtWeight(v.startKg, unit) : '') + ' start',
+    rightLabel: v.goalWeightKg > 0 ? 'Goal ' + fmtWeight(v.goalWeightKg, unit) : '' } : null,
+    // The weight lives on the quiet line under the celebration now, with the date this road was
+    // started. Dropping it outright would leave Today with your weight nowhere on it.
+    since: moved ? fmtWeight(v.nowKg, unit) + (v.startISO ? ' · since ' + fmtShortDay(v.startISO) : '') : 'just getting started',
+    startStr: v.startKg != null ? fmtWeight(v.startKg, unit) : '',
+    goalStr: v.goalWeightKg > 0 ? fmtWeight(v.goalWeightKg, unit) : '',
+    starting: false,
+    due: state === 'due',
+    thin: state === 'thin'
+    ? 'Thin data so far: ' + cov.logged + ' of ' + cov.logWindow + ' day' + (cov.logWindow === 1 ? '' : 's') + ' logged and ' + cov.weighed + ' of ' + cov.weighWindow + ' weigh-in' + (cov.weighWindow === 1 ? '' : 's') + ', so treat this as a rough read.'
+    : null,
+    
+  };
+}
+
 function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, onTalk, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
@@ -12443,48 +12541,8 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
      Everything in it came off CycleStrip unchanged - the same verdict, the same ladder, the same
      numbers row, the same check-in state - so the two surfaces cannot drift apart while both exist. */
   const week = (() => {
-    const v = progressVerdict(db);
-    if (!v || eggIncubating) return null;
-    const unit = (db.profile || {}).weight_unit;
-    const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
-    const st = db.paused ? null : checkinStatus(db, today);
-    const cov = cycleCoverage(db, today);
-    const state = E.cycleStripState({ verdict: v, checkin: st, coverage: cov });
-    const lad = milestoneLadder(v);
-    /* The clause the buddy used to append is retired. It said where you were headed at this rate,
-       and the band underneath now says the nearer and better version of that in its own voice. The
-       buddy talks about today; the band talks about the road. One subject each. */
-    const line = null;
-    /* THE HEADLINE IS THE DISTANCE COVERED, and it is the only figure in the pixel face down here.
-       A NUMERAL AND A LABEL, never a numeral carrying words: every other big number in this app is
-       drawn that way (1101 KCAL LEFT, 2,582 KCAL/DAY), and "1.6 kg down" set as one pixel string was
-       the odd one out - the face is for figures and chrome, and it makes heavy weather of prose.
-       `moved` gates the celebration honestly: on day one, or on a run that has gone the other way,
-       there is nothing to congratulate and the card says where you are instead of inventing a win. */
-    const moved = v.goal !== 'maintain' && v.done > 0.1;
-    const num = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) : Math.abs(kg).toFixed(1));
-    const uLabel = unit === 'st_lb' ? 'lb' : 'kg';
-    const big = moved ? num(v.done) : num(v.nowKg);
-    const bigLabel = moved ? uLabel + (v.goal === 'gain' ? ' gained' : ' down') : uLabel + ' today';
-    /* THE NEAR GOAL, not the far one. "5.0 kg to go" was the biggest number on the card, and for the
-       first half of any diet it GROWS. The goal-gradient effect is about the piece within reach, so
-       this is the same distance cut down to the next rung of the ladder. */
-    const nextLine = (!lad || lad.atGoal || v.goal === 'maintain') ? null
-      : moved ? <><b className="tnum">{num(lad.nextKg - v.done)} {uLabel}</b> to your next milestone.</>
-      : <>Your first milestone is <b className="tnum">{num(lad.nextKg)} {uLabel}</b> away.</>;
-    return {
-      v, lad, line, moved, big, bigLabel, nextLine,
-      // The weight lives on the quiet line under the celebration now, with the date this road was
-      // started. Dropping it outright would leave Today with your weight nowhere on it.
-      since: moved ? fmtWeight(v.nowKg, unit) + (v.startISO ? ' · since ' + fmtShortDay(v.startISO) : '') : 'just getting started',
-      startStr: v.startKg != null ? fmtWeight(v.startKg, unit) : '',
-      goalStr: v.goalWeightKg > 0 ? fmtWeight(v.goalWeightKg, unit) : '',
-      due: state === 'due',
-      thin: state === 'thin'
-        ? 'Thin data so far: ' + cov.logged + ' of ' + cov.logWindow + ' day' + (cov.logWindow === 1 ? '' : 's') + ' logged and ' + cov.weighed + ' of ' + cov.weighWindow + ' weigh-in' + (cov.weighWindow === 1 ? '' : 's') + ', so treat this as a rough read.'
-        : null,
-      onOpen: () => setView('goals'), onCheckIn,
-    };
+    const b = journeyBand(db, today, eggIncubating);
+    return b && Object.assign(b, { onOpen: () => setView('goals'), onCheckIn });
   })();
   // The order this person put their cards in, and the hold-to-move that changes it.
   const todayOrder = todayOrderOf(db);

@@ -233,3 +233,51 @@ test('a fortnight of honest logging gets the burn read', () => {
   assert.ok(!r.has('days to go'), 'nothing left to wait for: ' + r.text.slice(0, 200));
   assert.ok(r.has('How your burn was worked out'), 'the estimate is in: ' + r.text.slice(0, 300));
 });
+
+/* ---- the journey band, which is what Today actually draws ----
+   The band lives on the buddy card; CycleStrip stopped being rendered on Today when the weekly read
+   moved there (see BLOCKS.cycle). Before a verdict the band was null - not an empty state, no band
+   at all - so Today said nothing whatever about the plan for the first week of every account and
+   again after every reset, and then it appeared fully formed one morning. Dashboard cannot be
+   rendered in a test, which is exactly why journeyBand is its own function now: these are the tests
+   that could have caught it. */
+
+const band = (db) => A.journeyBand(db, Store.todayISO(), false);
+
+test('the journey band is drawn before there is a trend to read', () => {
+  const db = startingOut(3);
+  assert.equal(A.progressVerdict(db), null, 'the fixture must be short of a read');
+  const b = band(db);
+  assert.ok(b, 'a band with no read is still a band - null is not an empty state');
+  assert.equal(b.starting, true);
+  assert.equal(b.bar.cells, 7, 'the row of cells counts the days a trend needs');
+  assert.equal(b.bar.doneCells, 2);
+  assert.equal(b.bar.leftLabel, '2 of 7 days');
+  assert.ok(/^First read /.test(b.bar.rightLabel), 'and says when it lands: ' + b.bar.rightLabel);
+  assert.ok(/kg|85/.test(b.big + b.bigLabel), 'the big figure is still your weight: ' + b.big + ' ' + b.bigLabel);
+});
+
+test('the band keeps its shape when the read arrives', () => {
+  const before = band(startingOut(3)), after = band(cutting());
+  assert.equal(after.starting, false);
+  ['big', 'bigLabel', 'since', 'bar', 'nextLine'].forEach(k =>
+    assert.ok(k in before && k in after, k + ' must exist in both states, or the card changes shape'));
+  assert.ok(before.bar.cells > 0 && after.bar.cells > 0, 'the same row of cells is drawn either way');
+  assert.ok(/start/.test(after.bar.leftLabel), 'after the read the labels are the road: ' + after.bar.leftLabel);
+});
+
+test('the band is rendered on the buddy card in both states', () => {
+  [startingOut(3), cutting()].forEach((db, i) => {
+    const b = Object.assign(band(db), { onOpen() {}, onCheckIn() {} });
+    const bp = { mood: 'content', dayState: 'ok', name: 'Beans', daysTogether: 12, bond: { hearts: 2 } };
+    const r = render(A.BuddyHabitat, { db, buddy: { stage: 4, name: 'Beans' }, bp,
+      streak: 3, onOpenPlay() {}, tasks: null, msg: {}, stats: null, away: false, week: b });
+    assert.ok(r.has('Your journey'), 'state ' + i + ' should draw the band: ' + r.text.slice(0, 200));
+    assert.ok(r.has('See your full progress'), 'and the way into Progress: ' + r.text.slice(0, 200));
+  });
+});
+
+test('no goal yet means no journey to draw', () => {
+  const db = startingOut(3); db.profile = null;
+  assert.equal(band(db), null, 'setup is what is being waited for, not a weigh-in');
+});
