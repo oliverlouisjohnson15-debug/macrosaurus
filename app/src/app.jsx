@@ -6279,6 +6279,9 @@ function DensityWeekCard({ db, inline }) {
 // Weekly rate from the TREND line, not the scale, over the last three weeks. The trend is what the
 // app already acts on everywhere else, and three weeks is long enough that one salty Sunday cannot
 // swing the verdict.
+// A week is the shortest span worth calling a rate, and three weeks is as far back as one reads.
+// Named because the strip's starting-out state counts down to the first of them (firstReadProgress).
+const TREND_MIN_SPAN_DAYS = 7, TREND_WINDOW_DAYS = 21;
 function trendRateKgPerWeek(db, days) {
   const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
   const ents = (db.weight_entries || []).filter(e => val(e) != null).sort((a, b) => a.date.localeCompare(b.date));
@@ -6288,8 +6291,35 @@ function trendRateKgPerWeek(db, days) {
   const within = ents.filter(e => e.date >= cut);
   const start = within.length >= 2 ? within[0] : ents[0];
   const span = daysBetween(start.date, end.date);
-  if (span < 7) return null; // a week is the shortest span worth calling a rate
+  if (span < TREND_MIN_SPAN_DAYS) return null; // a week is the shortest span worth calling a rate
   return ((val(end) - val(start)) / span) * 7;
+}
+/* What the trend is still waiting for, in exactly the terms trendRateKgPerWeek asks for it: a first
+   reading and a last one at least a week apart. Read by the strip's starting-out state, so the card
+   counting down and the read it is counting down TO can never disagree about when it arrives - the
+   failure this pair is otherwise built for, since one is a component and the other is arithmetic
+   three hundred lines away. Everything here is a fact about the readings on file; nothing is
+   estimated, and `expected` is the earliest date a weigh-in could produce a read, not a promise. */
+function firstReadProgress(db) {
+  const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
+  const ents = (db.weight_entries || []).filter(e => val(e) != null).sort((a, b) => a.date.localeCompare(b.date));
+  const today = Store.todayISO();
+  const need = TREND_MIN_SPAN_DAYS;
+  if (!ents.length) return { readings: 0, span: 0, need, daysLeft: need, from: null, expected: null, latestKg: null, weighedToday: false };
+  const end = ents[ents.length - 1];
+  // The same 21-day window the rate reads through, so a long gap moves the countdown the same way
+  // it moves the read.
+  const within = ents.filter(e => e.date >= shiftISO(end.date, -TREND_WINDOW_DAYS));
+  const start = within.length >= 2 ? within[0] : ents[0];
+  const span = daysBetween(start.date, end.date);
+  return {
+    readings: ents.length, span, need,
+    daysLeft: Math.max(0, need - span),
+    from: start.date,
+    expected: shiftISO(start.date, need),
+    latestKg: val(end),
+    weighedToday: ents.some(e => e.date === today),
+  };
 }
 function progressVerdict(db) {
   const p = db.profile || {};
@@ -6823,17 +6853,82 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
   // fmtWeightDelta would put a second one there.
   const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
 
-  if (state === 'empty') return (
-    <Card className="p-0 mb-4 overflow-hidden">
-      <CardHead title="This cycle" right="No read yet" rightTone="muted" />
-      <div className="p-3 flex items-center justify-between gap-3">
-        <span className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-          Weigh in for a week or so and this will tell you whether your plan is working.
-        </span>
-        {onWeigh && <Btn kind="accent" onClick={() => onWeigh(true)}>Weigh in</Btn>}
+  /* ---- Starting out: the same card, with the week it is waiting for drawn in it ----
+     This used to be a two-line placeholder in a card half the height of the real one, so the day
+     the trend arrived the strip doubled in size, grew a portrait and a progress row, and moved
+     everything under it down the screen. That reads as the app having changed rather than as your
+     own data arriving - and it is a state every new account sits in for its first week, and every
+     account that has just been reset sits in again.
+
+     So it is the same card: same portrait, same title bar, same tinted line from the buddy, same
+     readout row with the same cells in the same place, same footer for the one action being asked
+     for. What differs is what the parts are counting. The cells are the seven days a rate needs
+     rather than the distance to your goal, and the line says what is missing rather than a verdict.
+     Nothing here is invented: the countdown is the readings on file measured against what
+     trendRateKgPerWeek asks for (firstReadProgress), and on the day it is satisfied this state is
+     simply not chosen any more - the ladder replaces the countdown in a row that was already
+     there. */
+  if (state === 'empty') {
+    const fr = firstReadProgress(db);
+    const cells = fr.need, doneCells = Math.min(fr.span, cells);
+    const headRight = fr.readings ? (fr.daysLeft === 1 ? '1 day to go' : fr.daysLeft + ' days to go') : 'No read yet';
+    const hook = !fr.readings
+      ? <>Step on the scales and I'll start reading your trend.</>
+      : fr.readings === 1
+        ? <>First reading in. <b className="tnum">{fr.daysLeft}</b> more day{fr.daysLeft === 1 ? '' : 's'} of these and I can tell you whether your plan is working.</>
+        : <>Reading your trend. <b className="tnum">{fr.daysLeft}</b> more day{fr.daysLeft === 1 ? '' : 's'} and I'll tell you whether this is working.</>;
+    return (
+      <div className="relative mb-4" style={{ paddingTop: 18 }}>
+        <div className="absolute" style={{ left: 14, top: 0, zIndex: 2, border: '3px solid var(--border)', lineHeight: 0 }}>
+          <BuddyHead buddy={db.buddy || {}} size={48} />
+        </div>
+        <Card className="p-0 overflow-hidden">
+          <CardHead title="This cycle" right={headRight} rightTone="muted" padLeft={74} />
+          <button onClick={onOpen} className="w-full text-left block">
+            {/* The neutral tint, not one of the three verdict tints: there is no verdict yet, and
+                borrowing the good one to look friendly would be the card claiming a read it has not
+                got. */}
+            <div className="px-3.5 pt-2.5 pb-3" style={{ background: 'var(--surface2)', borderBottom: '2px solid var(--border)' }}>
+              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+              <div className="text-[13px] leading-snug">{hook}</div>
+            </div>
+            <div className="px-3.5 py-2.5">
+              <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                <span className="pf text-[8px] uppercase text-[#8A8A90]">To your first read</span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{doneCells} of {cells} days</span>
+                  <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {Array.from({ length: cells }, (_, i) => {
+                  const done = i < doneCells, next = i === doneCells;
+                  return <div key={i} className="flex-1" style={{ height: 14,
+                    border: '2px solid ' + (next ? 'var(--accent)' : 'var(--border)'),
+                    background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)' }} />;
+                })}
+              </div>
+              {/* The same 10px readout line the verdict card carries, holding what there IS: your
+                  last reading, and the day the read is due. */}
+              <div className="tnum text-[10px] mt-1.5" style={{ color: 'var(--muted)' }}>
+                {fr.latestKg != null
+                  ? fmtWeight(fr.latestKg, unit) + ' · first read from ' + fmtShortDay(fr.expected)
+                  : 'No readings yet · a week of them makes a rate'}
+              </div>
+            </div>
+          </button>
+          {/* One action, in the footer the check-in prompt uses, so the row that asks something of
+              you is always in the same place. Gone on a day already weighed: the ask is answered. */}
+          {onWeigh && !fr.weighedToday && (
+            <div className="px-3 py-2 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+              <span className="text-[12px]">{fr.readings ? 'Weigh in to move this on' : 'Weigh in to start'}</span>
+              <Btn kind="accent" onClick={() => onWeigh(true)}>Weigh in</Btn>
+            </div>
+          )}
+        </Card>
       </div>
-    </Card>
-  );
+    );
+  }
 
   // The old readout, kept: the weight, the rate and what it is judged against, in one 10px row. The
   // hook above it is what makes you tap; this is what makes the tap unnecessary on the days you only

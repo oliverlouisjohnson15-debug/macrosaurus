@@ -118,6 +118,60 @@ test('a fresh account is asked for the one thing that would give it something to
   assert.ok(!r.has('Check in'), 'there is nothing yet to check in against: ' + r.text.slice(0, 200));
 });
 
+/* ---- the week before the first read ----
+   Every new account, and every account that has just been reset, sits in this state for a week. It
+   used to be a two-line placeholder in a card half the height of the real one, so the morning the
+   trend arrived the strip doubled in size and grew a portrait - the app appearing to change when
+   only the data had. These are the tests that it is the SAME card throughout, and that the
+   countdown it draws lands on exactly the day the verdict does. */
+
+// The same account as `cutting`, with only the last `days` of weigh-ins kept: somebody part-way
+// through their first week (or their first week after a reset).
+function startingOut(days) {
+  const db = cutting();
+  db.weight_entries = db.weight_entries.filter(e => e.date > iso(days));
+  db.log_entries = db.log_entries.filter(e => e.date > iso(days));
+  return db;
+}
+
+test('starting out is the same card, counting the week the trend needs', () => {
+  const db = startingOut(3); // readings on the last three days: a two-day span
+  assert.equal(A.progressVerdict(db), null, 'the fixture must be short of a read for this to test anything');
+  const r = strip(db);
+  assert.ok(r.has('This cycle'), 'same card, same name: ' + r.text.slice(0, 200));
+  assert.ok(r.has('To your first read'), 'the progress row is still there, counting something else: ' + r.text.slice(0, 260));
+  assert.ok(r.has('2 of 7 days'), 'and counting it honestly: ' + r.text.slice(0, 260));
+  assert.ok(r.has('5 days to go'), 'the title bar says how long: ' + r.text.slice(0, 260));
+  assert.ok(/kg/.test(r.text), 'the last reading is still shown: ' + r.text.slice(0, 260));
+});
+
+test('the countdown runs out on the day the verdict arrives', () => {
+  // The seam this pair exists for: the strip promising a read on a day the arithmetic would refuse
+  // one is the bug, and it can only be caught by walking the two together.
+  for (let days = 2; days <= 9; days++) {
+    const db = startingOut(days);
+    const fr = A.firstReadProgress(db);
+    const hasVerdict = !!A.progressVerdict(db);
+    assert.equal(hasVerdict, fr.daysLeft === 0,
+      'day ' + days + ': the countdown says ' + fr.daysLeft + ' left while the verdict is ' + (hasVerdict ? 'in' : 'out'));
+  }
+});
+
+test('a day already weighed is not asked to weigh again', () => {
+  const withToday = strip(startingOut(3));
+  assert.ok(!withToday.has('Weigh in to move this on'), 'today is already on the scales: ' + withToday.text.slice(0, 260));
+  const db = startingOut(3);
+  db.weight_entries = db.weight_entries.filter(e => e.date !== Store.todayISO());
+  assert.ok(strip(db).has('Weigh in to move this on'), 'a day not weighed still gets the ask');
+});
+
+test('the first read is dated from the first reading, not from today', () => {
+  const db = startingOut(3);
+  const fr = A.firstReadProgress(db);
+  assert.equal(fr.from, iso(2), 'the span starts at the oldest reading on file');
+  assert.equal(fr.expected, A.shiftISO(iso(2), 7), 'and the read is due a week after it');
+});
+
 test('the spark needs two readings before it draws anything', () => {
   const one = Object.assign(cutting(), { weight_entries: [{ id: 'w', date: iso(0), scale_weight: 85.4, trend_weight: 85.4 }] });
   assert.equal(render(A.CycleSpark, { db: one }).html, '', 'one point is not a trend');
