@@ -7068,20 +7068,41 @@ function ExpenditureCard({ db, plan }) {
   const bmr = E.mifflinBMR(withActivity(db.profile));
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: 14, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   const unit = db.profile.weight_unit;
+  /* ---- Before there is a burn to show ----
+     The same treatment the cycle strip's starting-out state got, for the same reason: this is where
+     every new account and every reset account sits for a fortnight, and it used to be a differently
+     shaped card - other padding, a paragraph, two tiles - that was replaced wholesale the morning
+     the estimate landed. Same frame now: the title bar keeps its right-hand slot (a countdown where
+     the daily balance will go), the body keeps its padding, and the plan block stays exactly where
+     it is, so what changes on the day is the middle filling in.
+
+     Three requirements, because there are three (see Engine.liveExpenditure): enough weigh-ins,
+     enough logged days, and a week between the first weigh-in and the last. The spread used to be
+     invisible here, which is how this card could show "enough" twice and still refuse to say
+     anything. `left` is what those gaps cost in days if you weigh and log daily from today - the
+     largest single gap, not their sum, since one day feeds every counter at once. */
   if (!est.ok) {
-    const weighGap = Math.max(0, est.needWeigh - est.weighDays), logGap = Math.max(0, est.needLog - est.loggedDays);
+    const reqs = [
+      { label: 'weigh-ins', got: est.weighDays, want: est.needWeigh },
+      { label: 'days logged', got: est.loggedDays, want: est.needLog },
+      { label: 'days apart', got: est.spanDays || 0, want: est.needSpan || 7 },
+    ];
+    const left = reqs.reduce((m, r) => Math.max(m, r.want - r.got), 0);
     return (
       <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Energy" right="Still learning" rightTone="muted" />
-        <div className="p-5">
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">After a fortnight of weigh-ins and logged days, I can work out how many calories you actually burn a day, from what you eat versus how your weight moves.</div>
-        <div className="grid grid-cols-2 gap-2">
-          <MiniStat label={weighGap > 0 ? weighGap + ' more to go' : 'enough'} value={est.weighDays + '/' + est.needWeigh} ok={weighGap === 0} />
-          <MiniStat label={logGap > 0 ? logGap + ' more to go' : 'enough'} value={est.loggedDays + '/' + est.needLog} ok={logGap === 0} />
+        <CardHead title="Energy" right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
+        <div className="p-4">
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
+        {/* Capped at what is being asked for: a counter reading 6/4 is a sum nobody wants, and the
+            question here is whether a requirement is MET, not by how far it was passed. */}
+        <div className="grid grid-cols-3 gap-2">
+          {reqs.map(r => <MiniStat key={r.label} label={r.label} value={Math.min(r.got, r.want) + '/' + r.want} ok={r.got >= r.want} />)}
         </div>
-        {/* Explicitly a 14-day window, not this cycle: the burn estimate needs a fortnight before it
-            can say anything, and unlabelled it read as another version of your weekly coverage. */}
-        <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins · last 14 days</div><div>days logged · last 14 days</div></div>
+        {/* Explicitly the 14-day window, not this cycle: unlabelled it read as another version of
+            your weekly coverage. The date is the earliest this can land, not a promise. */}
+        <div className="tnum text-[10px] mt-2" style={{ color: 'var(--muted)' }}>
+          last 14 days{left > 0 ? ' · first read from ' + fmtShortDay(shiftISO(today, left)) : ' · one more day of either will do it'}
+        </div>
         {typeof plan === 'function' ? plan(null) : plan}
         </div>
       </Card>

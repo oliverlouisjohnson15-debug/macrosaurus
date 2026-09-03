@@ -190,3 +190,46 @@ test('Progress names the screen it will go back to', () => {
     'arriving from Today, the way back should say Today');
   assert.ok(render(A.Goals, props).has('You'), 'and with nothing said, it still says You');
 });
+
+/* ---- the Energy card, before it has a burn to show ----
+   Same problem, longer clock: this is where an account sits for a fortnight, and it used to be a
+   differently shaped card that was replaced wholesale the morning the estimate landed. It also used
+   to report two of the three things it was waiting for, so it could show "enough" twice and still
+   refuse to say anything. */
+
+const energy = (db) => render(A.ExpenditureCard, { db, plan: null });
+
+test('the burn refusal names all three things it is waiting for, spread included', () => {
+  // Four weigh-ins and five logged days, all crammed into three days: both counts are satisfied and
+  // the read is still refused, because a snapshot is not a trend.
+  const db = cutting();
+  db.weight_entries = db.weight_entries.filter(e => e.date > iso(4));
+  db.log_entries = db.log_entries.filter(e => e.date > iso(4));
+  const est = E.liveExpenditure({
+    weights: db.weight_entries.map(w => ({ date: w.date, kg: w.scale_weight })),
+    kcalByDate: db.log_entries.reduce((m, e) => Object.assign(m, { [e.date]: e.computed_macros.kcal }), {}),
+    today: Store.todayISO(), windowDays: 14, bmr: 1700,
+  });
+  assert.equal(est.ok, false, 'four days of everything is not a fortnight');
+  assert.equal(est.spanDays, 4, 'the refusal carries the spread, not just the counts');
+  assert.equal(est.needSpan, 7);
+  const r = energy(db);
+  assert.ok(r.has('days apart'), 'and the card names it: ' + r.text.slice(0, 300));
+  assert.ok(r.has('4/7'), 'with the same numbers the engine refused on: ' + r.text.slice(0, 300));
+  assert.ok(r.has('3 days to go'), 'the title bar counts the largest gap, not the sum: ' + r.text.slice(0, 300));
+});
+
+test('the burn card keeps its frame while it waits', () => {
+  const db = cutting();
+  db.weight_entries = []; db.log_entries = [];
+  const r = energy(db);
+  assert.ok(r.has('Energy'), 'same card, same name: ' + r.text.slice(0, 200));
+  assert.ok(r.has('0/4') && r.has('0/5') && r.has('0/7'), 'all three counters start at nothing: ' + r.text.slice(0, 300));
+  assert.ok(r.has('last 14 days'), 'and the window is named, not implied: ' + r.text.slice(0, 300));
+});
+
+test('a fortnight of honest logging gets the burn read', () => {
+  const r = energy(cutting());
+  assert.ok(!r.has('days to go'), 'nothing left to wait for: ' + r.text.slice(0, 200));
+  assert.ok(r.has('How your burn was worked out'), 'the estimate is in: ' + r.text.slice(0, 300));
+});

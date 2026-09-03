@@ -1159,7 +1159,12 @@
     var spanDays = weighDays ? (dayIndex(ws[weighDays - 1].date) - dayIndex(ws[0].date) + 1) : 0;
     // Need a real spread of weigh-ins and enough logged days to say anything.
     if (weighDays < 4 || loggedDays < 5 || spanDays < 7) {
-      return { ok: false, weighDays: weighDays, loggedDays: loggedDays, needWeigh: 4, needLog: 5, windowDays: windowDays };
+      // The SPREAD travels with the two counts. It is a condition of the read in its own right - four
+      // weigh-ins crammed into three days is a snapshot, not a trend - and leaving it out of what a
+      // refusal reports meant the card could say "enough" of everything it knew about and still have
+      // nothing to show, with nothing on screen naming the thing actually being waited for.
+      return { ok: false, weighDays: weighDays, loggedDays: loggedDays, spanDays: spanDays,
+        needWeigh: 4, needLog: 5, needSpan: 7, windowDays: windowDays };
     }
 
     var xs = ws.map(function (w) { return dayIndex(w.date); });
