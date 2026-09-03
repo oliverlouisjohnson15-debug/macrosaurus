@@ -16662,6 +16662,23 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
     ? [settleEnd || stripWindow.end, shiftISO(today, 13)].sort()[0]
     : shiftISO(today, 6);
   const strip = []; for (let d = today; d <= stripEnd; d = shiftISO(d, 1)) strip.push(d);
+  // The days already behind you, in the row rather than missing from it. The row used to start at
+  // today, so a week being fixed on a Friday opened on Friday and ran to next Thursday - and the
+  // Tuesday and Wednesday tiles in it were NEXT week's, sitting under the same two names as the days
+  // that had just been eaten. Editing the shape moved those tiles, which from the outside reads
+  // exactly like the app reaching back and lowering days that have already happened. It never was:
+  // a day already eaten keeps the plan it ran under, on either mechanism (cyclingHistory for the
+  // weekday rhythm, planShapeOn for a window), and always has. What was missing was any way to SEE
+  // that, so the row now carries the days behind you as well: dated, greyed, showing the number they
+  // really ran on, and deaf to a tap. The week you are fixing is the whole week, and the part of it
+  // that is settled looks settled.
+  const eatenFrom = (() => {
+    const from = windowLive ? stripWindow.start : cycWindowStart(db);
+    if (!from || from >= today) return null;
+    const cap = shiftISO(today, -6);          // a week's worth of row, never more
+    return from < cap ? cap : from;
+  })();
+  const eaten = []; if (eatenFrom) for (let d = eatenFrom; d < today; d = shiftISO(d, 1)) eaten.push(d);
   // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
   // is (see applyCycling): the outgoing shape is recorded against the days it actually governed, so
   // a day already eaten keeps its target and only the days still ahead are re-shaped.
@@ -16716,6 +16733,17 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       const isHigh = (iso) => {
         const w = winOn(iso);
         return w ? (w.highDays || []).includes(iso) : (cyc.enabled && cyc.highDays.includes(dow(iso)));
+      };
+      // What a day already eaten actually ran as, read back off the maths rather than off the shape
+      // as it stands now: that is the whole point of the greyed tiles. A window day is big if it
+      // came out above the flat rate its window was running at; a rhythm day if its own dated plan
+      // gave it a bump.
+      const ranHigh = (iso) => {
+        const s = shapingPlanOn(db, iso);
+        const bk = (E.targetOn(db.targets, iso) || base).kcal;
+        if (s.plan) return E.planDayDelta(s.plan, p, iso, bk, E.kcalFloor(p), s.settleEnd) > (s.away ? E.planKcalDelta(s.plan, p) : 0);
+        const t = fc[iso];
+        return !!(t && t.cyc > 0);
       };
       const toggle = (iso) => {
         // A day already eaten keeps what it ran under, on either mechanism.
@@ -16790,7 +16818,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       // forward (weekForecastTargets - the same helper the meal-plan week and the day view already
       // use) assumes each day is eaten on its own target, so the balance is paid down as it really
       // would be and an even week reads even.
-      const fc = weekForecastTargets(db, strip);
+      const fc = weekForecastTargets(db, eaten.concat(strip));
       // Why an even row can still sit under the target, named rather than left to be worked out.
       // Every day of a flat row carries the SAME evening-out shift, so seeing six days of 2,104
       // against a 2,135 target reads as a shape somebody chose - which is exactly the thing this
@@ -16809,16 +16837,24 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
+          {eaten.length ? ' The greyed days have been eaten: they keep the numbers they ran under, so nothing you do here can move them.' : ''}
           {stripWindow ? (windowLive ? ' You\'re ' : ' You\'ll be ') + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
             + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week')
             + ', and the bill for any big day can be spread as far as your weigh-in on '
             + new Date(shiftISO((settleEnd || stripWindow.end), 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + '.' : ''}
         </div>
-        <div className="grid grid-cols-7 gap-1">{strip.map(iso => {
-          const on = isHigh(iso), away = awayOn(iso), t = fc[iso];
-          return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-0.5 text-center"
+        <div className="grid grid-cols-7 gap-1">{eaten.concat(strip).map(iso => {
+          // A day behind you is not a control. It is dimmed, it does not take a tap, and it carries
+          // the number it was actually set - so watching the days ahead move around it is the proof
+          // that nothing reached back.
+          const past = iso < today;
+          const on = past ? ranHigh(iso) : isHigh(iso), away = awayOn(iso), t = fc[iso];
+          return (<button key={iso} onClick={() => toggle(iso)} disabled={past} aria-disabled={past}
+            title={past ? 'Already eaten \u2014 it keeps the plan it ran under' : undefined}
+            className="pixel-box py-2 px-0.5 text-center"
             style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
-              boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined }}>
+              boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined,
+              opacity: past ? 0.42 : 1, cursor: past ? 'default' : 'pointer' }}>
             {/* The date, not just the weekday: a trip runs past seven days, so "Monday" alone stops
                 telling you which Monday and whether it is still part of it. */}
             <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}{' '}{+iso.slice(8)}</div>

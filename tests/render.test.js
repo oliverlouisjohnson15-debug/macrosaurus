@@ -552,9 +552,19 @@ function evenWeekAccount(overKcal) {
   db.log_entries = [{ id: 'e1', date: A.shiftISO(today, -1), computed_macros: { kcal: 2135 + (overKcal || 186) } }];
   return db;
 }
+// The row carries the days already eaten as well as the days ahead, so the tiles are split the way
+// the screen splits them: `kcals` is the part you can still change, `eaten` the greyed part behind
+// you. A day tile is a button with a kcal figure in it, and a locked one renders `disabled`.
 const shapeStrip = (db) => {
   const r = render(A.WeeklyShapeScreen, { db, update() {}, onBack() {}, onOpen() {} });
-  return { r, kcals: (r.html.match(/tnum font-semibold">(\d+)</g) || []).map(m => +m.match(/(\d+)</)[1]) };
+  const tiles = [];
+  const re = /<button([^>]*)>((?:(?!<button)[\s\S])*?)<\/button>/g;
+  let m;
+  while ((m = re.exec(r.html))) {
+    const k = m[2].match(/tnum font-semibold">(\d+)</);
+    if (k) tiles.push({ kcal: +k[1], locked: / disabled/.test(m[1]) });
+  }
+  return { r, tiles, kcals: tiles.filter(t => !t.locked).map(t => t.kcal), eaten: tiles.filter(t => t.locked).map(t => t.kcal) };
 };
 
 test('an even week with nothing declared draws an even row', () => {
@@ -571,6 +581,71 @@ test('a row sitting under the target says why, so it is not read as a shape', ()
   const { r } = shapeStrip(evenWeekAccount());
   assert.ok(/Nothing is shaping these days/.test(r.text), 'the row is unshaped and should say so: ' + r.text.slice(0, 400));
   assert.ok(/186 kcal over/.test(r.text), 'and name the balance it is evening out: ' + r.text.slice(0, 400));
+});
+
+// The days already eaten, in the row and out of reach. Reported as "tuesday and wednesday have
+// already passed but for some reason it's lowering those days as I try fix my week plan": the row
+// started at today, so on a Friday the Tuesday and Wednesday tiles in it were NEXT week's, sitting
+// under the same two names as the days just eaten, and re-shaping the week moved them. Nothing ever
+// reached backwards - the two tests below are that, from both ends - but there was no way to see it
+// on the one screen where the question comes up.
+function partWeekAccount() {
+  const db = evenWeekAccount(0);
+  const today = A.Store.todayISO();
+  db.profile.carryover = { enabled: false, mode: 'dispersed', capKcal: 400 };
+  db.last_checkin = A.shiftISO(today, -3);
+  db.log_entries = [-3, -2, -1].map(n => ({ id: 'e' + n, date: A.shiftISO(today, n), computed_macros: { kcal: 2135 } }));
+  return db;
+}
+
+test('the days already eaten are in the row, and cannot be tapped', () => {
+  const { tiles, eaten } = shapeStrip(partWeekAccount());
+  assert.equal(eaten.length, 3, 'three days of this cycle have been eaten and all three should be drawn');
+  assert.equal(tiles.length, 10, 'three behind plus the seven ahead');
+  assert.ok(tiles.slice(0, 3).every(t => t.locked), 'the days behind come first and are locked');
+  assert.ok(tiles.slice(3).every(t => !t.locked), 'the days ahead are still yours to tap');
+});
+
+test('the row says why those days are greyed, rather than leaving it to be guessed', () => {
+  const { r } = shapeStrip(partWeekAccount());
+  assert.ok(/greyed days have been eaten/.test(r.text), 'no explanation on the row: ' + r.text.slice(0, 400));
+  assert.ok(/nothing you do here can move them/.test(r.text), 'and no promise that they are safe: ' + r.text.slice(0, 400));
+});
+
+test('re-shaping the week today leaves the days already eaten exactly where they were', () => {
+  const db = partWeekAccount();
+  const today = A.Store.todayISO();
+  const eatenDays = [-3, -2, -1].map(n => A.shiftISO(today, n));
+  const before = eatenDays.map(d => A.effectiveTarget(db, d).eff.kcal);
+  // The edit the complaint was made about: make tomorrow a big day, from this screen, today.
+  const tomorrow = new Date(A.shiftISO(today, 1) + 'T00:00:00').getDay();
+  A.applyCycling(db, { enabled: true, highDays: [tomorrow], deltaPct: 0.15 });
+  const after = eatenDays.map(d => A.effectiveTarget(db, d).eff.kcal);
+  assert.deepEqual(after, before, 'a day already eaten kept a different number after the edit');
+  assert.ok(A.effectiveTarget(db, A.shiftISO(today, 1)).eff.kcal > 2135, 'and the big day ahead really did go up');
+});
+
+// The same promise on the other mechanism, pressed rather than asserted: inside a declared window
+// the shape is the window's, edited by tapping the very row this is about.
+test('tapping a big day inside a running window cannot move a day already away', () => {
+  const db = evenWeekAccount(0);
+  const today = A.Store.todayISO();
+  db.profile.carryover = { enabled: false, mode: 'dispersed', capKcal: 400 };
+  db.last_checkin = A.shiftISO(today, -3);
+  db.week_plans = [window_({ start: A.shiftISO(today, -3), end: A.shiftISO(today, 3), label: 'Away' })];
+  const past = [-3, -2, -1].map(n => A.shiftISO(today, n));
+  const before = past.map(d => A.effectiveTarget(db, d).eff.kcal);
+  const ui = mount(A.WeeklyShapeScreen, { db, update: (fn) => fn(db), onBack() {}, onOpen() {} });
+  try {
+    const tiles = Array.from(ui.host.querySelectorAll('button')).filter(b => /tnum font-semibold/.test(b.innerHTML));
+    assert.equal(tiles.length, 3 + 4, 'three days away already, then today and the three left');
+    assert.ok(tiles.slice(0, 3).every(b => b.disabled), 'the days away already are locked');
+    ui.clickEl(tiles[0]);
+    assert.deepEqual((db.week_plans[0].highDays || []), [], 'a locked day took a tap and changed the plan');
+    ui.clickEl(tiles[4]);   // the day after tomorrow: a big day, from the row
+    assert.deepEqual(db.week_plans[0].highDays, [A.shiftISO(today, 1)], 'the tap should have made that day big');
+  } finally { ui.unmount(); }
+  assert.deepEqual(past.map(d => A.effectiveTarget(db, d).eff.kcal), before, 'a day already away changed number');
 });
 
 test('with evening out off, every day of an even week is the target itself', () => {
