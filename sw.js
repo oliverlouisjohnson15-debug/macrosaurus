@@ -32,11 +32,28 @@ const CORE_ASSETS = [
 ];
 const NO_CACHE_HOSTS = ['supabase.co', 'anthropic.com', 'openfoodfacts.org'];
 
+// A Response whose `redirected` flag is set CANNOT be used to satisfy a navigation: the browser
+// rejects it and the page fails to load outright. That matters here because vercel.json sets
+// cleanUrls, which redirects /index.html to /, so fetching the shell by the wrong URL would fill
+// the cache with a response that can never be served - and a shell cache that cannot be served is
+// the difference between a cheap app and a broken one. Two belts: SHELL_URL is '/', which does not
+// redirect, and anything redirected is rebuilt into a plain response before it is cached.
+const SHELL_URL = '/';
+
+function navigable(res) {
+  if (!res || !res.redirected) return Promise.resolve(res);
+  return res.blob().then(function (body) {
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  });
+}
+
 // Precache the shell exactly once for this build, under both the keys a navigation can ask for.
 // 'no-store' so the freshly deployed HTML wins over anything sitting in the browser's HTTP cache.
 function precacheShell(cache) {
-  return fetch('/index.html', { cache: 'no-store' }).then(function (res) {
+  return fetch(SHELL_URL, { cache: 'no-store' }).then(function (res) {
     if (!res || !res.ok) throw new Error('shell fetch failed: ' + (res && res.status));
+    return navigable(res);
+  }).then(function (res) {
     return Promise.all([cache.put('/index.html', res.clone()), cache.put('/', res)]);
   });
 }
@@ -150,7 +167,7 @@ self.addEventListener('fetch', function (e) {
         if (cached) return cached;
         // Cache miss: first ever load, an evicted cache, or an install that failed offline.
         // Fetch it and fill the cache so the next launch is free again.
-        return fetch(url.pathname, { cache: 'no-store' }).then(function (res) {
+        return fetch(SHELL_URL, { cache: 'no-store' }).then(navigable).then(function (res) {
           if (res && res.ok) {
             var copy = res.clone();
             caches.open(CORE).then(function (c) { c.put('/index.html', copy); });

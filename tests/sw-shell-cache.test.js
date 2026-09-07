@@ -35,11 +35,14 @@ class FakeResponse {
     this.status = (init && init.status) || 200;
     this.ok = this.status >= 200 && this.status < 300;
     this.headers = new Map(Object.entries((init && init.headers) || {}));
+    this.statusText = (init && init.statusText) || '';
+    this.redirected = !!(init && init.redirected);
     this.used = false;
   }
+  async blob() { this.used = true; return this.body; }
   clone() {
     assert.ok(!this.used, 'clone() after the body was consumed: the shell would be cached empty');
-    return new FakeResponse(this.body, { status: this.status });
+    return new FakeResponse(this.body, { status: this.status, redirected: this.redirected });
   }
 }
 
@@ -47,6 +50,9 @@ class FakeCache {
   constructor() { this.store = new Map(); }
   async put(req, res) {
     assert.ok(!res.used, 'the same Response body was put into two caches without cloning');
+    assert.ok(!res.redirected,
+      'a redirected response was cached: the browser refuses to satisfy a navigation with one, ' +
+      'so every launch would fail to load');
     res.used = true;
     this.store.set(String(req), res);
   }
@@ -187,7 +193,7 @@ test('a new build re-fetches the shell, so a deploy still reaches an installed a
 
   await next.dispatch('activate');
   const res = await next.navigate('/');
-  assert.strictEqual(res.body, 'SHELL-/index.html');
+  assert.strictEqual(res.body, 'SHELL-/');
   const core = await next.caches.open(coreName(NEXT_SRC));
   assert.ok(await core.match('/index.html'), 'the new build did not cache its own shell');
 });
@@ -243,6 +249,44 @@ test('activate leaves the share-target cache alone', async () => {
   await w.dispatch('activate');
   assert.ok(await (await w.caches.open('share-incoming')).match('/shared-file-0'),
     'a share handed off mid-activate would lose its photos');
+});
+
+// ---- redirects: the failure mode that would brick the app rather than merely cost money ----
+// vercel.json sets cleanUrls, which redirects /index.html to /. A Response carrying the redirected
+// flag cannot be used for a navigation at all, so caching one would take the app down.
+
+test('the shell is fetched from a URL that cleanUrls does not redirect', async () => {
+  const w = boot(SW_SRC);
+  await w.dispatch('install');
+  assert.strictEqual(shellFetches(w.fetched)[0].url, '/',
+    'fetching /index.html under cleanUrls follows a redirect to /, and the result cannot be cached');
+});
+
+test('a redirected shell is rebuilt before it is cached, and stays servable', async () => {
+  const w = boot(SW_SRC);
+  // Model a host that redirects even '/' - the flag must not survive into the cache.
+  w.scope.fetch = (url, opts) => {
+    w.fetched.push({ url: String(url), opts: opts || {} });
+    return Promise.resolve(new FakeResponse('SHELL-redirected', { redirected: true }));
+  };
+  await w.dispatch('install');   // FakeCache.put asserts the flag is gone
+  await w.dispatch('activate');
+  const res = await w.navigate('/');
+  assert.strictEqual(res.body, 'SHELL-redirected');
+  assert.ok(!res.redirected, 'the served shell still carries the redirect flag');
+});
+
+test('a redirected shell on the cache-miss path is rebuilt too', async () => {
+  const w = boot(SW_SRC);
+  w.scope.fetch = (url, opts) => {
+    w.fetched.push({ url: String(url), opts: opts || {} });
+    return Promise.resolve(new FakeResponse('SHELL-miss', { redirected: true }));
+  };
+  await w.navigate('/');         // cold cache, straight to the network
+  await settle();                // the write is fire-and-forget; FakeCache.put does the asserting
+  const core = await w.caches.open(coreName(SW_SRC));
+  const cached = await core.match('/index.html');
+  assert.ok(cached && !cached.redirected);
 });
 
 // ---- offline ------------------------------------------------------------------------------
