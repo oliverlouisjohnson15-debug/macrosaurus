@@ -1,0 +1,24 @@
+# Files that are never served, kept out of the deployment. This is a scrape-surface and
+# bandwidth measure: app/src alone is ~2.3MB of unminified source that nothing links to, and
+# design-exports another 4.5MB.
+#
+# Safe only because this project has no build step on Vercel: index.html is built locally by
+# build.mjs and committed. If a build command is ever added, app/, tools/ and build.mjs are its
+# inputs and must come back off this list.
+#
+# Anything the running app fetches must stay OUT of this file: /sprites, /foods-uk.json,
+# /manifest.webmanifest, /icon-*.png, /favicon.ico, /og.png, /sw.js, /web.
+app/
+tests/
+tools/
+design-exports/
+design-plans/
+.agents/
+.claude/
+.github/
+supabase/
+*.md
+build.mjs
+fix-og.mjs
+gen-icons.mjs
+skills-lock.json

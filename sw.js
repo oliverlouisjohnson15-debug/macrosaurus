@@ -1,18 +1,30 @@
 /* Macrosaurus service worker.
    Strategy:
-   - App shell / navigations: NETWORK-FIRST, so a fresh deploy reaches you immediately when online;
-     falls back to the cached page only when there's no connection.
+   - App shell / navigations: CACHE-FIRST out of a build-scoped cache. The shell is one ~3.4MB
+     self-contained bundle, so re-fetching it on every launch was the whole of our bandwidth bill:
+     an installed PWA navigates on every single app open. It is now downloaded ONCE PER BUILD,
+     at install time, and served from cache until a new build replaces it.
+   - Freshness does not depend on that fetch. The page polls sw.js (a few KB) through
+     registration.update(), and VERSION below is a content hash of index.html written by build.mjs,
+     so any new deploy produces a byte-different worker, a new cache, and the app's reload banner.
    - Static assets (icons, manifest, CDN scripts, fonts): CACHE-FIRST, filled from the network,
      so the app loads fully offline.
-   - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
+   - API traffic (Supabase, Anthropic, Open Food Facts): never cached - always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
-   Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '365';
+   VERSION is written by build.mjs. Do not edit it by hand: a stale VERSION would pin users to a
+   cached shell, which is exactly what the content hash exists to make impossible. */
+const VERSION = '4ba77e1d868b';
 const CORE = 'macrosaurus-core-v' + VERSION;
-const RUNTIME = 'macrosaurus-rt-v' + VERSION;
+// The runtime cache holds sprites, fonts, icons, foods-uk.json and the Supabase CDN bundle: assets
+// at stable URLs whose contents do not change from one deploy to the next. It deliberately does NOT
+// carry VERSION. Namespacing it by the build hash threw all of them away on every single deploy and
+// re-downloaded them - hundreds of KB per user per deploy, for bytes that were already correct.
+// Bump ASSET_VERSION BY HAND, and only when an asset actually changes at a URL it already had.
+const ASSET_VERSION = '1';
+const RUNTIME = 'macrosaurus-rt-v' + ASSET_VERSION;
+// The shell is deliberately NOT in this list: it is big, and addAll would fetch it twice (once
+// for '/' and once for '/index.html'). It is fetched once below and stored under both keys.
 const CORE_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',
@@ -20,10 +32,23 @@ const CORE_ASSETS = [
 ];
 const NO_CACHE_HOSTS = ['supabase.co', 'anthropic.com', 'openfoodfacts.org'];
 
+// Precache the shell exactly once for this build, under both the keys a navigation can ask for.
+// 'no-store' so the freshly deployed HTML wins over anything sitting in the browser's HTTP cache.
+function precacheShell(cache) {
+  return fetch('/index.html', { cache: 'no-store' }).then(function (res) {
+    if (!res || !res.ok) throw new Error('shell fetch failed: ' + (res && res.status));
+    return Promise.all([cache.put('/index.html', res.clone()), cache.put('/', res)]);
+  });
+}
+
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CORE)
-      .then(function (c) { return Promise.allSettled(CORE_ASSETS.map(function (u) { return c.add(u); })); })
+      .then(function (c) {
+        return Promise.allSettled(
+          [precacheShell(c)].concat(CORE_ASSETS.map(function (u) { return c.add(u); }))
+        );
+      })
       .then(function () { return self.skipWaiting(); })
   );
 });
@@ -31,7 +56,14 @@ self.addEventListener('install', function (e) {
 self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys()
-      .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== CORE && k !== RUNTIME; }).map(function (k) { return caches.delete(k); })); })
+      .then(function (keys) {
+        return Promise.all(keys.filter(function (k) {
+          // Only sweep our own versioned caches. Matching everything else took the share-target
+          // cache with it, and now that RUNTIME outlives a deploy it must survive this sweep too.
+          return (k.indexOf('macrosaurus-core-v') === 0 || k.indexOf('macrosaurus-rt-v') === 0)
+            && k !== CORE && k !== RUNTIME;
+        }).map(function (k) { return caches.delete(k); }));
+      })
       .then(function () { return self.clients.claim(); })
   );
 });
@@ -109,16 +141,26 @@ self.addEventListener('fetch', function (e) {
 
   var isShell = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html';
   if (isShell) {
-    // Network-first, and crucially bypass the browser HTTP cache ('no-store') so a fresh deploy
-    // always wins. Without this the network fetch could itself return a stale HTTP-cached page,
-    // which then gets re-cached, pinning users to an old build. Falls back to cache only offline.
+    // Cache-first. The cached copy is always this exact build's shell: CORE is namespaced by
+    // VERSION, which is a content hash of index.html, so a new deploy can never be served an old
+    // page out of a new build's cache - the cache simply does not exist yet and gets filled at
+    // install. Serving from cache here is what keeps an app open from costing a megabyte.
     e.respondWith(
-      fetch(url.pathname, { cache: 'no-store' }).then(function (res) {
-        var copy = res.clone();
-        caches.open(CORE).then(function (c) { c.put('/index.html', copy); });
-        return res;
-      }).catch(function () {
-        return caches.match('/index.html').then(function (r) { return r || caches.match('/'); });
+      caches.open(CORE).then(function (c) { return c.match('/index.html'); }).then(function (cached) {
+        if (cached) return cached;
+        // Cache miss: first ever load, an evicted cache, or an install that failed offline.
+        // Fetch it and fill the cache so the next launch is free again.
+        return fetch(url.pathname, { cache: 'no-store' }).then(function (res) {
+          if (res && res.ok) {
+            var copy = res.clone();
+            caches.open(CORE).then(function (c) { c.put('/index.html', copy); });
+          }
+          return res;
+        }).catch(function () {
+          return caches.match('/').then(function (r) {
+            return r || new Response('Offline', { status: 503, headers: { 'content-type': 'text/plain' } });
+          });
+        });
       })
     );
     return;

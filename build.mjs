@@ -8,6 +8,7 @@
  * Usage: node build.mjs   (expects npm i @babel/core @babel/preset-react tailwindcss@3)
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 import { transformSync } from '@babel/core';
 
@@ -35,10 +36,13 @@ const twCss = read('.build/tw.css').trim();
 // the same order and two copies of a list like that drift the first time a file is added.
 const APP_SOURCES = JSON.parse(read('app/src/manifest.json').replace(/^\s*"_":[\s\S]*?",\n/m, '')).sources;
 const appSrc = APP_SOURCES.map(f => '/* ---- ' + f + ' ---- */\n' + read(f)).join('\n');
+// comments: false. The source comments in app/src are for us, not for the browser, and they are
+// not free: they are ~40% of the compressed weight of the app block, which is the single biggest
+// thing every user downloads on a new build. Read the comments in app/src; ship the code.
 const transpiled = transformSync(appSrc, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]],
   compact: false,
-  comments: true,
+  comments: false,
 }).code;
 
 // guard: transpiled output must parse as plain JS
@@ -157,3 +161,21 @@ if (!html.includes('ReactDOM.createRoot')) throw new Error('app render call miss
 
 writeFileSync('index.html', html);
 console.log('built index.html:', html.length, 'bytes');
+
+// ---- 4. stamp the service worker with this build's identity ----
+// sw.js serves the shell cache-first, so the ONLY thing that tells a browser a new build exists is
+// sw.js changing. Deriving VERSION from the shell's content hash makes that automatic: every build
+// that changes index.html changes VERSION, gets a fresh cache, and raises the app's reload banner,
+// and a build that changes nothing writes nothing. Bumping it by hand was a step you could forget.
+const buildId = createHash('sha256').update(html).digest('hex').slice(0, 12);
+const sw = read('sw.js');
+const swNext = sw.replace(/const VERSION = '[^']*';/, "const VERSION = '" + buildId + "';");
+if (swNext === sw && !sw.includes("const VERSION = '" + buildId + "';")) {
+  throw new Error('sw.js VERSION line not found - the shell cache would not be invalidated');
+}
+if (swNext !== sw) {
+  writeFileSync('sw.js', swNext);
+  console.log('stamped sw.js VERSION:', buildId);
+} else {
+  console.log('sw.js VERSION unchanged:', buildId);
+}
