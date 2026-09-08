@@ -1125,10 +1125,11 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
      trained yet - so a block already three weeks in gets the same floor every other route uses, and
      only a block that has not started moves the lot.
 
-     It matches on the MOVEMENT, not the row that was tapped, exactly as a mid-block swap does: the
-     same lift can appear twice in a day (a heavy set and a back-off) and on more than one day, and
-     replacing it in one place while leaving it in the others is how a plan quietly stops making
-     sense.
+     What it moves is the ROW that was tapped, in every week ahead of you - not every row that
+     happens to hold the same movement. A day can programme the same lift twice on purpose (a heavy
+     set and a back-off) and an upper/lower split writes the same day twice a week, so matching on
+     the movement made "change this one to the wide grip" silently change four rows when the question
+     was asked about one.
 
      It says nothing when it works, which is how everything else on this screen behaves: adding a
      movement and taking one out are both silent, because the edit is in front of you and none of it
@@ -1144,17 +1145,17 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
     // the weeks behind it stay a record of what was actually lifted.
     const from = prog ? prog.week : null;
     // Counted before the edit, because afterwards there is nothing left to count.
-    const reach = Training.swapReach(block, fromId, from);
-    // Nothing left to change: every appearance of this movement is behind the week you are on, and
-    // those are a record of what was lifted rather than a plan to edit. Saying "replaced" over a
-    // block that did not move is worse than saying nothing.
+    const reach = Training.slotReach(block, sessionId, itemId, from);
+    // Nothing left to change: this line only exists in weeks behind the one you are on, and those
+    // are a record of what was lifted rather than a plan to edit. Saying "replaced" over a block
+    // that did not move is worse than saying nothing.
     if (!reach) {
       const fromEx = Training.byId(fromId, t.custom);
       showToast && showToast((fromEx ? fromEx.name : 'That movement')
         + ' only appears in weeks you have already trained, so nothing changed.');
       return;
     }
-    edit(b => { Training.swapInBlock(b, fromId, exId, from); });
+    edit(b => { Training.swapSlotInBlock(b, sessionId, itemId, exId, from); });
   }
   function addItem(sessionId, exId) {
     setPicking(null);
@@ -1880,7 +1881,10 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   // itself first: reaching back for `picking.itemId` afterwards would find it already cleared.
   function doSwap(itemId, fromId, exId, scope) {
     edit((s, b) => {
-      if (scope === 'block') Training.swapInBlock(b, fromId, exId, prog ? prog.week : 1);
+      // The row that was tapped, across the weeks ahead - not every row holding the same movement.
+      // Same reason as the block screen: a day can write the same lift twice, and a split can write
+      // the same day twice.
+      if (scope === 'block') Training.swapSlotInBlock(b, live.id, itemId, exId, prog ? prog.week : 1);
       else {
         const it = (s.exercises || []).filter(x => x.id === itemId)[0];
         if (it) Training.replaceExercise(it, exId);
@@ -2105,7 +2109,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             // is a different question and only the person knows the answer: a machine being busy is
             // this week, a grip that suits you better is the rest of it. Asked once, and only when
             // there is genuinely more than one session it could touch.
-            const reach = block ? Training.swapReach(block, row.exerciseId, prog ? prog.week : 1) : 1;
+            const reach = block ? Training.slotReach(block, live.id, row.id, prog ? prog.week : 1) : 1;
             if (reach > 1) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId });
             else doSwap(row.id, row.exerciseId, exId, 'session');
           }}
