@@ -3156,6 +3156,79 @@
     return n;
   }
 
+  /* ---- the same LINE, week after week ----------------------------------------------------------
+   *
+   * The movement is the wrong unit for an edit made to one row, and it took two real plans to show
+   * it. A day can programme the same lift twice on purpose - a heavy set and a back-off set - and an
+   * upper/lower split writes the same day twice a week. Matching on the exercise id meant "change
+   * this one to the wide grip" quietly changed four rows: both T-bar rows on Upper 1, and both of
+   * them again on Upper 2. Nobody asks that question about four rows.
+   *
+   * What a plan edit is genuinely about is the SLOT: this line, in this day, in this position - and
+   * what should follow it across the block is the same line in the weeks still to come, not every
+   * other line that happens to hold the same movement.
+   *
+   * Every row a block is built from carries the same id in each week apart from its `_w<week>`
+   * suffix (see blockFromTemplate), so the slot is that id with the week taken off. A row that did
+   * not come from there - one added by hand to a single session - falls back to where it sits: its
+   * day, and its position in that day.
+   */
+  function dayKeyOf(session) {
+    var id = String((session && session.id) || '');
+    var m = /^(.*)_w\d+(d\d+)$/.exec(id);
+    if (m) return m[1] + m[2];
+    return 'n:' + ((session && session.name) || '') + '/'
+      + ((session && session.dayOfWeek) == null ? '' : session.dayOfWeek);
+  }
+  function slotKeyOf(session, item) {
+    var id = String((item && item.id) || '');
+    var m = /^(.+)_w\d+$/.exec(id);
+    if (m) return 'i:' + m[1];
+    return 'p:' + dayKeyOf(session) + '#'
+      + ((item && item.order) == null ? 'id:' + id : item.order);
+  }
+  // The rows one slot owns, from `fromWeek` on. The weeks behind it are a record of what was lifted
+  // and are never handed out, exactly as swapInBlock has always had it.
+  function slotRows(block, sessionId, itemId, fromWeek) {
+    var sess = ((block && block.sessions) || []);
+    var from = null, fromItem = null;
+    for (var i = 0; i < sess.length && !fromItem; i++) {
+      if (sess[i].id !== sessionId) continue;
+      from = sess[i];
+      fromItem = (sess[i].exercises || []).filter(function (e) { return e.id === itemId; })[0] || null;
+    }
+    if (!fromItem) return [];
+    var key = slotKeyOf(from, fromItem);
+    var out = [];
+    sess.forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      (s.exercises || []).forEach(function (e) {
+        if (slotKeyOf(s, e) === key) out.push({ session: s, item: e });
+      });
+    });
+    return out;
+  }
+  // Change this line, in every week still ahead of you. Mutates the block, like swapInBlock, and
+  // returns how many sessions moved.
+  function swapSlotInBlock(block, sessionId, itemId, toId, fromWeek) {
+    var seen = {}, n = 0;
+    slotRows(block, sessionId, itemId, fromWeek).forEach(function (hit) {
+      if (!replaceExercise(hit.item, toId)) return;
+      if (seen[hit.session.id]) return;
+      seen[hit.session.id] = 1; n++;
+    });
+    return n;
+  }
+  // How many sessions that WOULD change, so the question can say what it is asking about.
+  function slotReach(block, sessionId, itemId, fromWeek) {
+    var seen = {}, n = 0;
+    slotRows(block, sessionId, itemId, fromWeek).forEach(function (hit) {
+      if (seen[hit.session.id]) return;
+      seen[hit.session.id] = 1; n++;
+    });
+    return n;
+  }
+
   /* ---- editing a planned session, without setting foot in the gym ------------------------------
    * Until these existed, the only way to change tonight's plan was to START the session. That
    * stamps a start time, writes a log row, and from the second visit onward the app treats it as one
@@ -6424,6 +6497,7 @@
     sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn, rirDrift: rirDrift,
     rotationPlan: rotationPlan, applyRotation: applyRotation, rotationChain: rotationChain, familyHistory: familyHistory,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
+    swapSlotInBlock: swapSlotInBlock, slotReach: slotReach,
     replacementsFor: replacementsFor, replaceExercise: replaceExercise, sameJobFor: sameJobFor,
     VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
     baseOf: baseOf, variantsOf: variantsOf,

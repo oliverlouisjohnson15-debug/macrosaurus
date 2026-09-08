@@ -2937,6 +2937,73 @@ test('the question knows how many sessions it is asking about', () => {
   assert.equal(T.swapReach(block, 'not_in_here', 1), 0, 'nothing to ask about');
 });
 
+// ---- one line, not every line holding the same movement --------------------------------------------
+
+// Two T-bar rows on purpose (the heavy set and the back-off), and the same day written twice a week:
+// exactly the shape the five-day min-max plan ships, and exactly where matching on the exercise id
+// changed four rows when the question had been asked about one.
+function blockWithTwins() {
+  const { template } = T.importTemplate({ days: [
+    { name: 'Upper 1', exercises: [
+      { name: 'T-Bar Row', sets: 2 }, { name: 'T-Bar Row', sets: 1 }, { name: 'Lat Pulldown', sets: 2 },
+    ] },
+    { name: 'Upper 2', exercises: [
+      { name: 'T-Bar Row', sets: 2 }, { name: 'T-Bar Row', sets: 1 }, { name: 'Lat Pulldown', sets: 2 },
+    ] },
+  ] });
+  return T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets: T.defaultTargets() });
+}
+const idsOn = (block, week) => T.weekSessions(block, week).map(s => T.sessionItems(s).map(e => e.exerciseId));
+
+test('changing one row leaves its twin in the same day alone', () => {
+  const block = blockWithTwins();
+  const s1 = T.weekSessions(block, 1)[0];
+  const heavy = T.sessionItems(s1)[0];
+  T.swapSlotInBlock(block, s1.id, heavy.id, 'cu_wide', 1);
+  assert.deepEqual(idsOn(block, 1)[0], ['cu_wide', 'tbar_row', 'lat_pulldown'],
+    'the back-off set is a different line and was not asked about');
+});
+
+test('changing a row on one day leaves the other day alone', () => {
+  const block = blockWithTwins();
+  const s1 = T.weekSessions(block, 1)[0];
+  T.swapSlotInBlock(block, s1.id, T.sessionItems(s1)[0].id, 'cu_wide', 1);
+  assert.deepEqual(idsOn(block, 1)[1], ['tbar_row', 'tbar_row', 'lat_pulldown'],
+    'Upper 2 is its own day, even when it is written the same');
+});
+
+test('a row changed on the plan changes in every week still ahead of you', () => {
+  const block = blockWithTwins();
+  const s2 = T.weekSessions(block, 2)[0];
+  const n = T.swapSlotInBlock(block, s2.id, T.sessionItems(s2)[0].id, 'cu_wide', 2);
+  assert.equal(n, 3, 'weeks 2 to 4, one session each');
+  assert.deepEqual(idsOn(block, 1)[0], ['tbar_row', 'tbar_row', 'lat_pulldown'],
+    'week 1 was already trained and must be untouched');
+  for (const w of [2, 3, 4]) {
+    assert.deepEqual(idsOn(block, w)[0], ['cu_wide', 'tbar_row', 'lat_pulldown'], `week ${w}`);
+  }
+});
+
+test('the question knows how many sessions this line reaches', () => {
+  const block = blockWithTwins();
+  const s1 = T.weekSessions(block, 1)[0];
+  const row = T.sessionItems(s1)[0];
+  assert.equal(T.slotReach(block, s1.id, row.id, 1), 4, 'one line, four weeks');
+  assert.equal(T.slotReach(block, s1.id, row.id, 4), 1, 'only the week you are on is left');
+  assert.equal(T.slotReach(block, s1.id, 'not_a_row', 1), 0, 'nothing to ask about');
+});
+
+test('a line added to a single session moves nothing else', () => {
+  // No _w suffix on its id, so it falls back to where it sits - and it sits in one week only.
+  const block = blockWithTwins();
+  const s1 = T.weekSessions(block, 1)[0];
+  T.addExerciseToSession(s1, 'lat_pulldown', null, 'lat_pulldown_added');
+  assert.equal(T.slotReach(block, s1.id, 'lat_pulldown_added', 1), 1);
+  T.swapSlotInBlock(block, s1.id, 'lat_pulldown_added', 'cu_wide', 1);
+  assert.deepEqual(idsOn(block, 1)[0], ['tbar_row', 'tbar_row', 'lat_pulldown', 'cu_wide']);
+  assert.deepEqual(idsOn(block, 2)[0], ['tbar_row', 'tbar_row', 'lat_pulldown']);
+});
+
 // ---- what a movement can be replaced with ---------------------------------------------------------
 
 test('the plan\'s own substitutions come first, and say so', () => {

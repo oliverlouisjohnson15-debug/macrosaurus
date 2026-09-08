@@ -301,7 +301,12 @@ test('replacing a movement in a running block leaves the trained weeks alone', (
   // This editor opens on blocks already under way, and its own save button promises that changes
   // apply to the weeks you have not trained yet. Week 1 is history by the time you are in week 3.
   const block = minmax();
-  block.sessions.forEach(s => { s.exercises[0].exerciseId = 'bb_incline'; s.exercises[0].alts = ['machine_incline']; });
+  // One day's opening movement, in every week. What the editor changes is that LINE - a movement
+  // that also appears on another day is another day's business - so the day is fixed here and the
+  // weeks are what the test reads.
+  const day = block.sessions[0].dayOfWeek;
+  block.sessions.filter(s => s.dayOfWeek === day)
+    .forEach(s => { s.exercises[0].exerciseId = 'bb_incline'; s.exercises[0].alts = ['machine_incline']; });
   const db = accountWith(block);
   // Two weeks in.
   const start = new Date(Date.parse(A.Store.todayISO() + 'T00:00:00Z') - 14 * 86400000);
@@ -325,7 +330,7 @@ test('replacing a movement in a running block leaves the trained weeks alone', (
   const d = { training: { blocks: [block] } };
   saved(d);
   const out = d.training.blocks[0];
-  const idsIn = w => (out.sessions || []).filter(s => s.week === w)
+  const idsIn = w => (out.sessions || []).filter(s => s.week === w && s.dayOfWeek === day)
     .reduce((a, s) => a.concat((s.exercises || []).map(e => e.exerciseId)), []);
   assert.ok(idsIn(1).includes('bb_incline'), 'week 1 was trained and must keep what was lifted');
   assert.ok(idsIn(2).includes('bb_incline'), 'week 2 too');

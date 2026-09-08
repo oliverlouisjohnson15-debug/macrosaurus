@@ -629,9 +629,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // knows the answer: a machine being busy is today, a grip that suits you better is the rest of
     // the block. Asked only when there is something to ask about, which is when the movement we just
     // replaced actually appears in sessions still to come.
+    // The line, not the movement: a day can programme the same lift twice (a heavy set and a
+    // back-off) and a split can write the same day twice a week, and changing your grip on one of
+    // them is not a decision about the others.
     if (!block || !session || !wasId || wasId === exId) return;
-    const reach = Training.swapReach(block, wasId, session.week);
-    if (reach > 1) setSwapScope({ from: wasId, to: exId, week: session.week, reach: reach });
+    const itemId = items[ii] && items[ii].id;
+    const reach = itemId ? Training.slotReach(block, session.id, itemId, session.week) : 0;
+    if (reach > 1) setSwapScope({ from: wasId, to: exId, week: session.week, reach: reach, itemId: itemId });
   }
   function move(ii, delta) {
     const to = ii + delta;
@@ -1644,7 +1648,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 onClick: () => {
                   trainUpdate(update, (tr) => {
                     const i = tr.blocks.findIndex(b => b.id === block.id);
-                    if (i >= 0) Training.swapInBlock(tr.blocks[i], swapScope.from, swapScope.to, swapScope.week);
+                    if (i >= 0) Training.swapSlotInBlock(tr.blocks[i], session.id, swapScope.itemId, swapScope.to, swapScope.week);
                   });
                   showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the block.');
                 },
