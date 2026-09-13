@@ -1,0 +1,12 @@
+# app.macrosaurus.com is the application itself, not a page to be indexed.
+#
+# "/" is a single self-contained ~2.8MB bundle. A browser downloads it once per build and then
+# serves it from the service worker cache, but a crawler runs no service worker: every visit is
+# another full copy of the shell off our Fast Data Transfer allowance, for a page that is a login
+# screen to anyone who is not signed in. The public, indexable site is macrosaurus.com, which is
+# a different deployment and carries its own robots.txt and sitemap.
+#
+# There was no robots.txt at this root before, which is a 404 - and a 404 is not a rule, so
+# everything here was fair game.
+User-agent: *
+Disallow: /
