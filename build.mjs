@@ -5,16 +5,62 @@
  * This script splices freshly built blocks into the existing bundle by signature,
  * leaving the vendor blocks and document skeleton untouched.
  *
- * Usage: node build.mjs   (expects npm i @babel/core @babel/preset-react tailwindcss@3)
+ * Usage: node build.mjs   (expects npm i @babel/core @babel/preset-react tailwindcss@3 esbuild)
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 import { transformSync } from '@babel/core';
+import { transformSync as esbuildTransform } from 'esbuild';
 
 const read = (p) => readFileSync(p, 'utf8');
 
-// ---- 1. compile tailwind ----
+// ---- 1. minify what goes into the bundle ----
+// Everything below this line is about Fast Data Transfer. The vendor blocks (React, ReactDOM) are
+// already production-minified and the Tailwind block is emitted --minify, but the hand-written
+// modules were being inlined VERBATIM: engine.js alone went out as 131KB of source because every
+// comment we wrote for ourselves was shipped to every user, and the transpiled app block kept
+// Babel's indentation. That is ~205KB of the ~750KB a new build costs each user, for bytes no
+// browser reads.
+//
+// IDENTIFIERS ARE DELIBERATELY NOT MANGLED. These are separate classic <script> blocks in one
+// global scope: store.js publishes window.Store, the app block reads Engine and Training by name,
+// and the render tests concatenate the same sources. Renaming a top-level binding in one block
+// would silently break the others, and the saving over whitespace alone is ~5% of transfer. Not
+// worth it. Whitespace and syntax only.
+function minJs(src) {
+  return esbuildTransform(src, {
+    loader: 'js',
+    minifyWhitespace: true,
+    minifySyntax: true,
+    minifyIdentifiers: false,
+    legalComments: 'none',
+  }).code.trim();
+}
+
+// Each module is spliced back in by a SIGNATURE that is its own leading banner comment (see
+// spliceBlock calls below), and a minifier strips comments - so the banner is re-emitted by hand.
+// Without it the next build could not find the block it had just written.
+function banner(name) {
+  return '/*\n * ' + name + ' */\n';
+}
+
+// The custom-styles block is located by a signature that begins with its Google Fonts @import, and
+// a CSS minifier is free to renormalise url() quoting. So the leading @import lines are carried
+// through byte-for-byte and only what follows them is minified.
+function minCss(src) {
+  const lines = src.split('\n');
+  let i = 0;
+  const head = [];
+  while (i < lines.length && (/^\s*@import\b/.test(lines[i]) || !lines[i].trim())) {
+    if (lines[i].trim()) head.push(lines[i].trim());
+    i++;
+  }
+  const body = esbuildTransform(lines.slice(i).join('\n'), { loader: 'css', minify: true }).code.trim();
+  return (head.length ? head.join('\n') + '\n' : '') + body;
+}
+
+// ---- 2. compile tailwind ----
 mkdirSync('.build', { recursive: true });
 writeFileSync('.build/tw-in.css', '@tailwind base;\n@tailwind utilities;\n');
 writeFileSync('.build/tw.config.cjs',
@@ -22,7 +68,7 @@ writeFileSync('.build/tw.config.cjs',
 execSync('npx tailwindcss -c .build/tw.config.cjs -i .build/tw-in.css -o .build/tw.css --minify', { stdio: 'pipe' });
 const twCss = read('.build/tw.css').trim();
 
-// ---- 2. transpile the app sources ----
+// ---- 3. transpile the app sources ----
 // app.jsx has no imports: everything lives in one shared scope, so the sources are simply
 // concatenated in order before Babel sees them. That means a file can be split off without
 // rewriting anything, as long as it is listed BEFORE the code that uses it (function declarations
@@ -45,19 +91,24 @@ const transpiled = transformSync(appSrc, {
   comments: false,
 }).code;
 
-// guard: transpiled output must parse as plain JS
-new Function(transpiled); // throws on syntax error
+// Babel is run with compact:false so its output stays readable if it ever has to be inspected;
+// esbuild is what actually squeezes it. The app block is the single biggest thing a user downloads.
+const transpiledMin = minJs(transpiled);
 
-const stylesCss = read('app/src/styles.css').trim();
-const engineJs = read('app/engine.js').trim();
-const storeJs = read('app/store.js').trim();
-const gameJs = read('app/game.js').trim();
-const quantityJs = read('app/quantity.js').trim();
-const recipeJs = read('app/recipe.js').trim();
-const cofidJs = read('app/cofid.js').trim();
-const trainingJs = read('app/training.js').trim();
-const talkJs = read('app/talk.js').trim();
-const menuJs = read('app/menu.js').trim();
+// guard: transpiled output must parse as plain JS, before and after minification
+new Function(transpiled);    // throws on syntax error
+new Function(transpiledMin); // throws if minification produced something unparseable
+
+const stylesCss = minCss(read('app/src/styles.css').trim());
+const engineJs = banner('engine.js') + minJs(read('app/engine.js'));
+const storeJs = banner('store.js') + minJs(read('app/store.js'));
+const gameJs = banner('game.js') + minJs(read('app/game.js'));
+const quantityJs = banner('quantity.js') + minJs(read('app/quantity.js'));
+const recipeJs = banner('recipe.js') + minJs(read('app/recipe.js'));
+const cofidJs = banner('cofid.js') + minJs(read('app/cofid.js'));
+const trainingJs = banner('training.js') + minJs(read('app/training.js'));
+const talkJs = banner('talk.js') + minJs(read('app/talk.js'));
+const menuJs = banner('menu.js') + minJs(read('app/menu.js'));
 
 let html = read('index.html');
 
@@ -152,7 +203,7 @@ if (html.includes('<script>\n/*\n * menu.js')) {
   const start = html.lastIndexOf('<script>', mi);
   const end = html.indexOf('</script>', mi);
   if (start === -1 || end === -1) throw new Error('app script bounds not found');
-  html = html.slice(0, start) + '<script>' + transpiled + '\n</script>' + html.slice(end + '</script>'.length);
+  html = html.slice(0, start) + '<script>' + transpiledMin + '\n</script>' + html.slice(end + '</script>'.length);
 }
 
 // sanity checks
@@ -162,7 +213,7 @@ if (!html.includes('ReactDOM.createRoot')) throw new Error('app render call miss
 writeFileSync('index.html', html);
 console.log('built index.html:', html.length, 'bytes');
 
-// ---- 4. stamp the service worker with this build's identity ----
+// ---- 5. stamp the service worker with this build's identity ----
 // sw.js serves the shell cache-first, so the ONLY thing that tells a browser a new build exists is
 // sw.js changing. Deriving VERSION from the shell's content hash makes that automatic: every build
 // that changes index.html changes VERSION, gets a fresh cache, and raises the app's reload banner,
