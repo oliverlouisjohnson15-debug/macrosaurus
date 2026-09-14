@@ -102,6 +102,9 @@ test('a thin cycle carries its caveat rather than claiming certainty', () => {
   // and nothing logged or weighed in any of them. The verdict still reads off the three weeks of
   // trend behind it; what it cannot do is claim that read is well covered.
   const db = cutting({ last_checkin: iso(5) });
+  // A check-in is also due from day five on the account's check-in weekday (default Monday), so without
+  // pinning that day away from today this test failed every Monday.
+  db.profile.checkinDay = (new Date().getDay() + 3) % 7;
   db.log_entries = db.log_entries.filter(e => e.date <= iso(6));
   db.weight_entries = db.weight_entries.filter(e => e.date <= iso(6));
   const r = strip(db);

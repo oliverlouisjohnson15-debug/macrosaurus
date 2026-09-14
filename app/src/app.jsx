@@ -3660,8 +3660,19 @@ function CardHead({ title, right, onRight, rightTone = 'accent', padLeft }) {
    `title` goes in the bar; the ✕ is the bar's right-hand slot, so no sheet draws its own close.
    `wide` is the max-width for sheets that carry a list or a grid rather than a form.
    `pad={false}` hands the body to the caller whole, for the few that scroll their own regions. */
+/* Marks the body while any sheet (or a full-screen first-run step) is open, so the toast knows to sit at
+   the top rather than on that screen's own primary action. Counted, so a sheet opened from a sheet does
+   not clear the mark when the inner one closes. */
+function useSheetOpenClass() {
+  useEffect(() => {
+    const b = document.body; if (!b) return;
+    b.dataset.sheets = String((+b.dataset.sheets || 0) + 1); b.classList.add('sheet-open');
+    return () => { const n = Math.max(0, (+b.dataset.sheets || 1) - 1); b.dataset.sheets = String(n); if (!n) b.classList.remove('sheet-open'); };
+  }, []);
+}
 function Sheet({ title, onClose, children, wide, z = 80, pad = true, bodyClass = '', bodyStyle }) {
   useBackClose(onClose);
+  useSheetOpenClass();
   return (
     <div className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4" style={{ zIndex: z, background: 'rgba(20,17,26,0.62)' }} onClick={onClose}>
       <div className={'w-full sheet-panel sheet-up flex flex-col ' + (wide ? 'max-w-md' : 'max-w-sm')}
@@ -3851,16 +3862,17 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
   </div>);
 }
 function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelEgg size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
+// The colour is set on TYPE, so it is the ink, never the fill: the fat fill as 12px text measured 1.75:1.
 function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
   if (goalType === 'gain') {
-    if (a <= 0.35) return { t: 'Lean, minimal fat gain', c: CARB };
-    if (a <= 0.7) return { t: 'Moderate, some fat gain', c: FAT };
-    return { t: 'Fast, more fat to trim later', c: PRO };
+    if (a <= 0.35) return { t: 'Lean, minimal fat gain', c: CARB_T };
+    if (a <= 0.7) return { t: 'Moderate, some fat gain', c: FAT_T };
+    return { t: 'Fast, more fat to trim later', c: PRO_T };
   }
-  if (a <= 0.35) return { t: 'Gentle, easy to sustain', c: CARB };
-  if (a <= 0.7) return { t: 'Moderate, some hunger', c: FAT };
-  return { t: 'Aggressive, harder to sustain', c: PRO };
+  if (a <= 0.35) return { t: 'Gentle, easy to sustain', c: CARB_T };
+  if (a <= 0.7) return { t: 'Moderate, some hunger', c: FAT_T };
+  return { t: 'Aggressive, harder to sustain', c: PRO_T };
 }
 // Consistent page header used across every main screen. The little 🦖 is our through-line.
 function PageHeader({ kicker, title }) {
@@ -4296,13 +4308,13 @@ function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
 }
 const DINO_QUOTES = [
   '"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"',
-  '"EAT YOUR PROTEIN OR GO EXTINCT."',
+  '"PROTEIN FIRST. THE REST FOLLOWS. RAWR."',
   '"SMALL BITES, BIG GAINS. RAWR."',
   '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."',
   '"STAY CONSISTENT, STAY PREHISTORIC."',
   '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."',
   // A little lore, funny and non-invasive, to build a bond with your buddy.
-  '"I SURVIVED THE METEOR. YOU CAN SURVIVE A MONDAY."',
+  '"I SURVIVED THE METEOR. YOU CAN SURVIVE A ROUGH DAY."',
   '"MY ANCESTORS RULED THE EARTH. YOU RULE YOUR MACROS. TEAMWORK."',
   '"BEFORE APPS, WE TRACKED MACROS ON CAVE WALLS. YOU HAVE IT EASY."',
   '"LEGEND SAYS A MACROSAURUS NEVER SKIPS BREAKFAST. BE A LEGEND."',
@@ -4562,7 +4574,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
   const headLast = validTrend.length ? validTrend[validTrend.length - 1] : last;
   const delta = (headFirst && headLast) ? +(headLast.value - headFirst.value).toFixed(1) : null;
   const rangeLabel = { 7: 'past week', 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' }[range];
-  const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
+  const deltaStr = delta == null ? '' : delta === 0 ? 'no change' : (delta > 0 ? '+' : '−') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
   const deltaGood = (delta == null || delta === 0) ? null : (tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true);
   const body = (<>
       {tab === 'bodyfat' && window.MISPREMIUM === false && (
@@ -4923,20 +4935,28 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
   const [f, setF] = useState(initial || {
     // Essentials only up front; the rest keep sensible defaults and the buddy fine-tunes them later.
     // weighCadence stays null so the buddy asks it after hatch (progressive disclosure, not a form step).
-    sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
-    activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
+    // The body fields start EMPTY. They used to arrive filled in (male, 32, 175 cm, 12 st 12 lb,
+    // moderately active), so tapping Continue produced a plan for somebody who is not you.
+    sex: null, age: '', heightCm: '', height_unit: 'cm', weightKg: '', weight_unit: 'st_lb', bodyFatPct: 20,
+    activityLevel: null, goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
     // Both shape settings start off: the number you agree at the end of this wizard is the number
     // you get, every day, until a check-in changes it. (See PROFILE_DEFAULTS in store.js.)
     program_mode: 'collaborative', carryover: { enabled: false, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
+  // Set once Continue has been pressed with something missing, so the gap is named then and not before.
+  const [tried, setTried] = useState(false);
+  // An optional goal weight: the plan's finish line, and what lets the last step say roughly when.
+  const g0 = initial && initial.goalWeightKg > 0 ? kgToStLb(initial.goalWeightKg) : { st: '', lb: '' };
+  const [gw, setGw] = useState(initial && initial.goalWeightKg > 0 ? String(initial.goalWeightKg) : '');
+  const [gst, setGst] = useState(g0.st); const [glb, setGlb] = useState(g0.lb);
   const [proteinTouched, setProteinTouched] = useState(false);
   const [bfPick, setBfPick] = useState(false);
   // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
   // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
   const [backfill, setBackfill] = useState(false);
-  const s0 = kgToStLb(f.weightKg); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
-  const h0 = cmToFtIn(f.heightCm); const [ft, setFt] = useState(h0.ft); const [inch, setInch] = useState(h0.inch);
+  const s0 = f.weightKg ? kgToStLb(f.weightKg) : { st: '', lb: '' }; const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
+  const h0 = f.heightCm ? cmToFtIn(f.heightCm) : { ft: '', inch: '' }; const [ft, setFt] = useState(h0.ft); const [inch, setInch] = useState(h0.inch);
   const profile = useMemo(() => {
     const p = Object.assign({}, f);
     p.age = +f.age || 0;
@@ -4946,8 +4966,15 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
     if (f.height_unit === 'ft_in') p.heightCm = ftInToCm(+ft || 0, +inch || 0);
     else p.heightCm = +f.heightCm || 0;
     if (f.proteinManualG === '') delete p.proteinManualG;
-    return withActivity(p);
-  }, [f, st, lb, ft, inch]);
+    let gKg = f.weight_unit === 'st_lb'
+      ? ((gst === '' && glb === '') ? null : stLbToKg(+gst || 0, +glb || 0))
+      : (gw === '' ? null : +gw);
+    // A goal on the wrong side of where you are is not saved: the last step says so instead.
+    if (!(gKg > 0) || p.goalType === 'maintain' || (p.weightKg > 0 && (p.goalType === 'cut' ? gKg >= p.weightKg : gKg <= p.weightKg))) gKg = null;
+    p.goalWeightKg = gKg ? +gKg.toFixed(1) : null;
+    // Activity is required before Continue; until it is picked the preview reads as moderate.
+    return withActivity(p.activityLevel ? p : Object.assign({}, p, { activityLevel: 'moderate' }));
+  }, [f, st, lb, ft, inch, gw, gst, glb]);
   const preview = useMemo(() => { try { return E.computeInitialTargets(profile); } catch (e) { return null; } }, [profile]);
 
   const steps = [
@@ -4970,15 +4997,21 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
       </>) },
     { t: 'How active are you?', line: 'Day to day, not just the gym. I use this for your calories.', body: (
       <div className="space-y-2.5">{ACTIVITY.map(a => (
-        <button key={a.v} onClick={() => set('activityLevel', a.v)} className={`w-full text-left pixel-box p-4 ${f.activityLevel === a.v ? 'bg-white text-black' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: f.activityLevel === a.v ? '3px 3px 0 0 var(--shadow)' : 'none' }}>
+        <button key={a.v} aria-pressed={f.activityLevel === a.v} onClick={() => set('activityLevel', a.v)} className={`w-full text-left pixel-box p-4 ${f.activityLevel === a.v ? 'bg-white text-black' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: f.activityLevel === a.v ? '3px 3px 0 0 var(--shadow)' : 'none' }}>
           <div className="font-semibold">{a.l}</div><div className={`text-[12px] ${f.activityLevel === a.v ? 'text-black/60' : 'text-[#8A8A90]'}`}>{a.d}</div>
         </button>))}</div>) },
     { t: 'What are we aiming for?', line: 'Pick a direction. We can always change course together later.', body: (
       <>
         <Field label="Goal"><Seg value={f.goalType} onChange={v => { set('goalType', v); if (!proteinTouched) set('proteinGPerKgLBM', E.defaultProteinPerKgLBM(v)); }} options={[{ v: 'cut', l: 'Lose fat' }, { v: 'maintain', l: 'Maintain' }, { v: 'gain', l: 'Build muscle' }]} /></Field>
+        <Field label="Eating style" hint="How the calories split between carbs and fat. Protein stays the same either way."><Seg value={f.dietStyle} onChange={v => set('dietStyle', v)} options={[{ v: 'balanced', l: 'Balanced' }, { v: 'lower_carb', l: 'Lower carb' }, { v: 'higher_carb', l: 'Higher carb' }]} /></Field>
         {f.goalType !== 'maintain' && <Field label={`Pace: ${f.rateKgPerWeek} kg/week`} hint="A steady 0.5 kg a week suits most people. Drag only if you want to.">
           <input type="range" min="0.1" max="1.2" step="0.05" value={f.rateKgPerWeek} onChange={e => set('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
           {(() => { const rl = rateLabel(f.rateKgPerWeek, f.goalType); return <div className="text-[12px] mt-1.5" style={{ color: rl.c }}>{rl.t}</div>; })()}
+        </Field>}
+        {f.goalType !== 'maintain' && <Field label="Goal weight (optional)" hint="Gives the plan a finish line. Leave it blank if you would rather not pick one yet.">
+          {f.weight_unit === 'st_lb'
+            ? <div className="flex gap-2 items-center"><NumInput value={gst} onChange={e => setGst(e.target.value)} placeholder="st" aria-label="Goal weight, stones" /><span className="text-[#8A8A90]">st</span><NumInput value={glb} onChange={e => setGlb(e.target.value)} placeholder="lb" aria-label="Goal weight, pounds" /><span className="text-[#8A8A90]">lb</span></div>
+            : <div className="flex gap-2 items-center"><NumInput value={gw} onChange={e => setGw(e.target.value)} placeholder="kg" aria-label="Goal weight in kilograms" /><span className="text-[#8A8A90]">kg</span></div>}
         </Field>}
       </>) },
     { t: 'Your starting plan', line: "Here's where we start. I retune it from your check-ins as we go.", body: preview ? (
@@ -4990,15 +5023,29 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
           <div><div className="text-xl font-semibold tnum" style={{ color: FAT_T }}>{preview.fat_g}g</div><div className="text-[11px] text-[#8A8A90]">Fat</div></div>
           <div><div className="text-xl font-semibold tnum" style={{ color: CARB_T }}>{preview.carbs_g}g</div><div className="text-[11px] text-[#8A8A90]">Carbs</div></div>
         </div>
+        {(() => {
+          const typed = f.weight_unit === 'st_lb' ? !(gst === '' && glb === '') : gw !== '';
+          const g = profile.goalWeightKg, now = profile.weightKg, r = Math.abs(f.rateKgPerWeek || 0);
+          if (f.goalType === 'maintain' || !r || !(now > 0)) return null;
+          if (typed && !g) return <div className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--fat-ink)' }}>That goal weight is {f.goalType === 'cut' ? 'not below' : 'not above'} where you are now, so I have left it off. You can set one any time in Settings.</div>;
+          if (!g) return null;
+          const weeks = Math.max(1, Math.ceil(Math.abs(now - g) / r));
+          const when = new Date(Date.now() + weeks * 7 * 864e5).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+          return <div className="text-[12.5px] mt-4 leading-snug">At {r} kg a week you would reach <b>{fmtWeight(g, f.weight_unit)}</b> in about <b className="tnum">{weeks}</b> week{weeks === 1 ? '' : 's'}, around <b>{when}</b>. Your check-ins keep that honest.</div>;
+        })()}
         <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left" style={{ color: 'var(--accent-ink)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
         {showMaths && <div className="text-[12px] text-[#8A8A90] mt-2 space-y-1.5">
           <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin-St Jeor BMR plus your steps and training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal a day`}.</div>
           <div><b className="text-[var(--text2)]">Protein:</b> {preview.protein_g} g, sized to hold onto muscle (Helms 2014). I can sharpen this once you tell me your body fat.</div>
-          <div><b className="text-[var(--text2)]">Fat and carbs:</b> a balanced split to start, carbs fill the rest. Adjustable any time.</div>
+          <div><b className="text-[var(--text2)]">Fat and carbs:</b> {f.dietStyle === 'lower_carb' ? 'a lower-carb split, with more of the energy from fat' : f.dietStyle === 'higher_carb' ? 'a higher-carb split, with less from fat' : 'a balanced split to start'}, carbs fill the rest. Adjustable any time.</div>
         </div>}
       </Card>) : <div /> },
   ];
   const last = step === steps.length - 1;
+  // What is still missing on this step, named, so Continue can say why it will not go on.
+  const need = step === 0
+    ? [!f.sex && 'sex', !(profile.age >= 13 && profile.age <= 100) && 'age', !(profile.heightCm >= 120 && profile.heightCm <= 230) && 'height', !(profile.weightKg >= 30 && profile.weightKg <= 300) && 'weight'].filter(Boolean)
+    : (step === 1 && !f.activityLevel) ? ['activity level'] : [];
   // In dark theme --header is black (the top bar), so headings/progress that used it went invisible.
   const brand = f.theme === 'dark' ? 'var(--accent)' : 'var(--header)';
   return (
@@ -5020,8 +5067,9 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
       {steps[step].body}
       <div className="flex gap-3 mt-6">
         {step > 0 ? <Btn kind="ghost" onClick={() => setStep(step - 1)}>Back</Btn> : (onCancel ? <Btn kind="ghost" onClick={onCancel}>Cancel</Btn> : null)}
-        <Btn className="flex-1" onClick={() => last ? onDone(profile) : setStep(step + 1)}>{last ? 'Save my plan' : 'Continue'}</Btn>
+        <Btn className="flex-1" onClick={() => { if (need.length) { setTried(true); return; } setTried(false); if (last) onDone(profile); else setStep(step + 1); }}>{last ? 'Save my plan' : 'Continue'}</Btn>
       </div>
+      {tried && need.length > 0 && <div className="text-[12px] mt-3" role="alert" style={{ color: 'var(--danger-ink)' }}>Add your {need.join(', ')} to carry on.</div>}
       {bfPick && <BodyFatPicker sex={f.sex} prevBf={f.bodyFatPct} onPick={v => set('bodyFatPct', v)} onClose={() => setBfPick(false)} />}
     </div>
     </div>
@@ -5934,7 +5982,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   );
 
   return (<>
-    <Sheet title={'Check-in' + (beatIdx >= 0 ? ` · step ${beatIdx + 1} of ${beats.length}` : '')}
+    <Sheet title={'Check-in' + (beatIdx >= 0 ? ` · step ${beatIdx + 1} of ${beats.length}` : phase === 'done' ? ' · done' : '')}
       onClose={() => { if (!proposalShown) onClose(); }} wide z={50}>
         {beatIdx >= 0 && <div className="flex items-center justify-center relative">
           {dots}
@@ -6092,8 +6140,31 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
 
         {/* 7. The forward half. Strictly last, strictly optional: the retune is already committed. */}
         {phase === 'ahead' && <div className="fade-in">
-          <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} onSkip={() => onClose()} />
+          <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => go('done')} onSkip={() => go('done')} />
         </div>}
+        {/* 8. The close. The check-in used to end by vanishing on the last answer, with nothing saying
+            what had been decided or when the next one is. One screen that says both, then out. Not a
+            step: the pips have already filled. */}
+        {phase === 'done' && (() => {
+          const t = currentTargets(db) || base;
+          const st = checkinStatus(db, today);
+          const wait = checkinWaitLabel(st).split(' · ');
+          const next = st && st.nextISO && wait.length === 2
+            ? 'Next check-in: ' + wait[1] + ' ' + fmtShortDay(st.nextISO) + ', ' + wait[0].toLowerCase() + '.' : null;
+          return <div className="fade-in">
+            <Say sub={next}>That is this week done. Here is what you are running on.</Say>
+            {t && <>
+              <Headline value={t.kcal + ' kcal'} note="a day" />
+              <div className="grid grid-cols-3 gap-2 mb-4">{[
+                { l: 'protein', v: t.protein_g, c: 'var(--pro-ink)' }, { l: 'carbs', v: t.carbs_g, c: 'var(--carb-ink)' }, { l: 'fat', v: t.fat_g, c: 'var(--fat-ink)' },
+              ].map(r => <div key={r.l} className="pixel-box p-2 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">{r.l}</div>
+                <div className="text-[15px] font-bold tnum leading-tight" style={{ color: r.c }}>{r.v}g</div>
+              </div>)}</div>
+            </>}
+            <Btn kind="accent" className="w-full" onClick={onClose}>Done</Btn>
+          </div>;
+        })()}
     </Sheet>
     {bfPick && <BodyFatPicker sex={p.sex} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
     {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
@@ -6292,6 +6363,15 @@ function trendRateKgPerWeek(db, days) {
   const start = within.length >= 2 ? within[0] : ents[0];
   const span = daysBetween(start.date, end.date);
   if (span < TREND_MIN_SPAN_DAYS) return null; // a week is the shortest span worth calling a rate
+  // The same measure the check-in uses: a robust slope through every RAW reading in the window. Endpoint
+  // to endpoint on the EMA trend lagged a steady loss by about a third in the first weeks (the trend
+  // starts where the first reading was), so Progress said 0.5 kg a week seconds after the check-in
+  // said 0.7, and one odd morning at either end could swing it.
+  const raw = (within.length >= 2 ? within : ents).filter(e => e.scale_weight != null);
+  if (raw.length >= 3 && E.theilSen) {
+    const fit = E.theilSen(raw.map(e => daysBetween(raw[0].date, e.date)), raw.map(e => e.scale_weight));
+    if (fit && isFinite(fit.slope)) return fit.slope * 7;
+  }
   return ((val(end) - val(start)) / span) * 7;
 }
 /* What the trend is still waiting for, in exactly the terms trendRateKgPerWeek asks for it: a first
@@ -6377,9 +6457,22 @@ function progressVerdict(db) {
    than a report card: "protein on 11 of 14 days" is a fact, "you failed 3 days" is a telling-off,
    and the sustainable-process framing is the one the evidence backs for people who are going to be
    doing this for months. */
+/* The first day this account (or its fresh start) has anything on it. Windows that look back a fixed
+   fortnight clamp to it, or an eight-day-old account reads "6 of 14 days logged": a telling-off for
+   days it could not have logged. */
+function accountStartISO(db) {
+  let first = null;
+  (db.weight_entries || []).forEach(w => { if (w && w.date && (!first || w.date < first)) first = w.date; });
+  (db.log_entries || []).forEach(e => { if (e && e.date && (!first || e.date < first)) first = e.date; });
+  const floor = planFloorISO(db);
+  if (floor && (!first || floor > first)) first = floor;
+  return first;
+}
 function behaviourStats(db, days, endISO) {
   const end = endISO || Store.todayISO();
-  const start = shiftISO(end, -(days - 1));
+  const first = accountStartISO(db);
+  let start = shiftISO(end, -(days - 1));
+  if (first && first > start) start = first;
   const dates = [];
   for (let d = start; d <= end; d = shiftISO(d, 1)) dates.push(d);
   let proteinHit = 0, complete = 0, ndSum = 0, ndDays = 0;
@@ -6624,6 +6717,9 @@ function CyclePanel({ db, onWeigh, footer }) {
               it is built from, and a 258px grid on the same page never actually said that. */}
           {v && (() => {
             const cov = cycleCoverage(db, today);
+            // Checked in today: the cycle that just closed owns today's weigh-in and the next one starts
+            // tomorrow. Counting that as "0 of 1 weigh-in" sat directly above "weighed today".
+            if (cov.cs > today) return <div className="text-[10px] mt-3 leading-snug" style={{ color: 'var(--muted)' }}>Checked in today. The next cycle starts tomorrow.</div>;
             // A cycle that started yesterday is not thin data, it is a new cycle.
             const young = cov.logWindow < 4;
             const thin = !young && (cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2);
@@ -7066,7 +7162,11 @@ function ExpenditureCard({ db, plan }) {
   Object.keys(kcalByDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
   const weights = db.weight_entries.filter(w => afterFloor(db, w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
   const bmr = E.mifflinBMR(withActivity(db.profile));
-  const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: 14, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
+  // The window is a fortnight, or the account's age if younger (never under the week the estimate needs):
+  // days before the account existed were being scored as unlogged, which alone kept confidence "low".
+  const expFirst = accountStartISO(db);
+  const expWindow = expFirst ? Math.max(7, Math.min(14, daysBetween(expFirst, today) + 1)) : 14;
+  const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   const unit = db.profile.weight_unit;
   /* ---- Before there is a burn to show ----
      The same treatment the cycle strip's starting-out state got, for the same reason: this is where
@@ -7222,7 +7322,7 @@ function ExpenditureCard({ db, plan }) {
           const b = behaviourStats(db, 14);
           if (!b.loggedDays) return null;
           return <div className="text-[10px] mt-2" style={{ color: 'var(--muted2)' }}>
-            Resting on {b.complete} of 14 days fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
+            Resting on {b.complete} of {b.days} day{b.days === 1 ? '' : 's'} fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
           </div>;
         })()}
       </div>
@@ -8507,7 +8607,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
       </>, kind)}
       {/* THE WEEK, as bands of this card rather than a card of its own. The whole readout opens
           Progress and carries a chevron saying so. */}
-      {week && !incubating && <>
+      {week && <>
         {/* THE JOURNEY, not the report card. Start weight on the left, goal weight on the right, and
             the distance you have actually covered called out in the good ink. Whether that distance
             is ahead of or behind the rate you agreed to is a real question with a whole module
@@ -8558,6 +8658,13 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
           <span className="text-[12.5px]">See your full progress</span>
           <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
         </button>
+        {/* The morning weigh-in, as a row of the road it feeds. The buddy asks for it in words when it
+            can, so this only draws when that ask is not already on the card (and always while the egg
+            incubates, when the buddy is not talking). It gives up the gold to anything else asking. */}
+        {week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating) && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <span className="text-[12.5px]">Not weighed in yet today</span>
+          <Btn kind={(week.due || (msg && !incubating && msg.primary)) ? 'ghost' : 'accent'} onClick={week.onWeigh}>Weigh in</Btn>
+        </div>}
         {week.due && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
           <span className="text-[12.5px]">Weekly check-in due</span>
           <Btn kind="accent" onClick={week.onCheckIn}>Check in</Btn>
@@ -11768,6 +11875,7 @@ function EggPickerOnboarding({ update, onDone }) {
         </div>
         {step === 'familiarity' ? (
           <>
+            <div className="text-[13px] leading-relaxed mb-5 max-w-xs">Macrosaurus sets your calories and protein, learns from your weigh-ins and retunes them every week. First, a buddy to do it with.</div>
             <div className="text-lg font-bold mb-1">How well do you know macros?</div>
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs">Your buddy coaches you either way. This just sets how much it explains as you go.</div>
             <button onClick={() => { setNewbie(true); setStep('egg'); }} className="pixel-btn w-full py-3 mb-2 text-left px-4" style={{ background: 'var(--surface2)' }}>
@@ -11785,7 +11893,11 @@ function EggPickerOnboarding({ update, onDone }) {
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy.</div>
             <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
               {SPRITE_SPECIES.map(s => (
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                // `.pixel-box` sets its border with !important, so the inline accent border this used was
+                // never drawn and the chosen egg looked exactly like the other eleven. The class wins.
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'Egg ' + (SPRITE_SPECIES.indexOf(s) + 1) + ' of ' + SPRITE_SPECIES.length} aria-pressed={species === s.id}
+                  className={'pixel-box p-1 flex items-center justify-center buddy-scene' + (species === s.id ? ' box-accent' : '')}
+                  style={{ boxShadow: species === s.id ? '3px 3px 0 0 var(--accent)' : 'none', background: species === s.id ? 'var(--accent-dim)' : undefined }}>
                   <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
                 </button>
               ))}
@@ -11863,7 +11975,11 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Pick the one that speaks to you. Everything you've earned stays put, it just hatches anew.</div>
             <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
               {SPRITE_SPECIES.map(s => (
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                // `.pixel-box` sets its border with !important, so the inline accent border this used was
+                // never drawn and the chosen egg looked exactly like the other eleven. The class wins.
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'Egg ' + (SPRITE_SPECIES.indexOf(s) + 1) + ' of ' + SPRITE_SPECIES.length} aria-pressed={species === s.id}
+                  className={'pixel-box p-1 flex items-center justify-center buddy-scene' + (species === s.id ? ' box-accent' : '')}
+                  style={{ boxShadow: species === s.id ? '3px 3px 0 0 var(--accent)' : 'none', background: species === s.id ? 'var(--accent-dim)' : undefined }}>
                   <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
                 </button>
               ))}
@@ -12235,8 +12351,17 @@ function useNutrientBackfill(db, update, date, isPremium) {
    Returns null only when there is genuinely no journey: an egg still incubating, or a profile with
    no goal on it yet. Handlers are added by the caller. */
 function journeyBand(db, today, eggIncubating) {
-  if (eggIncubating) return null;
+  // The egg no longer takes the plan off Today. It used to return null here while incubating, which
+  // hid the journey, the weekly check-in row and the way into Progress for the whole first week: a new
+  // account reached its first check-in day with nothing on Today saying it was due. The hatch list
+  // shares the buddy's box now; it does not replace the road.
   const unit = (db.profile || {}).weight_unit;
+  // Not weighed yet today, on a day the account expects a reading (every day unless weekly, then only
+  // the chosen day). Drawn as a row of the band when the buddy is not already asking for it.
+  const p0 = db.profile || {};
+  const weighedToday = (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null);
+  const weighDayOk = p0.weighCadence !== 'single' || p0.weighDay == null || new Date(today + 'T00:00:00').getDay() === p0.weighDay;
+  const weighToday = !db.paused && !weighedToday && weighDayOk;
   const num = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) : Math.abs(kg).toFixed(1));
   const uLabel = unit === 'st_lb' ? 'lb' : 'kg';
   const v = progressVerdict(db);
@@ -12272,7 +12397,10 @@ function journeyBand(db, today, eggIncubating) {
       nextLine: fr.readings
         ? <><b className="tnum">{fr.daysLeft}</b> more day{fr.daysLeft === 1 ? '' : 's'} of weigh-ins and I can tell you whether this is working.</>
         : <>Weigh in for a week and I can tell you whether this is working.</>,
-      due: false, thin: null, moved: false, lad: null, line: null, v: null,
+      // A check-in can be due before the first trend read has landed (the read waits for seven days
+      // between weigh-ins; the check-in waits for seven days since setup). Hard-coding false here meant a
+      // new account's first check-in day offered no way to check in on Today.
+      due: !db.paused && checkinStatus(db, today).due, thin: null, moved: false, lad: null, line: null, v: null, weighToday,
     };
   }
   const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
@@ -12312,6 +12440,7 @@ function journeyBand(db, today, eggIncubating) {
     startStr: v.startKg != null ? fmtWeight(v.startKg, unit) : '',
     goalStr: v.goalWeightKg > 0 ? fmtWeight(v.goalWeightKg, unit) : '',
     starting: false,
+    weighToday,
     due: state === 'due',
     thin: state === 'thin'
     ? 'Thin data so far: ' + cov.logged + ' of ' + cov.logWindow + ' day' + (cov.logWindow === 1 ? '' : 's') + ' logged and ' + cov.weighed + ' of ' + cov.weighWindow + ' weigh-in' + (cov.weighWindow === 1 ? '' : 's') + ', so treat this as a rough read.'
@@ -12480,16 +12609,30 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   // made the protein staple permanently unticked and meant the egg could never hatch from finishing
   // the staples at all. Matches OnboardingChecklist, which had it right.
   const hatchProteinTgt = hatchEt ? hatchEt.eff.protein_g : 0;
+  // Staples stay ticked once done. The protein one read today's food only, so an egg at 4/5 on Monday
+  // night was back at 3/5 on Tuesday morning: progress going backwards overnight. And the "try AI"
+  // staple meant an egg could never hatch for someone who does not want AI, so any second way of
+  // logging counts: a barcode or packet, a label, a photo or description, or a recipe.
+  const staples = (db.onboarding && db.onboarding.staples) || {};
+  const anotherWay = (db.log_entries || []).some(e => ['ai_estimate', 'label', 'off', 'community', 'recipe'].indexOf(e.source) >= 0);
+  const proteinToday = hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt;
   const hatchTasks = [
     // Creating the account IS the first task, banked before they do anything, so the very first
     // screen a new user sees reads 1/5 rather than 0/4. Nobody should meet this app on a zero.
     { k: 'account', label: 'Created your account', done: true, go: null },
     { k: 'meal', label: 'Log a meal', done: (db.log_entries || []).length > 0, go: () => onQuickAdd(false) },
-    { k: 'ai', label: 'Try a Photo or Describe estimate', done: (db.log_entries || []).some(e => e.source === 'ai_estimate' || e.source === 'label'), go: () => onQuickAdd(false) },
-    { k: 'protein', label: 'Hit your protein target', done: hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt, go: () => onQuickAdd(false) },
+    { k: 'ai', label: 'Log with a scan, photo or recipe', done: !!staples.ai || anotherWay, go: () => onQuickAdd(false) },
+    { k: 'protein', label: 'Hit your protein target', done: !!staples.protein || proteinToday, go: () => onQuickAdd(false) },
     { k: 'weigh', label: 'Add a weigh-in', done: (db.weight_entries || []).length > 0, go: () => onWeigh(true) },
   ];
   const hatchStaplesDone = hatchTasks.every(t => t.done);
+  useEffect(() => {
+    if (!eggIncubating) return;
+    const need = {};
+    if (anotherWay && !staples.ai) need.ai = true;
+    if (proteinToday && !staples.protein) need.protein = true;
+    if (Object.keys(need).length) update(d => { d.onboarding = d.onboarding || {}; d.onboarding.staples = Object.assign({}, d.onboarding.staples, need); });
+  }, [eggIncubating, anotherWay, proteinToday]);
   const forceHatchNow = DEMO && new URLSearchParams(window.location.search).has('hatchnow');
   useEffect(() => { if (forceHatchNow || (eggIncubating && hatchStaplesDone)) setHatching(true); }, [eggIncubating, hatchStaplesDone, forceHatchNow]);
   useEffect(() => {
@@ -12542,7 +12685,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
      numbers row, the same check-in state - so the two surfaces cannot drift apart while both exist. */
   const week = (() => {
     const b = journeyBand(db, today, eggIncubating);
-    return b && Object.assign(b, { onOpen: () => setView('goals'), onCheckIn });
+    return b && Object.assign(b, { onOpen: () => setView('goals'), onCheckIn, onWeigh: () => onWeigh(true) });
   })();
   // The order this person put their cards in, and the hold-to-move that changes it.
   const todayOrder = todayOrderOf(db);
@@ -12784,6 +12927,15 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
             <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
           </div>
+          {/* A drink's calories are split across carbs and fat so the day still balances, which can turn
+              a carb row red on a day the food was fine. Say so, once, rather than leave it a mystery. */}
+          {(() => {
+            const drinks = entriesOn(db, today).filter(e => e.is_alcohol);
+            if (!drinks.length) return null;
+            const k = Math.round(drinks.reduce((s, e) => s + ((e.computed_macros || {}).kcal || 0), 0));
+            const over = tot.carbs > et.eff.carbs_g || tot.fat > et.eff.fat_g;
+            return <div className="px-3 pb-2.5 -mt-1 text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {k} kcal of drinks, split across carbs and fat{over ? ', which is part of why those read over' : ''}.</div>;
+          })()}
           <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
               <FibreCell tot={tot} et={et} mode={mode} />
@@ -12970,6 +13122,22 @@ function FoodLog({ db, update, openLog, showToast }) {
   const [photoUp, setPhotoUp] = useState(null); // the entry being re-estimated from a photo taken later
   const [confirm, setConfirm] = useState(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(today + 'T00:00:00'); return { y: d.getFullYear(), m: d.getMonth() }; });
+  // The diary follows the real day. This is a PWA people leave open, so a "today" read once at mount
+  // went stale overnight: the page kept saying Today over yesterday's food, and a meal card's
+  // + Add food filed the morning's breakfast under yesterday. A day paged to on purpose stays put.
+  const todayRef = useRef(today);
+  useEffect(() => {
+    const check = () => {
+      const now = Store.todayISO(); const was = todayRef.current;
+      if (now === was) return;
+      todayRef.current = now;
+      setDate(d => (d === was ? now : d));
+    };
+    const id = setInterval(check, 60000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
+  }, []);
   const meals = mealsForDay(db, date);
   // Forward-looking days (paging/swiping into the future) use the projected target so carryover
   // is shown paid-down day by day, not the whole running balance dumped onto every future day.
@@ -13532,7 +13700,7 @@ function FoodLog({ db, update, openLog, showToast }) {
       </div>
       </div>
       {editing && (() => { const dc = dayContextFor(db, date, editing.id); const mm = meals.find(x => x.id === editing.meal_id);
-        return <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)}
+        return <EditEntryModal entry={editing} meals={meals} onSave={saveEdit} onClose={() => setEditing(null)}
           onDelete={() => { del(editing); setEditing(null); }}
           contextLine={[mm && mm.name, ENTRY_SOURCE_LABEL[editing.source]].filter(Boolean).join(' · ') || null}
           onPhotoUpdate={E.photoUpdatable(editing) ? (() => { setPhotoUp(editing); setEditing(null); }) : null}
@@ -13608,6 +13776,7 @@ function applyEntryPatch(update, id, patch) {
     if (patch.amount != null) x.amount = patch.amount; if (patch.unit) x.unit = patch.unit; if (patch.unit_noun) x.unit_noun = patch.unit_noun;
     if (patch.serving_g != null) x.serving_g = patch.serving_g; // keeps the grams/portions toggle available next time
     if (patch.alcohol_split !== undefined) x.alcohol_split = patch.alcohol_split;
+    if (patch.meal_id) x.meal_id = patch.meal_id;
     const key = patch.name.trim().toLowerCase(); const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
     if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); if (patch.alcohol_split !== undefined) food.alcohol_split = patch.alcohol_split; }
   });
@@ -13671,7 +13840,7 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
    the thing you were looking at. That is backwards, because the diary entry is the record that has
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
-function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget }) {
+function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget, meals }) {
   // No useBackClose here: `Sheet` arms the back layer, and arming it twice pushes two layers so the
   // hardware back button needs two presses to shut one sheet.
   const topRef = useScrolledToTop();
@@ -13681,12 +13850,17 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
     : parseQty(entry.qty_label);
   const amt0 = parsed ? parsed.amount : 1;
   const unit0 = parsed ? parsed.unit : 'serv';
-  const noun = parsed ? parsed.noun : 'serving';
+  // The portion's own name ("bowl", "fillet") when the entry was logged in grams. The entry's unit noun
+  // is "g" then, and reusing it for the portion option labelled that option "G (150 g)" and a switch to
+  // it "1 g".
+  const noun = parsed && !(parsed.unit === 'g' && parsed.noun === 'g') ? parsed.noun : (entry.serving_label || 'portion');
   const [name, setName] = useState(entry.name || '');
   // The name is the sheet's heading, not a permanent 54px text field at the top of it. Renaming a
   // logged food is rare, and charging the full price of an input for it on every single visit put
   // the thing you came to change below the fold.
   const [renaming, setRenaming] = useState(false);
+  // Moving an entry to another meal, from the sheet you are already looking at it in.
+  const [mealId, setMealId] = useState(entry.meal_id);
   const [unit, setUnit] = useState(unit0);
   const [amount, setAmount] = useState(String(amt0));
   const [base, setBase] = useState({ protein: (m.protein || 0) / amt0, carbs: (m.carbs || 0) / amt0, fat: (m.fat || 0) / amt0, fiber: (m.fiber || 0) / amt0, kcal: (m.kcal || 0) / amt0 });
@@ -13718,7 +13892,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
   const isAlc = !!entry.is_alcohol;
   const [carbPct, setCarbPct] = useState(() => (m.kcal > 0 ? Math.max(0, Math.min(100, Math.round(((m.carbs || 0) * 4 / m.kcal) * 10) * 10)) : 50));
   function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
-  function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
+  function save() { onSave({ meal_id: (meals && mealId && mealId !== entry.meal_id) ? mealId : undefined, name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (
     <Sheet title={saveVerb === 'Add' ? 'Add entry' : 'Edit entry'} onClose={onClose} wide z={50}>
       {/* The identity row the design opens every entry sheet with: the food's own tile, its name at
@@ -13737,6 +13911,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
               </button>}
         </div>
       </div>
+      {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: x.name }))} /></div>}
       {canSwitch && <div><SheetLabel className="block mb-[7px]">Measure in</SheetLabel><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
       <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun}
@@ -13899,18 +14074,61 @@ function loadGenericFoods() {
 // CoFID names qualify from left to right ("Chicken, breast, grilled without skin, meat only"), so a
 // match at the front of the name, and the shortest name among equals, is reliably the plainest form
 // of the food. That puts "Chicken, breast, grilled without skin" above "Chicken and mushroom pie".
+/* Staples that are cooked before they are eaten. Shortest-name-first put "Rice, white, basmati, raw"
+   above "... boiled in unsalted water", so the rice people actually log sat eighth, below pudding rice.
+   Raw and dried forms of these lose ground unless the search asks for raw. */
+const STAPLE_RX = /\b(rice|pasta|spaghetti|macaroni|noodles?|couscous|quinoa|oats|lentils?|beans?|chick ?peas|split peas|barley|bulgur|potato(es)?|buckwheat|millet|polenta)\b/;
+const RAW_RX = /\b(raw|dried|uncooked|dry)\b/;
+/* A typical portion for common generic foods, so "how much did you have?" starts at a real plate
+   rather than 100 g, with the portion one tap away on the unit switch. Matched on the CoFID name; the
+   first rule wins. Raw ingredients get none, since nobody eats a "portion" of raw rice. */
+const TYPICAL_PORTIONS = [
+  [/^porridge, made with/, 250, 'bowl'],
+  [/^rice\b.*\b(boiled|cooked|steamed|fried)\b/, 180, 'portion'],
+  [/^(pasta|spaghetti|macaroni|noodles)\b.*\b(boiled|cooked)\b/, 230, 'portion'],
+  [/^(couscous|quinoa)\b.*\b(cooked|soaked|boiled)\b/, 150, 'portion'],
+  [/^(salmon|cod|haddock|mackerel|trout|sea bass|pollock|plaice)\b.*\b(baked|grilled|steamed|poached|fried|microwaved|roasted)\b/, 140, 'fillet'],
+  [/^chicken, breast\b.*\b(grilled|roasted|baked|fried|casseroled|stewed|poached)\b/, 150, 'breast'],
+  [/^eggs?, chicken\b.*\b(boiled|poached|fried|scrambled)\b/, 58, 'egg'],
+  [/^bread, (white|wholemeal|brown|granary|seeded|malted)\b/, 36, 'slice'],
+  [/^potato(es)?, .*\b(baked|jacket)\b/, 220, 'potato'],
+  [/^potato(es)?, .*\b(boiled|mashed|roast)\b/, 180, 'portion'],
+  [/^bananas?\b/, 100, 'banana'],
+  [/^apples?, eating/, 110, 'apple'],
+  [/^milk, (semi-skimmed|skimmed|whole|1%)/, 200, 'glass'],
+  [/^(yogurt|yoghurt)/, 150, 'pot'],
+  [/^cheese, cheddar/, 30, 'portion'],
+  [/^(baked beans|beans, baked)/, 200, 'portion'],
+  [/^(broccoli|carrots?|peas)\b/, 80, 'portion'],
+  [/^avocado/, 75, 'half'],
+];
+function typicalPortion(name) {
+  const lc = String(name || '').toLowerCase();
+  if (RAW_RX.test(lc) && !/^(bananas?|apples?|avocado|carrots?)\b/.test(lc)) return null;
+  const r = TYPICAL_PORTIONS.find(x => x[0].test(lc));
+  return r ? { g: r[1], label: r[2] } : null;
+}
 function searchGenericFoods(list, query, limit) {
   const terms = query.split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
+  const wantsRaw = RAW_RX.test(query);
   const hits = [];
   for (let i = 0; i < list.length; i++) {
     const f = list[i];
     let ok = true;
-    for (let t = 0; t < terms.length; t++) if (f.lc.indexOf(terms[t]) < 0) { ok = false; break; }
+    // Also tried with the spaces taken out and a plural dropped, because the UK food list writes some
+    // things apart that everybody types together: "chickpeas" found nothing against "chick peas".
+    for (let t = 0; t < terms.length; t++) {
+      if (f.lc.indexOf(terms[t]) >= 0) continue;
+      if (!f.sq) f.sq = f.lc.replace(/[\s,()-]+/g, '');
+      if (terms[t].length >= 4 && f.sq.indexOf(terms[t].replace(/s$/, '')) >= 0) continue;
+      ok = false; break;
+    }
     if (!ok) continue;
     const at = f.lc.indexOf(terms[0]);
     const rank = at === 0 ? 0 : (/[\s,(]/.test(f.lc.charAt(at - 1)) ? 1 : 2);
-    hits.push({ f: f, k: rank * 10000 + f.name.length });
+    const rawStaple = !wantsRaw && STAPLE_RX.test(f.lc) && RAW_RX.test(f.lc);
+    hits.push({ f: f, k: rank * 10000 + (rawStaple ? 5000 : 0) + f.name.length });
   }
   hits.sort((a, b) => a.k - b.k);
   return hits.slice(0, limit || 12).map(x => x.f);
@@ -13920,9 +14138,9 @@ function searchGenericFoods(list, query, limit) {
    tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
    match depends on is the app's own food search. */
 function cofidCheck(list, items) { return Cofid.check(searchGenericFoods, list, items); }
-function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, day }) {
+function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, day }) {
   const [q, setQ] = useState('');
-  const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
+  const [dbTry, setDbTry] = useState(0); const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
   const [generic, setGeneric] = useState([]); const [genericErr, setGenericErr] = useState(false);
   const [qtyFor, setQtyFor] = useState(null); // tap the qty text on a row to adjust the amount before logging
@@ -13958,30 +14176,40 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
         // WORLD database in no particular order: "chicken breast" came back as four French deli
         // products and a Spanish one before it reached anything you could buy here.
         const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=30&tagtype_0=countries&tag_contains_0=contains&tag_0=united-kingdom&sort_by=popularity_key&fields=product_name,brands,nutriments,serving_size,serving_quantity,categories_tags';
-        const data = await (await fetch(url)).json();
+        // Open Food Facts' search is slow and rate-limited, and one failed call used to leave an error
+        // with no way to try again but retyping. One quiet retry here, then a Retry button.
+        const get = async () => { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
+        let data;
+        try { data = await get(); } catch (e1) { if (cancel) return; await new Promise(res => setTimeout(res, 1200)); if (cancel) return; data = await get(); }
         if (cancel) return;
         const items = (data.products || []).map(p => { const n = p.nutriments || {}; const k = n['energy-kcal_100g']; if (!p.product_name || k == null) return null; return { name: p.product_name, brand: p.brands || '', serving: p.serving_size || null, servingG: +p.serving_quantity || null, per100: { kcal: +k, protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, extra: offWithKind(offExtras(n), p) }; }).filter(Boolean);
-        setDbResults(items);
-      } catch (e) { if (!cancel) setDbErr('Couldn\'t search just now. Try again.'); }
+        // Rows that cannot be food: over 900 kcal or over 105 g of macros per 100 g is a kJ figure
+        // stored as kcal, or a typo. One offered "Add 1900 kcal" for a rice cake.
+        setDbResults(items.filter(it => it.per100.kcal <= 900 && (it.per100.protein + it.per100.carbs + it.per100.fat) <= 105));
+      } catch (e) { if (!cancel) setDbErr('Couldn\'t reach the brands database just now.'); }
       if (!cancel) setDbLoading(false);
     }, 450);
     return () => { cancel = true; clearTimeout(t); };
-  }, [query]);
+  }, [query, dbTry]);
   const savedMeals = (db.saved_meals || []).slice().sort((a, b) => b.created_at - a.created_at);
   const delMeal = (id) => update(d => { d.saved_meals = (d.saved_meals || []).filter(x => x.id !== id); });
+  // "Add and log another": the item goes in and the sheet goes back to an empty search, so a four-part
+  // dinner is one trip rather than four.
+  const addMore = onPickMore ? (item) => { onPickMore(item); setSel(null); setQ(''); } : undefined;
   const mealTotal = (items) => items.reduce((a, i) => ({ kcal: a.kcal + (i.macros.kcal || 0), protein: a.protein + (i.macros.protein || 0), carbs: a.carbs + (i.macros.carbs || 0), fat: a.fat + (i.macros.fat || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const star = (food) => update(d => { const x = d.foods.find(y => y.id === food.id); if (x) x.is_favorite = !x.is_favorite; });
   // If a saved food carries per-unit values (a smart food or a remembered AI estimate), open the
   // gram-scalable confirm so it can be re-logged at any weight; otherwise one-tap log the last amount.
   const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }); };
-  if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-    if (sel.generic) return <ConfirmFood note="Standard figures for this food, unbranded." per100 source="cofid" extra={sel.generic.extra}
+  if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onAddMore={addMore} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
+    if (sel.generic) { const tp = typicalPortion(sel.generic.name); return <ConfirmFood note="Standard figures for this food, unbranded." per100 source="cofid" extra={sel.generic.extra}
+      servingG={tp ? tp.g : undefined} servingLabel={tp ? tp.label : undefined}
       initial={{ name: sel.generic.name, kcal: sel.generic.per100.kcal, protein: sel.generic.per100.protein, carbs: sel.generic.per100.carbs, fat: sel.generic.per100.fat, fiber: sel.generic.per100.fiber }}
-      onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-    return <ConfirmFood note="Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
+      onAdd={onPick} onAddMore={addMore} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
+    return <ConfirmFood note="Check it looks right before logging." per100 source="off" onAddMore={addMore} branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
-    <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
+    <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
     <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
   const Head = (t) => <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mt-4 mb-2">{t}</div>;
   return (<div>
@@ -14009,7 +14237,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
       {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
       {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span></button>))}</div>}
       {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
-      {dbErr && <div className="text-[12px] text-[#F5C542] py-1">{dbErr}</div>}
+      {dbErr && <div className="text-[12px] py-1 flex items-center justify-between gap-3" style={{ color: 'var(--fat-ink)' }}><span>{dbErr}</span><button onClick={() => setDbTry(n => n + 1)} className="hit text-[12px] font-semibold shrink-0" style={{ color: 'var(--accent-ink)' }}>Retry</button></div>}
       {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
     </>}
     <div className="mt-5">
@@ -14094,12 +14322,15 @@ function suggestMealId(db, meals, now) {
 }
 // The tab you last logged from, remembered for the session so repeat logging (e.g. barcode after
 // barcode) doesn't reset to the Food tab every time.
-let LAST_LOG_TAB = null;
+// The add sheet opens on Food every time. It used to remember the last tab, so one failed AI try left
+// every later + Add food opening on Estimate with your recents out of sight.
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
   // `Sheet` arms the back layer for us.
   const [isAlc, setIsAlc] = useState(!!target.alc);
-  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : (['food', 'photo', 'describe', 'menu'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
-  const setTab = (t) => { setTabRaw(t); setScanNow(0); if (!isAlc) LAST_LOG_TAB = t; };
+  // A first drink has no recents to show, so the drink detour opens on New drink until there are some.
+  const hasDrinkRecents = (db.foods || []).some(f => f.is_alcohol);
+  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? (hasDrinkRecents ? 'recent' : 'manual') : 'food');
+  const setTab = (t) => { setTabRaw(t); setScanNow(0); };
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
@@ -14113,7 +14344,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   // left all answer "what was that?", and it answers "what should it be?". It is absent from the
   // alcohol detour on purpose, since nobody needs three ranked options for a pint.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate'], ['menu', 'Menu']];
-  useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe', 'menu'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
+  useEffect(() => { if (isAlc && tab === 'food') setTabRaw(hasDrinkRecents ? 'recent' : 'manual'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw('food'); }, [isAlc]);
   return (
     <Sheet title={'Log ' + (isAlc ? 'alcohol' : 'food')} onClose={onClose} wide z={50} pad={false}
       bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
@@ -14151,7 +14382,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
               <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
             </button>;
           })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
+          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onPickMore={i => onAdd(mealId, Object.assign({}, i, { keepOpen: true }))} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} day={day} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
@@ -14187,7 +14418,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const star = (food) => update(d => { const x = d.foods.find(y => y.id === food.id); if (x) x.is_favorite = !x.is_favorite; });
   const pick = (f) => onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty });
   const Row = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
-    <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
+    <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
     <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
   return (<div>
     <TextInput placeholder="Search your foods…" value={q} onChange={e => setQ(e.target.value)} />
@@ -14202,7 +14433,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
 // off to the SAME confirm screen for the amount, so it scales exactly like a scan or a database hit.
 function ManualTab({ onPick, onCancel, day }) {
   const [parsed, setParsed] = useState(null);
-  const [v, setV] = useState({ name: '', protein: '', carbs: '', fat: '', fiber: '', kcal: '', basis: '100g', servG: '', servName: '' });
+  const [v, setV] = useState({ name: '', protein: '', carbs: '', fat: '', fiber: '', kcal: '', basis: 'serving', servG: '', servName: '' });
   const set = (k, x) => setV(p => Object.assign({}, p, { [k]: x }));
   const autoKcal = Q.atwaterRaw(v);
   function next() {
@@ -14465,7 +14696,7 @@ function offExtras(n) {
 function _macNums(v) { return Q.macNums(v); }
 function _macScale(m, f) { return Q.macScale(m, f); }
 function _macRound(m) { return Q.macRound(m); }
-function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
+function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onAddMore, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
   useBackClose(onCancel);
   const topRef = useScrolledToTop();
   const basisIsServing = !!perServing;
@@ -14597,7 +14828,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {/* The app already had ONE disclosure component, used everywhere else; this panel was rolling
         its own out of grey caption text. Using the shared one puts the accent Show/Hide where the
         eye already looks for it on every other screen. */}
-    <Collapsible variant="inline" label="Numbers look off?" sub="Edit" defaultOpen={!!estimated} className="mb-2">
+    <Collapsible variant="inline" label="Numbers look off?" sub="Edit" defaultOpen={!!estimated || dodgy} className="mb-2">
     <div className="mb-2">
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
       <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => setMacro('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => setMacro('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => setMacro('fat', e.target.value)} /></Field></div>
@@ -14605,6 +14836,20 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <TextBtn onClick={applyAtwater} className="mt-1.5">Calculate calories from the macros ({atwaterK} kcal)</TextBtn>}
     </div>
     </Collapsible>
+    {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
+      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs, fat and fibre only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
+      <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
+    </div>}
+    {/* The commit sits ABOVE "Not the right food?". Below it, the gold button was under the fold behind
+        a card offering the AI, on the very screen whose job is to say yes to this food. */}
+    {(() => {
+      const payload = { name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq };
+      return <>
+        <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd(payload)}>{(kcalHigh || dodgy) ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
+        {onAddMore && <Btn kind="ghost" className="w-full mt-2" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAddMore(payload)}>Add and log another</Btn>}
+      </>;
+    })()}
     {(onRescan || onAskAI) && !dodgy && <div className="mt-4 mb-1">
       <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Not the right food?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
       {onRescan && <button onClick={onRescan} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
@@ -14618,12 +14863,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
         <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
     </div>}
-    {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs, fat and fibre only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
-      <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
-    </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
+
   </div>);
 }
 /* `verb` retitles the commit button and the strapline for a caller that is not adding a new line to
@@ -14940,11 +15180,11 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
       {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)' }}><Icon.mic width="24" height="24" /></button>}
       <Btn kind="accent" className="flex-1" onClick={run}>Estimate with AI</Btn>
     </div>
+    {err && <div className="text-[12px] mt-2.5 fade-in" role="alert" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
     {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mt-4 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
       <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
       <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
-    {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
   </div>);
 }
 /* MENU · what to order, asked BEFORE the food exists.
@@ -19039,6 +19279,14 @@ function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); id
 function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
 // (CatchReveal removed with the Macrodex: logging no longer reveals a "catch".)
+// While a sheet or the welcome screen is up, a toast at the bottom sat on that screen's own primary
+// action: "Trophy unlocked" over LET'S GO, "Added ..." over Estimate with AI. It moves to the top.
+// When the last toast carrying an Undo went up. See showToast: a reward waits for it rather than replacing it.
+let LAST_UNDO_TOAST_AT = 0;
+function toastPlacement(lifted) {
+  const up = typeof document !== 'undefined' && document.body && document.body.classList.contains('sheet-open');
+  return up ? { top: 'calc(10px + env(safe-area-inset-top))' } : { bottom: lifted ? 148 : 86 };
+}
 function Toast({ toast, onClose, lifted }) {
   if (!toast) return null;
   return (
@@ -19057,7 +19305,7 @@ function Toast({ toast, onClose, lifted }) {
        always readable - including an Undo raised from inside a sheet, which used to be hidden
        behind that sheet and could not be pressed at all - and, being transparent, it costs the
        screen underneath nothing. */
-    <div className="fixed left-0 right-0 z-[97] flex justify-center px-4 pointer-events-none" style={{ bottom: lifted ? 148 : 86 }}>
+    <div className="fixed left-0 right-0 z-[97] flex justify-center px-4 pointer-events-none" style={toastPlacement(lifted)}>
       <div className="pixel-box px-4 py-3 flex items-center gap-3 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0 pointer-events-auto">{toast.action2Label}</button>}
@@ -19186,6 +19434,7 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
 // over the first hours and days through its coach line, curriculum lessons, morning read and check-in
 // prompts, right when each moment actually arrives.
 function WelcomeCarousel({ onDone, reviewing, theme, buddy }) {
+  useSheetOpenClass();
   useBackClose(onDone);
   const dark = theme === 'dark';
   const brand = dark ? 'var(--accent)' : 'var(--header)';   // --header is black in dark, so use accent
@@ -19223,8 +19472,8 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     // Banked before they lift a finger, so the card opens above zero (see hatchTasks).
     { k: 'account', label: 'Created your account', done: true, go: null },
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
-    { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
-    { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },
+    { k: 'ai', label: 'Log with a scan, photo or recipe', done: !!(ob.staples && ob.staples.ai) || db.log_entries.some(e => ['ai_estimate', 'label', 'off', 'community', 'recipe'].indexOf(e.source) >= 0), go: onLog },
+    { k: 'protein', label: 'Hit your protein target', done: !!(ob.staples && ob.staples.protein) || (proteinTgt > 0 && todayProtein >= proteinTgt), go: onLog },
   ];
   const incubating = !!(db.buddy && db.buddy.hatched === false);
   const doneCount = items.filter(x => x.done).length;
@@ -19332,6 +19581,80 @@ function ShareTip({ className = '' }) {
 }
 // The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
 // a link or (fallback) a caption / screenshots. Any extraction failure reveals the manual fallbacks.
+/* BUILD A RECIPE, no AI. The only ways into a cookbook were importing a video or screenshots, both of which
+   go through the AI, so a free user with a recipe in their head had no way to save it. Ingredients come
+   from the same UK food list the diary searches, in grams, so each is priced the moment it is added and
+   the recipe never needs working out. It has no source link, so it is never offered to the community
+   library, and it carries a meal tag so the background tagger has nothing to ask the AI. */
+function buildRecipeFromParts({ title, servings, items, method, meal }) {
+  const s = Math.max(1, Math.round(+servings) || 1);
+  const ingredients = (items || []).filter(i => i && +i.grams > 0 && i.per100).map((i, k) => ({
+    id: 'ing' + k, line: Math.round(+i.grams) + ' g ' + i.name, name: i.name, grams: Math.round(+i.grams),
+    macros: Rcp.macrosFromPer100(i.per100, +i.grams), resolved: { source: 'table' }, have: false,
+  }));
+  const rec = {
+    title: String(title || '').trim() || 'My recipe', servings: s, ingredients,
+    steps: String(method || '').split('\n').map(x => x.trim()).filter(Boolean),
+    stated_macros: null, macros_source: 'computed', macros_confidence: 'high',
+    source_platform: 'manual', source_author: '', source_url: '', thumbnail: '',
+    tags: { meal: meal || null, cuisine: null, main: null, effort: null, diet: [] },
+  };
+  rec.macros_per_serving = Rcp.computePerServing(rec).macros;
+  return rec;
+}
+function RecipeBuilder({ onSave, onCancel }) {
+  useBackClose(onCancel);
+  const [title, setTitle] = useState('');
+  const [servings, setServings] = useState('2');
+  const [meal, setMeal] = useState('dinner');
+  const [items, setItems] = useState([]);
+  const [method, setMethod] = useState('');
+  const [q, setQ] = useState('');
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    let dead = false;
+    loadGenericFoods().then(l => { if (!dead) setList(l); }).catch(() => { if (!dead) setList([]); });
+    return () => { dead = true; };
+  }, []);
+  const results = (list && q.trim().length >= 2) ? searchGenericFoods(list, q.trim().toLowerCase(), 8) : [];
+  const add = (g) => { const tp = typicalPortion(g.name); setItems(xs => xs.concat([{ key: Store.uid(), name: g.name, grams: String(tp ? tp.g : 100), per100: g.per100 }])); setQ(''); setErr(''); };
+  const rec = buildRecipeFromParts({ title, servings, items, method, meal });
+  const m = rec.macros_per_serving || {};
+  function save() {
+    if (!title.trim()) { setErr('Give it a name first.'); return; }
+    if (!rec.ingredients.length) { setErr('Add at least one ingredient.'); return; }
+    onSave(Object.assign(rec, { private: true }));
+  }
+  return (<div className="fade-in">
+    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
+    <div className="text-lg font-bold mb-1">Build a recipe</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Add what goes in, in grams. The macros for a serving work themselves out as you go.</div>
+    <Field label="Name"><TextInput value={title} onChange={e => { setTitle(e.target.value); setErr(''); }} placeholder="e.g. Chicken and chickpea curry" aria-label="Recipe name" /></Field>
+    <Field label="Serves"><NumInput value={servings} onChange={e => setServings(e.target.value)} aria-label="Servings" /></Field>
+    <Field label="Meal"><Seg value={meal} onChange={setMeal} options={[{ v: 'breakfast', l: 'Breakfast' }, { v: 'lunch', l: 'Lunch' }, { v: 'dinner', l: 'Dinner' }, { v: 'snack', l: 'Snack' }]} /></Field>
+    <Field label="Ingredients">
+      <TextInput value={q} onChange={e => setQ(e.target.value)} placeholder={list ? 'Search foods, e.g. chickpeas' : 'Loading the food list...'} aria-label="Search ingredients" />
+    </Field>
+    {results.length > 0 && <div className="pixel-box mb-3" style={{ boxShadow: 'none', background: 'var(--surface2)' }}>
+      {results.map((g, i) => <button key={g.name + i} onClick={() => add(g)} className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left" style={{ borderTop: i ? '2px solid var(--border)' : 'none' }}>
+        <span className="text-[13px] min-w-0">{g.name}</span><span className="text-[11px] tnum shrink-0" style={{ color: 'var(--muted)' }}>{Math.round(g.per100.kcal)} kcal / 100 g</span>
+      </button>)}
+    </div>}
+    {items.length > 0 && <div className="pixel-box mb-3" style={{ boxShadow: 'none' }}>
+      {items.map((it, i) => <div key={it.key} className="flex items-center gap-2 px-3 py-2" style={{ borderTop: i ? '2px solid var(--border)' : 'none' }}>
+        <span className="text-[12.5px] flex-1 min-w-0">{it.name}</span>
+        <div style={{ width: 84 }}><NumInput value={it.grams} onChange={e => { const v = e.target.value; setItems(xs => xs.map(x => x.key === it.key ? Object.assign({}, x, { grams: v }) : x)); }} aria-label={'Grams of ' + it.name} /></div>
+        <span className="text-[11px]" style={{ color: 'var(--muted)' }}>g</span>
+        <button onClick={() => setItems(xs => xs.filter(x => x.key !== it.key))} className="hit shrink-0" aria-label={'Remove ' + it.name} style={{ color: 'var(--muted)' }}><Icon.close width="16" /></button>
+      </div>)}
+    </div>}
+    {rec.ingredients.length > 0 && <div className="text-[12.5px] mb-3 tnum">Per serving: <b>{Math.round(m.kcal || 0)} kcal</b> · <span style={{ color: PRO_T }}>P {Math.round(m.protein || 0)}g</span> · <span style={{ color: CARB_T }}>C {Math.round(m.carbs || 0)}g</span> · <span style={{ color: FAT_T }}>F {Math.round(m.fat || 0)}g</span></div>}
+    <Field label="Method (optional)"><textarea value={method} onChange={e => setMethod(e.target.value)} rows={4} className={inputCls} placeholder="One step per line" aria-label="Method" /></Field>
+    {err && <div className="text-[12px] mb-2" role="alert" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
+    <Btn kind="accent" className="w-full" onClick={save}>Save to cookbook</Btn>
+  </div>);
+}
 function RecipeImport({ initialUrl, onSaved, onCancel }) {
   useBackClose(onCancel);
   const [url, setUrl] = useState(initialUrl || '');
@@ -19665,7 +19988,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
           onInput={e => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
           onBlur={e => setTitle(e.target.value)}
           className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none resize-none overflow-hidden" />
-        <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch the original</a>} · tap anything to make it yours</div>
+        <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{recipe.source_platform === 'manual' ? 'Your recipe' : Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch the original</a>} · tap anything to make it yours</div>
         {/* The tags the importer already works out, finally shown on the recipe they describe. They
             were only ever used to filter Discover, which is the one place you are NOT looking at the
             recipe. Collections sit in the same row, because to a reader they are the same object. */}
@@ -20380,7 +20703,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   const [facets, setFacets] = useState({}); // { meal, cuisine, main, effort, diet, badge } - taxonomy filters
   const [sort, setSort] = useState('recent'); // recent | protein | kcal | quick
   const [showFilters, setShowFilters] = useState(false);
-  const [hubTab, setHubTab] = useState('discover'); // discover (the community hub) | mine (your own recipes)
+  const [hubTab, setHubTab] = useState(isPremium ? 'discover' : 'mine'); // a free user's first sight of Cook was a locked tab // discover (the community hub) | mine (your own recipes)
   const [cookRec, setCookRec] = useState(null); // a transient (unsaved) recipe being cooked from Discover
   const [logRec, setLogRec] = useState(null);   // a transient recipe pending a serving-log after cooking
   const facetCount = Object.values(facets).filter(Boolean).length;
@@ -20570,14 +20893,16 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
         : !allRecipes.length ? <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
         <ShareTip className="mb-4" />
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="48" height="48" style={{ color: 'var(--muted)' }} /></div>
           <div className="text-[14px] font-semibold mb-1">Your cookbook is empty</div>
-          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, or upload your own, and it becomes ingredients, a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
+          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, upload your own, or build one from ingredients, and it becomes a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
         </Card>
       </> : <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
           <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
@@ -20594,6 +20919,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
+    {screen === 'build' && <RecipeBuilder onSave={saveRecipe} onCancel={() => setScreen('list')} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
     {screen === 'fridge' && <FridgeScan db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} isPremium={isPremium} onCookPublic={cookPublic} onSavePublic={saveCopyFromPublic} />}
     {cookRec && <CookMode recipe={cookRec} onClose={() => setCookRec(null)} onLogDone={() => { const r = cookRec; setCookRec(null); setLogRec(r); }} />}
@@ -20701,7 +21027,7 @@ function App() {
      buddy's coach line, a milestone, the weekly recap, a notification) return where it came from,
      rather than each call site having to remember to say so. */
   const [goalsFrom, setGoalsFrom] = useState('more');
-  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); _setView(v); };
+  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); if (v !== view) { try { window.scrollTo(0, 0); } catch (_) {} } _setView(v); };
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.
@@ -20742,6 +21068,14 @@ function App() {
   const isPremium = (DEMO && new URLSearchParams(window.location.search).has('premium'))
     || (!!sub && (sub.status === 'active' || sub.status === 'trialing'));
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
+    // A reward never replaces a live Undo. The daily Amber toast fired straight after "Added ... Undo" and
+    // took the Undo away with it; it now waits for that toast to run its course.
+    if (actionLabel !== 'Undo' && /Amber/.test(String(msg || '')) && Date.now() - LAST_UNDO_TOAST_AT < 5000) {
+      const args = arguments;
+      setTimeout(() => showToast.apply(null, args), 5200 - (Date.now() - LAST_UNDO_TOAST_AT));
+      return;
+    }
+    if (actionLabel === 'Undo') LAST_UNDO_TOAST_AT = Date.now();
     // A live workout owns the screen. Rewards, trophies and streak news are not urgent and they were
     // landing on top of the set the user was in the middle of logging, which is the one moment in
     // the app where an interruption actually costs something. They queue until the session ends.
@@ -21215,7 +21549,7 @@ function App() {
       const nq = item.nq || (food && food.nq) || null;
       // serving_g rides along so the edit sheet can offer the grams/portions toggle later. Without
       // it the two units cannot be converted, and editing was stuck with whatever unit you logged in.
-      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, computed_macros: macros, nq: nq, sort_order: d.log_entries.length });
+      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, serving_label: item.savedServingLabel || undefined, computed_macros: macros, nq: nq, sort_order: d.log_entries.length });
       // A saved food keeps the best record we have ever had for it: a fresh one replaces it, but
       // re-logging from a path that carries none must not wipe it.
       if (food) { food.macros = macros; food.last_qty = item.qtyLabel || food.last_qty; if (item.nq) food.nq = item.nq; food.updated_at = Date.now(); }
@@ -21238,7 +21572,7 @@ function App() {
       const b = item.baseMacros;
       supa.rpc('submit_food_correction', { p_barcode: item.barcode, p_kcal: +b.kcal || 0, p_protein: +b.protein || 0, p_carbs: +b.carbs || 0, p_fat: +b.fat || 0, p_fiber: +b.fiber || 0, p_basis: item.baseKind || 'per100', p_serving_g: +item.savedServingG || 0, p_serving_label: item.savedServingLabel || '', p_name: item.name || '', p_source: item.source || '' }).then(function () {}, function () {});
     }
-    setAdding(null);
+    if (!item.keepOpen) setAdding(null);
     window.MTRACK && MTRACK('food_logged', { count: 1, source: item.source || 'manual', swapped: swapped.length || undefined });
     const undo = () => update(d => {
       tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId);

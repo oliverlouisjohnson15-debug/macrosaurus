@@ -899,6 +899,8 @@
     var oa = a.onboarding || {}, ob = b.onboarding || {};
     out.onboarding = Object.assign({}, older.onboarding, newer.onboarding, {
       welcomed: !!(oa.welcomed || ob.welcomed), sawDex: !!(oa.sawDex || ob.sawDex), dismissed: !!(oa.dismissed || ob.dismissed),
+      // Hatch staples once done stay done (see hatchTasks), so they OR across copies the same way.
+      staples: Object.assign({}, oa.staples, ob.staples),
     });
 
     // Dino-fight progress has no append-only ledger, so a wholesale copy loses wins/rank earned on the

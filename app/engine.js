@@ -128,8 +128,12 @@
         protein_g = Math.max(0, Math.floor((kcal - fat_g * 9 - fiberKcal) / 4));
       }
     }
-    var carbs_g = Math.max(0, (kcal - protein_g * 4 - fat_g * 9 - fiberKcal) / 4);
-    var out = { kcal: round(kcal), protein_g: Math.round(protein_g), fat_g: round(fat_g), carbs_g: round(carbs_g) };
+    // Carbs are derived from the ROUNDED calories, protein and fat: the exact rule applyKcalDelta uses
+    // to build each day from this target. Deriving them from the unrounded fat here meant a fresh plan
+    // could say 109 g on setup and Progress while every day built from it said 108 g.
+    var kR = round(kcal), pR = Math.round(protein_g), fR = round(fat_g);
+    var carbs_g = Math.max(0, (kR - pR * 4 - fR * 9 - fiberReserveKcal(kR)) / 4);
+    var out = { kcal: kR, protein_g: pR, fat_g: fR, carbs_g: round(carbs_g) };
     if (squeezed) out.squeezed = true;
     return out;
   }
@@ -1216,7 +1220,7 @@
     var fcCap = clamp(round(0.10 * tdee * confFactor), 100, 350);
     var fcDelta = clamp(rawDelta, -fcCap, fcCap);
     var forecast;
-    if (confidence === 'low') forecast = { dir: 'unknown', deltaKcal: 0, text: 'need a bit more data to call it' };
+    if (confidence === 'low') forecast = { dir: 'unknown', deltaKcal: 0, text: 'too early to say whether it will move your targets' };
     else if (Math.abs(fcDelta) < 25) forecast = { dir: 'hold', deltaKcal: 0, text: 'on track, no change likely' };
     else forecast = { dir: fcDelta > 0 ? 'up' : 'down', deltaKcal: round(fcDelta), text: (fcDelta > 0 ? 'leaning towards a small increase' : 'leaning towards a small decrease') + ' (~' + Math.abs(round(fcDelta)) + ' kcal)' };
 
