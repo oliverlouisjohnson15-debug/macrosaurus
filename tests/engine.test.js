@@ -5,7 +5,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const E = require('../app/engine.js');
 
-const near = (a, b, tol = 1) => assert.ok(Math.abs(a - b) <= tol, `${a} not within ${tol} of ${b}`);
+const near = (a, b, tol = 1, msg) => assert.ok(Math.abs(a - b) <= tol, msg || `${a} not within ${tol} of ${b}`);
+const isoAdd = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 const baseProfile = {
   sex: 'male', weightKg: 92.5, heightCm: 175, age: 32,
@@ -255,6 +256,71 @@ test('cycleMeans: single cadence diffs the two latest readings over their real g
   assert.strictEqual(cm.prevDate, '2026-07-06');
   assert.strictEqual(cm.spanDays, 8, 'span is the gap between the two readings, not the cycle length');
   assert.strictEqual(cm.count, 1);
+});
+
+// ---- a week has a shape, so read it over whole weeks ----
+// Somebody whose Friday and Saturday are the big days carries extra glycogen - and the water that
+// comes with it - into Saturday and Sunday morning. That is weekly, not fat, and over a whole number
+// of weeks it cancels: every weekday lands in the mean exactly once. Over EIGHT days it does not,
+// and whichever weekday got counted twice tilts the mean. A cycle that ran a day or two long then
+// reported a rate the body never had, and it did so worst for exactly the people whose week has a
+// shape. These weights are a clean -0.1 kg/day (-0.7 kg/wk) with +0.9 kg of weekend water on top,
+// so any rate but -0.7 is the weekday tilt and nothing else.
+const RHYTHM_WEIGHTS = (() => {
+  const out = []; let kg = 95;
+  for (let i = 0; i < 60; i++) {
+    const iso = isoAdd('2026-08-01', i);
+    const dow = new Date(iso + 'T00:00:00Z').getUTCDay();
+    out.push({ date: iso, kg: +(kg + (dow === 6 || dow === 0 ? 0.9 : 0)).toFixed(2) });
+    kg -= 0.1;
+  }
+  return out;
+})();
+
+test('cycleMeans: a long cycle is read over whole weeks, so a weekly rhythm cannot tilt the rate', () => {
+  // Every cycle length from a week to a fortnight, including the ones that used to be read crooked.
+  for (let cycleDays = 7; cycleDays <= 14; cycleDays++) {
+    const today = '2026-09-19';
+    const cs = isoAdd(today, -(cycleDays - 1));
+    const cm = E.cycleMeans({ weights: RHYTHM_WEIGHTS, cycleStart: cs, today, cycleDays });
+    const rate = (cm.cur - cm.prev) / cm.spanDays * 7;
+    near(rate, -0.7, 0.005, `${cycleDays}-day cycle read ${rate.toFixed(3)} kg/wk`);
+    // Whole weeks in, whole weeks out: a balanced window holds each weekday once.
+    assert.strictEqual(cm.count % 7, 0, `${cycleDays}-day cycle averaged ${cm.count} mornings`);
+    assert.strictEqual(cm.weekAligned, cycleDays % 7 !== 0, 'weekAligned should say whether it trimmed');
+  }
+});
+
+test('cycleMeans: balancing trims from the end, so it never widens the gap between the means', () => {
+  const cm = E.cycleMeans({ weights: RHYTHM_WEIGHTS, cycleStart: '2026-09-12', today: '2026-09-19', cycleDays: 8 });
+  // The days nearest today are the ones worth keeping; the odd day falls off the FRONT of each window.
+  assert.strictEqual(cm.curStart, '2026-09-13', 'current window should keep the last seven days');
+  assert.strictEqual(cm.prevFrom, '2026-09-05', 'baseline should keep the seven days nearest the cycle');
+  // Both windows lost their first day, so the two midpoints are still a cycle apart.
+  assert.strictEqual(cm.spanDays, 8);
+  assert.strictEqual(cm.count, 7);
+});
+
+test('cycleMeans: a sparse weigher keeps their mornings rather than a balanced handful', () => {
+  // Balancing is a trim, and a trim is only worth taking while what it leaves can still be averaged.
+  // Four mornings across an eight-day cycle: dropping the first would leave three to average, which
+  // is thinner than the baseline test the fresh-start clip has to pass. So it is left alone and read
+  // over every reading there is - a crooked mean of real data beats a straight one of scraps.
+  const weights = [
+    { date: '2026-09-05', kg: 91.2 }, { date: '2026-09-06', kg: 91.0 },
+    { date: '2026-09-11', kg: 90.4 }, { date: '2026-09-12', kg: 90.3 },
+  ];
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-09-05', today: '2026-09-12', cycleDays: 8 });
+  assert.strictEqual(cm.weekAligned, false, 'nothing should be trimmed away from a thin week');
+  assert.strictEqual(cm.count, 4, 'every morning in the cycle should still be read');
+});
+
+test('cycleMeans: a single weekly weigh-in is already on one weekday, so nothing is trimmed', () => {
+  const weights = [{ date: '2026-09-04', kg: 85.0 }, { date: '2026-09-11', kg: 84.4 }];
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-09-05', today: '2026-09-12', cycleDays: 8, weighCadence: 'single' });
+  assert.strictEqual(cm.weekAligned, false);
+  assert.strictEqual(cm.cur, 84.4);
+  assert.strictEqual(cm.prev, 85.0);
 });
 
 test('cycleMeans: says nothing rather than guessing when a side has no weigh-ins', () => {

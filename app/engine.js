@@ -1536,6 +1536,78 @@
   var PREV_MIN_COVERAGE = 0.7;
   var PREV_MIN_WEIGHINS = 4;
 
+  // ---- weekday balance ----
+  // A weekly eating rhythm - big Friday and Saturday, a long Sunday walk, a light Monday - is real
+  // scale noise and not fat: carbohydrate stores water alongside it, so the morning after a high day
+  // reads heavy whatever the body composition did. Averaged over a WHOLE number of weeks that rhythm
+  // cancels, because every weekday lands in the mean exactly once. Over eight or nine days it does
+  // not: one weekday gets counted twice, and if that day happens to be the high one the mean is
+  // pulled up (or down, if it's the light one). A cycle that ran a day or two long then reports a
+  // rate the body never had, and it does so worst for exactly the people whose week has a shape.
+  // So read a longer-than-a-week window over its last whole weeks and let the odd days fall off the
+  // front. Returns the trimmed start, or null when there is nothing to trim.
+  var WEEK_DAYS = 7;
+  function wholeWeekStartISO(startISO, endISO) {
+    var span = daysBetweenISO(startISO, endISO) + 1;
+    if (!isFinite(span) || span < WEEK_DAYS) return null; // under a week: no rhythm to balance
+    var keep = Math.floor(span / WEEK_DAYS) * WEEK_DAYS;
+    if (keep === span) return null;                       // already whole weeks
+    return shiftISOdays(endISO, -(keep - 1));
+  }
+  // The day a window should actually be read from. Balancing is a TRIM, so it is only worth doing
+  // while what it leaves still holds enough mornings to average: an unbalanced mean over real data
+  // beats a balanced one over scraps, which is the same line the fresh-start clip draws.
+  function balancedWindowStart(ts, startISO, endISO) {
+    var trimmed = wholeWeekStartISO(startISO, endISO);
+    if (!trimmed) return startISO;
+    var n = 0;
+    for (var i = 0; i < ts.length; i++) {
+      if (ts[i].date >= trimmed && ts[i].date <= endISO) n++;
+    }
+    return n >= PREV_MIN_WEIGHINS ? trimmed : startISO;
+  }
+
+  // ---- saying why the morning after a big day reads heavy ----
+  // Every gram of carbohydrate stored as glycogen brings roughly 3 g of water with it, so a couple
+  // of high days can put most of a kilo on the scale without a gram of fat having moved, and it
+  // comes back off over the following mornings. The engine already knows not to act on that - the
+  // trend and the cycle means are built to absorb it. The PERSON does not, and the reading they
+  // reach for instead ("it stopped working") is the one that talks them into cutting harder on
+  // water. So say it, on the morning it happens, next to the number that prompted the thought.
+  // It only fires on a reading genuinely above its own trend: on a morning the scale behaved,
+  // silence is the honest answer, and a note that appears every weekend regardless is furniture.
+  // opts: { entries: [{date, scaleKg, trendKg}],  most recent last; the weigh-in log
+  //         highDates: [iso],                     days the PLAN made high (the UI composes these
+  //                                               from the cycling shape in force on each day)
+  //         today, minAboveKg }
+  // Returns { on: false } or { on: true, date, aboveKg, highDate, daysAfter }.
+  var RHYTHM_MIN_ABOVE_KG = 0.2;   // under this the scale is just being a scale
+  var RHYTHM_WINDOW_DAYS = 2;      // glycogen and the water on it clear over about two mornings
+  function weekdayRhythm(opts) {
+    var o = opts || {};
+    var off = { on: false };
+    var highs = o.highDates || [];
+    if (!highs.length) return off;
+    var ents = (o.entries || []).filter(function (e) {
+      return e && e.scaleKg != null && e.trendKg != null && (!o.today || e.date <= o.today);
+    });
+    if (!ents.length) return off;
+    var last = ents[ents.length - 1];
+    var above = last.scaleKg - last.trendKg;
+    var minAbove = o.minAboveKg != null ? +o.minAboveKg : RHYTHM_MIN_ABOVE_KG;
+    if (!(above >= minAbove)) return off;
+    // A high day only explains the mornings that FOLLOW it. Yesterday's big dinner is the usual
+    // case; the morning after that still carries some of it, which is why the window is two.
+    for (var k = 1; k <= RHYTHM_WINDOW_DAYS; k++) {
+      var d = shiftISOdays(last.date, -k);
+      if (highs.indexOf(d) !== -1) {
+        return { on: true, date: last.date, aboveKg: round(above, 2), highDate: d, daysAfter: k,
+                 weekday: weekdayOfISO(d) };
+      }
+    }
+    return off;
+  }
+
   function cycleMeans(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
@@ -1556,6 +1628,9 @@
         curCycle: curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; }),
         spanDays: (curPt && prevPt) ? Math.max(1, daysBetweenISO(prevPt.date, curPt.date)) : cycleDays,
         count: curPts.length, curDate: curPt ? curPt.date : null, prevDate: prevPt ? prevPt.date : null,
+        // One reading per cycle is already taken on the same weekday each week, so there is no
+        // weekday tilt to balance out and nothing to trim.
+        weekAligned: false, curStart: cs, prevFrom: null,
         source: 'reading',
       };
     }
@@ -1573,12 +1648,17 @@
     // that happened to survive, which is a comparison decided by where the line fell.
     var prevStart = (floorISO && prevWanted < floorISO) ? floorISO : prevWanted;
     var prevPartial = prevStart !== prevWanted;
+    // Balance both windows on weekday before a single value is averaged out of them. Each is trimmed
+    // from its own END, so the current window keeps the days nearest today and the baseline keeps the
+    // days nearest the current window - the trim never widens the gap between the two means.
+    var curFrom = balancedWindowStart(ts, cs, today);
+    var prevFrom = balancedWindowStart(ts, prevStart, prevEnd);
     var curVals = [], prevVals = [], curCycle = [], curDays = [], prevDays = [];
     for (var i = 0; i < ts.length; i++) {
       var pnt = ts[i];
-      if (pnt.date >= cs && pnt.date <= today) {
+      if (pnt.date >= curFrom && pnt.date <= today) {
         curVals.push(pnt.trendKg); curCycle.push(pnt); curDays.push(daysBetweenISO(cs, pnt.date));
-      } else if (pnt.date >= prevStart && pnt.date <= prevEnd) {
+      } else if (pnt.date >= prevFrom && pnt.date <= prevEnd) {
         prevVals.push(pnt.trendKg); prevDays.push(daysBetweenISO(cs, pnt.date));
       }
     }
@@ -1591,7 +1671,7 @@
     // from the reset. Carrying the trend across the line instead would drag the pre-reset weights
     // back in, which is the thing floorISO exists to stop, and that error is far bigger.
     if (prevPartial) {
-      var coverDays = daysBetweenISO(prevStart, prevEnd) + 1;
+      var coverDays = daysBetweenISO(prevFrom, prevEnd) + 1;
       var needDays = Math.ceil(cycleDays * PREV_MIN_COVERAGE);
       var needWeighIns = Math.min(PREV_MIN_WEIGHINS, coverDays);
       if (coverDays < needDays || prevVals.length < needWeighIns) { prevVals = []; prevDays = []; }
@@ -1614,6 +1694,10 @@
       // True when the fresh-start line shortened the baseline and it was still good enough to use,
       // so the caller can say so rather than presenting it as an ordinary cycle-on-cycle read.
       prevPartial: prevPartial && prevVals.length > 0,
+      // True when a longer-than-a-week window was trimmed back to whole weeks, so the caller can say
+      // which days the rate was actually read over rather than implying the whole cycle.
+      weekAligned: curFrom !== cs,
+      curStart: curFrom, prevFrom: prevFrom,
       curCycle: curCycle, spanDays: spanDays, count: curVals.length,
       curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
       source: 'trend',
@@ -2037,6 +2121,7 @@
     fiberReserveKcal: fiberReserveKcal,
     cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
+    weekdayRhythm: weekdayRhythm,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,

@@ -3170,6 +3170,21 @@ function plannedKcalOn(db, dISO) {
   if (sh.plan) return t.kcal + E.planDayDelta(sh.plan, p, dISO, t.kcal, E.kcalFloor(p), sh.settleEnd);
   return t.kcal + E.cyclingDeltaOn(p.cycling, p.cyclingHistory, dISO, t.kcal, E.kcalFloor(p));
 }
+// The days in the last `days` the PLAN made big: whatever the shape in force on each one - the
+// weekday rhythm, or a window you were away for - put above that day's base target. Composed from
+// plannedKcalOn rather than read off profile.cycling.highDays, so a rhythm you retuned last week
+// doesn't get retro-applied to the days it never governed, which is the whole reason those changes
+// are dated in the first place. E.weekdayRhythm turns this into the note on the weight chart.
+function recentHighDates(db, todayISO, days = 14) {
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const iso = shiftISO(todayISO, -i);
+    const base = (E.targetOn(db.targets, iso) || currentTargets(db) || {}).kcal;
+    if (!(base > 0)) continue;
+    if (plannedKcalOn(db, iso) > base + 1) out.push(iso);   // +1 so rounding alone is not "a big day"
+  }
+  return out;
+}
 // The plan history as it would read after saving `next` today, with the rebalance that change owes
 // the rest of the current window recorded on the new entry. One definition for both the Advanced
 // tab's preview and its save, so what you're shown before saving is what actually gets written.
@@ -4533,6 +4548,38 @@ function fmtWeightDelta(kg, unit, suffix) {
 // The chart itself, with no controls of its own. On the Progress page it is a summary you tap; in
 // the History sheet the sheet supplies the switches. Trading twelve permanent controls for one was
 // still one more than a card needs: the way to configure a chart is to open the chart.
+/* The morning after a big day reads heavy, and the chart above is where that gets noticed. Carbs
+   are stored with water - roughly 3 g of it per gram of glycogen - so a weekend of higher intake
+   can put most of a kilo on the scale with no fat behind it, and it comes back off over the days
+   after. The engine already declines to act on that: the trend line absorbs it, and the check-in
+   reads whole weeks so the rhythm cancels rather than tilting the rate. This note is for the
+   PERSON, because the reading they reach for on their own is "it stopped working", and that is the
+   one that talks someone into cutting harder on water.
+
+   It is deliberately quiet: no colour, no icon, no card. It appears on the mornings that actually
+   sit above the trend and says nothing on the ones that don't - a note that turns up every weekend
+   regardless would be furniture, and furniture is not read. */
+function WeekdayRhythmNote({ db }) {
+  const today = Store.todayISO();
+  const unit = (db.profile || {}).weight_unit;
+  const ents = (db.weight_entries || []).filter(e => e && e.scale_weight != null)
+    .slice().sort((a, b) => a.date.localeCompare(b.date));
+  const r = E.weekdayRhythm({
+    entries: ents.map(e => ({ date: e.date, scaleKg: e.scale_weight, trendKg: e.trend_weight })),
+    highDates: recentHighDates(db, today),
+    today,
+  });
+  if (!r.on) return null;
+  const when = r.date === today ? 'This morning you' : 'On ' + fmtShortDay(r.date) + ' you';
+  return (
+    <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+      {when} read <b style={{ color: 'var(--text)' }}>{fmtWeight(r.aboveKg, unit)}</b> above your trend,
+      {' '}{r.daysAfter === 1 ? 'the morning after' : 'two mornings after'} {DOW_FULL[r.weekday]}’s big day.
+      {' '}Carbs are stored with water, so that’s mostly what the scale is weighing. Your trend line and
+      your check-in both read past it, and it settles back over the next few days on its own.
+    </div>
+  );
+}
 function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
@@ -4619,6 +4666,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
           plan={plan} project={project} marks={marks} weekly={weekly.filter(w => w.start >= cut)} />;
       })()}
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
+      {tab === 'weight' && <WeekdayRhythmNote db={db} />}
       </>}
   </>);
   // Tapping the chart opens the chart. That is the whole control: KPI, then the plot that supports
