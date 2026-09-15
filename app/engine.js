@@ -984,6 +984,12 @@
       : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
     var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    // A read window that reaches back PAST the last check-in is mostly evidence that has already
+    // been acted on once. Re-reading it is right - a window has to be whole weeks or a weekly eating
+    // rhythm tilts it - but treating it as a full cycle's worth of new proof is not: the same days
+    // would move the targets twice. confScale is the share of the window that is genuinely new, so a
+    // short transition cycle nudges the smoothed burn gently instead of earning a full-size step.
+    if (opts.confScale != null && isFinite(+opts.confScale)) conf = clamp(conf * clamp(+opts.confScale, 0, 1), 0, 1);
     var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
     // Smoothed expenditure: when a prior { kcal, n } state is supplied, fold this cycle's raw
     // estimate into it (confidence-scaled) and build the desired target on the SMOOTHED burn,
@@ -1505,6 +1511,10 @@
   //   floorISO: 'YYYY-MM-DD' | null,         the day this run began (a fresh start). The decision
   //                                          reads no weigh-in before it; see cycleMeans.
   //   weighDays, minDays, periodDays, earlyCap,
+  //   confScale: 0..1 | null,                share of the read window that is NEW since the last
+  //                                          check-in (see weeklyAdjust). 1 / omitted for an
+  //                                          ordinary cycle; below 1 when the window was widened
+  //                                          back past the last check-in to keep it whole weeks.
   //   expenditure: {kcal, n} | null,         smoothed prior (seed kcal from the formula at n=0)
   //   checkins: [{adhered, weeklyChangeKg, deltaKcal}, ...]   prior history for plateau detection
   // }
@@ -1752,7 +1762,7 @@
         if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
         var wChg2 = ((curAvg - prevAvg) / spanDaysForRate) * 7;
         var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
-        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence });
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: opts.confScale });
       }
     } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
@@ -1768,7 +1778,7 @@
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
     } else {
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale });
     }
     // Two strikes and the food log is out. Holding once on a suspicious log is prudent; holding every
     // cycle is a dead end, because the person whose log never reconciles is exactly the person whose
@@ -1786,7 +1796,7 @@
       var curKcalS = opts.currentTargets.kcal;
       var wChgS = ((curAvg - prevAvg) / spanDaysForRate) * 7;
       var estS = { tdee: round(curKcalS - (wChgS * KCAL_PER_KG) / 7), avgKcal: round(curKcalS), weeklyChangeKg: round(wChgS, 3), days: cycleDays, weightOnly: true };
-      var switched = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estS, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence });
+      var switched = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estS, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: opts.confScale });
       switched.laneSwitched = 'weightOnly';
       switched.underReportFlagged = true;
       switched.reason = 'Your food log and your scale have disagreed two cycles running, so I\'m going to stop trying to reconcile them and steer from your weigh-ins alone. ' + (switched.reason || '');

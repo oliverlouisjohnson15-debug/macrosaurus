@@ -3114,6 +3114,22 @@ function cycleStartISO(db, todayISO) {
   const checkedInOnLast = (db.checkins || []).some(c => c.date === db.last_checkin);
   return shiftISO(db.last_checkin, checkedInOnLast ? 1 : 0);
 }
+// A check-in is READ over at least a whole week, which is not always the cycle it closes.
+// Most people's weeks have a shape: the big days land on the same two days, and the glycogen - plus
+// the ~3 g of water on every gram of it - sits on the scale for the two mornings after. Over seven
+// days that cancels, which is why cycleMeans trims a LONG window back to whole weeks. A SHORT one
+// can't be trimmed, only widened, and until it was, a stub of a cycle weighed those mornings once
+// too often or missed them entirely: check in on a Friday after a Friday/Saturday rhythm and the
+// three days behind you are the leanest of your week, which reads as a whoosh that isn't there.
+// So the rate is read from whichever is earlier, the cycle start or a week back. The days that
+// overlap the last check-in have been read before - weeklyAdjust is told so, via confScale, and
+// discounts them rather than moving the targets on them twice.
+const CHECKIN_READ_MIN_DAYS = 7;
+function readStartISO(db, todayISO) {
+  const cs = cycleStartISO(db, todayISO);
+  const week = shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1));
+  return cs < week ? cs : week;
+}
 // ---- when the next check-in is, in one place ----
 // Every surface that offers a check-in (Progress, the buddy's ask, the Progress teaser, the
 // cadence setting) reads this, so they can't disagree about whether one is owed. Three surfaces
@@ -3127,15 +3143,40 @@ const CHECKIN_MIN_DAYS = 7;      // a full week: shorter cycles are too noisy to
 // looked broken because it was. Five is the shortest cycle that still reads (checkInDecision holds
 // its own line on readability), and anything shorter is reachable by checking in early on purpose.
 const CHECKIN_DAY_MIN_DAYS = 5;
+// MOVING your check-in day in Settings is a deliberate act, not the drift the clause above catches,
+// so it gets its own rule: the next check-in lands on the new day, shortening or stretching the
+// current cycle to reach it. Both directions were unreachable without this, and in the same week.
+// Tuesday -> Friday is three days, under the drift floor, so the move never arrived; Tuesday ->
+// Wednesday is eight, so the full-week clause fires on the Tuesday first - every week, forever.
+// Either way the only way to move your day was to skip a check-in by hand and hope.
+// TWO days is the floor, matching MacroFactor's "check in up to two days early": under that there
+// are no new mornings on the scale at all, so the move waits for the following week instead.
+const CHECKIN_MOVE_MIN_DAYS = 2;
+// ...and a ceiling, so a chosen day that never arrives (phone left in a drawer, day set and then
+// forgotten) can't hold a check-in open indefinitely. Any thirteen-day stretch contains every
+// weekday twice over, so this is a safety valve rather than something anyone meets.
+const CHECKIN_MOVE_MAX_DAYS = 13;
+// Is a day change still waiting to land? The marker is stamped when the day actually CHANGES and
+// goes stale as soon as a check-in happens after it, so this reads "moved, and not yet honoured".
+function checkinDayMovePending(db) {
+  const moved = db.profile && db.profile.checkinDayMovedAt;
+  if (!moved || !db.last_checkin) return false; // no cycle to move: the first check-in sets the rhythm
+  return moved >= db.last_checkin;
+}
 // Would a check-in on `iso` be a long enough cycle to read? Either a full week has passed, or it's
 // the weekday you picked and we're within a day of one (that day exists to keep the rhythm, and
 // waiting a week to re-honour it is what makes check-ins drift ever later through the week).
 function checkinReadyOn(db, iso) {
   if (!db.last_checkin) return true; // never checked in: the first one sets the baseline, no waiting
   const days = daysBetween(db.last_checkin, iso);
-  if (days >= CHECKIN_MIN_DAYS) return true;
   const day = (db.profile && db.profile.checkinDay != null) ? db.profile.checkinDay : 1;
-  return days >= CHECKIN_DAY_MIN_DAYS && new Date(iso + 'T00:00:00').getDay() === day;
+  const onChosenDay = new Date(iso + 'T00:00:00').getDay() === day;
+  // A day you have just moved to: land on it and nothing else, early or late. The short cycle that
+  // can make is safe to read because readStartISO widens the window it is read over, not because
+  // the days themselves are enough.
+  if (checkinDayMovePending(db) && days <= CHECKIN_MOVE_MAX_DAYS) return onChosenDay && days >= CHECKIN_MOVE_MIN_DAYS;
+  if (days >= CHECKIN_MIN_DAYS) return true;
+  return days >= CHECKIN_DAY_MIN_DAYS && onChosenDay;
 }
 // { due, daysSince, nextISO, daysUntil } for today. nextISO/daysUntil are null when one is due now.
 function checkinStatus(db, todayISO) {
@@ -3318,9 +3359,15 @@ function activeDatesSet(db, banked) {
   trainedDates(db).forEach(d => out.add(d));
   return out;
 }
-function cycleCoverage(db, todayISO) {
-  const cs = cycleStartISO(db, todayISO);
+// `opts.read` asks for the window the CHECK-IN reads over, which on a short cycle reaches back
+// further than the cycle itself (see readStartISO). Every other surface wants the cycle as it
+// actually stands - counting "checked in today" as a week of nothing logged is how a panel ends up
+// telling someone off for a cycle that started this morning - so widening is opt-in.
+function cycleCoverage(db, todayISO, opts) {
+  const anchor = cycleStartISO(db, todayISO);
+  const cs = (opts && opts.read) ? readStartISO(db, todayISO) : anchor;
   const days = Math.max(1, daysBetween(cs, todayISO) + 1);
+  const newDays = Math.max(1, daysBetween(anchor, todayISO) + 1);
   const todayLogged = isCompleteDayOn(db, todayISO);
   const todayWeighed = (db.weight_entries || []).some(w => w.date === todayISO && w.scale_weight != null);
   // Days the user told us about in advance don't count towards what we expect of them. Without this
@@ -3340,6 +3387,11 @@ function cycleCoverage(db, todayISO) {
   const weighExcused = excused(['sparse', 'none']);
   return {
     cs: cs, days: days,
+    // The cycle this check-in closes, and how much of the read window is new since the last one.
+    // `widened` is the flag the copy hangs off: it means the window reaches back past your last
+    // check-in, which is worth a sentence rather than leaving the dates looking wrong.
+    anchor: anchor, newDays: newDays, widened: anchor !== cs,
+    confScale: Math.max(0, Math.min(1, newDays / days)),
     logged: completeLoggedDates(db, cs, todayISO).length,
     weighed: countWeighIns(db.weight_entries || [], cs, todayISO),
     logWindow: Math.max(1, days - (todayLogged ? 0 : 1)),
@@ -5669,8 +5721,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   // `Sheet` arms the back layer; arming it here too would need two back presses to shut one sheet.
   const p = db.profile; const unit = p.weight_unit; const today = Store.todayISO();
   const base = currentTargets(db);
-  // Windows derive from the actual cadence (cycle start → today), not a fixed week.
-  const cov = cycleCoverage(db, today);
+  // Windows derive from the actual cadence (cycle start → today), not a fixed week - with a floor of
+  // one whole week, so a cycle cut short to move your check-in day is still read over a window your
+  // weekly rhythm cancels out of rather than tilts.
+  const cov = cycleCoverage(db, today, { read: true });
   const cs = cov.cs, cycleDays = cov.days;
   // The day this run began. Everything the check-in DECIDES from is read at or after it, so a fresh
   // start is measured on its own terms rather than against the plan it was drawn to replace.
@@ -5860,6 +5914,9 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       kcalByDate: byDate, targetByDate,
       cycleStart: cs, today, cycleDays, floorISO: planFloor,
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
+      // How much of that window is new since the last check-in. A widened window is read in full -
+      // it has to be, to stay whole weeks - but only the new part is new evidence.
+      confScale: cov.confScale,
       expenditure: priorBurn, checkins: db.checkins || [],
       // Travel water and salt behave exactly like a premenstrual rise, so a declared window (and its
       // easing-back tail) rides the same hold-rather-than-cut path that already exists.
@@ -6053,9 +6110,11 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
 
         {/* 2. What the week looked like, in one line. */}
         {phase === 'hello' && <div className="fade-in">
-          <Say sub={cov.planned > 0
-            ? cov.planned + ' of those days you were away, so I only counted the days you were back.'
-            : null}>
+          <Say sub={[
+            // Why the dates reach back past your last check-in, said before you can wonder.
+            cov.widened ? 'Your check-in day moved, so this one reads the last full week rather than the ' + (cov.newDays === 1 ? 'day' : cov.newDays + ' days') + ' since ' + fmtShortDay(cov.anchor) + '. A whole week keeps your heavier mornings from landing on one end of it, and I’ll go gently on the days I’ve already read.' : null,
+            cov.planned > 0 ? cov.planned + ' of those days you were away, so I only counted the days you were back.' : null,
+          ].filter(Boolean).join(' ') || null}>
             Since {fmtShortDay(cs)} you logged {loggedDays} day{loggedDays === 1 ? '' : 's'} and weighed in {weighDays} time{weighDays === 1 ? '' : 's'}.
           </Say>
           <Btn kind="accent" className="w-full" onClick={() => go('weight')}>{readyToAdjust ? 'Right, let’s see' : 'Carry on anyway'}</Btn>
@@ -17228,8 +17287,15 @@ function CheckinsScreen({ db, update, onBack }) {
   return (<SubScreen title="Check-ins & weigh-ins" onBack={onBack} intro="When your plan gets read, and how often you step on the scale. Your check-in reads the trend either way.">
     <SavedFlash tick={tick} />
     <Field label="Check-in day" hint={'I ask on this day, and on any day after a full week has passed. A cycle needs about a week in it to read a trend, so a check-in never comes round sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last one.'}>
+      {/* Stamping the day it MOVED is what lets the next check-in land on the new day instead of
+          finishing out the old rhythm first. Only a real change stamps it: re-tapping the day you
+          are already on is not a move, and would otherwise re-open the transition on every tap. */}
       <div className="flex gap-1.5">{DOW.map((d, i) => (
-        <button key={i} onClick={() => commit(x => { x.profile.checkinDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
+        <button key={i} onClick={() => commit(x => {
+          const cur = x.profile.checkinDay == null ? 1 : x.profile.checkinDay;
+          if (cur !== i) x.profile.checkinDayMovedAt = Store.todayISO();
+          x.profile.checkinDay = i;
+        })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
     </Field>
     <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629]">
       {db.paused
@@ -17238,6 +17304,13 @@ function CheckinsScreen({ db, update, onBack }) {
           ? <><span className="font-semibold">Your check-in is due now.</span> <span className="text-[#8A8A90]">Open Progress to run it.</span></>
           : <><span className="font-semibold">Next check-in {st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days'}</span>{st.nextISO ? <span className="text-[#8A8A90]"> · {DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()]} {fmtShortDay(st.nextISO)}</span> : null}{db.last_checkin ? <span className="text-[#8A8A90]"> · last one {fmtShortDay(db.last_checkin)}</span> : null}</>}
     </div>
+    {/* A moved day changes WHEN the next one falls, so the screen that moved it says so rather than
+        leaving you to work out whether a short week counts. */}
+    {!db.paused && checkinDayMovePending(db) && (
+      <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+        Moved to {DOW_FULL[checkinDay]}s. This one cycle runs {st.due ? 'short' : st.daysUntil === 1 ? 'to tomorrow' : 'to ' + DOW_FULL[checkinDay]} to get you onto it, then it's weekly from there. A cycle under a week still gets read over a full week, so the move can't flatter or punish the numbers.
+      </div>
+    )}
     <div className="h-px bg-[#262629] my-5" />
     <SubHead>Weigh-ins</SubHead>
     <Seg value={weigh} onChange={v => commit(x => { x.profile.weighCadence = v; if (v === 'single' && x.profile.weighDay == null) x.profile.weighDay = weighDay; })} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />

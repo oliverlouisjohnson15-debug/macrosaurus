@@ -108,6 +108,41 @@ test('weeklyAdjust: builds desired on the SMOOTHED expenditure when a prior is s
   assert.strictEqual(r.newTargets.estimatedTDEE, 2760);
 });
 
+// ---- a read window that reaches back past the last check-in ----
+// When somebody moves their check-in day, the cycle it makes can be shorter than a week, and a
+// window that isn't whole weeks tilts on a weekly eating rhythm. So the app widens the window
+// backwards instead - and then most of it is evidence the last check-in already acted on. confScale
+// is the share that is actually new, so the same days can't move the targets twice over.
+test('weeklyAdjust: a window mostly already read moves less, and folds into burn more gently', () => {
+  // Targets far enough from the estimate that both sides are held by their cap, which is the thing
+  // confScale actually tightens. (The raw gap is no guide on its own: discounting pulls the smoothed
+  // burn back towards the prior, which can leave it FURTHER from the current target, not nearer.)
+  const opts = {
+    profile: maleProfile, currentTargets: { kcal: 1500 },
+    estimate: { tdee: 3000, weeklyChangeKg: -0.6, days: 7, avgKcal: 2300 },
+    adherenceDays: 7, weighDays: 7, periodDays: 7,
+    expenditure: { kcal: 2400, n: 5 },
+  };
+  const full = E.weeklyAdjust(opts);
+  const partial = E.weeklyAdjust(Object.assign({}, opts, { confScale: 3 / 7 }));
+  assert.ok(Math.abs(partial.deltaKcal) < Math.abs(full.deltaKcal),
+    'a transition cycle earned the same size step as a full one');
+  assert.ok(partial.expenditure.kcal < full.expenditure.kcal,
+    'the re-read days moved the learned burn as hard as new ones');
+  assert.ok(partial.expenditure.kcal > 2400, 'it should still move the burn, just gently');
+  assert.strictEqual(partial.confidence, 'low');
+});
+
+test('weeklyAdjust: confScale is inert on an ordinary cycle', () => {
+  const opts = {
+    profile: maleProfile, currentTargets: { kcal: 2300 },
+    estimate: { tdee: 3000, weeklyChangeKg: -0.6, days: 7, avgKcal: 2300 },
+    adherenceDays: 7, weighDays: 7, periodDays: 7, expenditure: { kcal: 2400, n: 5 },
+  };
+  assert.deepStrictEqual(E.weeklyAdjust(Object.assign({}, opts, { confScale: 1 })).newTargets,
+    E.weeklyAdjust(opts).newTargets);
+});
+
 // ---- item 11: deadband ----
 test('weeklyAdjust: holds within the 50 kcal deadband instead of proposing token changes', () => {
   const r = E.weeklyAdjust({
