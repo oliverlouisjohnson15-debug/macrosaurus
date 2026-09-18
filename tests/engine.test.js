@@ -70,6 +70,43 @@ test('proteinGrams: uses lean mass, manual override, and g/kg', () => {
   assert.strictEqual(E.proteinGrams(Object.assign({}, baseProfile, { proteinGPerKgLBM: 2.0 })), Math.round(2.0 * ffm));
 });
 
+test('proteinManualBounds: a typed gram target is held inside a band of lean mass', () => {
+  const ffm = 92.5 * (1 - 26 / 100); // 68.45
+  const b = E.proteinManualBounds(baseProfile);
+  assert.strictEqual(b.min, Math.round(1.2 * ffm));
+  assert.strictEqual(b.max, Math.round(4.0 * ffm));
+  near(b.referenceKg, ffm, 0.01);
+  // No weight, no band: nothing sensible to scale it against, so the typed figure stands.
+  assert.strictEqual(E.proteinManualBounds({}), null);
+  assert.strictEqual(E.proteinGrams({ proteinManualG: 182 }), 182);
+});
+
+test('proteinGrams: a typed gram target is clamped to the band, not taken raw', () => {
+  const b = E.proteinManualBounds(baseProfile);
+  const at = (n) => E.proteinGrams(Object.assign({}, baseProfile, { proteinManualG: n }));
+  assert.strictEqual(at(182), 182);            // inside the band, taken as typed
+  assert.strictEqual(at(1820), b.max);         // the fat-finger case
+  assert.strictEqual(at(5), b.min);
+  assert.strictEqual(at('182'), 182);          // the UI hands it over as text
+  // Falling back to the g/kg path is still what an empty/zero target means.
+  assert.strictEqual(at(0), E.proteinGrams(baseProfile));
+});
+
+test('a held gram target survives weight loss where a g/kg target does not', () => {
+  const held = Object.assign({}, baseProfile, { proteinManualG: 182 });
+  const lighter = { weightKg: 85, bodyFatPct: 22 };
+  assert.strictEqual(E.proteinGrams(Object.assign({}, held, lighter)), 182);
+  assert.ok(E.proteinGrams(Object.assign({}, baseProfile, lighter)) < E.proteinGrams(baseProfile),
+    'the g/kg path shrinks with lean mass, which is what holding a figure is for');
+  // And the plan built from it spends the extra protein out of carbs, not calories.
+  const a = E.computeInitialTargets(baseProfile);
+  const c = E.computeInitialTargets(held);
+  assert.strictEqual(c.kcal, a.kcal);
+  assert.strictEqual(c.protein_g, 182);
+  assert.ok(c.carbs_g < a.carbs_g);
+  near(c.protein_g * 4 + c.fat_g * 9 + c.carbs_g * 4 + E.fiberReserveKcal(c.kcal), c.kcal, 8);
+});
+
 test('computeInitialTargets: applies goal delta and never drops below the floor', () => {
   const t = E.computeInitialTargets(baseProfile);
   assert.ok(t.kcal < t.estimatedTDEE, 'a cut should sit below TDEE');

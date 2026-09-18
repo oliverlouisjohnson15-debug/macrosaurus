@@ -90,9 +90,32 @@
   function defaultProteinPerKgLBM(goalType) {
     return DEFAULT_PROTEIN_G_PER_KG_LBM[goalType] || 2.2;
   }
+  // A typed gram target is held inside the same evidence band the g/kg slider lives in, expressed
+  // against the SAME reference mass (lean when body fat is known). The band is wider than the
+  // slider on purpose - the slider is the guided path, an exact figure is the deliberate one, and
+  // somebody with a very high burn has good reason to sit above 3.1 g/kg lean - but it still stops
+  // a typo (1820 instead of 182) from becoming a target no kcal budget can hold.
+  var PROTEIN_MANUAL_MIN_G_PER_KG_LBM = 1.2;
+  var PROTEIN_MANUAL_MAX_G_PER_KG_LBM = 4.0;
+  // The gram range a typed protein target is accepted in, for this profile. The UI shows it and
+  // clamps to it; proteinGrams clamps again so a value from an older build can't escape the band.
+  function proteinManualBounds(p) {
+    var ref = proteinReferenceKg(p || {});
+    if (!(ref > 0)) return null;
+    return {
+      min: Math.round(PROTEIN_MANUAL_MIN_G_PER_KG_LBM * ref),
+      max: Math.round(PROTEIN_MANUAL_MAX_G_PER_KG_LBM * ref),
+      referenceKg: round(ref, 2),
+    };
+  }
   // Evidence-based protein: manual gram target, else user's g/kg lean, else goal default.
   function proteinGrams(p) {
-    if (p.proteinManualG) return Math.round(+p.proteinManualG);
+    if (p.proteinManualG) {
+      var g = Math.round(+p.proteinManualG);
+      if (!isFinite(g)) return Math.round(defaultProteinPerKgLBM(p.goalType) * proteinReferenceKg(p));
+      var b = proteinManualBounds(p);
+      return b ? clamp(g, b.min, b.max) : g;
+    }
     var gPerKg = p.proteinGPerKgLBM || defaultProteinPerKgLBM(p.goalType);
     return Math.round(gPerKg * proteinReferenceKg(p));
   }
@@ -2126,6 +2149,8 @@
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
+    proteinManualBounds: proteinManualBounds,
+    PROTEIN_MANUAL_MIN_G_PER_KG_LBM: PROTEIN_MANUAL_MIN_G_PER_KG_LBM, PROTEIN_MANUAL_MAX_G_PER_KG_LBM: PROTEIN_MANUAL_MAX_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     fiberReserveKcal: fiberReserveKcal,

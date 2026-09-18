@@ -38,6 +38,16 @@ function app() {
   w.indexedDB = { open: () => ({ addEventListener() {} }) };
   w.fetch = () => Promise.reject(new Error('the tests do not have a network'));
   w.scrollTo = () => {};
+  /* React's DOM bundle decides ONCE, the first time it is required, whether the environment can
+   * use native `input` events - it reads `window` at module scope (canUseDOM). Required before a
+   * window exists, as it would be here, it settles on an IE-era polyfill that arms itself on focus
+   * via attachEvent, and every onChange in the app is then dead to a dispatched event: typing into
+   * a field does nothing and a test of a form asserts on a screen that never moved. So the bundles
+   * are pulled in HERE, with the jsdom window in place, before anything else can require them. */
+  const prevW = global.window, prevD = global.document;
+  global.window = w; global.document = w.document;
+  try { require('react-dom'); require('react-dom/client'); }
+  finally { global.window = prevW; global.document = prevD; }
   const ctx = vm.createContext(w);
   ctx.React = React;
   ctx.console = console;
@@ -136,6 +146,18 @@ function mount(component, props) {
     // Press an element you already have a handle on, inside act() so effects and state settle the
     // same way they do for click(label).
     clickEl(el) { act(() => { el.dispatchEvent(new A.MouseEvent('click', { bubbles: true })); }); return api; },
+    /* Type into an input, the way a keyboard does.
+     *
+     * Setting el.value directly is swallowed: React remembers the value it last wrote to the node
+     * and treats a matching change event as a no-op, so the handler never fires and the test asserts
+     * on a screen that never moved. Going through the prototype's setter is what makes the node look
+     * edited to React's value tracker, and is what every React testing library does underneath. */
+    type(el, value) {
+      const proto = el.tagName === 'TEXTAREA' ? A.HTMLTextAreaElement : A.HTMLInputElement;
+      Object.getOwnPropertyDescriptor(proto.prototype, 'value').set.call(el, String(value));
+      act(() => { el.dispatchEvent(new A.Event('input', { bubbles: true })); });
+      return api;
+    },
     // The document the app is mounted in, for the parts of a screen that are NOT inside `host`:
     // every menu is portaled to <body>, so a test that opens one cannot find it by walking `host`.
     doc: doc,

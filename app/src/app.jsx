@@ -16481,10 +16481,25 @@ function GoalEditor({ db, update, showToast, onDone }) {
   const today = Store.todayISO();
   const cur = currentTargets(db);
   const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
-  const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType) });
+  const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType), proteinManualG: p.proteinManualG ? String(p.proteinManualG) : '' });
   const setg = (k, v) => setG(x => Object.assign({}, x, { [k]: v }));
   const [gProteinTouched, setGProteinTouched] = useState(!!p.proteinGPerKgLBM);
-  const pickGoal = (gt) => { setg('goalType', gt); if (!gProteinTouched) setg('proteinGPerKgLBM', E.defaultProteinPerKgLBM(gt)); };
+  const pickGoal = (gt) => { setg('goalType', gt); if (!gProteinTouched && !g.proteinManualG) setg('proteinGPerKgLBM', E.defaultProteinPerKgLBM(gt)); };
+  // Protein can be set two ways: per kg of lean mass (the guided slider, which re-scales as you
+  // lose weight) or as an exact daily gram figure, which is HELD. Holding it is the point: on a
+  // cut, a g/kg target quietly shaves protein off every time the scale moves, which is the
+  // opposite of what somebody defending muscle through a deficit wants.
+  const pBounds = E.proteinManualBounds(p);
+  // The mode is its own state, not read back off the value: clearing the box to retype a number
+  // must not throw you back to the slider mid-edit.
+  const [proteinMode, setProteinMode] = useState(p.proteinManualG ? 'grams' : 'perkg');
+  const perKgProteinG = Math.round(g.proteinGPerKgLBM * leanKg(p));
+  // An empty box while you are still typing is not a target, so the plan reads as the slider until
+  // there is a number to hold.
+  const exactProtein = proteinMode === 'grams' && +g.proteinManualG > 0;
+  const effProteinG = E.proteinGrams(Object.assign({}, p, { goalType: g.goalType, proteinGPerKgLBM: g.proteinGPerKgLBM, proteinManualG: exactProtein ? +g.proteinManualG : null }));
+  const proteinClamped = exactProtein && pBounds && Math.round(+g.proteinManualG) !== effProteinG;
+  const pickProteinMode = (mode) => { setGProteinTouched(true); setProteinMode(mode); setg('proteinManualG', mode === 'grams' ? String(perKgProteinG) : ''); };
   const [gwKg, setGwKg] = useState(p.goalWeightKg || '');
   const [gwSt, setGwSt] = useState(p.goalWeightKg ? seedGW.st : '');
   const [gwLb, setGwLb] = useState(p.goalWeightKg ? seedGW.lb : '');
@@ -16499,18 +16514,19 @@ function GoalEditor({ db, update, showToast, onDone }) {
   const goalWChanged = goalWKg !== (p.goalWeightKg || null);
   // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
   const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle
-    || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType));
+    || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType))
+    || (exactProtein ? effProteinG : 0) !== (+p.proteinManualG || 0);
   const changed = planChanged || goalWChanged;
 
   // What this goal would actually cost you per day, worked out the same way the save does, so the
   // number on screen is the number that lands. Built on the LEARNED expenditure where we have one.
   const preview = useMemo(() => {
     try {
-      const np = Object.assign({}, p, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM });
+      const np = Object.assign({}, p, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, proteinManualG: exactProtein ? +g.proteinManualG : null });
       const prior = learnedTdee(db, today);
       return E.computeInitialTargets(withActivity(np), prior ? { priorTdee: prior } : undefined);
     } catch (_) { return null; }
-  }, [g.goalType, g.rateKgPerWeek, g.dietStyle, g.proteinGPerKgLBM, p.weightKg, p.bodyFatPct]);
+  }, [g.goalType, g.rateKgPerWeek, g.dietStyle, g.proteinGPerKgLBM, g.proteinManualG, proteinMode, p.weightKg, p.bodyFatPct]);
   // goalETA takes a SIGNED rate (negative while cutting), so hand it the target rate in that form.
   const eta = Game.goalETA({ goalType: g.goalType, currentKg: p.weightKg, goalKg: goalWKg, ratePerWeek: g.goalType === 'cut' ? -g.rateKgPerWeek : g.rateKgPerWeek });
   const etaDate = eta ? (() => { try { return new Date(Date.now() + eta.weeks * 7 * 86400000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); } catch (_) { return null; } })() : null;
@@ -16527,7 +16543,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
     if (!weightKg) { setWErr("Enter your current weight to continue."); return; }
     setWErr('');
     update(d => {
-      d.profile = Object.assign({}, d.profile, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, weightKg: +weightKg.toFixed(2), goalWeightKg: goalWKg ? +goalWKg.toFixed(2) : null });
+      d.profile = Object.assign({}, d.profile, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, proteinManualG: exactProtein ? effProteinG : null, weightKg: +weightKg.toFixed(2), goalWeightKg: goalWKg ? +goalWKg.toFixed(2) : null });
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
       if (ex) ex.scale_weight = +weightKg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +weightKg.toFixed(2) });
       recomputeTrend(d);
@@ -16602,7 +16618,17 @@ function GoalEditor({ db, update, showToast, onDone }) {
 
       <button type="button" onClick={() => setShowAdv(s => !s)} className="text-[11px] text-[#8A8A90] mb-2"><PixelGlyph kind={showAdv ? 'caret_up' : 'caret_down'} size={24} /> {showAdv ? 'Hide advanced' : 'Advanced: protein and diet style'}</button>
       {showAdv && <div className="fade-in">
-        <Field label={`Protein: ${Math.round(g.proteinGPerKgLBM * leanKg(p))} g (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`} hint={`Set per kg of LEAN mass so body fat doesn't inflate it. Your ${g.goalType === 'gain' ? 'lean-gain' : g.goalType} default is ${E.defaultProteinPerKgLBM(g.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting.`}><input type="range" min="1.8" max="3.1" step="0.1" value={g.proteinGPerKgLBM} onChange={e => { setGProteinTouched(true); setg('proteinGPerKgLBM', +e.target.value); }} className="w-full accent-[#4A9EEB]" /></Field>
+        <Field
+          label={`Protein: ${effProteinG} g a day${exactProtein ? '' : ` (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`}`}
+          hint={exactProtein
+            ? `A figure you set yourself, and the plan HOLDS it: it stays ${effProteinG} g as you lose weight, instead of shrinking with your lean mass. Carbs take the difference, calories don't move.${pBounds ? ` Anything from ${pBounds.min} to ${pBounds.max} g (1.2–4.0 g/kg of your ${pBounds.referenceKg} kg lean mass).` : ''}`
+            : `Set per kg of LEAN mass so body fat doesn't inflate it. Your ${g.goalType === 'gain' ? 'lean-gain' : g.goalType} default is ${E.defaultProteinPerKgLBM(g.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting.`}>
+          <Seg value={proteinMode} onChange={pickProteinMode} options={[{ v: 'perkg', l: 'Per kg lean' }, { v: 'grams', l: 'Exact grams' }]} />
+          <div className="mt-3">{proteinMode === 'grams'
+            ? <NumInput value={g.proteinManualG} min={pBounds ? pBounds.min : 1} max={pBounds ? pBounds.max : 400} step="1" onChange={e => setg('proteinManualG', e.target.value)} />
+            : <input type="range" min="1.8" max="3.1" step="0.1" value={g.proteinGPerKgLBM} onChange={e => { setGProteinTouched(true); setg('proteinGPerKgLBM', +e.target.value); }} className="w-full accent-[#4A9EEB]" />}</div>
+        </Field>
+        {proteinClamped && pBounds && <div className="text-[11px] -mt-2 mb-4 leading-snug" style={{ color: 'var(--danger-ink)' }}>Held at {effProteinG} g. Anything outside {pBounds.min}–{pBounds.max} g is past the evidence for your size, so the plan uses the nearest end of that range.</div>}
         <Field label="Diet style" hint="Shifts the carb/fat balance. Protein stays fixed."><Seg value={g.dietStyle} onChange={v => setg('dietStyle', v)} options={[{ v: 'balanced', l: 'Balanced' }, { v: 'lower_carb', l: 'Lower carb' }, { v: 'higher_carb', l: 'Higher carb' }]} /></Field>
       </div>}
 
