@@ -109,3 +109,69 @@ test('going back to per kg clears the held figure', () => {
   assert.strictEqual(saved.profile.proteinManualG, null);
   assert.strictEqual(saved.targets[saved.targets.length - 1].protein_g, Math.round(2.4 * 65.1718));
 });
+
+// ---- adaptive mode, and the recommendation shown alongside every mode --------------------------
+
+test('Goals opens on whatever mode the profile is in, and old profiles stay on the slider', () => {
+  assert.ok(open().has('g/kg lean mass'), 'a profile with no proteinMode must not be migrated silently');
+  assert.ok(proteinSlider(open()), 'and keeps its slider');
+  const a = open({ proteinMode: 'adaptive' });
+  assert.ok(!proteinSlider(a) && !numberBox(a), 'adaptive has nothing to set');
+  assert.ok(a.has('Moves on its own'), a.text.slice(0, 300));
+});
+
+test('the recommendation and its arithmetic are shown in every mode', () => {
+  const rec = E.proteinRecommendation(A.withActivity(profile));
+  for (const mode of ['perkg', 'adaptive']) {
+    const r = open(mode === 'adaptive' ? { proteinMode: 'adaptive' } : {});
+    assert.ok(r.has('Research puts you on ' + rec.grams + ' g'), `${mode}: ` + r.text.slice(0, 400));
+    assert.ok(r.has(`for ${profile.bodyFatPct}% body fat`), `${mode} should show the body-fat term: ` + r.text.slice(r.text.indexOf('Research puts'), r.text.indexOf('Research puts') + 300));
+    assert.ok(r.has('% deficit'), `${mode} should show the deficit term`);
+    assert.ok(r.has('Helms 2014'), `${mode} should cite what it is built on`);
+  }
+});
+
+test('adaptive follows body fat: leaner reads higher, even at a lower weight', () => {
+  const fatter = open({ bodyFatPct: 26, weightKg: 90, proteinMode: 'adaptive' });
+  const leaner = open({ bodyFatPct: 18, weightKg: 84, proteinMode: 'adaptive' });
+  const grams = (r) => +/Protein: (\d+) g a day/.exec(r.text)[1];
+  assert.ok(grams(leaner) > grams(fatter), `${grams(leaner)} should exceed ${grams(fatter)}`);
+});
+
+test('a manual figure off the recommendation offers a one-tap way back', () => {
+  const rec = E.proteinRecommendation(A.withActivity(profile));
+  const r = open({ proteinManualG: 182 });
+  assert.ok(r.has('Use ' + rec.grams + ' g'), 'the way back should be on screen: ' + r.text.slice(0, 500));
+  r.click('Use ' + rec.grams + ' g');
+  assert.strictEqual(numberBox(r).value, String(rec.grams));
+  assert.ok(!r.has('Use ' + rec.grams + ' g'), 'and goes away once you are on it');
+});
+
+test('adaptive with no body-fat reading says what it needs instead of inventing a figure', () => {
+  const r = open({ bodyFatPct: null, proteinMode: 'adaptive' });
+  assert.ok(r.has('Adaptive needs a body-fat reading'), r.text.slice(0, 400));
+  assert.ok(!r.has('Research puts you on'), 'and does not show a recommendation it cannot make');
+  // The plan still has a number: the per-kg setting underneath.
+  assert.ok(r.has('Protein: ' + Math.round(2.4 * profile.weightKg) + ' g a day'), r.text.slice(0, 300));
+});
+
+test('switching modes does not move your number', () => {
+  const r = open();
+  const before = +/Protein: (\d+) g a day/.exec(r.text)[1];
+  r.click('Exact grams');
+  assert.strictEqual(numberBox(r).value, String(before));
+});
+
+test('choosing adaptive saves the mode and drops any held figure', () => {
+  let saved = null;
+  const d = db({ proteinManualG: 182 });
+  const r = mount(A.GoalEditor, {
+    db: d, showToast() {}, onDone() {},
+    update(fn) { const copy = JSON.parse(JSON.stringify(d)); fn(copy); saved = copy; },
+  }).click('Advanced: protein and diet style').click('Adaptive');
+  r.click('Save & update goal').click('Confirm & update');
+  assert.strictEqual(saved.profile.proteinMode, 'adaptive');
+  assert.strictEqual(saved.profile.proteinManualG, null);
+  assert.strictEqual(saved.targets[saved.targets.length - 1].protein_g,
+    E.proteinRecommendation(A.withActivity(Object.assign({}, profile, { proteinMode: 'adaptive' }))).grams);
+});

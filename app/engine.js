@@ -90,6 +90,107 @@
   function defaultProteinPerKgLBM(goalType) {
     return DEFAULT_PROTEIN_G_PER_KG_LBM[goalType] || 2.2;
   }
+  /* ---- the adaptive protein model -------------------------------------------------------------
+   *
+   * Protein scaled to lean mass already moves as body composition does: lose fat at the same weight
+   * and the reference mass rises, so the gram target rises with it. That is only half of what the
+   * literature actually says. The COEFFICIENT moves too.
+   *
+   *   Helms et al. 2014 (IJSNEM), the systematic review this app's band comes from, puts an
+   *   energy-restricted, resistance-trained athlete at 2.3-3.1 g/kg of fat-free mass and is explicit
+   *   that the figure "scales upwards with severity of caloric restriction AND leanness". Two
+   *   moderators, not one, and the review's population is contest-prep lean - the 3.1 end belongs to
+   *   somebody at 6-10% body fat, not to somebody in the low twenties.
+   *
+   *   Refalo et al. 2025 (Strength & Conditioning Journal), a Bayesian meta-regression over 29
+   *   studies, finds a >97% probability of a linear dose-response between protein and favourable
+   *   fat-free-mass change, and - the part that matters here - that the relationship is STRONGER
+   *   when baseline body fat is lower. Someone carrying more fat has more of it to mobilise, so
+   *   their muscle is under less threat and the marginal gram buys less.
+   *
+   *   Morton et al. 2018 (BJSM, 49 RCTs) anchors the other end: in energy balance, gains plateau
+   *   around 1.6 g/kg bodyweight with the confidence interval reaching 2.2. That is what keeps the
+   *   maintain and gain bands from drifting upwards with the cut band.
+   *
+   * So the model is: a goal base, plus an adjustment for leanness, plus one for how hard the deficit
+   * is, clamped to the goal's evidence band.
+   *
+   * THE COEFFICIENTS BELOW ARE ANCHORS, NOT PUBLISHED FIGURES. No paper reports a slope per point of
+   * body fat. They are chosen so the model REPRODUCES the published ranges at their endpoints - a
+   * contest-lean dieter in a severe deficit lands near Helms' 3.1, somebody in the low twenties on a
+   * moderate deficit lands near its floor, a maintainer lands on Morton's plateau - and interpolates
+   * between them rather than stepping. Treat them as a calibration of the ranges, not as evidence in
+   * their own right, and change them by checking the endpoints still land, which the tests do.
+   */
+  // The goal base, before either moderator. Cut sits low on purpose: the moderators are what carry
+  // it up the band, so an unremarkable dieter is not handed a contest-prep number.
+  var PROTEIN_BASE_G_PER_KG_LBM = { cut: 2.05, maintain: 2.00, gain: 1.85 };
+  // The evidence band per goal. Cut is Helms 2014's 2.3-3.1 with room below it for the higher-body-fat
+  // case the review does not cover; maintain and gain are Morton 2018's plateau and its CI, converted
+  // to a lean-mass basis at a typical body composition.
+  var PROTEIN_BAND_G_PER_KG_LBM = { cut: [2.0, 3.1], maintain: [1.8, 2.4], gain: [1.8, 2.4] };
+  // Leanness. Full credit at 10% body fat for men and 18% for women, falling away by 0.03 g/kg of
+  // lean mass per point above it. The 8-point sex offset is the same one rateGuidance already uses
+  // for its "lean dieter" test (12% vs 20%), so the two agree about who counts as lean.
+  var PROTEIN_LEAN_ANCHOR_BF = { male: 10, other: 18 };
+  var PROTEIN_LEAN_MAX_ADJ = 0.45, PROTEIN_LEAN_SLOPE = 0.03;
+  // Deficit severity, as a share of expenditure. Nothing below 10% - that is a rounding error of a
+  // deficit - rising to the full adjustment at 30%, which is about as steep as a deficit gets before
+  // rate guidance starts objecting on its own.
+  var PROTEIN_DEFICIT_MAX_ADJ = 0.40, PROTEIN_DEFICIT_MIN_PCT = 0.10, PROTEIN_DEFICIT_FULL_PCT = 0.30;
+
+  function proteinLeanAdj(p) {
+    var bf = p.bodyFatPct;
+    if (bf == null || isNaN(bf)) return 0;
+    var anchor = p.sex === 'male' ? PROTEIN_LEAN_ANCHOR_BF.male : PROTEIN_LEAN_ANCHOR_BF.other;
+    // Leaner than the anchor earns no MORE than full credit: below it the muscle is already as
+    // exposed as the review describes, and extrapolating a slope past its own data is how a model
+    // invents numbers.
+    return clamp(PROTEIN_LEAN_MAX_ADJ - (bf - anchor) * PROTEIN_LEAN_SLOPE, -PROTEIN_LEAN_MAX_ADJ, PROTEIN_LEAN_MAX_ADJ);
+  }
+  // How hard the PLANNED deficit is, as a fraction of expenditure. Read off the goal and rate rather
+  // than off today's calories: cycling moves a single day by a fifth either way, and a protein target
+  // that swung with it would be noise, not adaptation. Formula TDEE, not the learned one, so this
+  // stays a pure function of the profile.
+  function proteinDeficitPct(p) {
+    if (p.goalType !== 'cut') return 0;
+    var tdee = tdeeFromProfile(p);
+    if (!(tdee > 0)) return 0;
+    return clamp(Math.abs(goalDailyDelta('cut', p.rateKgPerWeek)) / tdee, 0, 1);
+  }
+  function proteinDeficitAdj(p) {
+    var pct = proteinDeficitPct(p);
+    if (pct <= PROTEIN_DEFICIT_MIN_PCT) return 0;
+    var span = PROTEIN_DEFICIT_FULL_PCT - PROTEIN_DEFICIT_MIN_PCT;
+    return clamp((pct - PROTEIN_DEFICIT_MIN_PCT) / span, 0, 1) * PROTEIN_DEFICIT_MAX_ADJ;
+  }
+
+  /* What the research would put this person on today, and why.
+   *
+   * Returns null when body fat is unknown: both moderators and the reference mass are expressed in
+   * fat-free terms, and a model that cannot see body composition is not adapting to it - it is
+   * guessing. The UI says so and asks for a reading rather than quietly inventing a figure.
+   */
+  function proteinRecommendation(p) {
+    if (!p || !(p.weightKg > 0)) return null;
+    var bf = p.bodyFatPct;
+    if (bf == null || isNaN(bf)) return null;
+    var goal = PROTEIN_BASE_G_PER_KG_LBM[p.goalType] != null ? p.goalType : 'maintain';
+    var lean = proteinLeanAdj(p), deficit = proteinDeficitAdj(p);
+    var band = PROTEIN_BAND_G_PER_KG_LBM[goal];
+    var raw = PROTEIN_BASE_G_PER_KG_LBM[goal] + lean + deficit;
+    var gPerKg = clamp(raw, band[0], band[1]);
+    var refKg = proteinReferenceKg(p);
+    return {
+      gPerKgLBM: round(gPerKg, 2),
+      grams: Math.round(gPerKg * refKg),
+      referenceKg: round(refKg, 2),
+      band: { min: band[0], max: band[1], clamped: Math.abs(raw - gPerKg) > 1e-9 },
+      deficitPct: round(proteinDeficitPct(p), 3),
+      parts: { base: PROTEIN_BASE_G_PER_KG_LBM[goal], leanness: round(lean, 2), deficit: round(deficit, 2) },
+    };
+  }
+
   // A typed gram target is held inside the same evidence band the g/kg slider lives in, expressed
   // against the SAME reference mass (lean when body fat is known). The band is wider than the
   // slider on purpose - the slider is the guided path, an exact figure is the deliberate one, and
@@ -108,13 +209,36 @@
       referenceKg: round(ref, 2),
     };
   }
-  // Evidence-based protein: manual gram target, else user's g/kg lean, else goal default.
+  /* The three ways a protein target can be set, in precedence order.
+   *
+   *   grams   - a figure you typed, HELD: it does not move when the scale or the plan does.
+   *   adaptive- proteinRecommendation, re-read every time targets are built, so body fat and deficit
+   *             carry it on their own.
+   *   perkg   - you pick the coefficient, lean mass scales it. The original behaviour, and the
+   *             DEFAULT for anybody whose profile predates proteinMode: switching existing users to
+   *             adaptive would silently move their protein, which is not a migration's job.
+   *
+   * proteinMode is the explicit answer; a held gram figure still wins over it, so a user who types a
+   * number while in adaptive mode gets the number rather than being quietly overruled.
+   */
+  function proteinMode(p) {
+    if (!p) return 'perkg';
+    if (p.proteinManualG) return 'grams';
+    if (p.proteinMode === 'adaptive' || p.proteinMode === 'perkg') return p.proteinMode;
+    return 'perkg';
+  }
+  // Evidence-based protein: manual gram target, else the adaptive model, else user's g/kg lean.
   function proteinGrams(p) {
     if (p.proteinManualG) {
       var g = Math.round(+p.proteinManualG);
       if (!isFinite(g)) return Math.round(defaultProteinPerKgLBM(p.goalType) * proteinReferenceKg(p));
       var b = proteinManualBounds(p);
       return b ? clamp(g, b.min, b.max) : g;
+    }
+    if (p.proteinMode === 'adaptive') {
+      // No body-fat reading, no adaptation: fall through to the g/kg path rather than pretend.
+      var rec = proteinRecommendation(p);
+      if (rec) return rec.grams;
     }
     var gPerKg = p.proteinGPerKgLBM || defaultProteinPerKgLBM(p.goalType);
     return Math.round(gPerKg * proteinReferenceKg(p));
@@ -976,6 +1100,20 @@
     return { tdee: round(tdee), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: opts.days };
   }
 
+  /* How a check-in reports the protein line.
+   *
+   * It used to say "protein stays at N g" unconditionally, which was true while protein was a fixed
+   * coefficient on lean mass and a check-in only ever moved calories. In adaptive mode it is not:
+   * a new body-fat reading moves the target, and a check-in that moved your protein while telling
+   * you it stayed put is the app lying about its own arithmetic.
+   */
+  function ucfirst(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+  function proteinClause(prevTargets, newTargets) {
+    var was = prevTargets ? +prevTargets.protein_g : NaN, now = newTargets.protein_g;
+    if (!(was > 0) || was === now) return 'protein stays at ' + now + ' g';
+    return 'protein ' + (now > was ? 'goes up to ' : 'comes down to ') + now + ' g';
+  }
+
   function weeklyAdjust(opts) {
     var profile = opts.profile;
     var currentKcal = opts.currentTargets.kcal;
@@ -1078,7 +1216,7 @@
       } else {
         why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
       }
-      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and protein stays at ' + newTargets.protein_g + ' g.';
+      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and ' + proteinClause(opts.currentTargets, newTargets) + '.';
     }
     return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed };
   }
@@ -1126,8 +1264,8 @@
     newTargets.estimatedTDEE = opts.estimate.tdee;
     newTargets.source = 'adaptive-early';
     var reason = goal === 'gain'
-      ? 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. Some early gain is water and food weight, not muscle, so rather than a big cut I\'ve trimmed ' + nudge + ' kcal to ' + round(newKcal) + '. Keep going and I\'ll fine-tune from your settled trend next check-in. Protein stays ' + newTargets.protein_g + ' g.'
-      : 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. A lot of an early drop is water and glycogen, not fat, so rather than a big jump I\'ve nudged you up ' + nudge + ' kcal to ' + round(newKcal) + '. Keep it up and I\'ll fine-tune from your settled trend next check-in. Protein stays ' + newTargets.protein_g + ' g.';
+      ? 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. Some early gain is water and food weight, not muscle, so rather than a big cut I\'ve trimmed ' + nudge + ' kcal to ' + round(newKcal) + '. Keep going and I\'ll fine-tune from your settled trend next check-in. ' + ucfirst(proteinClause(opts.currentTargets, newTargets)) + '.'
+      : 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. A lot of an early drop is water and glycogen, not fat, so rather than a big jump I\'ve nudged you up ' + nudge + ' kcal to ' + round(newKcal) + '. Keep it up and I\'ll fine-tune from your settled trend next check-in. ' + ucfirst(proteinClause(opts.currentTargets, newTargets)) + '.';
     return { changed: true, earlyPhase: true, direction: dir, deltaKcal: signed, confidence: 'low', expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
   }
 
@@ -2149,7 +2287,9 @@
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
-    proteinManualBounds: proteinManualBounds,
+    proteinManualBounds: proteinManualBounds, proteinClause: proteinClause, proteinRecommendation: proteinRecommendation, proteinMode: proteinMode,
+    proteinLeanAdj: proteinLeanAdj, proteinDeficitAdj: proteinDeficitAdj, proteinDeficitPct: proteinDeficitPct,
+    PROTEIN_BASE_G_PER_KG_LBM: PROTEIN_BASE_G_PER_KG_LBM, PROTEIN_BAND_G_PER_KG_LBM: PROTEIN_BAND_G_PER_KG_LBM,
     PROTEIN_MANUAL_MIN_G_PER_KG_LBM: PROTEIN_MANUAL_MIN_G_PER_KG_LBM, PROTEIN_MANUAL_MAX_G_PER_KG_LBM: PROTEIN_MANUAL_MAX_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
