@@ -134,7 +134,7 @@
     if (s.profile && s.profile.cycling && !(s.profile.cyclingHistory || []).length) {
       var cy = s.profile.cycling;
       var pct = +cy.deltaPct || 0.15;
-      var known = function (from) { return { effective_date: from, enabled: !!cy.enabled, highDays: (cy.highDays || []).slice(), lowDays: (cy.lowDays || []).slice(), deltaPct: pct }; };
+      var known = function (from) { return { effective_date: from, enabled: !!cy.enabled, highDays: (cy.highDays || []).slice(), lowDays: (cy.lowDays || []).slice(), deltaPct: pct, lowPct: cy.lowPct == null ? undefined : +cy.lowPct, lowFatShare: +cy.lowFatShare || 0 }; };
       s.profile.cyclingHistory = s.profile.cyclingChangedAt
         ? [{ effective_date: null, enabled: false, highDays: [], lowDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
