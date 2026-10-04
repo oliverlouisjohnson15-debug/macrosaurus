@@ -864,31 +864,99 @@
     return out;
   }
 
-  // ---- calorie cycling: high/low days, weekly total preserved ----
-  // config: { enabled, highDays:[0..6 (0=Sun)], deltaPct }
-  // Optional floorKcal: when the low-day drop would push below the floor, the low days clamp AT the
-  // floor and the high-day bumps shrink proportionally so the week still nets to the base target
-  // (or as close as the floor allows).
-  function cyclingDelta(config, weekday, baseKcal, floorKcal) {
-    if (!config || !config.enabled || !config.highDays || !config.highDays.length) return 0;
-    var nHigh = config.highDays.length;
-    if (nHigh >= 7) return 0;
-    var nLow = 7 - nHigh;
-    var bump = baseKcal * (config.deltaPct || 0.15);
-    var lowDelta = -(nHigh * bump) / nLow;
-    if (floorKcal != null && baseKcal + lowDelta < floorKcal) {
-      lowDelta = Math.min(0, floorKcal - baseKcal);
-      bump = (nLow * -lowDelta) / nHigh;
+  // ---- calorie cycling: high, low and normal days, weekly total preserved ----
+  // config: { enabled, highDays:[0..6 (0=Sun)], lowDays:[0..6], deltaPct, lowPct?, lowFatShare? }
+  // Every weekday is high, low or normal, and the week always nets to the base target:
+  //   - High days only: each high day gets +deltaPct and every other day pays for it evenly (the
+  //     original behaviour, so a plan saved before low days existed reads exactly as it did).
+  //   - High AND low days: the low days pay for the high ones and the normal days stay on the base
+  //     target. That is the point of naming a low day: "my rest days pay for my big days, and the
+  //     rest of the week is left alone". A low day gives at most lowPct of the base (default twice
+  //     the boost, never past 35%), so four high days and one low day cannot turn that one day into
+  //     a fast; what it cannot give moves on to the normal days, and the screen says so.
+  //   - Low days only: each low day comes down by lowPct (default deltaPct) and hands what it saves
+  //     to the normal days, so the days you train on go up without picking a single high day.
+  // floorKcal: no day is ever taken below the floor. A paying day that would go through it clamps
+  // AT the floor, the shortfall moves on (low days -> normal days), and if the week still cannot
+  // cover the high days their bumps shrink so it nets to base anyway. With no floor a day still
+  // cannot go below zero. A day listed as both high and low is high.
+  var LOW_PCT_MAX = 0.35;
+  function lowCapPct(config) {
+    if (config.lowPct != null && isFinite(+config.lowPct)) return clamp(+config.lowPct, 0, LOW_PCT_MAX);
+    return Math.min(LOW_PCT_MAX, 2 * (config.deltaPct || 0.15));
+  }
+  // The whole week at once, with the reasons a day did not get what was asked for. Returns
+  // { deltas[7], kinds[7] ('high'|'low'|'normal'), bump, bumpAsked, lowGive, normalShare,
+  //   floorLimited, lowCapped } or null when nothing is shaping the week.
+  function cyclingWeek(config, baseKcal, floorKcal) {
+    if (!config || !config.enabled) return null;
+    var hi = config.highDays || [];
+    var lo = (config.lowDays || []).filter(function (d) { return hi.indexOf(d) === -1; });
+    var nH = hi.length, nL = lo.length, nN = 7 - nH - nL;
+    if (!nH && !nL) return null;
+    var kinds = [];
+    for (var d = 0; d < 7; d++) kinds.push(hi.indexOf(d) !== -1 ? 'high' : lo.indexOf(d) !== -1 ? 'low' : 'normal');
+    var pct = config.deltaPct || 0.15;
+    // The most any one day can give up before it reaches the floor (or zero, with no floor).
+    var room = Math.max(0, baseKcal - (floorKcal != null ? floorKcal : 0));
+    var bump = 0, bumpAsked = 0, lowGive = 0, normShare = 0, floorLimited = false, lowCapped = false;
+    if (!nH) {
+      // Low days only: they give, the normal days take. All seven low has nobody to take it.
+      if (nN) {
+        var want = baseKcal * (config.lowPct != null ? lowCapPct(config) : pct);
+        lowGive = Math.min(want, room);
+        floorLimited = lowGive < want;
+        normShare = (nL * lowGive) / nN;
+      }
+    } else if (nH < 7) {
+      bump = bumpAsked = baseKcal * pct;
+      var owed = nH * bump;
+      if (nL) {
+        var cap = baseKcal * lowCapPct(config);
+        var ask = owed / nL;
+        lowGive = Math.min(ask, cap, room);
+        lowCapped = ask > cap && cap <= room;
+        floorLimited = ask > room && room < cap;
+        var left = owed - lowGive * nL;
+        if (left > 0 && nN) {
+          var share = Math.min(left / nN, room);
+          if (share < left / nN) floorLimited = true;
+          normShare = share;
+        }
+      } else {
+        normShare = Math.min(owed / nN, room);
+        floorLimited = normShare < owed / nN;
+      }
+      var paid = lowGive * nL + normShare * nN;
+      if (paid < owed - 0.01) bump = paid / nH;
+      normShare = -normShare;
     }
-    if (config.highDays.indexOf(weekday) !== -1) return round(bump);
-    return round(lowDelta);
+    var deltas = kinds.map(function (k) {
+      return (round(k === 'high' ? bump : k === 'low' ? -lowGive : normShare) || 0);   // never -0
+    });
+    return { deltas: deltas, kinds: kinds, bump: round(bump), bumpAsked: round(bumpAsked), lowGive: round(lowGive),
+      normalShare: round(normShare) || 0, floorLimited: floorLimited, lowCapped: lowCapped };
+  }
+  function cyclingDelta(config, weekday, baseKcal, floorKcal) {
+    var w = cyclingWeek(config, baseKcal, floorKcal);
+    return w ? w.deltas[weekday] : 0;
+  }
+  // What a weekday IS under a plan, independent of its number: with low days in the week a normal
+  // day can go UP (taking what the low days save) and with high days only it goes DOWN, and neither
+  // makes it a high or a low day. Anything that names a day - the Today card, the weight chart's
+  // note about the morning after a big day - reads this rather than the sign of the delta.
+  function cyclingKind(config, weekday) {
+    if (!config || !config.enabled) return null;
+    var hi = config.highDays || [], lo = config.lowDays || [];
+    if (!hi.length && !lo.length) return null;
+    return hi.indexOf(weekday) !== -1 ? 'high' : lo.indexOf(weekday) !== -1 ? 'low' : 'normal';
   }
 
   // The high/low plan is a DATED setting, not a global one. A day you have already eaten was run
   // under whatever plan was in force that morning, so re-reading it against a plan you set today
   // would rewrite history: yesterday's low day silently becomes a high day you "missed".
   // `history` is the append-only record of the plan, ascending: [{ effective_date, enabled,
-  // highDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
+  // highDays, lowDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
   // null means "since the beginning", which is how the plan in force before the app started
   // recording changes is carried. No history at all falls back to `current` (existing state).
   function cyclingOn(current, history, dateISO) {
@@ -941,6 +1009,11 @@
     var from = p.spreadFrom || null;
     if (p.spreadKcal && (!from || dateISO >= from) && (!p.spreadUntil || dateISO <= p.spreadUntil)) d += p.spreadKcal;
     return round(d);
+  }
+
+  // The kind of day (high / low / normal) a date was under the plan in force ON it.
+  function cyclingKindOn(current, history, dateISO) {
+    return cyclingKind(cyclingOn(current, history, dateISO), weekdayOfISO(dateISO));
   }
 
   // What a mid-window plan change owes the days it has left.
@@ -1511,6 +1584,21 @@
     var floorLimited = (cyc + carry) < (floor - base.kcal);
     var delta = Math.max(cyc + carry, floor - base.kcal);
     var eff = applyKcalDelta(base, delta);
+    // What kind of day the plan made this (high / low / normal), for anything that names it.
+    var cycPlan = opts.cycling ? cyclingOn(opts.cycling, cycHist, date) : null;
+    var cycKind = cycPlan ? cyclingKind(cycPlan, weekdayOfISO(date)) : null;
+    // A low day can take part of its cut from fat instead of all of it from carbs. Holding fat flat
+    // and flexing carbs alone is right for a high day (the extra goes where training wants it), but
+    // on a deep low day it leaves 30 g of carbs under 180 g of protein. Only the low day's own cut
+    // is shared, never carryover, and fat never goes below 0.6 g/kg-ish territory: it stops at half
+    // of what the base gave it.
+    var fatShare = cycPlan && cycKind === 'low' ? clamp(+cycPlan.lowFatShare || 0, 0, 1) : 0;
+    if (fatShare > 0 && cyc < 0 && delta < 0) {
+      var cut = Math.min(-cyc, -delta) * fatShare;
+      var fat2 = Math.max(round(base.fat_g / 2), Math.round(eff.fat_g - cut / 9));
+      var carbs2 = Math.max(0, Math.round((eff.kcal - eff.protein_g * 4 - fat2 * 9 - fiberReserveKcal(eff.kcal)) / 4));
+      eff = Object.assign({}, eff, { fat_g: fat2, carbs_g: carbs2 });
+    }
     // The day shift is a carb <-> fat rebalance at CONSTANT calories. Rounding each side from its own
     // unrounded figure broke that: carbs 71 -> 74 buys 12 kcal while fat 73 -> 72 gives back only 9,
     // so a shift meant to be energy-neutral moved the target's implied energy by up to ~6 kcal, and
@@ -1523,7 +1611,7 @@
       var shiftedCarbs = Math.max(0, Math.round((eff.kcal - eff.protein_g * 4 - shiftedFat * 9 - fiberReserveKcal(eff.kcal)) / 4));
       eff = Object.assign({}, eff, { carbs_g: shiftedCarbs, fat_g: shiftedFat });
     }
-    return { base: base, cyc: cyc, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
+    return { base: base, cyc: cyc, cycKind: cycKind, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
   }
 
   // ---- can this cycle actually be read? -------------------------------------------------------
@@ -2294,7 +2382,7 @@
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     fiberReserveKcal: fiberReserveKcal,
-    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     weekdayRhythm: weekdayRhythm,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
