@@ -864,31 +864,56 @@
     return out;
   }
 
-  // ---- calorie cycling: high/low days, weekly total preserved ----
-  // config: { enabled, highDays:[0..6 (0=Sun)], deltaPct }
-  // Optional floorKcal: when the low-day drop would push below the floor, the low days clamp AT the
-  // floor and the high-day bumps shrink proportionally so the week still nets to the base target
-  // (or as close as the floor allows).
+  // ---- calorie cycling: high, low and normal days, weekly total preserved ----
+  // config: { enabled, highDays:[0..6 (0=Sun)], lowDays:[0..6], deltaPct }
+  // Every weekday is high, low or normal, and the week always nets to the base target:
+  //   - High days only: each high day gets +deltaPct and every other day pays for it evenly (the
+  //     original behaviour, so a plan saved before low days existed reads exactly as it did).
+  //   - High AND low days: the low days pay for the high ones, and the normal days stay on the base
+  //     target. That is the point of naming a low day: "my rest days pay for my big days, and the
+  //     rest of the week is left alone".
+  //   - Low days only: each low day comes down by deltaPct and hands what it saves to the normal
+  //     days, so the days you train on go up without picking a single high day.
+  // Optional floorKcal: no day is ever taken below the floor. A low day that would go through it
+  // clamps AT the floor, the shortfall moves on to the normal days (also floor-clamped), and if
+  // the week still cannot cover the high days their bumps shrink so it nets to base anyway.
+  // A day listed as both high and low is high.
   function cyclingDelta(config, weekday, baseKcal, floorKcal) {
-    if (!config || !config.enabled || !config.highDays || !config.highDays.length) return 0;
-    var nHigh = config.highDays.length;
-    if (nHigh >= 7) return 0;
-    var nLow = 7 - nHigh;
-    var bump = baseKcal * (config.deltaPct || 0.15);
-    var lowDelta = -(nHigh * bump) / nLow;
-    if (floorKcal != null && baseKcal + lowDelta < floorKcal) {
-      lowDelta = Math.min(0, floorKcal - baseKcal);
-      bump = (nLow * -lowDelta) / nHigh;
+    if (!config || !config.enabled) return 0;
+    var hi = config.highDays || [];
+    var lo = (config.lowDays || []).filter(function (d) { return hi.indexOf(d) === -1; });
+    var nH = hi.length, nL = lo.length, nN = 7 - nH - nL;
+    if (!nH && !nL) return 0;
+    var pct = config.deltaPct || 0.15;
+    // The most any one day can give up before it reaches the floor.
+    var room = floorKcal != null ? Math.max(0, baseKcal - floorKcal) : Infinity;
+    var isH = hi.indexOf(weekday) !== -1, isL = lo.indexOf(weekday) !== -1;
+    if (!nH) {
+      // Low days only: they give, the normal days take. All seven low has nobody to take it.
+      if (!nN) return 0;
+      var cut = Math.min(baseKcal * pct, room);
+      return round(isL ? -cut : (nL * cut) / nN);
     }
-    if (config.highDays.indexOf(weekday) !== -1) return round(bump);
-    return round(lowDelta);
+    if (nH >= 7) return 0;
+    var bump = baseKcal * pct;
+    var owed = nH * bump;
+    var lowShare = 0, normShare = 0;
+    if (nL) {
+      lowShare = Math.min(owed / nL, room);
+      normShare = nN ? Math.min((owed - lowShare * nL) / nN, room) : 0;
+    } else {
+      normShare = Math.min(owed / nN, room);
+    }
+    var paid = lowShare * nL + normShare * nN;
+    if (paid < owed) bump = paid / nH;
+    return round(isH ? bump : isL ? -lowShare : -normShare) || 0;   // never -0
   }
 
   // The high/low plan is a DATED setting, not a global one. A day you have already eaten was run
   // under whatever plan was in force that morning, so re-reading it against a plan you set today
   // would rewrite history: yesterday's low day silently becomes a high day you "missed".
   // `history` is the append-only record of the plan, ascending: [{ effective_date, enabled,
-  // highDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
+  // highDays, lowDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
   // null means "since the beginning", which is how the plan in force before the app started
   // recording changes is carried. No history at all falls back to `current` (existing state).
   function cyclingOn(current, history, dateISO) {

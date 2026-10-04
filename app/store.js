@@ -44,8 +44,8 @@
     // why their goal is not their goal. Existing profiles keep whatever they already have - this map
     // only fills in what is missing (see deepDefaults).
     carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
-    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
-    cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, deltaPct }],
+    cycling: { enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 },
+    cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, lowDays, deltaPct }],
                             // ascending, effective_date null = since the beginning. A day is always
                             // composed against the plan in force ON it, so editing the plan today
                             // cannot restate days already eaten (see Engine.cyclingOn).
@@ -134,9 +134,9 @@
     if (s.profile && s.profile.cycling && !(s.profile.cyclingHistory || []).length) {
       var cy = s.profile.cycling;
       var pct = +cy.deltaPct || 0.15;
-      var known = function (from) { return { effective_date: from, enabled: !!cy.enabled, highDays: (cy.highDays || []).slice(), deltaPct: pct }; };
+      var known = function (from) { return { effective_date: from, enabled: !!cy.enabled, highDays: (cy.highDays || []).slice(), lowDays: (cy.lowDays || []).slice(), deltaPct: pct }; };
       s.profile.cyclingHistory = s.profile.cyclingChangedAt
-        ? [{ effective_date: null, enabled: false, highDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
+        ? [{ effective_date: null, enabled: false, highDays: [], lowDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
     }
     /* Saved gyms with the same name are the same gym, as far as anybody reading the list can tell.

@@ -3232,9 +3232,9 @@ function recentHighDates(db, todayISO, days = 14) {
 function pendingCyclingChange(db, next, todayISO, windowStart) {
   const p = db.profile || {};
   const prev = p.cycling || {};
-  const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
+  const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), (c.lowDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
   if (key(prev) === key(next)) return null;
-  const snap = (c, from) => ({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), deltaPct: +c.deltaPct || 0.15 });
+  const snap = (c, from) => ({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), lowDays: (c.lowDays || []).slice(), deltaPct: +c.deltaPct || 0.15 });
   const hist = (p.cyclingHistory || []).slice();
   // The first edit back-fills the outgoing plan with an open start (null = since the beginning),
   // which is the only honest reading of every day before we began dating changes.
@@ -16844,8 +16844,22 @@ function writeMeals(d, list) {
 }
 function activePresetOf(cyc) {
   const hi = (cyc && cyc.enabled) ? (cyc.highDays || []).slice().sort((a, b) => a - b) : [];
+  const lo = (cyc && cyc.enabled) ? (cyc.lowDays || []).filter(d => hi.indexOf(d) === -1) : [];
+  // A named low day is a shape none of the presets make, so it is always Custom.
+  if (lo.length) return 'custom';
   const key = JSON.stringify(hi);
   return hi.length === 0 ? 'even' : key === '[0,6]' ? 'weekend' : key === '[1,3,5]' ? 'training' : 'custom';
+}
+// Tapping a weekday steps it normal -> high -> low -> normal, the way MacroFactor's calorie shifting
+// lets every day of the week be marked. Reads the plan as it is in force, so a switched-off plan
+// still carrying an old high day (the default profile does) starts from an even week, not from it.
+function nextDayKind(cyc, i) {
+  const on = !!(cyc && cyc.enabled);
+  const hi = on ? (cyc.highDays || []) : [], lo = on ? (cyc.lowDays || []) : [];
+  const highDays = hi.filter(x => x !== i), lowDays = lo.filter(x => x !== i);
+  if (hi.includes(i)) lowDays.push(i);
+  else if (!lo.includes(i)) highDays.push(i);
+  return { enabled: highDays.length + lowDays.length > 0, highDays: highDays.sort((a, b) => a - b), lowDays: lowDays.sort((a, b) => a - b) };
 }
 
 // A one-tap "pull fresh data now" button. Google Health already auto-syncs on app open and on a slow
@@ -17128,15 +17142,18 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
     }
     Object.assign(w, patch);
   });
-  const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
+  const cyc = Object.assign({ enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 }, p.cycling);
   const carry = Object.assign({ enabled: false, mode: 'aggressive', capKcal: 400 }, p.carryover);
   const setCyc = (patch) => commit(d => applyCycling(d, Object.assign({}, cyc, patch)));
   const setCarry = (patch) => commit(d => { d.profile.carryover = Object.assign({}, carry, patch); });
   const activePreset = activePresetOf(cyc);
   const pickPreset = (id) => {
-    if (id === 'even') setCyc({ enabled: false, highDays: [] });
-    else if (id === 'custom') setCyc({ enabled: true, highDays: (cyc.highDays && cyc.highDays.length) ? cyc.highDays : [6] });
-    else setCyc({ enabled: true, highDays: PLAN_PRESETS.find(x => x.id === id).highDays.slice() });
+    if (id === 'even') setCyc({ enabled: false, highDays: [], lowDays: [] });
+    else if (id === 'custom') {
+      const had = cyc.enabled && ((cyc.highDays || []).length || (cyc.lowDays || []).length);
+      setCyc(had ? { enabled: true } : { enabled: true, highDays: [6], lowDays: [] });
+    }
+    else setCyc({ enabled: true, highDays: PLAN_PRESETS.find(x => x.id === id).highDays.slice(), lowDays: [] });
   };
   const spread = (() => { const pd = pendingCyclingChange(db, cyc, Store.todayISO(), cycWindowStart(db)); return pd ? pd.spreadKcal : 0; })();
   return (<SubScreen title="Weekly shape" onBack={onBack} intro="Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.">
@@ -17169,6 +17186,11 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         const w = winOn(iso);
         return w ? (w.highDays || []).includes(iso) : (cyc.enabled && cyc.highDays.includes(dow(iso)));
       };
+      // Low days belong to the weekday rhythm only. A trip window is shaped by its big days and the
+      // days that settle them, so nothing inside one reads as low.
+      const isLow = (iso) => !winOn(iso) && cyc.enabled && (cyc.lowDays || []).includes(dow(iso)) && !cyc.highDays.includes(dow(iso));
+      // The rhythm plan that actually ran on a day already eaten, read off the dated history.
+      const ranPlan = (iso) => { const pl = E.cyclingOn(cyc, p.cyclingHistory, iso); return pl && pl.enabled ? pl : null; };
       // What a day already eaten actually ran as, read back off the maths rather than off the shape
       // as it stands now: that is the whole point of the greyed tiles. A window day is big if it
       // came out above the flat rate its window was running at; a rhythm day if its own dated plan
@@ -17177,8 +17199,15 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         const s = shapingPlanOn(db, iso);
         const bk = (E.targetOn(db.targets, iso) || base).kcal;
         if (s.plan) return E.planDayDelta(s.plan, p, iso, bk, E.kcalFloor(p), s.settleEnd) > (s.away ? E.planKcalDelta(s.plan, p) : 0);
-        const t = fc[iso];
-        return !!(t && t.cyc > 0);
+        // Read off the plan's own high days rather than the sign of the delta: with low days in the
+        // week, a normal day goes UP to take what the low days hand it, and it is still not a high day.
+        const pl = ranPlan(iso);
+        return !!(pl && (pl.highDays || []).includes(dow(iso)));
+      };
+      const ranLow = (iso) => {
+        if (shapingPlanOn(db, iso).plan) return false;
+        const pl = ranPlan(iso);
+        return !!(pl && (pl.lowDays || []).includes(dow(iso)) && !(pl.highDays || []).includes(dow(iso)));
       };
       const toggle = (iso) => {
         // A day already eaten keeps what it ran under, on either mechanism.
@@ -17189,8 +17218,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           return setWindowShape({ highDays: hi.includes(iso) ? hi.filter(x => x !== iso) : hi.concat([iso]).sort() });
         }
         if (w) return;
-        const i = dow(iso);
-        setCyc({ enabled: true, highDays: cyc.highDays.includes(i) ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i]) });
+        setCyc(nextDayKind(cyc, dow(iso)));
       };
       const boostPct = stripWindow
         ? Math.round((stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct) * 100)
@@ -17263,7 +17291,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         if (!t0 || !t0.carry || !t0.carryDetail) return null;
         const bal = Math.round(t0.carryDetail.balance || 0);
         if (!bal) return null;
-        const flat = !stripWindow && !(cyc.enabled && cyc.highDays.length);
+        const flat = !stripWindow && !(cyc.enabled && (cyc.highDays.length || (cyc.lowDays || []).length));
         return (flat ? 'Nothing is shaping these days: they are your ' + base.kcal + ' kcal target with the week evened out on top. ' : '')
           + 'You are ' + Math.abs(bal) + ' kcal ' + (bal < 0 ? 'over' : 'under') + ' so far this cycle, so every day left '
           + (t0.carry < 0 ? 'comes down ' : 'goes up ') + Math.abs(Math.round(t0.carry))
@@ -17271,7 +17299,9 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       })();
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
-          Tap a day to make it a big one. The rest come down to keep the total the same.
+          {windowLive
+            ? 'Tap a day to make it a big one. The rest come down to keep the total the same.'
+            : 'Tap a day to step it through high, low and back to normal. High days are paid for by your low days, or by every other day if you have not picked any. Low days hand what they save to your normal days. Same weekly total either way.'}
           {eaten.length ? ' The greyed days have been eaten: they keep the numbers they ran under, so nothing you do here can move them.' : ''}
           {stripWindow ? (windowLive ? ' You\'re ' : ' You\'ll be ') + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
             + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week')
@@ -17284,16 +17314,20 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           // that nothing reached back.
           const past = iso < today;
           const on = past ? ranHigh(iso) : isHigh(iso), away = awayOn(iso), t = fc[iso];
+          const low = !on && (past ? ranLow(iso) : isLow(iso));
           return (<button key={iso} onClick={() => toggle(iso)} disabled={past} aria-disabled={past}
             title={past ? 'Already eaten \u2014 it keeps the plan it ran under' : undefined}
             className="pixel-box py-2 px-0.5 text-center"
-            style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
+            aria-label={DOW_FULL[dow(iso)] + ' ' + (+iso.slice(8)) + ', ' + (on ? 'high' : low ? 'low' : 'normal') + ' day'}
+            style={{ background: on ? 'var(--accent)' : low ? 'color-mix(in srgb, var(--carb) 22%, var(--surface3))' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
               boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined,
               opacity: past ? 0.42 : 1, cursor: past ? 'default' : 'pointer' }}>
             {/* The date, not just the weekday: a trip runs past seven days, so "Monday" alone stops
                 telling you which Monday and whether it is still part of it. */}
             <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}{' '}{+iso.slice(8)}</div>
             <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
+            {/* Which of the three a day is, in words, so a low day is not told apart by colour alone. */}
+            {!winOn(iso) && <div className="text-[8px] uppercase leading-none mt-0.5" style={{ color: low ? 'var(--carb)' : undefined, opacity: on || low ? 1 : 0 }}>{on ? 'high' : low ? 'low' : 'norm'}</div>}
           </button>);
         })}</div>
         {/* Named, so the row stops being a set of numbers you have to reverse-engineer. */}
@@ -17321,8 +17355,8 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             shaped by something. It appears when there is a day for it to act on, which is also the
             moment it starts meaning anything. (Dragging it before then also wrote a dated
             plan-change record for a rhythm that was not running - see applyCycling.) */}
-        {strip.some(isHigh) && <div className="mt-3">
-          <Field label={`${stripWindow ? (windowLive ? 'Big-day boost while you\'re away' : 'Big-day boost on your trip') : 'High-day boost'}: +${boostPct}%`}>
+        {strip.some(d => isHigh(d) || isLow(d)) && <div className="mt-3">
+          <Field label={`${stripWindow ? (windowLive ? 'Big-day boost while you\'re away' : 'Big-day boost on your trip') : strip.some(isHigh) ? 'High-day boost' : 'Low-day cut'}: ${!stripWindow && !strip.some(isHigh) ? '-' : '+'}${boostPct}%`}>
             <input type="range" min="5" max="35" value={boostPct} onChange={e => setBoost(+e.target.value)} className="w-full accent-[#4A9EEB]" />
           </Field>
           {capPct != null && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--fat-ink)' }}>
@@ -17959,7 +17993,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
   const unit = p.weight_unit;
   const base = currentTargets(db) || {};
   const gh = db.googleHealth;
-  const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
+  const cyc = Object.assign({ enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 }, p.cycling);
   const carry = Object.assign({ enabled: false }, p.carryover);
   const men = db.menstrual || {};
   const mode = COACH_MODES.find(m => m.v === p.program_mode) || COACH_MODES[0];
@@ -17986,10 +18020,10 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
       })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
       { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
       { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
-      { key: 'weekly', label: 'Weekly shape', status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off')
+      { key: 'weekly', label: 'Weekly shape', status: preset.label + ((cyc.lowDays || []).length && cyc.enabled ? ' · ' + (cyc.highDays || []).length + ' high, ' + cyc.lowDays.length + ' low' : '') + (cyc.enabled ? ' · ' + ((cyc.highDays || []).length ? '+' : '-') + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off')
         // A running or imminent window is the reason this row's numbers won't match what you're eating.
         + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
-        kw: 'weekly shape cycling high days refeed carryover even out banking calories holiday travel away window' },
+        kw: 'weekly shape cycling high days low days rest days calorie shifting refeed carryover even out banking calories holiday travel away window' },
       { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
       { key: 'freshstart', label: 'Fresh start', status: (db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set your targets up again') + ' \u00b7 nothing is deleted', kw: 'fresh start over reset restart begin again start again recalculate recalibrate expenditure start date wipe clear plan drifted wrong numbers new chapter' },
       { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
@@ -19121,7 +19155,7 @@ function demoStateBuild() {
     theme: new URLSearchParams(window.location.search).has('dark') ? 'dark' : 'light',
     reminders: true, nudgeHour: 14,
     carryover: { enabled: false, mode: 'dispersed', capKcal: 400 },
-    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+    cycling: { enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance',
     premiumSince: demoPremiumSince,
   };
