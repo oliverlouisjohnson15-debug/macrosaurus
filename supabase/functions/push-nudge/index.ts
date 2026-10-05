@@ -13,7 +13,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 // The ladder that decides whether to send and what to say lives in its own Deno/npm-free module so
 // it can be unit-tested under node (see tests/push-nudge.test.js).
-import { decideNudge, STREAK_SAVE_HOUR, type Nudge } from "./decide.ts";
+import { decideNudge, localParts, STREAK_SAVE_HOUR, type Nudge } from "./decide.ts";
 
 Deno.serve(async (req) => {
   try {

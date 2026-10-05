@@ -49,6 +49,21 @@ export function daysBetween(a: string, b: string): number {
   return Math.floor((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
 }
 
+// The subscriber's local calendar date and hour, which every window in index.ts is keyed on. It
+// lives here rather than in index.ts so the node suite can reach it: index.ts called it for months
+// without it being defined anywhere, every hourly run threw on the first subscription, and no push
+// went out to anybody while every test stayed green. An unknown or malformed zone reads as UTC rather
+// than throwing, so one bad row cannot take the whole run down again.
+export function localParts(now: Date, tz: string): { date: string; hour: number } {
+  let fmt: Intl.DateTimeFormat;
+  const opts: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" };
+  try { fmt = new Intl.DateTimeFormat("en-GB", Object.assign({ timeZone: tz || "UTC" }, opts)); }
+  catch (_) { fmt = new Intl.DateTimeFormat("en-GB", Object.assign({ timeZone: "UTC" }, opts)); }
+  const parts: Record<string, string> = {};
+  for (const p of fmt.formatToParts(now)) parts[p.type] = p.value;
+  return { date: parts.year + "-" + parts.month + "-" + parts.day, hour: Number(parts.hour) % 24 };
+}
+
 function shiftISO(iso: string, n: number): string {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
