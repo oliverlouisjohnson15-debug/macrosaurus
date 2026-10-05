@@ -810,3 +810,22 @@ test('a day away is judged complete against the plan it actually ran under', () 
   assert.equal(A.isCompleteDayOn(db, d), false,
     '1300 kcal against a ' + ran + ' plan is not a complete day, whatever it is against the unbent one');
 });
+
+test('a part-logged today is not a finished day: the days ahead do not bank what is still to be eaten', () => {
+  // Three-quarters of today logged by lunchtime clears the 60% bar the complete-day test uses for
+  // days that are OVER. The forecast used to read that as a finished day 25% under and spread the
+  // "saving" across the rest of the week, so every normal day ahead sat above the day you were on.
+  const today = A.Store.todayISO();
+  const ahead = [1, 2, 3].map(n => A.shiftISO(today, n));
+  const kcalsAhead = (db) => { const fc = A.weekForecastTargets(db, ahead); return ahead.map(d => fc[d].eff.kcal); };
+  const clean = evenWeekAccount(0);
+  const base = kcalsAhead(clean);
+  const target = A.effectiveTarget(clean, today).eff.kcal;
+  const partial = evenWeekAccount(0);
+  partial.log_entries.push({ id: 'p1', date: today, computed_macros: { kcal: Math.round(target * 0.75) } });
+  assert.deepEqual(kcalsAhead(partial), base, 'a half-eaten today moved the days ahead');
+  // ...but an overspend already on the books today is real, and the week does make it up.
+  const over = evenWeekAccount(0);
+  over.log_entries.push({ id: 'o1', date: today, computed_macros: { kcal: target + 300 } });
+  assert.ok(kcalsAhead(over).every((k, i) => k < base[i]), 'an overspend already eaten today was ignored: ' + kcalsAhead(over).join(', '));
+});

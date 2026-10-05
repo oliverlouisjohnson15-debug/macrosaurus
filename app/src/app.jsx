@@ -3516,7 +3516,16 @@ function weekForecastTargets(db, days) {
       // Assume any day that isn't already fully logged finishes on its projected target, so the
       // following days see the balance drawn down. (For a part-logged today, drop the partial
       // entries in the projection only; the displayed today target above still uses reality.)
-      if (et && !isCompleteDayOn(db, d)) {
+      // TODAY is never finished yet, however much is logged. The complete-day test is a bar for
+      // judging days that are over (60% of plan), and applying it to today meant a breakfast-to-lunch
+      // log of 1,646 against 1,979 was read as a finished day 333 under: the forecast banked calories
+      // nobody had saved and spread them over the rest of the week, so the normal days on the weekly
+      // board sat 68 kcal above the day you were on, and above what the note under them said. Today
+      // finishes on its target, or on what has already been eaten if that is more.
+      if (et && d === today) {
+        const logged = sumMacros(entriesOn(db, d)).kcal;
+        entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: Math.max(logged, et.eff.kcal) } }]);
+      } else if (et && !isCompleteDayOn(db, d)) {
         entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: et.eff.kcal } }]);
       }
     }
