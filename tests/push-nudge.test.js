@@ -340,3 +340,31 @@ test('the streak-save still fires on an evening with nothing at all in it', asyn
   const n = (await load()).decideNudge(st, TODAY, EVENING);
   assert.strictEqual(n && n.kind, 'streaksave');
 });
+
+test('local date and hour follow the subscriber\'s zone, and a bad zone cannot crash the run', async () => {
+  const m = await load();
+  // 23:30 UTC on 4 Oct is 00:30 on 5 Oct in London (BST) and still 4 Oct in New York.
+  const t = new Date('2026-10-04T23:30:00Z');
+  assert.deepStrictEqual(m.localParts(t, 'Europe/London'), { date: '2026-10-05', hour: 0 });
+  assert.deepStrictEqual(m.localParts(t, 'America/New_York'), { date: '2026-10-04', hour: 19 });
+  assert.deepStrictEqual(m.localParts(t, 'UTC'), { date: '2026-10-04', hour: 23 });
+  assert.deepStrictEqual(m.localParts(t, 'Not/AZone'), { date: '2026-10-04', hour: 23 });
+  assert.deepStrictEqual(m.localParts(t, ''), { date: '2026-10-04', hour: 23 });
+});
+
+test('every helper index.ts calls is imported or defined', () => {
+  // The function shipped calling localParts with no definition anywhere, so every run threw and no
+  // push was sent for weeks. index.ts cannot be loaded under node (Deno imports), so check it by eye:
+  // each bare call must be a global, imported from decide.ts, or declared in the file.
+  const { readFileSync } = require('node:fs');
+  const path = require('node:path');
+  const src = readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'push-nudge', 'index.ts'), 'utf8');
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/"(?:[^"\\]|\\.)*"/g, '""');
+  const imported = new Set((code.match(/import\s*\{([^}]*)\}/g) || []).flatMap(s => s.replace(/import\s*\{|\}/g, '').split(',').map(x => x.replace(/type\s+/, '').trim())));
+  ['createClient', 'webpush'].forEach(n => imported.add(n));
+  const declared = new Set((code.match(/function\s+([A-Za-z_]\w*)/g) || []).map(s => s.split(/\s+/)[1]));
+  const globals = new Set(['Deno', 'JSON', 'String', 'Number', 'Date', 'Response', 'Object', 'Array', 'Math', 'Promise', 'if', 'for', 'while', 'catch', 'switch', 'return', 'function', 'typeof', 'async', 'await']);
+  const calls = new Set((code.match(/(?<![.\w])([A-Za-z_]\w*)\s*\(/g) || []).map(s => s.replace(/\s*\($/, '')));
+  const missing = [...calls].filter(n => !imported.has(n) && !declared.has(n) && !globals.has(n));
+  assert.deepStrictEqual(missing, [], 'index.ts calls helpers that are not defined: ' + missing.join(', '));
+});
