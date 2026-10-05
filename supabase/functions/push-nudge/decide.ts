@@ -21,7 +21,16 @@
  */
 export const STREAK_SAVE_HOUR = 20;      // local hour for the evening streak-save window
 export const STREAK_SAVE_MIN = 2;        // a 1-day "streak" is not yet worth protecting
-export const CHECKIN_OVERDUE_DAYS = 8;   // the app asks at 7 (6 on your day); push waits a day longer
+export const CHECKIN_OVERDUE_DAYS = 1;   // days PAST the day the app asks: push waits a day longer
+// The app's cadence (app.jsx checkinReadyOn), mirrored so the push and the app cannot disagree about
+// when a check-in is owed. tests/push-nudge.test.js holds the two to the same answer on every pair
+// of weekdays. This used to be a flat eight days, which nagged on a perfectly ordinary eight- or
+// nine-day cycle - the one that follows checking in a day or two early, on the way back to your day.
+export const CHECKIN_MIN_DAYS = 7;
+export const CHECKIN_DAY_MIN_DAYS = 5;
+export const CHECKIN_STRETCH_MAX_DAYS = 11;
+export const CHECKIN_MOVE_MIN_DAYS = 2;
+export const CHECKIN_MOVE_MAX_DAYS = 13;
 export const WEIGH_MORNING_END = 12;     // a weigh-in push is only honest before the day's food
 export const WEIGH_GAP_DAYS = 2;         // a most-days weigher is only chased once a gap has opened
 export const WEIGH_WEEKLY_GRACE = 8;     // a weekly weigher who missed their day, asked again after this
@@ -38,6 +47,34 @@ export function isoShift(iso: string, n: number): string {
 }
 export function daysBetween(a: string, b: string): number {
   return Math.floor((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
+}
+
+function shiftISO(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+type CheckinProfile = { checkinDay?: number | null; checkinDayMovedAt?: string | null };
+function checkinReadyOn(last: string, p: CheckinProfile, iso: string): boolean {
+  const days = daysBetween(last, iso);
+  const day = p.checkinDay != null ? p.checkinDay : 1;
+  const dow = new Date(iso + "T00:00:00Z").getUTCDay();
+  const onChosenDay = dow === day;
+  const movePending = !!p.checkinDayMovedAt && p.checkinDayMovedAt >= last;
+  if (movePending && days <= CHECKIN_MOVE_MAX_DAYS) return onChosenDay && days >= CHECKIN_MOVE_MIN_DAYS;
+  if (days < CHECKIN_DAY_MIN_DAYS) return false;
+  if (onChosenDay) return true;
+  if (days < CHECKIN_MIN_DAYS) return false;
+  return days + (day - dow + 7) % 7 > CHECKIN_STRETCH_MAX_DAYS;
+}
+// The first day after `last` the app would offer a check-in on. Never null in practice: any
+// fourteen-day run contains a due day under every branch above.
+export function checkinDueISO(last: string, p: CheckinProfile): string | null {
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftISO(last, i);
+    if (checkinReadyOn(last, p, iso)) return iso;
+  }
+  return null;
 }
 
 // Consecutive ACTIVE days (food logged OR weighed OR trained) ending today. A deliberately simple mirror of
@@ -245,7 +282,8 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
   // 5. Eating fine, but the weekly read is overdue. This is the one nudge that can reach someone who
   //    HAS logged, which is exactly why it waits longer than the in-app ask before interrupting.
   const last = typeof d.last_checkin === "string" ? d.last_checkin : null;
-  if (last && daysBetween(last, today) >= CHECKIN_OVERDUE_DAYS) {
+  const due = last ? checkinDueISO(last, (d.profile || {}) as CheckinProfile) : null;
+  if (due && daysBetween(due, today) >= CHECKIN_OVERDUE_DAYS) {
     // Someone who weighs once a week is being asked for the reading itself, so the nudge opens the
     // weigh sheet. Someone who weighs most mornings has already given us the week, so asking them to
     // "weigh in" is asking for something they have done six times: send them to the read instead.

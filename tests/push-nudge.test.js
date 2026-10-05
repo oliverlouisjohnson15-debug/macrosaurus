@@ -91,19 +91,68 @@ test('an unlogged day gets the peckish nudge, in the buddy\'s name', async () =>
 
 test('an overdue check-in reaches someone who HAS logged', async () => {
   // The one nudge that can interrupt a compliant user, so it waits longer than the in-app ask.
-  const st = { log_entries: days(TODAY), last_checkin: '2026-07-18' }; // 8 days
+  // Saturday is the day, last done Sat 18th: due Sat 25th, so a day overdue today (Sun 26th).
+  const st = { log_entries: days(TODAY), last_checkin: '2026-07-18', profile: { checkinDay: 6 } };
   const n = (await load()).decideNudge(st, TODAY, NORMAL);
   assert.strictEqual(n.kind, 'checkin');
   // Daily weigher: their week is already on record, so the push opens the read, not the scales.
   assert.strictEqual(n.url, '/?action=checkin');
   assert.match(n.body, /already|waiting/i);
   // Once-a-week weigher: the reading IS the check-in, so it still opens the weigh sheet.
-  const weekly = (await load()).decideNudge(Object.assign({ profile: { weighCadence: 'single' } }, st), TODAY, NORMAL);
+  const weekly = (await load()).decideNudge(Object.assign({}, st, { profile: { checkinDay: 6, weighCadence: 'single' } }), TODAY, NORMAL);
   assert.strictEqual(weekly.kind, 'checkin');
   assert.strictEqual(weekly.url, '/?action=weigh');
   assert.match(weekly.body, /scales|weigh-in/i);
-  // A day earlier it is not yet overdue.
-  assert.strictEqual((await load()).decideNudge({ log_entries: days(TODAY), last_checkin: '2026-07-19' }, TODAY, NORMAL), null);
+  // Due today is not yet overdue: the app is already asking, so the phone stays quiet.
+  assert.strictEqual((await load()).decideNudge({ log_entries: days(TODAY), last_checkin: '2026-07-19', profile: { checkinDay: 0 } }, TODAY, NORMAL), null);
+});
+
+test('the long cycle after an early check-in is not chased as overdue', async () => {
+  // Monday is the day and they checked in early on Sat 18th: the app's next ask is Mon 27th, nine
+  // days on. A flat eight-day rule buzzed them on Sunday for a check-in the app was not offering.
+  const st = { log_entries: days(TODAY), last_checkin: '2026-07-18', profile: { checkinDay: 1 } };
+  const m = await load();
+  assert.strictEqual(m.checkinDueISO('2026-07-18', { checkinDay: 1 }), '2026-07-27');
+  assert.strictEqual(m.decideNudge(st, TODAY, NORMAL), null);
+  // ...and a day after that Monday passes unanswered, it is.
+  assert.strictEqual(m.decideNudge(Object.assign({}, st, { log_entries: days('2026-07-28') }), '2026-07-28', NORMAL).kind, 'checkin');
+});
+
+test('the push and the app agree on when every check-in is due', async () => {
+  // Parity with app.jsx: the same cadence evaluated from the app source, for every weekday a check-in
+  // can fall on, every chosen day, and with and without a pending move.
+  const { readFileSync } = require('node:fs');
+  const path = require('node:path');
+  const SRC = readFileSync(path.join(__dirname, '..', 'app', 'src', 'app.jsx'), 'utf8');
+  const body = (name) => {
+    const start = SRC.indexOf('function ' + name + '(');
+    const open = SRC.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < SRC.length; i++) {
+      if (SRC[i] === '{') depth++;
+      else if (SRC[i] === '}' && --depth === 0) return SRC.slice(start, i + 1);
+    }
+  };
+  const constant = (name) => SRC.match(new RegExp('^const ' + name + ' = \\d+;', 'm'))[0];
+  const appSide = new Function(`
+    const DOW_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const Store = { isoOf: (d) => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-') };
+    ${body('shiftISO')} ${body('daysBetween')}
+    ${['CHECKIN_MIN_DAYS', 'CHECKIN_DAY_MIN_DAYS', 'CHECKIN_STRETCH_MAX_DAYS', 'CHECKIN_MOVE_MIN_DAYS', 'CHECKIN_MOVE_MAX_DAYS'].map(constant).join('\n')}
+    ${body('checkinDayMovePending')} ${body('checkinReadyOn')} ${body('checkinStatus')}
+    return checkinStatus;`)();
+  const m = await load();
+  for (let from = 0; from <= 6; from++) {
+    const lastISO = new Date(Date.UTC(2026, 7, 9 + from)).toISOString().slice(0, 10);   // 9th is a Sunday
+    for (let chosen = 0; chosen <= 6; chosen++) {
+      for (const movedAt of [null, lastISO]) {
+        const profile = { checkinDay: chosen, checkinDayMovedAt: movedAt };
+        const st = appSide({ last_checkin: lastISO, profile }, lastISO);
+        assert.strictEqual(m.checkinDueISO(lastISO, profile), st.nextISO,
+          'push and app disagree after ' + lastISO + ' for day ' + chosen + (movedAt ? ' (moved)' : ''));
+      }
+    }
+  }
 });
 
 test('not-logged outranks an overdue check-in: one voice, the most useful thing only', async () => {

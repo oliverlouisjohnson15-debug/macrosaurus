@@ -637,6 +637,9 @@ test('tapping a big day inside a running window cannot move a day already away',
   const today = A.Store.todayISO();
   db.profile.carryover = { enabled: false, mode: 'dispersed', capKcal: 400 };
   db.last_checkin = A.shiftISO(today, -3);
+  // The check-in day is the weekday of that check-in, so the cycle is the plain week this counts
+  // tiles across, whatever weekday the suite happens to run on.
+  db.profile.checkinDay = new Date(db.last_checkin + 'T00:00:00').getDay();
   db.week_plans = [window_({ start: A.shiftISO(today, -3), end: A.shiftISO(today, 3), label: 'Away' })];
   const past = [-3, -2, -1].map(n => A.shiftISO(today, n));
   const before = past.map(d => A.effectiveTarget(db, d).eff.kcal);
