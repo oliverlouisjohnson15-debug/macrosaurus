@@ -38,6 +38,7 @@ const sandbox = new Function(`
   ${body('daysBetween')}
   ${constant('CHECKIN_MIN_DAYS')}
   ${constant('CHECKIN_DAY_MIN_DAYS')}
+  ${constant('CHECKIN_STRETCH_MAX_DAYS')}
   ${constant('CHECKIN_MOVE_MIN_DAYS')}
   ${constant('CHECKIN_MOVE_MAX_DAYS')}
   ${constant('CHECKIN_READ_MIN_DAYS')}
@@ -124,7 +125,8 @@ test('the first ever check-in is due immediately', () => {
 });
 
 test('when it is not due, it always says when it will be', () => {
-  // Every day of a fortnight, from a check-in on each weekday, must name a next date within a week.
+  // Every day of a fortnight, from a check-in on each weekday, must name a next date - and that date
+  // is never further off than the longest cycle the stretch allows.
   for (let day = 0; day <= 6; day++) {
     for (let i = 0; i <= 13; i++) {
       const last = '2026-08-01';
@@ -132,7 +134,7 @@ test('when it is not due, it always says when it will be', () => {
       const st = checkinStatus(db(last, day), todayISO);
       if (st.due) continue;
       assert.ok(st.nextISO, 'no next date offered on ' + todayISO + ' (day ' + day + ')');
-      assert.ok(st.daysUntil >= 1 && st.daysUntil <= 7, 'next check-in is ' + st.daysUntil + ' days out');
+      assert.ok(st.daysUntil >= 1 && st.daysUntil <= 11, 'next check-in is ' + st.daysUntil + ' days out');
       assert.match(checkinWaitLabel(st), /^(Tomorrow|In \d+ days) · (Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day$/);
     }
   }
@@ -140,10 +142,56 @@ test('when it is not due, it always says when it will be', () => {
 
 test('the wait label reads as a sentence, and says nothing when one is due', () => {
   assert.strictEqual(checkinWaitLabel(checkinStatus(db('2026-08-04', 1), MON)), '');
-  // Checked in Wed 5th, day picked is Sunday: the full week lands first, on Wed 12th.
-  assert.strictEqual(checkinWaitLabel(checkinStatus(db('2026-08-05', 0), MON)), 'In 2 days · Wednesday');
-  // Checked in Tue 4th, day picked is Friday: today is day six and not a Friday, so it's tomorrow.
-  assert.strictEqual(checkinWaitLabel(checkinStatus(db('2026-08-04', 5), MON)), 'Tomorrow · Tuesday');
+  // Checked in Wed 5th, day picked is Sunday: the 9th is too soon, so it waits for Sun 16th rather
+  // than firing the full week on Wed 12th and making Wednesday the day.
+  assert.strictEqual(checkinWaitLabel(checkinStatus(db('2026-08-05', 0), MON)), 'In 6 days · Sunday');
+  // Checked in Tue 4th, day picked is Friday: the 7th is too soon, so the next one is Fri 14th.
+  assert.strictEqual(checkinWaitLabel(checkinStatus(db('2026-08-04', 5), MON)), 'In 4 days · Friday');
+});
+
+// ---- checking in off your day ----
+// "Check in now anyway" exists for good reasons (home from a trip a day early, a weigh-in you want
+// read before a weekend), and it used to cost you your day: the full week after an early Saturday
+// check-in landed on the next Saturday before Monday came round, and Saturday it stayed, while
+// Settings went on saying Monday. Every check-in after an off-day one must come back to the day.
+const firstDue = (last, chosen) => {
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftDays(last, i);
+    if (checkinStatus(db(last, chosen), iso).due) return { iso, gap: i };
+  }
+  return null;
+};
+
+test('a check-in taken on any other weekday comes back to your day next time', () => {
+  for (let chosen = 0; chosen <= 6; chosen++) {
+    for (let from = 0; from <= 6; from++) {
+      const last = shiftDays('2026-08-09', from);   // 2026-08-09 is a Sunday
+      const next = firstDue(last, chosen);
+      assert.ok(next, 'nothing came due after a check-in on day ' + from);
+      assert.strictEqual(new Date(next.iso + 'T00:00:00').getDay(), chosen,
+        'a check-in on day ' + from + ' moved the rhythm off chosen day ' + chosen + ' to ' + next.iso);
+      assert.ok(next.gap >= 5 && next.gap <= 11, 'the cycle after it ran ' + next.gap + ' days');
+    }
+  }
+});
+
+test('one or two days early costs one longer cycle, then the plain week resumes', () => {
+  // Monday is the day. Saturday and Sunday are the early check-ins people actually take.
+  for (const early of ['2026-08-08', '2026-08-09']) {
+    const next = firstDue(early, 1);
+    assert.strictEqual(next.iso, '2026-08-17', 'early on ' + early + ' did not come back to Monday the 17th');
+    assert.ok(next.gap === 8 || next.gap === 9);
+    assert.strictEqual(firstDue(next.iso, 1).gap, 7, 'the week after should be an ordinary week');
+  }
+});
+
+test('a missed day stays due rather than waiting another week', () => {
+  // Monday was the day and came and went. Tuesday onwards the stretch can no longer reach the next
+  // Monday inside eleven days, so every day after it stays due until the check-in is done.
+  for (let late = 1; late <= 6; late++) {
+    assert.strictEqual(checkinStatus(db('2026-08-03', 1), shiftDays('2026-08-10', late)).due, true,
+      'a check-in ' + late + ' days overdue was hidden behind the next Monday');
+  }
 });
 
 test('no surface re-inlines the old bare gate', () => {

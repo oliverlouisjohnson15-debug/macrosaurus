@@ -3143,6 +3143,14 @@ const CHECKIN_MIN_DAYS = 7;      // a full week: shorter cycles are too noisy to
 // looked broken because it was. Five is the shortest cycle that still reads (checkInDecision holds
 // its own line on readability), and anything shorter is reachable by checking in early on purpose.
 const CHECKIN_DAY_MIN_DAYS = 5;
+// ...and the other half of the same guarantee: a full week that ends a day or two short of your day
+// WAITS for it rather than firing. Checking in early (Saturday, for a Monday) used to start a new
+// rhythm on the early day, because the full-week clause landed on the next Saturday before Monday
+// came round. Together with the five-day floor this makes every cycle land on the chosen day in
+// five to eleven days, from wherever the last check-in fell: seven consecutive lengths cover every
+// weekday offset once. Eleven is only met after a check-in three or four days off the day; one or
+// two days early, the usual reason to check in early, comes back in eight or nine.
+const CHECKIN_STRETCH_MAX_DAYS = 11;
 // MOVING your check-in day in Settings is a deliberate act, not the drift the clause above catches,
 // so it gets its own rule: the next check-in lands on the new day, shortening or stretching the
 // current cycle to reach it. Both directions were unreachable without this, and in the same week.
@@ -3163,9 +3171,10 @@ function checkinDayMovePending(db) {
   if (!moved || !db.last_checkin) return false; // no cycle to move: the first check-in sets the rhythm
   return moved >= db.last_checkin;
 }
-// Would a check-in on `iso` be a long enough cycle to read? Either a full week has passed, or it's
-// the weekday you picked and we're within a day of one (that day exists to keep the rhythm, and
-// waiting a week to re-honour it is what makes check-ins drift ever later through the week).
+// Would a check-in on `iso` be a long enough cycle to read, and the right day to take it? It's the
+// weekday you picked and at least five days have passed, or a full week has passed and your day is
+// too far off to wait for (see CHECKIN_STRETCH_MAX_DAYS). That day exists to keep the rhythm, so a
+// cycle bends towards it from either side rather than re-anchoring wherever the last one fell.
 function checkinReadyOn(db, iso) {
   if (!db.last_checkin) return true; // never checked in: the first one sets the baseline, no waiting
   const days = daysBetween(db.last_checkin, iso);
@@ -3175,8 +3184,16 @@ function checkinReadyOn(db, iso) {
   // can make is safe to read because readStartISO widens the window it is read over, not because
   // the days themselves are enough.
   if (checkinDayMovePending(db) && days <= CHECKIN_MOVE_MAX_DAYS) return onChosenDay && days >= CHECKIN_MOVE_MIN_DAYS;
-  if (days >= CHECKIN_MIN_DAYS) return true;
-  return days >= CHECKIN_DAY_MIN_DAYS && onChosenDay;
+  if (days < CHECKIN_DAY_MIN_DAYS) return false;
+  if (onChosenDay) return true;
+  if (days < CHECKIN_MIN_DAYS) return false;
+  // A full week has passed on some other weekday. If your day is close enough ahead to be reached
+  // without the cycle running past CHECKIN_STRETCH_MAX_DAYS, wait for it: firing the full week here
+  // is what re-anchored the rhythm onto whatever day you had checked in early (or late), every week,
+  // forever, while Settings went on showing the day you picked. Once your day has gone by, the
+  // stretch can no longer reach it and the check-in stays due until you do it.
+  const ahead = (day - new Date(iso + 'T00:00:00').getDay() + 7) % 7;
+  return days + ahead > CHECKIN_STRETCH_MAX_DAYS;
 }
 // { due, daysSince, nextISO, daysUntil } for today. nextISO/daysUntil are null when one is due now.
 function checkinStatus(db, todayISO) {
@@ -3499,7 +3516,16 @@ function weekForecastTargets(db, days) {
       // Assume any day that isn't already fully logged finishes on its projected target, so the
       // following days see the balance drawn down. (For a part-logged today, drop the partial
       // entries in the projection only; the displayed today target above still uses reality.)
-      if (et && !isCompleteDayOn(db, d)) {
+      // TODAY is never finished yet, however much is logged. The complete-day test is a bar for
+      // judging days that are over (60% of plan), and applying it to today meant a breakfast-to-lunch
+      // log of 1,646 against 1,979 was read as a finished day 333 under: the forecast banked calories
+      // nobody had saved and spread them over the rest of the week, so the normal days on the weekly
+      // board sat 68 kcal above the day you were on, and above what the note under them said. Today
+      // finishes on its target, or on what has already been eaten if that is more.
+      if (et && d === today) {
+        const logged = sumMacros(entriesOn(db, d)).kcal;
+        entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: Math.max(logged, et.eff.kcal) } }]);
+      } else if (et && !isCompleteDayOn(db, d)) {
         entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: et.eff.kcal } }]);
       }
     }
@@ -4600,6 +4626,15 @@ function shownDelta(now, prev, unit) {
 }
 // Signed percentage-point change, one decimal (body fat: "−0.8 pts").
 function fmtPct1(pts) { const sign = pts > 0 ? '+' : pts < 0 ? '−' : ''; return sign + Math.abs(pts).toFixed(1) + ' pts'; }
+// A weekly RATE. Goals are set in quarter-kilos (0.25, 0.5, 0.75 kg a week) and one decimal put
+// "aiming for −0.8 kg/wk" under a goal of 0.75, so kilos get two places, trimmed (0.5, not 0.50).
+// Pounds keep one: 0.75 kg is 1.7 lb, and the second place there is noise, not a goal.
+function fmtRateKg(kg, unit) {
+  if (kg == null || isNaN(kg)) return '–';
+  const sign = kg > 0 ? '+' : kg < 0 ? '−' : '';
+  const a = Math.abs(kg);
+  return sign + (unit === 'st_lb' ? (a * 2.20462).toFixed(1) + ' lb' : String(+a.toFixed(2)) + ' kg') + '/wk';
+}
 function fmtWeightDelta(kg, unit, suffix) {
   if (kg == null || isNaN(kg)) return '–';
   const sign = kg > 0 ? '+' : kg < 0 ? '−' : '';
@@ -5988,7 +6023,9 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
-      d.checkins = (d.checkins || []).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
+      // One record per date: re-running a check-in the same day (a resumed sheet, a second device)
+      // replaces that day's record rather than stacking a second one the history then shows twice.
+      d.checkins = (d.checkins || []).filter(c => !c || c.date !== today).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
       d.profile.trackingLane = laneMode; // 'balance' or 'weightOnly', remembered for lane-aware copy
       // Check-in counts as showing up (any outcome, including a hold). Idempotent per date via a
       // game_awards guard so re-checking-in the same day never double-counts the badge track.
@@ -6035,8 +6072,19 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const tgtRate = p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0));
   const actRate = result && result.estimate ? result.estimate.weeklyChangeKg : null;
   const rateOnGoal = actRate == null ? null : (p.goalType === 'cut' ? actRate < 0.02 : p.goalType === 'gain' ? actRate > -0.02 : Math.abs(actRate) < 0.15);
-  const fmtRate = (r) => Math.abs(r) < 0.02 ? 'steady' : fmtWeightDelta(r, unit, '/wk');
-  const nextCheckISO = shiftISO(today, 7);
+  const fmtRate = (r) => Math.abs(r) < 0.02 ? 'steady' : fmtRateKg(r, unit);
+  // The rate is read average-to-average, and the weight beat a step earlier showed where the trend
+  // is TODAY. On a week that moved late (flat, then a drop in the last few mornings) those two tell
+  // different stories: the trend had fallen 0.7 kg and the headline said 0.25 kg a week, which reads
+  // like the app losing most of the progress. It doesn't, the average catches the rest next cycle,
+  // so when today sits well off this cycle's average the read says so in plain words. "Well off"
+  // allows for the ordinary lag of a steady trend, which sits about three days' worth behind today.
+  const lateMove = (() => {
+    if (!result || singleWeigh || result.avgNow == null || result.curAvg == null || actRate == null) return null;
+    const off = result.curAvg - result.avgNow;
+    if (Math.abs(off) < 0.3 || Math.abs(off) < Math.abs(actRate) * 3 / 7 + 0.2) return null;
+    return { off, down: off < 0 };
+  })();
   // ---- the conversation ------------------------------------------------------------------------
   // One beat per screen. The buddy says one thing, you answer one thing, you move on. Everything the
   // old sheet stacked inline (the trend panel, the chart, lean mass, burn, coverage) now lives behind
@@ -6127,6 +6175,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
             // Why the dates reach back past your last check-in, said before you can wonder.
             cov.widened ? 'Your check-in day moved, so this one reads the last full week rather than the ' + (cov.newDays === 1 ? 'day' : cov.newDays + ' days') + ' since ' + fmtShortDay(cov.anchor) + '. A whole week keeps your heavier mornings from landing on one end of it, and I’ll go gently on the days I’ve already read.' : null,
             cov.planned > 0 ? cov.planned + ' of those days you were away, so I only counted the days you were back.' : null,
+            // Thin logging switches the read to the scale alone. That used to happen silently, behind
+            // a disclosure two screens on, and the person then got a full-size change built on the
+            // assumption they had eaten to plan. Say the assumption before it is acted on.
+            (!onTrack && lane === 'roughly' && readyToAdjust) ? 'That is not enough food logging to read what you ate, so I will go on your weigh-ins and take it you ate roughly to plan. If you didn’t, say so in a moment and I will hold your numbers.' : null,
           ].filter(Boolean).join(' ') || null}>
             Since {fmtShortDay(cs)} you logged {loggedDays} day{loggedDays === 1 ? '' : 's'} and weighed in {weighDays} time{weighDays === 1 ? '' : 's'}.
           </Say>
@@ -6179,6 +6231,11 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
             value={actRate == null ? '–' : fmtRate(actRate)}
             tone={rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)'}
             note={actRate == null ? null : 'You were aiming for ' + fmtRate(tgtRate)} />
+          {lateMove && <div className="pixel-box p-3 mb-4 text-[12px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+            Your trend today is <b className="tnum">{fmtWeight(result.curAvg, unit)}</b>, {fmtWeightDelta(Math.abs(lateMove.off), unit)} {lateMove.down ? 'below' : 'above'} this cycle’s average. {lateMove.down
+              ? 'Most of the drop came in the last few days, and a week’s average only counts part of a late move. The rest is not lost: it shows up in your next check-in.'
+              : 'It rose in the last few days, and a week’s average only counts part of a late move. If that is water it will fade before it moves your numbers much.'}
+          </div>}
           <Say>{result.reason}</Say>
           {(() => {
             const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
@@ -6188,11 +6245,16 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           })()}
           <Collapsible variant="inline" label="The numbers behind it" className="mb-4">
             {result.avgNow != null && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              {/* Say WHICH weights these are. Unlabelled, "87.70 to 87.45" sat under a headline built
+                  from them and beside a weight beat that had shown 87.05, and nobody could tell the
+                  averages the rate is read between from the trend they had just been shown. */}
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'Weigh-in, last time to this time' : 'Average trend weight, last cycle to this one'}</div>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
                 <span className="text-[#8A8A90]">to</span>
                 <span className="tnum font-bold text-[15px]">{fmtWeight(result.avgNow, unit)}</span>
               </div>
+              {!singleWeigh && result.curAvg != null && <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">The rate above is read between these two, so one good or bad morning cannot swing your macros. Your trend today: <span className="tnum" style={{ color: 'var(--text)' }}>{fmtWeight(result.curAvg, unit)}</span>.</div>}
               {result.leanNow != null && result.leanPrev != null && (() => {
                 const dLean = shownDelta(result.leanNow, result.leanPrev, unit);
                 const dFat = shownDelta((result.avgNow - result.leanNow), (result.avgPrev - result.leanPrev), unit);
@@ -6683,7 +6745,7 @@ function CoachTimeline({ db }) {
     <div className="space-y-3.5">
       {shown.map((c, i) => {
         const d = new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-        const moved = c.weeklyChangeKg != null ? fmtWeightDelta(c.weeklyChangeKg, unit, '/wk') : null;
+        const moved = c.weeklyChangeKg != null ? fmtRateKg(c.weeklyChangeKg, unit) : null;
         const delta = +c.deltaKcal || 0;
         const why = rationaleFor(c.date);
         return (<div key={c.date + i} className={i ? 'pt-3.5' : ''} style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
@@ -7411,7 +7473,7 @@ function ExpenditureCard({ db, plan }) {
                 <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
                 {est.direction === 'flat'
                   ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
-                  : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
+                  : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtRateKg(est.weeklyChangeKg, unit)}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
                 <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
               </div>}
             </>;
@@ -16433,7 +16495,12 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
             </div>
             {st.nextISO && <div className="text-[11px] text-[#8A8A90] shrink-0 text-right">{fmtShortDay(st.nextISO)}</div>}
           </div>
-          <div className="mt-2"><TextBtn onClick={() => setForceCheckin(true)}>Check in now anyway &rsaquo;</TextBtn></div>
+          {/* Not the day of one, or the day after: a second check-in on the same morning appended a
+              second record for the same date, and the next morning brings one new weigh-in, which
+              is not a cycle. Two days is the same floor a moved check-in day uses. */}
+          {st.daysSince >= CHECKIN_MOVE_MIN_DAYS
+            ? <div className="mt-2"><TextBtn onClick={() => setForceCheckin(true)}>Check in now anyway &rsaquo;</TextBtn></div>
+            : <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">You checked in {st.daysSince === 0 ? 'today' : 'yesterday'}. Give it a couple of mornings on the scale before the next one.</div>}
         </>;
         return <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -16481,8 +16548,17 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
 
       {forceCheckin && (() => {
         const st = checkinStatus(db, today);
+        // Where the rhythm goes AFTER this one, from the same rule every other surface reads, as if
+        // the check-in had just been taken. It does not move: the next one bends back onto your day.
+        const after = checkinStatus(Object.assign({}, db, { last_checkin: today, checkins: (db.checkins || []).concat([{ date: today }]) }), today);
+        const dayName = DOW_FULL[(p.checkinDay != null ? p.checkinDay : 1)];
         return <ConfirmDialog title="Check in early?"
-          body={'It has been ' + st.daysSince + ' day' + (st.daysSince === 1 ? '' : 's') + ' since your last one, so this cycle is shorter than the week I read best. I will still only move your numbers if the trend is clear enough to read; if it is not, I will hold them and say so. Your check-in day resets from today.'}
+          body={(st.daysSince >= CHECKIN_MIN_DAYS
+            // A full week has passed and the app is only holding out for your day, so there is
+            // nothing short about this cycle and saying so would be a reason not to.
+            ? 'It has been ' + st.daysSince + ' days, so there is a full week to read. I was holding on for ' + dayName + ', your check-in day, but checking in now reads just as well. '
+            : 'It has been ' + st.daysSince + ' day' + (st.daysSince === 1 ? '' : 's') + ' since your last one, so this cycle is shorter than the week I read best. I will still read a full week of weigh-ins, and only move your numbers if the trend is clear enough; if it is not, I will hold them and say so. ')
+            + (after.nextISO ? 'Your check-in day stays ' + dayName + ': the one after this is ' + DOW_FULL[new Date(after.nextISO + 'T00:00:00').getDay()] + ' ' + fmtShortDay(after.nextISO) + '.' : 'Your check-in day stays ' + dayName + '.')}
           confirmLabel="Check in now" confirmKind="accent"
           onConfirm={() => { setForceCheckin(false); onCheckIn && onCheckIn(); }}
           onClose={() => setForceCheckin(false)} />;
@@ -17554,7 +17630,7 @@ function CheckinsScreen({ db, update, onBack }) {
   const st = checkinStatus(db, Store.todayISO());
   return (<SubScreen title="Check-ins & weigh-ins" onBack={onBack} intro="When your plan gets read, and how often you step on the scale. Your check-in reads the trend either way.">
     <SavedFlash tick={tick} />
-    <Field label="Check-in day" hint={'I ask on this day, and on any day after a full week has passed. A cycle needs about a week in it to read a trend, so a check-in never comes round sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last one.'}>
+    <Field label="Check-in day" hint={'Check-ins land on this day. Check in early or late and the next one still comes back to it, never sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last, because a cycle needs most of a week in it to read a trend.'}>
       {/* Stamping the day it MOVED is what lets the next check-in land on the new day instead of
           finishing out the old rhythm first. Only a real change stamps it: re-tapping the day you
           are already on is not a move, and would otherwise re-open the transition on every tap. */}

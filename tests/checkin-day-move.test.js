@@ -54,13 +54,14 @@ test('the Tuesday it was moved, the check-in is already looking at Friday', () =
   assert.strictEqual(A.checkinWaitLabel(st), 'In 3 days · Friday');
 });
 
-test('without the move the old day just comes round again, which is the bug', () => {
-  // The same account with the day changed but nothing recording that it MOVED: the full-week clause
-  // wins, Tuesday is offered, and taking it re-anchors to Tuesday for another week.
+test('without the move marker the day still arrives, just a cycle later', () => {
+  // The same account with the day changed but nothing recording that it MOVED. This used to offer
+  // Tuesday on the full-week clause and re-anchor there for good. The stretch now carries the cycle
+  // on to the Friday instead; the marker is what makes it the NEAR Friday rather than the far one.
   const db = tuesdayAccount(TUE);
   db.profile.checkinDay = 5;
-  assert.strictEqual(A.checkinStatus(db, TUE).nextISO, A.shiftISO(TUE, 7));
-  assert.strictEqual(dow(A.checkinStatus(db, TUE).nextISO), 2);
+  assert.strictEqual(A.checkinStatus(db, TUE).nextISO, A.shiftISO(TUE, 10));
+  assert.strictEqual(dow(A.checkinStatus(db, TUE).nextISO), 5);
 });
 
 test('the short cycle is read over a whole week, not the three days it contains', () => {
