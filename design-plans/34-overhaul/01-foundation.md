@@ -174,3 +174,18 @@ It decides nothing about content. Each page plan supplies its own ordered list.
 - After acceptance: record in the design-system memory and in `design-plans/34-overhaul/00-README.md`
   that tab roots use `PageBar` (context + actions, no title), sub-screens use `SubHeader` only, and
   pages surface interruptions through `PromptSlot`.
+
+## Status
+
+**Done, 2026-10-06.** All seven changes landed except two deliberate departures:
+- Change 7: the Admin switch (`:18953`) keeps its legacy control. Admin is excluded under Scope, and
+  five pixel-face segments ("Audit log") do not fit a `Pill`. The ingredient-macros switch got `Pill`
+  in its place.
+- The Recovery card's bar (it carries a status dot in its title) is still hand-rolled; it already has
+  `data-cardbar`. Today's plan's bar gained `data-cardbar` through `CardHead`, so it now works as a
+  rearrange grip like the others.
+
+`tests/train-continuity.test.js` used the old "Train" title to recognise Train home. It now looks
+for the home screen's History link. Overflow checks at 390 and 320 found nothing new. The two
+labels truncated at 320 ("Community cookbook · Lvl 1", "This cycle") were already truncated
+before this change.

@@ -151,7 +151,7 @@ test('a pointer at something that is no longer there opens nothing', () => {
     db, update(fn) { fn(db); }, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
   });
   try {
-    assert.ok(ui.has('Train'), 'it lands at home rather than on a screen it cannot draw');
+    assert.ok(ui.has('History'), 'it lands at home (its History link) rather than on a screen it cannot draw');
     assert.ok(!IN_SESSION.test(ui.text), 'and not in a session: ' + ui.text.slice(0, 200));
   } finally { ui.unmount(); }
   assert.ok(!db.training.open, 'the dead pointer is cleared on the way past');

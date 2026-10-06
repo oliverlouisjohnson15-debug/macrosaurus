@@ -21,7 +21,7 @@ function MesoGrid({ weeks, sessions }) {
       <div className="flex-1 min-w-0">
         <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(' + sessions.length + ',1fr)' }}>
           {sessions.map((s, i) => (
-            <span key={i} className="pf text-[7px] text-center truncate" style={{ letterSpacing: '0.04em', color: 'var(--muted2)' }}>{s.name.length > 6 ? s.name.slice(0, 5) : s.name}</span>
+            <span key={i} className="pf text-[9px] text-center truncate" style={{ letterSpacing: '0.04em', color: 'var(--muted2)' }}>{s.name.length > 6 ? s.name.slice(0, 5) : s.name}</span>
           ))}
         </div>
         <div className="flex flex-col gap-1 mt-1">
@@ -112,8 +112,8 @@ function BlockPreview({ preview, changeLine, brought, sourceCount }) {
         style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
       <Card className="p-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2.5" style={{ background: 'var(--cardhead-bg)' }}>
-          <span className="pf text-[8px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
-          <span className="pf text-[8px] uppercase tnum shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{weekSets} sets / wk</span>
+          <span className="pf text-[9px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
+          <span className="pf text-[9px] uppercase tnum shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{weekSets} sets / wk</span>
         </div>
         <div className="p-3">
           <MesoGrid weeks={weeks} sessions={sessions} />
@@ -645,7 +645,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
       {wizStep > 1 && (
         <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
-          <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>So far</span>
+          <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>So far</span>
           {soFar}. Redraws as you answer.
         </div>
       )}
@@ -813,7 +813,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           stands and where to go to change it, rather than asking twice and letting two controls
           disagree about the same number. */}
       <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
-        <span className="pf text-[8px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
+        <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
         {days} sessions a week.{' '}
         <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--accent-ink)' }}>Change it</button>
       </div>
@@ -1601,7 +1601,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               <span className="flex items-start justify-between gap-1.5">
                 <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
                 {log && (comp.openBySession[s.id]
-                  ? <span className="shrink-0 pf text-[8px]" style={{ color: 'var(--warn)' }}>OPEN</span>
+                  ? <span className="shrink-0 pf text-[9px]" style={{ color: 'var(--warn)' }}>OPEN</span>
                   : <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>)}
               </span>
               <span className="block text-[10.5px] mt-1.5" style={{ color: 'var(--muted)' }}>
@@ -1643,7 +1643,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                         <span className="block min-w-0">
                           <ExerciseName id={it.exerciseId} custom={t.custom} />
                           {it.choice && (
-                            <span className="pf text-[7px] uppercase ml-1.5 px-1 py-0.5 align-middle"
+                            <span className="pf text-[9px] uppercase ml-1.5 px-1 py-0.5 align-middle"
                               style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>Your call</span>
                           )}
                           {/* Replaced, and by whose hand. Without this a block you edited three weeks

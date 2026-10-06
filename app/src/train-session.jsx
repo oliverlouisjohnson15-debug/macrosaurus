@@ -1050,7 +1050,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     Finished: what you actually put in, so a scan down the card stack is a receipt.
                     Ahead of you: what you are being asked for. It used to say the prescription in
                     every state, so a movement you had already done still read as work outstanding. */}
-                <span className="block pf text-[8px] uppercase mt-1.5" style={{
+                <span className="block pf text-[9px] uppercase mt-1.5" style={{
                   color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em',
                 }}>
                   {open
@@ -1213,11 +1213,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     the bar actually answers, which is "can I still reach my next set from here". */}
                 <div ref={open ? openRowsRef : null}>
                 <div className="flex items-center gap-2 pb-2">
-                  <div className="w-8 pf text-[7px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
-                  <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
-                  <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
-                  {!style.toFailure && <div className="w-11 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
-                  <div className="w-12 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
+                  <div className="w-8 pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
+                  <div className="flex-1 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
+                  <div className="flex-1 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
+                  {!style.toFailure && <div className="w-11 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
+                  <div className="w-12 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
                 </div>
 
                 {it.sets.map((s, si) => {
@@ -1825,9 +1825,9 @@ function PastSets({ db, exerciseId, onClose }) {
         {rows.map((r, i) => (
           <div key={i} className="py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{r.dateISO}</span>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>{r.dateISO}</span>
               {r.marks.some(Boolean) && (
-                <span className="pf text-[7px] uppercase px-2 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
+                <span className="pf text-[9px] uppercase px-2 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -1997,7 +1997,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
       <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
         <button onClick={onClose} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Close</button>
         <div className="pf text-[10px] flex-1 text-center">{title || 'Add exercise'}</div>
-        <button onClick={() => setCreating(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>New</button>
+        <button onClick={() => setCreating(true)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>New</button>
       </div>
       <div className="p-3">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search movements" autoFocus
@@ -2044,7 +2044,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
               {/* The one option that is not an alternative at all: it is the movement the plan asked
                   for in the first place, and saying so is what makes a replacement undoable. */}
               {o.kind === 'original' && (
-                <span className="pf text-[7px] uppercase shrink-0 px-1.5 py-1"
+                <span className="pf text-[9px] uppercase shrink-0 px-1.5 py-1"
                   style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>As written</span>
               )}
             </button>
@@ -2053,13 +2053,13 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             <div className="mb-3">
               {written.length > 0 && (
                 <>
-                  <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
+                  <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
                   {written.map(row)}
                 </>
               )}
               {worked.length > 0 && (
                 <>
-                  <div className="pf text-[8px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
+                  <div className="pf text-[9px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
                     {written.length ? 'Or something that does the same job' : 'Does the same job'}
                   </div>
                   {worked.map(row)}
@@ -2076,7 +2076,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             a machine, and it used to mean searching the library again from scratch. */}
         {parent && siblings.length > 1 && (
           <div className="pixel-box p-3 mb-2" style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
-            <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
+            <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
             <div className="flex flex-wrap gap-2">
               {siblings.map(v => (
                 <button key={v.id} onClick={() => onPick(v.id)} disabled={v.id === basedOn}

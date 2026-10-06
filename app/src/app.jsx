@@ -3927,11 +3927,13 @@ function Seg({ value, options, onChange }) {
    padded box holding two floating chips, which put three edges between "Left" and "Eaten" where the
    design spends none, and made a two-way switch look like two buttons that happened to be adjacent.
    Segments are set in the pixel face here because they are chrome, not prose. */
-function Pill({ value, options, onChange }) {
-  return (<div className="inline-flex" style={{ border: '2px solid var(--border)' }}>
+// `wide` stretches the segments across the row, for a page-level switch (You's Settings/Account,
+// Cook's Discover/Cookbook) rather than a lens tucked into a title bar.
+function Pill({ value, options, onChange, wide }) {
+  return (<div className={wide ? 'flex' : 'inline-flex'} style={{ border: '2px solid var(--border)' }}>
     {options.map(o => (
-      <button key={o.v} onClick={() => onChange(o.v)} className="pf uppercase"
-        style={{ padding: '6px 12px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+      <button key={o.v} onClick={() => onChange(o.v)} className={'pf uppercase' + (wide ? ' flex-1 flex items-center justify-center gap-1.5' : '')}
+        style={{ padding: wide ? '9px 4px' : '6px 12px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
           background: value === o.v ? 'var(--accent)' : 'var(--card)',
           color: value === o.v ? 'var(--on-accent)' : 'var(--muted2)' }}>{o.l}</button>
     ))}
@@ -3972,7 +3974,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
     return (<div className={className}>
       <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
         <span>{label}</span>
-        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : (sub || 'Show')}</span>
+        <span className="pf text-[9px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : (sub || 'Show')}</span>
       </button>
       {open && <div className="fade-in mt-3">{children}</div>}
     </div>);
@@ -3983,7 +3985,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
         <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>{label}</span>
         {sub && <span className="block text-[11px] text-[#8A8A90] mt-1 truncate">{sub}</span>}
       </span>
-      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : 'Show'}</span>
+      <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : 'Show'}</span>
     </button>
     {open && <div className="mt-3 fade-in">{children}</div>}
   </div>);
@@ -4004,6 +4006,27 @@ function rateLabel(r, goalType) {
 // Consistent page header used across every main screen. The little 🦖 is our through-line.
 function PageHeader({ kicker, title }) {
   return (<div className="mb-6"><div className="pf text-[9px] uppercase text-[#8A8A90]">{kicker}</div><h1 className="pf text-xl mt-3">{title}</h1></div>);
+}
+/* THE PAGE BAR, for tab roots (design-plans/34-overhaul/01). The bottom nav already says which tab
+   you are on, so a tab root does not say it again as a 20px title: PageHeader cost ~110px on every
+   tab before the first card. One line instead - the CONTEXT (the date, the block you are running,
+   "your food diary") in the 9px label face, and this page's own actions on the right, drawn as the
+   Cook toolbar always drew them. `actions` is an array of { icon, label, onClick, badge }. */
+function PageBar({ context, actions = [] }) {
+  // The 40px minimum is the action buttons' height, so it only applies when there are some: a bare
+  // context line should sit straight under the page's top padding, not centred in an empty row.
+  return (<div className="flex items-center justify-between gap-3 mb-4" style={{ minHeight: actions.length ? 40 : undefined }}>
+    <div className="pf text-[9px] uppercase truncate min-w-0" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{context}</div>
+    {actions.length > 0 && <div className="flex gap-2 shrink-0">
+      {actions.map((a, i) => (
+        <button key={i} onClick={a.onClick} aria-label={a.label} title={a.label}
+          className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
+          {a.icon}
+          {a.badge ? <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 pf text-[9px] flex items-center justify-center tnum" style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}>{a.badge}</span> : null}
+        </button>
+      ))}
+    </div>}
+  </div>);
 }
 function Loading({ text }) {
   return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[#8A8A90]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelEgg size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
@@ -4273,7 +4296,7 @@ function QualityBar({ nd, onExplain }) {
         className="w-full text-left mb-2.5 active:scale-[.99] transition">
         <div className="flex justify-between items-baseline mb-1">
           <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>DENSITY</span>
-          <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
+          <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
         </div>
         <PipMeter value={0} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine />
       </button>
@@ -4420,7 +4443,7 @@ function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
     <div className="flex items-baseline gap-1 mb-3">
       <span className="text-3xl tnum" style={{ color: heroColor }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
       <span className="text-3xl tnum blink" style={{ color: heroColor }}>_</span>
-      <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
+      <span className="pf text-[9px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
         {isRem ? (over ? 'over' : 'kcal left') : 'kcal eaten'}{avg ? ' (avg)' : ''} · of {et.eff.kcal}
       </span>
     </div>
@@ -4751,7 +4774,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
             <div className="text-[12px] font-bold">Body-fat from a photo</div>
             <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
           </div>
-          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
+          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
         </button>
       )}
       {valid.length === 0 ? (
@@ -5769,7 +5792,7 @@ function WeekPlanBanner({ db, update, showToast, onOpen }) {
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return (<div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
     <button onClick={onOpen} className="w-full text-left">
-      <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
+      <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
       <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
       {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
       <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
@@ -6147,7 +6170,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const numbersPanel = (
     <Collapsible variant="inline" label="What I'm reading from" className="mb-4">
       <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
         <div className="flex items-baseline gap-2 flex-wrap">
           <div className="text-xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
           {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
@@ -6272,7 +6295,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
               {/* Say WHICH weights these are. Unlabelled, "87.70 to 87.45" sat under a headline built
                   from them and beside a weight beat that had shown 87.05, and nobody could tell the
                   averages the rate is read between from the trend they had just been shown. */}
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'Weigh-in, last time to this time' : 'Average trend weight, last cycle to this one'}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'Weigh-in, last time to this time' : 'Average trend weight, last cycle to this one'}</div>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
                 <span className="text-[#8A8A90]">to</span>
@@ -6507,7 +6530,7 @@ function DensityWeekCard({ db, inline }) {
   const body = (<>
       {help && <DensityExplainer onClose={() => setHelp(false)} />}
       <div className="flex items-center justify-between mb-1">
-        <div className={inline ? 'pf text-[8px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
+        <div className={inline ? 'pf text-[9px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
         <button onClick={() => setHelp(true)} className="hit text-[10px] text-[#8A8A90] active:opacity-70">Density Score ⓘ</button>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
@@ -6703,7 +6726,7 @@ function behaviourStats(db, days, endISO) {
 function StatTile({ label, value, unit, sub, tone, trend }) {
   const color = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : 'var(--text)';
   return (<div className="min-w-0">
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{label}</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{label}</div>
     <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[10px] text-[#8A8A90]"> {unit}</span>}
       {trend && <span className="text-[10px] ml-1" style={{ color: trend.t === 'up' ? 'var(--good-ink)' : 'var(--fat-ink)' }} title={'vs the previous period'}><PixelGlyph kind={trend.l} size={24} /></span>}</div>
     {sub && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{sub}</div>}
@@ -6774,7 +6797,7 @@ function CoachTimeline({ db }) {
         const why = rationaleFor(c.date);
         return (<div key={c.date + i} className={i ? 'pt-3.5' : ''} style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12px] font-semibold">{d}{c.onTrack ? <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--good-ink)' }}>on track</span> : null}</span>
+            <span className="text-[12px] font-semibold">{d}{c.onTrack ? <span className="pf text-[9px] uppercase ml-2" style={{ color: 'var(--good-ink)' }}>on track</span> : null}</span>
             <span className="text-[11px] tnum shrink-0" style={{ color: delta > 0 ? 'var(--good-ink)' : delta < 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>
               {delta ? (delta > 0 ? '+' : '−') + Math.abs(delta) + ' kcal' : 'no change'}
             </span>
@@ -6900,7 +6923,7 @@ function CyclePanel({ db, onWeigh, footer }) {
         <div className="p-3.5">
           {lad && <>
             <div className="flex items-baseline justify-between gap-2 mb-2">
-              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90]">To your goal</span>
               <span className="tnum text-[11px] text-[#8A8A90]">{fmtWeightDelta(v.done, unit).replace(/^[+\u2212]/, '')} of {fmtWeightDelta(v.total, unit).replace(/^[+\u2212]/, '')}</span>
             </div>
             <div className="flex gap-1">
@@ -6913,8 +6936,8 @@ function CyclePanel({ db, onWeigh, footer }) {
               })}
             </div>
             {!lad.atGoal && <div className="flex justify-between mt-1.5">
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--muted2)' }}>Milestones</span>
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>Milestones</span>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>
                 Next {fmtWeightDelta(lad.nextKg, unit).replace(/^[+\u2212]/, '')}{lad.weeks ? ', about ' + lad.weeks + ' week' + (lad.weeks === 1 ? '' : 's') : ''}
               </span>
             </div>}
@@ -7122,12 +7145,12 @@ function RearrangeLayer({ db, order, onDone, onSave }) {
                 <Grip color={held === k ? 'var(--accent)' : 'var(--cardhead-text)'} />
                 <span className="pf text-[10px] uppercase truncate" style={{ color: held === k ? 'var(--accent)' : 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{LABEL[k]}</span>
               </span>
-              {held === k && <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--cardhead-text)', opacity: 0.7 }}>Moving</span>}
+              {held === k && <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--cardhead-text)', opacity: 0.7 }}>Moving</span>}
             </div>
           </div>
         ))}
         <div className="p-3.5 mt-6" style={{ border: '2px dashed var(--muted2)' }}>
-          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted2)', letterSpacing: '0.14em' }}>What does not move</div>
+          <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted2)', letterSpacing: '0.14em' }}>What does not move</div>
           <div className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             Your buddy's asks, a due check-in, a trip banner and the onboarding checklist are answers the day is waiting on, not furniture. They stay at the top wherever the cards end up.
           </div>
@@ -7191,12 +7214,12 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
                 borrowing the good one to look friendly would be the card claiming a read it has not
                 got. */}
             <div className="px-3.5 pt-2.5 pb-3" style={{ background: 'var(--surface2)', borderBottom: '2px solid var(--border)' }}>
-              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+              <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{buddyName(db)}</div>
               <div className="text-[13px] leading-snug">{hook}</div>
             </div>
             <div className="px-3.5 py-2.5">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <span className="pf text-[8px] uppercase text-[#8A8A90]">To your first read</span>
+                <span className="pf text-[9px] uppercase text-[#8A8A90]">To your first read</span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{doneCells} of {cells} days</span>
                   <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7265,12 +7288,12 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
             secretly a link is the fault design-plans/28 caught in Train. */}
         <button onClick={onOpen} className="w-full text-left block">
           <div className="px-3.5 pt-2.5 pb-3" style={{ background: tint, borderBottom: '2px solid var(--border)' }}>
-            <div className="pf text-[8px] uppercase mb-1" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+            <div className="pf text-[9px] uppercase mb-1" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
             <div className="text-[13px] leading-snug">{line}</div>
           </div>
           <div className="px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-2 mb-1.5">
-              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90]">To your goal</span>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{lad ? fmtWeightDelta(v.done, unit).replace(/^[+−]/, '') + ' of ' + fmtWeightDelta(v.total, unit).replace(/^[+−]/, '') : 'Progress'}</span>
                 <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7441,20 +7464,20 @@ function ExpenditureCard({ db, plan }) {
         {bal ? <>
           <div className="flex items-center justify-between gap-3 mb-3">
             <Pill value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} />
-            <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0">28 days</span>
+            <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">28 days</span>
           </div>
           <BalanceBars days={bal.days} lens={lens} />
           <div className="grid grid-cols-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
             <div className="pr-2.5">
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Ate</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Ate</div>
               <div className="text-2xl font-bold tnum" style={{ color: 'var(--hero)' }}>{bal.avgAte != null ? bal.avgAte.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="px-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Target</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Target</div>
               <div className="text-2xl font-bold tnum">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Burn</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Burn</div>
               <div className="text-2xl font-bold tnum">{est.tdee.toLocaleString()}</div>
             </div>
           </div>
@@ -7513,7 +7536,7 @@ function ExpenditureCard({ db, plan }) {
             const pts = hist.concat([est.tdee]).slice(-12);
             if (pts.length < 2) return null;
             return <div className="flex items-center gap-3 mt-2.5">
-              <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
               <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--hero)" /></div>
             </div>;
           })()}
@@ -7593,7 +7616,7 @@ function DietBreakCard({ db, update }) {
       <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
         <div className="flex items-center justify-between mb-1">
           <div className="text-lg font-bold">Diet break</div>
-          <span className="text-[8px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>MAINTENANCE</span>
+          <span className="text-[9px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>MAINTENANCE</span>
         </div>
         <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Eating at maintenance (~{mk} kcal) to recharge. <span className="text-[var(--text)]">{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>, then you return to your {goalLabel(brk.returnGoal)} automatically. Keep logging and weighing in.</div>
         <Btn kind="ghost" className="w-full" onClick={() => setEndAsk(true)}>End break now</Btn>
@@ -8514,7 +8537,7 @@ function WeighInline({ unit, seedKg, onSave }) {
               <NumInput value={kg} onChange={e => { setKg(e.target.value); setErr(''); }} aria-label="Weight in kilograms" />
               <span className="text-[11px] text-[#8A8A90]">kg</span>
             </div>}
-        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[8px]">SAVE</span></button>
+        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[9px]">SAVE</span></button>
       </div>
       {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </div>
@@ -8600,7 +8623,7 @@ function StatusStrip({ stats, streak }) {
   const cell = (key, value, colour, extra) => (
     <div key={key} className="min-w-0 px-1 text-center flex flex-col items-center justify-start gap-[3px]" style={{ borderRight: '2px solid var(--border)', padding: '11px 4px' }}>
       <div className="tnum leading-none" style={{ color: colour, fontSize: 17, fontWeight: 700 }}>{value}</div>
-      <div className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 8, letterSpacing: '0.1em' }}>{key}</div>
+      <div className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 9, letterSpacing: '0.1em' }}>{key}</div>
       {extra}
     </div>
   );
@@ -8768,7 +8791,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             corner rather than a frame with a sprite in it and nothing else. `?demo&quiet` renders
             it. Speaking, the box below carries its own arrow or its own buttons, so a second mark
             here would be exactly the noise the ▼ rule exists to prevent. */}
-        {!speaking && <span className="pf absolute text-[7px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
+        {!speaking && <span className="pf absolute text-[9px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
       </div>
       {/* The numbers, above the sentence so they cannot move with it. Hidden during incubation, where
           the hatch checklist is the whole content and there is no plan to report against yet. */}
@@ -8780,7 +8803,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1 active:opacity-60 transition-opacity">
               <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{t.done ? <Tick size={12} /> : null}</span>
               <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
-              {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
+              {!t.done && <span className="pf text-[9px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
             </button>
           ))}
         </div>, 'To hatch')}
@@ -8797,7 +8820,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         {msg.choices && msg.choices.length > 0 && (
           // One row, however many answers: a week of days must not wrap onto a stray second line.
           <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
-            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
+            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[9px]">{c.label}</span></button>)}
           </div>
         )}
         {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
@@ -8805,9 +8828,9 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             {/* ONE GOLD PER CARD. On a day the check-in is due, THAT is what is being asked of you,
                 and this steps down to the fill the secondary already uses - same object, same face,
                 less shout. Every other day it is the loudest thing here, as it should be. */}
-            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5"
+            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[9px] pf inline-flex items-center gap-1.5"
               style={(week && week.due) ? { background: 'var(--surface2)' } : { background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
-            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
+            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
           </div>
         )}
       </>, kind)}
@@ -8851,8 +8874,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             {/* The two ends of the road, named. This is the whole reframing in one row: where you
                 started and where you are going, rather than where you were supposed to be by now. */}
             <div className="flex justify-between mt-1.5">
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.leftLabel}</span>
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.rightLabel}</span>
+              <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.leftLabel}</span>
+              <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.rightLabel}</span>
             </div>
           </>}
           {week.nextLine && <div className="text-[12.5px] mt-3" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</div>}
@@ -9830,8 +9853,8 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
               the one place a bought sky could not be seen standing in. */}
           <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={238}
             terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} />
-          <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
-          {!incubating && <div className="pf absolute text-[8px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
+          <div className="pf absolute text-[9px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
+          {!incubating && <div className="pf absolute text-[9px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
         </div>
         <div className="px-3 py-3.5 flex flex-col items-center text-center gap-2">
           <span className="pf" style={{ fontSize: 18, letterSpacing: '0.06em' }}>{who.toUpperCase()}</span>
@@ -9846,7 +9869,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
               </>}
         </div>
         {!incubating && <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
-          <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
+          <div className="flex justify-between pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
             <span>Growth · {st.name}</span>
             <span>{nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown'}</span>
           </div>
@@ -9911,14 +9934,14 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
   );
   const Wrap = ({ children }) => (
     <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Tap to confirm</div>
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Tap to confirm</div>
       {children}
     </div>
   );
   if (c.kind === 'estimate') {
     return (
       <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
+        <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
         <AiConfirm est={c.est} photos={c.photos || []}
           onAdd={(item) => { onAdd && onAdd(c.mealId, item); onDone('Logged to ' + mealName(c.mealId)); }}
           onAddItems={(items) => { onAddItems && onAddItems(c.mealId, items); onDone('Logged ' + items.length + ' items to ' + mealName(c.mealId)); }}
@@ -9932,8 +9955,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{Math.round(c.macros.kcal)} kcal · P{Math.round(c.macros.protein)} C{Math.round(c.macros.carbs)} F{Math.round(c.macros.fat)} · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAdd && onAdd(c.mealId, { name: c.name, source: 'buddy', qtyLabel: c.grams + ' g', amount: c.grams, unit: 'g', unitNoun: 'g', macros: c.macros }); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -9943,8 +9966,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{c.items.length} item{c.items.length === 1 ? '' : 's'} · {Math.round(c.macros.kcal)} kcal · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAddMeal && onAddMeal(c.mealId, c.items); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -9953,8 +9976,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[11.5px] font-bold leading-snug mb-2">{fmtWeight(c.kg, db.profile.weight_unit)} today</div>
       <div className="flex gap-2">
         <button onClick={() => { onSaveWeight && onSaveWeight(c.kg); onDone('Weigh-in saved'); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -10094,12 +10117,12 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, border: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}><BuddyAvatar buddy={db.buddy || {}} px={1.5} /></div>
           <div className="min-w-0 flex-1">
             <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.1em' }}>{who}</div>
-            <div className="pf text-[7px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
+            <div className="pf text-[9px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
           </div>
           <button onClick={onClose} aria-label="Close" className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}><Icon.close width="16" /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-3" style={{ background: 'var(--bg)' }}>
-          <div className="pf text-[8px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
+          <div className="pf text-[9px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
           {!turns.length && (
             <div className="text-center py-2">
               <div className="text-[11.5px] leading-snug mb-3 max-w-[17rem] mx-auto" style={{ color: 'var(--muted)' }}>I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
@@ -10148,8 +10171,8 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
           return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'free_limit' }); } catch (_) {} }}
             className="shrink-0 flex items-center justify-between gap-2 pb-1.5 text-left w-full">
-            <span className="pf text-[8px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{left} of {FREE_AI_MONTHLY} free AI replies left</span>
-            <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>Go unlimited ›</span>
+            <span className="pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{left} of {FREE_AI_MONTHLY} free AI replies left</span>
+            <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>Go unlimited ›</span>
           </button>;
         })()}
         {/* A photo waits here until you say what it is. A picture with no words is the weakest thing
@@ -10323,7 +10346,7 @@ function TrophyCabinet({ db, streak, onBack }) {
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[8px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
+      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[9px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
       <PipLine className="my-1.5" pct={t.progress * 100} height={8} />
       <div className="text-[9px] text-[#8A8A90] tnum">{count} so far{t.next != null ? ` · next tier at ${t.next}` : ' · maxed out'} · {hint}</div>
     </div>;
@@ -10331,7 +10354,7 @@ function TrophyCabinet({ db, streak, onBack }) {
   return <div className="fade-in">
     <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={24} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
@@ -10339,7 +10362,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     {/* The same object as the streak records above, so the same presentation: centred, with the
         cabinet's own --fat-ink numeral. See design-plans/11-bests-tiles-match-record-tiles.md. */}
     {bests && (<>
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your bests</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Your bests</div>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {Game.BEST_KEYS.map(k => (
           <div key={k} className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -10349,13 +10372,13 @@ function TrophyCabinet({ db, streak, onBack }) {
         ))}
       </div>
     </>)}
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Badges</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
     <Track label="In-range check-ins" count={badges.inRange || 0} hint="trend within 0.1 kg/wk of target" />
     {(() => {
       const ga = db.game_awards || {};
       const earnedCount = TROPHIES.filter(t => ga['trophy:' + t.id]).length + trophyIds.length;
-      return <div className="pf text-[8px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
+      return <div className="pf text-[9px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
     })()}
     <div className="space-y-2 mb-4">
       {/* Achievement trophies: earned ones shine gold, locked ones show as a greyed goal. */}
@@ -10468,14 +10491,14 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         <div className="min-w-0 flex-1 leading-tight">
           <div className="text-[11.5px] font-bold truncate">{c.name}</div>
           <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{c.desc}</div>
-          {!open && <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
+          {!open && <div className="pf text-[9px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
         </div>
         {isOwned
           ? (isWorn
-            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
-            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
+            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[9px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
+            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[9px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
           : ownedLabel
-            ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
+            ? <span className="pf text-[9px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
             : <button onClick={onBuy || (() => buy(c.id))} disabled={!afford || !open}
                 className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1"
                 style={{ background: (afford && open) ? 'var(--fat)' : 'var(--surface2)', color: (afford && open) ? '#1a1400' : 'var(--muted)', opacity: (afford && open) ? 1 : 0.7 }}>
@@ -10572,7 +10595,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
                 </div>
                 <div className="text-[11px] leading-snug mb-1.5" style={{ color: 'var(--text2)' }}>{h.desc}</div>
                 <PipLine pct={prog.pct * 100} color={prog.owned ? 'var(--good)' : 'var(--accent)'} height={10} cells={14} />
-                <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{prog.label}</div>
+                <div className="pf text-[9px] uppercase mt-1" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{prog.label}</div>
               </div>
             );
           })}
@@ -10707,7 +10730,7 @@ function FightScene({ height, label, children }) {
   return (
     <div className="relative overflow-hidden buddy-scene" style={{ height: height || 112, borderBottom: '2px solid var(--border)' }}>
       {children}
-      {label && <div className="pf absolute left-2.5 top-2 text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{label}</div>}
+      {label && <div className="pf absolute left-2.5 top-2 text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{label}</div>}
     </div>
   );
 }
@@ -10745,7 +10768,7 @@ function ChargeTiles({ charges, spent, onSpend }) {
             }}>
             <span style={{ width: 12, height: 12, background: live ? 'var(--on-accent)' : 'transparent',
               border: live ? 'none' : '3px solid var(--muted)', transform: c.key === 'heal' ? 'rotate(45deg)' : 'none' }} />
-            <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.1em' }}>{used ? 'Spent' : c.label}</span>
+            <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.1em' }}>{used ? 'Spent' : c.label}</span>
             <span className="text-[10px] text-center leading-tight">{has ? c.earn : c.need}</span>
           </button>
         );
@@ -11059,7 +11082,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
       {/* THE BOUGHT ARENA. Only ever seen here, which is what makes it worth selling apart from the
           terrarium: its own ground, its own horizon, and a few flat shapes on the floor. */}
       {arenaArt.marks.map((m, i) => <div key={i} className="absolute" style={m} />)}
-      <div className="pf absolute text-[7px] uppercase" style={{ left: 8, top: 6, letterSpacing: '0.14em', color: 'var(--muted)' }}>{arenaArt.name}</div>
+      <div className="pf absolute text-[9px] uppercase" style={{ left: 8, top: 6, letterSpacing: '0.14em', color: 'var(--muted)' }}>{arenaArt.name}</div>
       {/* THE BANNER: a standard planted behind your fighter, carrying the streak it was earned with. */}
       {wornBanner && <div className="absolute" style={{ left: 84, bottom: 26 }}>
         <div style={{ width: 3, height: 52, background: 'var(--border)' }} />
@@ -11083,7 +11106,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
       </div>}
     </div>
   );
-  const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
+  const StatLine = ({ s }) => <div className="text-[9px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
   // A fight card is a CARD, and every card in this app opens with the same filled ink title bar:
@@ -11103,7 +11126,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-bold truncate">{enemy.name}</div>
             <StatLine s={enemy.stats} />
-            {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
+            {enemy.ability && enemy.ability !== 'none' && <div className="text-[9px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
             <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
           </div>
         </div>
@@ -11117,7 +11140,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             bare paragraph, and it says how close the hatch is instead of just refusing. */}
         {phase === 'egg' && <div className="fade-in">
           <PlayPanel title="Still an egg" right={hatchPct + ' percent'}
-            footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
+            footer={<><span className="pf text-[9px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
               <div style={{ color: 'var(--text2)' }}>{hatchLeft > 0 ? hatchLeft + ' more logged day' + (hatchLeft === 1 ? '' : 's') + ' and you will meet me. No fights until then.' : 'Nearly out. No fights until then.'}</div></>}>
             <FightScene height={112}>
               <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14 }}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></div>
@@ -11141,7 +11164,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             <div className="relative overflow-hidden buddy-scene" style={{ height: 200, borderBottom: '2px solid var(--border)' }}>
               {/* Both fighters share the scene now, facing each other, so the card shows the fight
                   rather than a mugshot of the enemy. */}
-              <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>
+              <div className="pf absolute text-[9px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>
                 This week's boss · {bossDaysLeft} {bossDaysLeft === 1 ? 'day' : 'days'} left
               </div>
               <div className="absolute" style={{ left: 28, bottom: 26 }}><SpriteFooting px={3} shadowW={52}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></SpriteFooting></div>
@@ -11164,7 +11187,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
               </div>
             </div>
             <div className="px-2.5 py-2 flex items-center justify-between" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
-              <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
+              <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
               <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber</span>
             </div>
           </div>
@@ -11175,7 +11198,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             {[[fighter.stats.atk, 'Attack', 'var(--pro)'], [fighter.stats.def, 'Defence', 'var(--carb)'], [fighter.stats.hp, 'Health', 'var(--cal)']].map(([v, l, c], i) => (
               <div key={l} className="py-2.5 px-2 text-center flex flex-col gap-0.5" style={i < 2 ? { borderRight: '2px solid var(--border)' } : null}>
                 <span className="pf tnum" style={{ fontSize: 18, color: c }}>{v}</span>
-                <span className="pf text-[7px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{l}</span>
+                <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{l}</span>
               </div>
             ))}
           </div>
@@ -11202,7 +11225,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                   </div>
                   <div className="min-w-0 flex-1 flex flex-col gap-1">
                     <span className="pf text-[13px]" style={{ letterSpacing: '0.04em' }}>{daily.name}</span>
-                    <span className="pf text-[8px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
+                    <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
                   </div>
                 </div>
                 {loggedToday
@@ -11212,7 +11235,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                 {daily.name} saw us off. Day {fight.dailyStreak || 1}, and day {(fight.dailyStreak || 1) + 1} pays {Game.AMBER_REWARDS.dailyStreakBonus} more.
               </div>}
             </div>
-            {!dailyReady && <div className="px-2.5 py-2 pf text-[8px] uppercase" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', letterSpacing: '0.14em', color: 'var(--muted)' }}>One hunt a day · back tomorrow</div>}
+            {!dailyReady && <div className="px-2.5 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', letterSpacing: '0.14em', color: 'var(--muted)' }}>One hunt a day · back tomorrow</div>}
           </PlayPanel>
 
           <PlayPanel title="Boss climb" right={ladderCleared ? 'Prestige ' + (fight.prestige || 0) : (gate.can ? 'Rung ' + ((fight.rank || 0) + 1) + ' of ' + FIGHT_LADDER.length : 'Locked · rung ' + ((fight.rank || 0) + 1))}>
@@ -11315,7 +11338,7 @@ function HomeWeightSpark({ db, onOpen }) {
   if (!last) return null;
   return (
     <button onClick={onOpen} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
-      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[8px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
+      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[9px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
       <div className="flex items-end gap-3">
         <div className="shrink-0 leading-none"><span className="text-2xl font-bold tnum">{fmtWeight(last.scale_weight, unit)}</span></div>
         <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--weight)" /></div>
@@ -11407,7 +11430,7 @@ function DayBars({ items, color, height = 40, goalFill }) {
       </div>
       <div className="flex gap-1.5 mt-1">
         {items.map((it, i) => (
-          <div key={i} className="flex-1 text-center pf" style={{ fontSize: 7, color: it.last ? color : 'var(--muted2)' }}>{it.dow}</div>
+          <div key={i} className="flex-1 text-center pf" style={{ fontSize: 9, color: it.last ? color : 'var(--muted2)' }}>{it.dow}</div>
         ))}
       </div>
     </div>
@@ -11641,9 +11664,9 @@ function StatDial({ label, fill, big, status, sub, color, active, onTap }) {
   return (
     <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1.5 px-1"
       style={{ background: 'transparent', border: 0 }}>
-      <div className="pf text-[8px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
+      <div className="pf text-[9px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
       <div className="tnum font-bold leading-none mt-2 mb-1.5" style={{ fontSize: 25, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
-      <div className="pf uppercase truncate w-full mb-2" style={{ fontSize: 7, minHeight: 9, color: color }}>{status || ''}</div>
+      <div className="pf uppercase truncate w-full mb-2" style={{ fontSize: 9, minHeight: 9, color: color }}>{status || ''}</div>
       <div className="flex gap-[3px] w-full justify-center items-end" style={{ height: 18 }} aria-hidden="true">
         {Array.from({ length: DIAL_SEGMENTS }).map((_, i) => (
           /* Separated by the gap between blocks, not by a border around each one: an outline is ink
@@ -11705,7 +11728,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. {ghConfigured() ? 'Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.' : 'Steps, sleep and readiness will land here once health sync arrives, and your buddy will read them back to you each morning.'}</div>
         {ghConfigured()
           ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
-          : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
+          : <div className="pf text-[9px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
       </Card>
     );
   }
@@ -11743,12 +11766,12 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
 
       {expanded && <div className="fade-in px-3 pb-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1 px-1">
-        <div className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
+        <div className="pf uppercase" style={{ fontSize: 9, color: 'var(--muted2)' }}>Train hard, rest harder</div>
         {synced
-          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
+          ? <span className="pf text-[9px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="hit pf text-[7px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
-            : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
+            ? <button onClick={ghConnectGated} className="hit pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
+            : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
       {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
@@ -11776,7 +11799,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       {night && night.stages && (
         <button type="button" onClick={() => setSheet('sleep')} className="w-full text-left mt-2.5 px-1" style={{ background: 'transparent', border: 0 }}>
           <div className="flex items-center justify-between mb-1">
-            <span className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted)' }}>Last night</span>
+            <span className="pf uppercase" style={{ fontSize: 9, color: 'var(--muted)' }}>Last night</span>
             <span className="tnum text-[9.5px]" style={{ color: 'var(--muted)' }}>{sHrsLabel} asleep</span>
           </div>
           <StageBar stages={night.stages} />
@@ -11786,7 +11809,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       {/* The buddy's morning read now lives in its habitat up top (one buddy voice, one place), so this
           recovery card stays purely the dials + sleep architecture. */}
       {streak >= 3 && (
-        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>
+        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 9, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>
       )}
       </div>}
 
@@ -11852,8 +11875,8 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>steps today{stepGoal > 0 ? ' · ' + pct + '% of goal' : ''}</div>
             </div>
             {stepGoal > 0 && <PipLine className="mb-2" pct={pct} height={9} />}
-            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 8, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>}
-            <div className="pf text-[8px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
+            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 9, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>}
+            <div className="pf text-[9px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
             <DayBars items={trend} color="var(--good)" goalFill={stepGoal > 0 ? Math.min(1, stepGoal / scale) : null} />
             <div className="mt-5">
               <PartRow label="Steps today" detail={'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : '')} value={k(todaySteps)} tint="var(--good)" />
@@ -11899,7 +11922,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
     const hasTrend = trend.filter(t => t.fill != null).length >= 2;
     const TrendBlock = hasTrend ? (
       <div className="mt-5">
-        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 nights</div>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 nights</div>
         <DayBars items={trend} color="var(--sleep)" />
       </div>
     ) : null;
@@ -11922,11 +11945,11 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {SLEEP_BAND_WORD[Game.sleepBand(p.score)]}</div>
           </div>
           <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep · recommended 7-9h</div>
-          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted)' }}>Sleep stages</div>
+          <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)' }}>Sleep stages</div>
           <StageBar stages={stages} height={18} />
           <StageLegend stages={stages} />
           {TrendBlock}
-          <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>How the score is built</div>
+          <div className="pf text-[9px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>How the score is built</div>
           {p.parts.map(part => (
             <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--sleep)" />
           ))}
@@ -11968,12 +11991,12 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               <div className="text-[13px] pb-1" style={{ color: rColor }}>{info ? info.label : ''}</div>
             </div>
             {info && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + rColor }}>
-              <div className="pf uppercase mb-1" style={{ fontSize: 7, color: rColor }}>Today</div>
+              <div className="pf uppercase mb-1" style={{ fontSize: 9, color: rColor }}>Today</div>
               <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{info.blurb}</div>
             </div>}
             <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>Based on {parts.anchorCount} of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.</div>
             {hasTrend && <div className="mt-4">
-              <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 days</div>
+              <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 days</div>
               <DayBars items={trend} color={rColor} />
             </div>}
           </div>
@@ -11986,7 +12009,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></div>}
           </div>
         )}
-        <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>Recovery signals</div>
+        <div className="pf text-[9px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>Recovery signals</div>
         {parts.signals.map(s => (
           <PartRow key={s.key} label={s.label + ' · ' + s.weightPct + '%' + (s.modifierOnly ? ' (modifier)' : '')}
             detail={s.present ? s.note : s.note} value={s.present ? s.value : 'Off'} max={s.present ? 100 : null}
@@ -12286,12 +12309,12 @@ function StageUpCelebration({ db, stage, onClose }) {
           <div className="flex items-end justify-center gap-4 mb-4">
             <div className="text-center" style={{ opacity: 0.45 }}>
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
-              <div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
             </div>
             <span className="pb-4" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
             <div className="text-center">
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
-              <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
+              <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
             </div>
           </div>
         )}
@@ -12390,7 +12413,7 @@ function RecipeMini({ r, onOpen, tag }) {
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
         <RecipeImg src={img} iconSize={24} />
-        {tag && <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
+        {tag && <div className="absolute top-1.5 left-1.5 pf text-[9px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
       </div>
       <div className="p-2">
         <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
@@ -12462,7 +12485,7 @@ function LeftoversStrip({ db, onOpenRecipe }) {
     <div className="space-y-2">
       {left.map(r => (
         <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--card)' }}>
-          <span className="pf text-[8px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
+          <span className="pf text-[9px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
           <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
           {r.macros_per_serving && r.macros_per_serving.kcal > 0 && <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>}
           <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
@@ -12473,6 +12496,15 @@ function LeftoversStrip({ db, onOpenRecipe }) {
 // Free-tier upsell card: contextual, trial-forward, and dismissable (re-shows after 7 days so it
 // nudges without nagging). One per surface only, to stay on the honest-coaching side of the line.
 // Opens the existing paywall via the global MPAYWALL, so it works from any screen without prop-drilling.
+/* ONE INTERRUPTION PER PAGE (design-plans/34-overhaul/01). Upsells, banners, "due" rows and nudges
+   used to render wherever their author put them, so on a busy day three of them stacked up above the
+   thing the page is for. A page now hands its candidates here in priority order and the first one
+   whose `when` holds is the only one drawn. It decides nothing about content and has no look of
+   its own. */
+function PromptSlot({ candidates }) {
+  const c = (candidates || []).find(c => c && c.when);
+  return c ? c.render() : null;
+}
 function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '' }) {
   const dm = (db.profile && db.profile.nudgesDismissed) || {};
   const until = dm[trackKey];
@@ -12487,10 +12519,10 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
   };
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-      <div className="pf text-[8px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+      <div className="pf text-[9px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
       <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
-      <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
+      <div className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
       <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="16" /></button>
     </div>
   );
@@ -13071,7 +13103,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageHeader kicker={prettyDate(today)} title="Today" />
+      <PageBar context={prettyDate(today)} />
       <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
@@ -13121,10 +13153,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         <Card className="p-0 mb-4 overflow-hidden">
           {/* The real ink bar, not a pale imitation of one. Every card on this screen opens the same
               way now - and the bar is also the grip you hold to move the card (see REARRANGE). */}
-          <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Today's plan</span>
-            <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
-          </div>
+          <CardHead title="Today's plan" right={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
           <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
             <EnergyBand et={et} tot={tot} mode={mode} />
           </div>
@@ -13157,9 +13186,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
               <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
               <div className="flex justify-between items-center mt-3">
-                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
+                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
                 {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
-                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
+                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
               </div>
             </Collapsible>
           </div>
@@ -13172,7 +13201,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
             return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
               <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
+              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
             </div>;
           })()}
           {/* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
@@ -13198,7 +13227,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             };
             return <div className="px-3 py-2.5 flex items-center justify-between gap-3 text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
               <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span>{lastDay ? '' : ', spread over the rest of the week'}</> : 'Finished eating today?'}</span>
-              <button onClick={() => setClosed(!closed)} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+              <button onClick={() => setClosed(!closed)} className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
             </div>;
           })()}
         </Card>
@@ -13278,19 +13307,19 @@ function CarryoverSheet({ et, onClose }) {
         </div>
 
         {cd && cd.days.length > 0 && <>
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-3">This week · since {dd(cd.cycleStart)}</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">This week · since {dd(cd.cycleStart)}</div>
           <div className="flex items-end gap-1.5 mb-2" style={{ height: '64px' }}>
             {cd.days.map((d, i) => {
               const h = Math.round(5 + (Math.abs(d.delta) / maxAbs) * 40);
               const under = d.delta > 0, over = d.delta < 0;
               return <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
-                <span className="tnum text-[7px] mb-1" style={{ color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
+                <span className="tnum text-[9px] mb-1" style={{ color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
                 <div style={{ width: '100%', height: h + 'px', background: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--border)' }}></div>
               </div>;
             })}
           </div>
           <div className="flex gap-1.5 mb-3">
-            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[7px] text-[#8A8A90]">{dShort(d.date)}</div>)}
+            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[9px] text-[#8A8A90]">{dShort(d.date)}</div>)}
           </div>
           <div className="flex justify-between text-[9px] text-[#8A8A90] mb-4">
             <span><Icon.square width="16" style={{ color: 'var(--good-ink)' }} /> under target</span>
@@ -13342,7 +13371,7 @@ function MealHeadMacros({ macros }) {
         // on. Both carry the macro's colour: a grey letter beside a coloured number reads as two
         // things rather than as one label.
         <span key={k} className="flex items-baseline gap-[1px]" style={{ color: c }}>
-          <span className="pf text-[8px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
+          <span className="pf text-[9px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
           <span className="text-[10.5px] font-semibold">{Math.round(v || 0)}</span>
         </span>
       ))}
@@ -13722,7 +13751,7 @@ function FoodLog({ db, update, openLog, showToast }) {
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
       onTouchEnd={(e) => { if (!swipe.current || drag || Date.now() - draggedAt.current < 500) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageHeader kicker="Your food diary" title="Food log" />
+      <PageBar context="Your food diary" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
       {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
@@ -13772,10 +13801,7 @@ function FoodLog({ db, update, openLog, showToast }) {
             same hero meter as Today's energy band, so the number you are logging against looks
             identical on both pages instead of being a smaller restatement of it. */}
         return <Card className="p-0 mb-4 overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Day total</span>
-            <span className="pf text-[10px] uppercase tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>of {et.eff.kcal} kcal</span>
-          </div>
+          <CardHead title="Day total" right={'of ' + et.eff.kcal + ' kcal'} />
           <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
             <div className="flex items-baseline gap-2 mb-2">
               <span className="pf tnum" style={{ fontSize: 34, lineHeight: 1, color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
@@ -13811,7 +13837,7 @@ function FoodLog({ db, update, openLog, showToast }) {
               const dnd = E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
               return (
                 <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70" style={{ minHeight: 24 }}>
-                  <span className="pf text-[8px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
+                  <span className="pf text-[9px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
                   <div className="flex-1 min-w-0">
                     <PipMeter value={dnd.score == null ? 0 : dnd.score} target={dnd.target} cells={10}
                       scale={100 / dnd.target} color={densityColor(dnd.score)} small overIsFine />
@@ -14622,7 +14648,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
             const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
             return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
               <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
+              <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
             </button>;
           })()}
           {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onPickMore={i => onAdd(mealId, Object.assign({}, i, { keepOpen: true }))} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
@@ -15050,9 +15076,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
     <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="16" /> Back</TextBtn>
     {estimated
-      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[8px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
+      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[9px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
       : saved
-        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[8px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
+        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[9px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
         : <div className="text-[12px] text-[#8A8A90] mb-3">{note}</div>}
     {dodgy && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
@@ -15324,7 +15350,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       {items.map((it, i) => (
         <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
+            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
             <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
             <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="16" /></button>
           </div>
@@ -15761,7 +15787,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
               {/* Measured or reasoned, said once per dish and never louder than the dish's own name.
                   It is the most useful thing we can tell someone about a number they are about to act
                   on, and it is the difference between a tool and a guess with a nice font. */}
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
+              <span className="pf text-[9px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
             </div>
             {s.description && <div className="text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
             <div className="tnum text-[12.5px] mt-1.5">
@@ -15840,7 +15866,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                 {it.price && <span className="tnum text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
               </div>
               {it.description && <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{it.description}</div>}
-              {it.section && <div className="pf text-[8px] uppercase mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{it.section}</div>}
+              {it.section && <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{it.section}</div>}
             </button>
           ))}
           {narrowed && matches.length === 0 && <div style={{ border: '2px solid var(--border)', borderTop: 'none' }} />}
@@ -15932,7 +15958,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-2">{imgs.map(f => (
       <div key={f.id} className="relative">
         {f.pdf
-          ? <div className="w-16 h-16 flex items-center justify-center pf text-[8px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
+          ? <div className="w-16 h-16 flex items-center justify-center pf text-[9px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
           : <img src={f.url} alt="" className="w-16 h-16 object-cover" style={{ border: '2px solid var(--border)' }} />}
         <button onClick={() => remFile(f.id)} aria-label={'Remove ' + f.name} className="hit absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}><Icon.close width="16" /></button>
       </div>))}</div>}
@@ -16517,11 +16543,12 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
   useBackClose(onBack || null);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; {backLabel || 'You'}</button>}
-      {/* The kicker asks the question this page exists to answer, the way Train's progress screen
-          asks "Am I getting stronger?". A page whose kicker describes its contents leaves the buddy
-          answering a question nobody was shown. */}
-      <PageHeader kicker="Is the plan working?" title="Progress" />
+      {/* You go INTO Progress from Today or You, so on a phone it gets the sub-screen bar, flush to the
+          app header like Recipe, rather than a back link floating on the page. On desktop it is a
+          sidebar destination of its own rank, so it takes the tab roots' page bar. The verdict card
+          directly below answers "is the plan working?", so the page does not ask it as well. */}
+      {onBack && <div className="lg:hidden"><SubHeader back={onBack} backLabel={backLabel || 'You'} title="Progress" /></div>}
+      <div className={onBack ? 'hidden lg:block' : ''}><PageBar context="Is the plan working?" /></div>
 
       {/* THE ANSWER, THE EVIDENCE AND THE ACTION, in one panel. */}
       <CyclePanel db={db} onWeigh={onWeigh} footer={db.paused ? null : (() => {
@@ -16776,7 +16803,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
       {/* The summary: what this goal costs you a day, and when it finishes. Both update live as you
           drag, which is the whole reason the pace slider is worth having. */}
       {preview && <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
           <span className="text-[12px] text-[#8A8A90]">kcal a day</span>
@@ -16927,7 +16954,7 @@ function SettingsGroup({ title, children }) {
   </div>);
 }
 // One level down from the overview, and never a level below that.
-function SubScreen({ title, intro, onBack, children }) {
+function SubScreen({ title, intro, onBack, backLabel = 'You', children }) {
   useBackClose(onBack);
   /* THE SUB-HEADER BAR. Settings.dc.html gives every subscreen a purple bar carrying the way back on
      the left and the screen's name in the middle, which is what tells you at a glance that you are a
@@ -16935,11 +16962,10 @@ function SubScreen({ title, intro, onBack, children }) {
      floating above the title - the only navigation in the app that had no chrome at all.
      Full-bleed: -mx pulls it out through the page's own 20px padding, and -mt up through its 24px of
      top padding, so the bar sits against the app header instead of floating on a band of page. */
+  // The bar itself is SubHeader's, the one implementation of it (design-plans/34-overhaul/01). This
+  // used to hand-roll a second copy that had drifted to a 10px back label at different tracking.
   return (<div className="fade-in">
-    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 -mt-6 mb-4" style={{ background: 'var(--header)', borderBottom: '3px solid var(--border)' }}>
-      <button onClick={onBack} className="pf text-[10px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>&lsaquo; You</button>
-      <span className="pf text-[10px] uppercase flex-1 text-center truncate pr-8" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</span>
-    </div>
+    <SubHeader back={onBack} backLabel={backLabel} title={title} />
     {/* The bar above is the one place a subscreen is named (design-plans/32). A SETTINGS kicker and
         a 25px title repeating it cost ~100px on every screen before the first control. The intro is
         context, so it is set like the rest of the screen's help text rather than as a second heading. */}
@@ -17102,7 +17128,7 @@ function GhDebug({ db, update }) {
       <div className="mt-2">
         <Btn kind="ghost" className="text-sm" onClick={resync} disabled={busy}>{busy ? 'Syncing…' : 'Re-sync now'}</Btn>
         {msg ? <div className="mt-1.5 text-[11px]" style={{ color: 'var(--text)' }}>{msg}</div> : null}
-        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Sleep · last synced nights</div>
+        <div className="pf text-[9px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Sleep · last synced nights</div>
         {sdates.length ? sdates.map(dt => {
           const r = sleep[dt];
           return <div key={dt} className="tnum leading-snug" style={row}>
@@ -17111,7 +17137,7 @@ function GhDebug({ db, update }) {
               : <span style={{ color: 'var(--warn)' }}>no stage data (hours only)</span>}
           </div>;
         }) : <div style={row}>No sleep synced yet.</div>}
-        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Recovery signals · HRV / resting HR</div>
+        <div className="pf text-[9px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Recovery signals · HRV / resting HR</div>
         {hdates.length ? hdates.map(dt => {
           const h = health[dt];
           return <div key={dt} className="tnum leading-snug" style={row}>
@@ -17551,7 +17577,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}{' '}{+iso.slice(8)}</div>
             <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
             {/* Which of the three a day is, in words, so a low day is not told apart by colour alone. */}
-            {!winOn(iso) && <div className="text-[8px] uppercase leading-none mt-0.5" style={{ color: low ? 'var(--carb)' : undefined, opacity: on || low ? 1 : 0 }}>{on ? 'high' : low ? 'low' : 'norm'}</div>}
+            {!winOn(iso) && <div className="text-[9px] uppercase leading-none mt-0.5" style={{ color: low ? 'var(--carb)' : undefined, opacity: on || low ? 1 : 0 }}>{on ? 'high' : low ? 'low' : 'norm'}</div>}
           </button>);
         })}</div>
         {/* The key. Gold and blue on their own are a colour code nobody was told; the tiles carry the
@@ -18186,7 +18212,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
     return (<div key={it.id} className="pixel-box p-3.5" style={{ background: 'var(--card)' }}>
       <div className="flex items-start justify-between gap-3 mb-1">
         <div className="text-sm font-semibold">{it.name}</div>
-        <span className="pf text-[8px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+        <span className="pf text-[9px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
       </div>
       <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-2.5">{it.brings}</div>
       {it.note && <div className="text-[11px] mb-2.5 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
@@ -18503,12 +18529,12 @@ function FeedbackSheet({ email, onClose }) {
                 const st = ticketStatusMeta(t.status);
                 return (<div key={t.id} className="pixel-box p-3 bg-[#1E1E22]">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+                    <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
                     <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
                   </div>
                   <div className="text-[12px] whitespace-pre-wrap break-words">{t.body}</div>
                   {t.admin_reply && <div className="mt-2 pixel-box p-2.5 bg-[#0F0F12]" style={{ borderColor: 'var(--accent)' }}>
-                    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>Reply from Macrosaurus</div>
+                    <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>Reply from Macrosaurus</div>
                     <div className="text-[12px] whitespace-pre-wrap break-words">{t.admin_reply}</div>
                   </div>}
                 </div>);
@@ -18565,8 +18591,8 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
   );
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <PageHeader kicker="Your profile & settings" title="You" />
-      <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['settings', 'Settings'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <PageBar context="Your profile & settings" />
+      <div className="mb-5"><Pill wide value={tab} onChange={setTab} options={[{ v: 'settings', l: 'Settings' }, { v: 'account', l: 'Account' }]} /></div>
 
       {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />}
 
@@ -18739,7 +18765,7 @@ function AdminSupport() {
   const FILTERS = [['open', 'Open'], ['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved'], ['all', 'All']];
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!tickets ? <div className="mt-6"><DinoLoader label="Loading tickets" /></div>
       : !tickets.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
@@ -18755,12 +18781,12 @@ function AdminTicketCard({ ticket, onPatch }) {
   async function sendReply() { const r = reply.trim(); if (!r) return; setBusy('reply'); setErr(''); try { const j = await adminSupport('reply_ticket', { ticketId: t.id, reply: r }); onPatch(j.ticket); } catch (e) { setErr(e.message); } setBusy(''); }
   return (<div className="pixel-box p-3 bg-[#1E1E22]">
     <div className="flex items-center justify-between gap-2 mb-1">
-      <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+      <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
       <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
     </div>
     <div className="text-[11px] text-[#8A8A90] mb-1 break-all">{t.email || 'unknown'}</div>
     <div className="text-[13px] whitespace-pre-wrap break-words mb-3">{t.body}</div>
-    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[8px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[9px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} maxLength={4000} className={inputCls + ' resize-y leading-relaxed text-[12px]'} placeholder="Write a reply (the user sees this; sending resolves the ticket)…" />
     <div className="flex justify-between items-center mt-2 gap-2">
       {err ? <span className="text-[11px]" style={{ color: 'var(--danger-ink)' }}>{err}</span> : <span />}
@@ -18857,7 +18883,7 @@ function AdminAiLogs() {
   const FILTERS = [['all', 'All'], ['meal', 'Meals'], ['label', 'Labels'], ['coach', 'Coach'], ['other', 'Other']];
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!logs ? <div className="mt-6"><DinoLoader label="Loading logs" /></div>
       : !logs.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
@@ -18865,7 +18891,7 @@ function AdminAiLogs() {
           {logs.map(r => (
             <button key={r.id} onClick={() => open(r.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
+                <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
                 <span className="text-[10px] text-[#8A8A90]">{adminFmtWhen(r.created_at)}</span>
               </div>
               <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[10px] ml-1.5" style={{ color: 'var(--danger-ink)' }}>error</span>}</div>
@@ -18889,16 +18915,16 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
       <div>
         <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
           <div className="grid grid-cols-3 gap-2">{log.images.map((src, i) => <button key={i} onClick={() => onImage(src)} className="pixel-box overflow-hidden p-0" style={{ aspectRatio: '1', boxShadow: 'none' }}><img src={src} className="w-full h-full object-cover" alt={'input ' + (i + 1)} /></button>)}</div>
           <div className="text-[10px] text-[#8A8A90] mt-1.5">Tap to enlarge.</div>
         </div>}
         <div className="mb-4">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Result</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Result</div>
           <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3" style={{ boxShadow: 'none' }}>{resultDisplay}</pre>
         </div>
         <details>
-          <summary className="pf text-[8px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
+          <summary className="pf text-[9px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
           <pre className="text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2" style={{ boxShadow: 'none', color: '#8A8A90' }}>{log.prompt || '(none)'}</pre>
         </details>
         <div className="text-[10px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
@@ -18991,14 +19017,14 @@ function AdminPanel({ onBack, adminEmail, update }) {
         </div>}
         {tab === 'users' && <div className="fade-in">
           <TextInput value={q} onChange={e => setQ(e.target.value)} placeholder="Search by email…" />
-          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
+          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
           <div className="mt-4 space-y-2">
             {filtered.map(u => { const pm = userPlanMeta(u); return (
               <button key={u.id} onClick={() => openUser(u.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
                 <div className="flex justify-between items-center gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
-                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[7px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
+                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[9px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
@@ -19929,7 +19955,7 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
         <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
         <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="16" height="16" /> YOU</button>
       </div>
-      <div className="mt-auto pf text-[8px] text-[#8A8A90] px-1">{BRAND}</div>
+      <div className="mt-auto pf text-[9px] text-[#8A8A90] px-1">{BRAND}</div>
     </div>
   );
 }
@@ -19944,13 +19970,13 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
           <div className="text-[9px] flex items-center gap-1.5">
             {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}><Icon.trend_up width="16" /> {streak}d</span>}
-            <span className="pf text-[7px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
+            <span className="pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
           </div>
         </div>
       </button>
       <button onClick={onOpenYou} aria-label="You and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
         <Icon.gear width="24" height="24" />
-        <span className="pf text-[8px]">YOU</span>
+        <span className="pf text-[9px]">YOU</span>
       </button>
     </div>
   );
@@ -20018,7 +20044,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
           <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
-          {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
+          {!it.done && <span className="pf text-[9px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
         </button>
       ))}
     </div>
@@ -20091,7 +20117,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
         {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
       {chips.length > 0 && <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-        {chips.map((c, i) => <span key={i} className="pf text-[7px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
+        {chips.map((c, i) => <span key={i} className="pf text-[9px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
       </div>}
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
         <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
@@ -20321,7 +20347,7 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"><Icon.close width="16" /></button></div>
       <div className="text-[11px] text-[#8A8A90] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
-      <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3">{tabs.map(([k, l]) => <button key={k} onClick={() => { setTab(k); setErr(''); }} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <div className="mb-3"><Pill wide value={tab} onChange={k => { setTab(k); setErr(''); }} options={tabs.map(([k, l]) => ({ v: k, l }))} /></div>
       {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
       {tab === 'search' && <div>
         <div className="flex gap-2 mb-2"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} className={inputCls + ' flex-1'} placeholder="brand or food" /><input value={grams} onChange={e => setGrams(e.target.value)} type="number" inputMode="numeric" className={inputCls + ' w-20 text-right tnum'} placeholder="g" /></div>
@@ -20522,9 +20548,9 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             were only ever used to filter Discover, which is the one place you are NOT looking at the
             recipe. Collections sit in the same row, because to a reader they are the same object. */}
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-          {chips.map((c, i) => <span key={'t' + i} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
-          {(recipe.collections || []).map(c => <span key={c} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
-          <button onClick={() => setShowColl(true)} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
+          {chips.map((c, i) => <span key={'t' + i} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
+          {(recipe.collections || []).map(c => <span key={c} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
+          <button onClick={() => setShowColl(true)} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
         </div>
       </div>
     </Card>
@@ -20541,7 +20567,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             ['fat', Math.round(recipe.macros_per_serving.fat) + 'G', 'FATS', 'var(--fat-ink)']].map(([k, v, l, col]) => (
             <SheetBox key={k} className="py-2.5 px-1 flex flex-col items-center gap-1">
               <span className="pf text-[13px] tnum" style={{ color: col }}>{v}</span>
-              <SheetLabel className="text-[8px]">{l}</SheetLabel>
+              <SheetLabel className="text-[9px]">{l}</SheetLabel>
             </SheetBox>
           ))}
         </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
@@ -20558,7 +20584,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Ingredients</span>
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={() => setEditIng(v => !v)} className="hit pf text-[9px] uppercase mr-1" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{editIng ? 'Done' : 'Edit'}</button>
-          <span className="pf text-[8px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
+          <span className="pf text-[9px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
           <button onClick={() => setServings(recipe.servings - 1)} aria-label="Fewer servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>–</button>
           <span className="pf text-[11px] tnum w-4 text-center" style={{ color: 'var(--cardhead-text)' }}>{recipe.servings}</span>
           <button onClick={() => setServings(recipe.servings + 1)} aria-label="More servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>+</button>
@@ -20750,12 +20776,12 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       : <>
         {cats.map(c => (
           <div key={c} className="mb-4">
-            <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
+            <div className="pf text-[9px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
             <div className="space-y-0.5">{groups[c].map(row)}</div>
           </div>
         ))}
         {checked.length > 0 && <div className="mb-4 pt-2" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
+          <div className="pf text-[9px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
           <div className="space-y-0.5">{checked.map(row)}</div>
         </div>}
       </>}
@@ -20765,7 +20791,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       {showPantry && <Card className="p-3 mt-2">
         <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
         <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
-          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
+          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[9px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
         ))}</div>
       </Card>}
     </div>}
@@ -20873,7 +20899,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     return (<div className="fade-in">
       <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
         <div className="p-4">
-          <div className="pf text-[8px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+          <div className="pf text-[9px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
           <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
           <div className="text-[12px] text-[#8A8A90] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
           <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>TRY PREMIUM FREE</button>
@@ -20985,7 +21011,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                   <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
                   <span className="text-[10px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
                 </button>
-                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[9px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
                 <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
               </div>); })}
           </div>}
@@ -21013,7 +21039,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
   const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">{label}</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">{label}</div>
     <div className="flex flex-wrap gap-2">
       {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
     </div>
@@ -21024,7 +21050,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="mb-4">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
           {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
@@ -21036,11 +21062,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <Group label="Main ingredient" k="main" values={present('main')} />
       <Group label="Effort" k="effort" values={present('effort')} />
       {diets.length > 0 && <div className="mb-4">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Diet</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Diet</div>
         <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
       </div>}
       <div className="mb-5">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Sort by</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Sort by</div>
         <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--accent)' : 'var(--surface3)', color: sort === k ? 'var(--on-accent)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
       </div>
       <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={onClear}>Clear all</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Show recipes</Btn></div>
@@ -21057,7 +21083,7 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
       <div className="flex-1 min-w-0 p-3">
         <div className="flex items-start gap-2 mb-1">
           <div className="font-bold text-[14px] leading-tight flex-1" style={clamp2}>{r.title}</div>
-          {m.source === 'discover' && <span className="pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
+          {m.source === 'discover' && <span className="pf text-[9px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]">
           {kcal > 0 && <span className="tnum">{Math.round(kcal)} kcal</span>}
@@ -21208,7 +21234,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
+      <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[9px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
       <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
       {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
       <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
@@ -21377,22 +21403,12 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && <>
-      <div className="flex items-center justify-between mb-4">
-        <PageHeader kicker="Cook" title="Recipes" />
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
-          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Cook from your fridge">
-            <Icon.cam width="24" height="24" />
-          </button>
-          <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
-            <Icon.calendar width="24" height="24" />
-          </button>
-          <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
-            <Icon.cart width="24" height="24" />
-            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{shoppingCount}</span>}
-          </button>
-        </div>
-      </div>
+      {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
+      <PageBar context="Cook" actions={[
+        { icon: <Icon.cam width="24" height="24" />, label: 'Cook from your fridge', onClick: () => setScreen('fridge') },
+        { icon: <Icon.calendar width="24" height="24" />, label: 'Meal plan', onClick: () => setScreen('plan') },
+        { icon: <Icon.cart width="24" height="24" />, label: 'Shopping list', onClick: () => setScreen('shopping'), badge: shoppingCount > 0 ? shoppingCount : null },
+      ]} />
       {/* Cook-from-fridge is the tab's best-kept secret, so give it a labelled hero here (not just the
           icon in the toolbar): snap the fridge, get recipes you can make now. */}
       <button onClick={() => setScreen('fridge')} className="w-full pixel-box p-3.5 mb-4 flex items-center gap-3 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }} aria-label="Cook from your fridge">
@@ -21434,7 +21450,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
+          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[9px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
         </div>
         <div className="my-3" />
         {showRails

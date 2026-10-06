@@ -374,22 +374,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
   return (
     <div className="fade-in">
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="min-w-0">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>
-            {/* The block's NAME only. The ladder's own title bar says which week, an inch below,
-                and the two together read as the page saying it twice - which is the redundancy this
-                whole screen has been cleared of. The kicker names what you are running; the card
-                says how far through it you are. */}
-            {block && !blockDone ? block.name : 'Your training'}
-          </div>
-          <h1 className="pf text-xl mt-3">Train</h1>
-        </div>
-        <button onClick={() => go('settings')} aria-label="Training settings"
-          className="pixel-box w-11 h-11 flex items-center justify-center shrink-0" style={{ background: 'var(--surface2)' }}>
-          <Icon.sliders width="24" height="24" />
-        </button>
-      </div>
+      {/* The block's NAME only, as the page bar's context. The ladder's own title bar says which week,
+          an inch below, and the two together read as the page saying it twice. No "Train" title:
+          the tab bar already says where you are (design-plans/34-overhaul/01). */}
+      <PageBar context={block && !blockDone ? block.name : 'Your training'} actions={[
+        { icon: <Icon.sliders width="24" height="24" />, label: 'Training settings', onClick: () => go('settings') },
+      ]} />
 
       {/* A session left open, on the screens where nothing else says so. Same shape as the draft
           card further down - a thing in progress, what state it is in, and the way back into it -
