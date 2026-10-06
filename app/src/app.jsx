@@ -8795,7 +8795,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
       </div>
       {/* The numbers, above the sentence so they cannot move with it. Hidden during incubation, where
           the hatch checklist is the whole content and there is no plan to report against yet. */}
-      {!incubating && <StatusStrip stats={stats} streak={streak} />}
+      {/* THE STATUS STRIP IS PARKED (design-plans/34-overhaul/02). Every figure it carried is on
+          this screen already: kcal left and protein on the plan card, fibre there too, the streak in
+          the app header, and steps on Recovery. StatusStrip and habitatStats are left standing, so
+          putting it back is one line here: {!incubating && <StatusStrip stats={stats} streak={streak} />} */}
       {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
       {incubating && tasks && box(
         <div className="space-y-0.5">
@@ -8847,57 +8850,30 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         {/* A 3px rule, not a 2px one. The day is above it and the road is below it, and this design
             already spends 3px on the edge between two KINDS of thing and 2px on the divisions
             inside one. Six identical rules said all six bands were the same kind of thing. */}
+        {/* ONE ROW, not four (design-plans/34-overhaul/02). The road used to take four bands of this
+            card - the journey readout with its ladder of cells, a "See your full progress" row, a
+            weigh-in row and a check-in row - and Progress, one tap away, draws the same road in full.
+            So Today keeps the headline and the next step, the whole left half is the way into
+            Progress, and the right holds at most ONE button: the check-in when it is due (the one
+            gold thing on the card that day), otherwise the weigh-in when one is owed and the buddy
+            is not already asking for it in words. */}
         <div style={{ height: 3, background: 'var(--border)' }} />
-        <div className="px-3 pt-3 pb-3">
-          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2.5" style={{ letterSpacing: '0.14em' }}>Your journey</div>
-          {/* Alone on its line, so nothing competes with it. */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tnum" style={{ color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
-            <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
-          </div>
-          <div className="text-[11px] mt-1 tnum" style={{ color: 'var(--muted)' }}>{week.since}</div>
-          {/* ONE ROW OF CELLS, whatever is being counted in it. On an established account it is the
-              milestone ladder; in the first week it is the seven days the trend is waiting for, and
-              the labels underneath say which. The day the read lands, the ladder takes the row over
-              rather than a row appearing. */}
-          {week.bar && <>
-            <div className="flex gap-1 mt-3">
-              {Array.from({ length: week.bar.cells }, (_, i) => {
-                const done = i < week.bar.doneCells, next = i === week.bar.doneCells;
-                // The next rung keeps its shape but gives up the gold: it is where you are going,
-                // not something to press.
-                return <div key={i} className="flex-1" style={{ height: 16,
-                  border: '2px solid ' + (next ? 'var(--good-ink)' : 'var(--border)'),
-                  background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)' }} />;
-              })}
-            </div>
-            {/* The two ends of the road, named. This is the whole reframing in one row: where you
-                started and where you are going, rather than where you were supposed to be by now. */}
-            <div className="flex justify-between mt-1.5">
-              <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.leftLabel}</span>
-              <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.rightLabel}</span>
-            </div>
-          </>}
-          {week.nextLine && <div className="text-[12.5px] mt-3" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</div>}
+        <div className="flex items-center gap-3 pr-3">
+          <button onClick={week.onOpen} aria-label="See your full progress" className="flex-1 min-w-0 text-left pl-3 py-3 active:opacity-80">
+            <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Your journey</span>
+            <span className="flex items-baseline gap-2">
+              <span className="tnum" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
+              <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)', alignSelf: 'center' }} />
+            </span>
+            {week.nextLine && <span className="block text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</span>}
+          </button>
+          {week.due
+            ? <Btn kind="accent" className="shrink-0" onClick={week.onCheckIn}>Check in</Btn>
+            : (week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating))
+              ? <Btn kind={(msg && !incubating && msg.primary) ? 'ghost' : 'accent'} className="shrink-0" onClick={week.onWeigh}>Weigh in</Btn>
+              : null}
         </div>
-        {/* THE WAY IN. It was a chevron on the end of a readout, which is a link with nothing on it
-            that says so. A full-width row with a sentence on it and somewhere to put your thumb. */}
-        <button onClick={week.onOpen} className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left active:opacity-80"
-          style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <span className="text-[12.5px]">See your full progress</span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
-        </button>
-        {/* The morning weigh-in, as a row of the road it feeds. The buddy asks for it in words when it
-            can, so this only draws when that ask is not already on the card (and always while the egg
-            incubates, when the buddy is not talking). It gives up the gold to anything else asking. */}
-        {week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating) && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <span className="text-[12.5px]">Not weighed in yet today</span>
-          <Btn kind={(week.due || (msg && !incubating && msg.primary)) ? 'ghost' : 'accent'} onClick={week.onWeigh}>Weigh in</Btn>
-        </div>}
-        {week.due && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <span className="text-[12.5px]">Weekly check-in due</span>
-          <Btn kind="accent" onClick={week.onCheckIn}>Check in</Btn>
-        </div>}
         {week.thin && <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
           <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>{week.thin}</span>
         </div>}
@@ -12505,10 +12481,14 @@ function PromptSlot({ candidates }) {
   const c = (candidates || []).find(c => c && c.when);
   return c ? c.render() : null;
 }
+// Dismissed within the last week. Lifted out of PremiumNudge so a PromptSlot can ask before it
+// chooses, rather than choose a nudge that then draws nothing and leaves the slot empty.
+function nudgeDismissed(db, trackKey) {
+  const until = ((db.profile && db.profile.nudgesDismissed) || {})[trackKey];
+  return !!until && (Date.now() - until) < 7 * 864e5;
+}
 function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '' }) {
-  const dm = (db.profile && db.profile.nudgesDismissed) || {};
-  const until = dm[trackKey];
-  if (until && (Date.now() - until) < 7 * 864e5) return null;
+  if (nudgeDismissed(db, trackKey)) return null;
   const open = () => {
     try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
     try { window.MTRACK && window.MTRACK('paywall_view', { reason: trackKey }); } catch (_) {}
@@ -13104,13 +13084,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       <PageBar context={prettyDate(today)} />
-      <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-      {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
-          it never nags). Hidden during egg incubation so onboarding stays focused on hatching. */}
-      {!isPremium && !eggIncubating && <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
-        headline="Log a meal in one snap"
-        blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." />}
 
       {/* The buddy leads Today. It used to sit below the macro card, which put it at y=871 on a
           390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
@@ -13171,13 +13145,17 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             const over = tot.carbs > et.eff.carbs_g || tot.fat > et.eff.fat_g;
             return <div className="px-3 pb-2.5 -mt-1 text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {k} kcal of drinks, split across carbs and fat{over ? ', which is part of why those read over' : ''}.</div>;
           })()}
-          <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
+          {/* Fibre and density side by side for a subscriber. A free account gets fibre across the
+              whole row: its density half was an empty, locked meter labelled PREMIUM, which put an
+              upsell inside the data card on the same screen as the one in the prompt slot below
+              (design-plans/34-overhaul/02). */}
+          <div className={isPremium ? 'grid grid-cols-2' : ''} style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={isPremium ? { borderRight: '2px solid var(--border)' } : undefined}>
               <FibreCell tot={tot} et={et} mode={mode} />
             </div>
-            <div className="px-3 py-2.5 flex flex-col gap-1.5">
+            {isPremium && <div className="px-3 py-2.5 flex flex-col gap-1.5">
               <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
-            </div>
+            </div>}
           </div>
           {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
           <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
@@ -13231,6 +13209,26 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             </div>;
           })()}
         </Card>
+        {/* ONE THING ASKING (design-plans/34-overhaul/02). These four used to render wherever they
+            were written - the upsell first on the page, the trip banner above the buddy, the diet
+            break and the low-AI nudge at the bottom - and on a busy day three of them stacked up. Now
+            the first that applies is the only one drawn, here under the numbers so it never stands
+            between someone and their day. It sits inside the plan block so it moves with it. */}
+        <PromptSlot candidates={[
+          { when: !!(() => { const c = E.weekPlanContext(db.week_plans, today); return c.active || c.recovering || c.upcoming; })(),
+            render: () => <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} /> },
+          { when: !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
+            render: () => <DietBreakCard db={db} update={update} /> },
+          { when: !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
+            render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />; } },
+          // Hidden while the egg incubates, so the first week stays about hatching.
+          { when: !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
+            render: () => <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
+              headline="Log a meal in one snap"
+              blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." /> },
+        ]} />
           </>),
           recovery: (<>
         {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
@@ -13244,19 +13242,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
-      {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
-      <DietBreakCard db={db} update={update} />
-
-      {/* The "More" drawer is gone (install lives in Account, the upsell is the top box). Only the
-          contextual "AI logs left" nudge remains, and only when it's genuinely running low. */}
-      {!isPremium && (() => {
-        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-        return freeLeft <= 3
-          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />
-          : null;
-      })()}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {/* The way in, said once and quietly. Hold-to-move is the gesture, but a gesture nobody is

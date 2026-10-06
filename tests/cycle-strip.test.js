@@ -276,7 +276,9 @@ test('the band is rendered on the buddy card in both states', () => {
     const r = render(A.BuddyHabitat, { db, buddy: { stage: 4, name: 'Beans' }, bp,
       streak: 3, onOpenPlay() {}, tasks: null, msg: {}, stats: null, away: false, week: b });
     assert.ok(r.has('Your journey'), 'state ' + i + ' should draw the band: ' + r.text.slice(0, 200));
-    assert.ok(r.has('See your full progress'), 'and the way into Progress: ' + r.text.slice(0, 200));
+    // One row since design-plans/34-overhaul/02: the band itself is the way into Progress, named
+    // for a screen reader rather than spelled out as a row of its own.
+    assert.ok(/aria-label="See your full progress"/.test(r.html), 'and the way into Progress: ' + r.text.slice(0, 200));
   });
 });
 

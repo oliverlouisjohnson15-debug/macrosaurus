@@ -153,3 +153,11 @@ footer       quote · Rearrange this page
 - Record in the design-system memory: "Today drops the habitat's status strip. Its numbers are on
   the plan hero, the header and Recovery. Divergence from `Today Page.dc.html`, 2026-10, owner's
   request (34-overhaul)."
+
+## Status
+
+**Done, 2026-10-06.** Today's plan title bar now starts at ≈553px CSS at 390×844 (it was ≈1,055px;
+the target was ≤640px). In the demo state the Premium box is the only interrupting card, and it sits
+under the plan. The journey is one row: the left half opens Progress
+(`aria-label="See your full progress"`), and the right half holds Check in or Weigh in or nothing.
+`tests/cycle-strip.test.js` now looks for that label instead of the old row's text.
