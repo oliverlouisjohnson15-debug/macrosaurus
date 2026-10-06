@@ -16940,9 +16940,10 @@ function SubScreen({ title, intro, onBack, children }) {
       <button onClick={onBack} className="pf text-[10px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>&lsaquo; You</button>
       <span className="pf text-[10px] uppercase flex-1 text-center truncate pr-8" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</span>
     </div>
-    <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Settings</div>
-    <h1 className="pf text-[25px] mb-2.5" style={{ letterSpacing: '0.02em' }}>{title}</h1>
-    {intro && <div className="text-base mb-5 leading-relaxed" style={{ color: 'var(--muted)' }}>{intro}</div>}
+    {/* The bar above is the one place a subscreen is named (design-plans/32). A SETTINGS kicker and
+        a 25px title repeating it cost ~100px on every screen before the first control. The intro is
+        context, so it is set like the rest of the screen's help text rather than as a second heading. */}
+    {intro && <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{intro}</div>}
     {children}
   </div>);
 }
@@ -17521,7 +17522,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           {windowLive
             ? 'Tap a day to make it a big one. The rest come down to keep the total the same.'
-            : 'Tap a day to make it high, low or normal. Same weekly total either way.'}
+            : 'Tap a day to make it high, low or normal.'}
           {eaten.length ? ' The greyed days have been eaten: they keep the numbers they ran under, so nothing you do here can move them.' : ''}
           {stripWindow ? (windowLive ? ' You\'re ' : ' You\'ll be ') + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
             + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week')
@@ -17645,14 +17646,17 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             </Field>
           </div>;
         })()}
-        <div className="text-[11px] text-[#8A8A90] leading-snug">
+        {/* Said once each (design-plans/33): "greyed days are eaten" lives above the strip, so this
+            caption only appears when it has something of its own - a trip, or a plan-change spread.
+            It used to say "The next seven days" under a strip that also shows the days eaten. */}
+        {(stripWindow || spread) ? <div className="text-[11px] text-[#8A8A90] leading-snug">
           {windowLive
             ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high and low days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
             : stripWindow
               ? 'The days before it run on your normal rhythm; from ' + fmtShortDay(stripWindow.start) + ' the trip is the shape, through to the days that settle it up. A big day in it is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
-              : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
+              : ''}{spread ? `${stripWindow ? ' ' : ''}To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
           {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
-        </div>
+        </div> : null}
       </div>);
     })()}
 
