@@ -3206,6 +3206,16 @@ function checkinStatus(db, todayISO) {
   }
   return { due: false, daysSince, nextISO: null, daysUntil: null };
 }
+// The day the NEXT check-in is due, counted from the last one rather than from today: the end of the
+// current cycle. Null before the first check-in. The carryover spreads over exactly these days.
+function nextCheckinDueISO(db) {
+  if (!db.last_checkin) return null;
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftISO(db.last_checkin, i);
+    if (checkinReadyOn(db, iso)) return iso;
+  }
+  return null;
+}
 // "tomorrow" / "in 3 days" / "in 3 days · Monday" - the phrase every surface uses for the wait.
 function checkinWaitLabel(st) {
   if (!st || st.due || st.daysUntil == null) return '';
@@ -3273,9 +3283,12 @@ function pendingCyclingChange(db, next, todayISO, windowStart) {
   const base = currentTargets(db);
   // Edited in the app, so the change and the working-out are the same day: it settles from today,
   // which is also the first day it applies to, and every day before it stays exactly as eaten.
+  // The window ends where the carryover's does, the day before the next check-in is due.
+  const due = nextCheckinDueISO(db);
+  const windowDays = (due && windowStart && due > windowStart) ? daysBetween(windowStart, due) : 7;
   const sp = base ? E.cyclingSpread({
     cycling: next, cyclingHistory: hist, changeDate: todayISO, settleFrom: todayISO,
-    windowStart: windowStart, baseKcal: base.kcal, floorKcal: E.kcalFloor(p),
+    windowStart: windowStart, windowDays: windowDays, baseKcal: base.kcal, floorKcal: E.kcalFloor(p),
   }) : { spreadKcal: 0, from: todayISO, until: null };
   entry.spreadKcal = sp.spreadKcal;
   entry.spreadFrom = sp.from;
@@ -3491,6 +3504,8 @@ function dietBreakStatus(db, today) {
     && daysDieting >= DIETBREAK_MIN_DAYS && checkins >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED && !snoozed;
   return { eligible, weeks: Math.max(1, Math.floor(daysDieting / 7)) };
 }
+// Has the person said they are done eating on `iso`? Only ever set for today, from the Today card.
+function dayClosed(db, iso) { return !!(db.day_closed && db.day_closed[iso]); }
 // Forward-looking targets for a set of dates (the meal-plan week view). A single day's
 // effectiveTarget assumes NOTHING is eaten on the days between the last check-in and it, so
 // projecting each future day independently freezes the running surplus at today's value while
@@ -3522,9 +3537,13 @@ function weekForecastTargets(db, days) {
       // nobody had saved and spread them over the rest of the week, so the normal days on the weekly
       // board sat 68 kcal above the day you were on, and above what the note under them said. Today
       // finishes on its target, or on what has already been eaten if that is more.
-      if (et && d === today) {
+      // ...unless you have said it is: "Done for today" closes it on what was actually eaten, so an
+      // under (or over) reaches the rest of the week now rather than at midnight.
+      if (et && d === today && !dayClosed(db, d)) {
         const logged = sumMacros(entriesOn(db, d)).kcal;
         entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: Math.max(logged, et.eff.kcal) } }]);
+      } else if (et && d === today) {
+        // Closed: the day stands on its log as it is, complete-day bar or not, because you said so.
       } else if (et && !isCompleteDayOn(db, d)) {
         entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: et.eff.kcal } }]);
       }
@@ -3579,6 +3598,10 @@ function effectiveTarget(db, date) {
   // over-eat rolls into the next day instead of vanishing in the gap between cycles. (Coverage/cadence
   // still uses cycleStartISO, which excludes the check-in morning.) Only COMPLETE logged days count.
   const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
+  // ...and it ends the day before the next check-in is due, which is not always a week on: the
+  // cadence bends each cycle back onto your chosen day (see checkinReadyOn).
+  const due = nextCheckinDueISO(db);
+  const cycleDays = due ? daysBetween(cs, due) : 7;
   const eatenByDate = {};
   if (p.carryover && p.carryover.enabled) {
     db.log_entries.forEach(e => { if (e.date >= cs && e.date < date) eatenByDate[e.date] = (eatenByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
@@ -3611,7 +3634,8 @@ function effectiveTarget(db, date) {
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
     cycling: shaped, cyclingHistory: shaped ? (p.cyclingHistory || null) : null, carryover: p.carryover,
-    cycleStart: cs, eatenByDate, targets: db.targets, windowDeltaOn,
+    cycleStart: cs, cycleDays, eatenByDate, targets: db.targets, windowDeltaOn,
+    dayClosed: (iso) => dayClosed(db, iso),
     cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
   });
@@ -13151,6 +13175,32 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
             </div>;
           })()}
+          {/* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
+              finished 1,600 from a lunchtime 1,600, and treating the lunchtime one as finished banked
+              calories nobody had saved. So the person says so: closing the day spreads what is left
+              (or what went over) across the rest of the week now, rather than at midnight. Only
+              offered with evening out on, since without it a closed day changes nothing. */}
+          {(db.profile.carryover && db.profile.carryover.enabled && !db.paused && todayTot.kcal > 0) && (() => {
+            const closed = dayClosed(db, today);
+            const rem = Math.round(et.eff.kcal - todayTot.kcal);
+            const due = nextCheckinDueISO(db);
+            // Nothing left in this cycle to spread over: the check-in is tomorrow, or already due.
+            const dueNow = !!due && due <= today;
+            const lastDay = !!due && daysBetween(today, due) <= 1;
+            const amount = rem === 0 ? 'Bang on target' : Math.abs(rem) + ' kcal ' + (rem > 0 ? 'under' : 'over');
+            const setClosed = (on) => {
+              update(d => { d.day_closed = Object.assign({}, d.day_closed || {}, { [today]: on }); });
+              if (showToast) showToast(!on ? 'Today is open again. It counts once it is over.'
+                : dueNow ? 'Done for today. Your check-in is due, so it reads today as it stands.'
+                : lastDay ? 'Done for today. Your check-in is tomorrow, so it reads today as it stands.'
+                : rem === 0 ? 'Done for today, bang on target. Nothing to carry.'
+                : 'Done for today. ' + amount + ' goes across the rest of the week.');
+            };
+            return <div className="px-3 py-2.5 flex items-center justify-between gap-3 text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
+              <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span>{lastDay ? '' : ', spread over the rest of the week'}</> : 'Finished eating today?'}</span>
+              <button onClick={() => setClosed(!closed)} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+            </div>;
+          })()}
         </Card>
           </>),
           recovery: (<>
@@ -17447,15 +17497,25 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       // against a 2,135 target reads as a shape somebody chose - which is exactly the thing this
       // screen is for, and exactly what it is not.
       const carryNote = (() => {
-        const t0 = fc[today];
-        if (!t0 || !t0.carry || !t0.carryDetail) return null;
+        // Today's view of the ledger is the days actually eaten. Once today is closed ("Done for
+        // today") it is one of them, and what it changed lands on tomorrow onwards, so the note reads
+        // the first day ahead instead. (Ahead of an OPEN today the forecast has already assumed today
+        // is eaten on target and paid some of the balance down, so it would understate it.)
+        const ahead = strip.find(d => d > today);
+        const t0 = (dayClosed(db, today) && ahead) ? fc[ahead] : fc[today];
+        const co = p.carryover || {};
+        // Today is not counted until it is over, which is the right call and a surprising one when
+        // you are sitting on a big under at 9pm, so the row says how to count it now.
+        const openToday = co.enabled && !db.paused && !dayClosed(db, today) && sumMacros(entriesOn(db, today)).kcal > 0
+          ? ' Today counts once it is over. Finished eating? Tap Done for today on Today and it counts now.' : '';
+        if (!t0 || !t0.carry || !t0.carryDetail) return openToday ? openToday.trim() : null;
         const bal = Math.round(t0.carryDetail.balance || 0);
-        if (!bal) return null;
+        if (!bal) return openToday ? openToday.trim() : null;
         const flat = !stripWindow && !(cyc.enabled && (cyc.highDays.length || (cyc.lowDays || []).length));
         return (flat ? 'Nothing is shaping these days: they are your ' + base.kcal + ' kcal target with the week evened out on top. ' : '')
           + 'You are ' + Math.abs(bal) + ' kcal ' + (bal < 0 ? 'over' : 'under') + ' so far this cycle, so every day left '
           + (t0.carry < 0 ? 'comes down ' : 'goes up ') + Math.abs(Math.round(t0.carry))
-          + ' until your next check-in. Turn evening out off below and every day is your target.';
+          + ' until your next check-in. Turn evening out off below and every day is your target.' + openToday;
       })();
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
