@@ -829,3 +829,60 @@ test('a part-logged today is not a finished day: the days ahead do not bank what
   over.log_entries.push({ id: 'o1', date: today, computed_macros: { kcal: target + 300 } });
   assert.ok(kcalsAhead(over).every((k, i) => k < base[i]), 'an overspend already eaten today was ignored: ' + kcalsAhead(over).join(', '));
 });
+
+// ---- the week is the check-in's week, and a day can be closed early ------------------------------
+
+// A Sunday check-in with Friday as the check-in day is a five-day cycle: Sunday to Thursday. The
+// evening-out used to assume seven, so a short week's balance spilled onto Friday and Saturday, which
+// belong to the NEXT check-in, and each day it did reach got a smaller share than it should.
+function fridayAccount(todayOffset) {
+  const db = evenWeekAccount(0);
+  const today = A.Store.todayISO();
+  // Put the last check-in on the most recent Sunday at least two days back, and make Friday the day.
+  let sun = A.shiftISO(today, -2);
+  while (new Date(sun + 'T00:00:00').getDay() !== 0) sun = A.shiftISO(sun, -1);
+  db.last_checkin = sun;
+  db.profile.checkinDay = 5;
+  db.log_entries = [{ id: 'u1', date: sun, computed_macros: { kcal: 2135 - 300 } }];   // 300 under on the check-in day
+  return { db, sun, fri: A.shiftISO(sun, 5) };
+}
+
+test('evening out stops at the day before the next check-in, not a fixed week on', () => {
+  const { db, sun, fri } = fridayAccount();
+  assert.equal(A.nextCheckinDueISO(db), fri, 'Sunday to Friday, with Friday the chosen day');
+  const thu = A.shiftISO(fri, -1), sat = A.shiftISO(fri, 1);
+  assert.ok(A.effectiveTarget(db, thu).carry > 0, 'the last day of the cycle should still carry the under');
+  assert.equal(A.effectiveTarget(db, fri).carry, 0, 'Friday is the next check-in: this cycle\'s balance does not reach it');
+  assert.equal(A.effectiveTarget(db, sat).carry, 0, 'nor the day after it');
+});
+
+test('a closed day counts now; an open one waits until it is over', () => {
+  const db = evenWeekAccount(0);
+  const today = A.Store.todayISO();
+  const ahead = [1, 2].map(n => A.shiftISO(today, n));
+  const target = A.effectiveTarget(db, today).eff.kcal;
+  db.log_entries.push({ id: 'p1', date: today, computed_macros: { kcal: Math.round(target * 0.75) } });
+  const open = A.weekForecastTargets(db, ahead);
+  db.day_closed = { [today]: true };
+  const closed = A.weekForecastTargets(db, ahead);
+  ahead.forEach(d => assert.ok(closed[d].eff.kcal > open[d].eff.kcal, 'closing today did not move ' + d + ': ' + open[d].eff.kcal + ' -> ' + closed[d].eff.kcal));
+  // Even a light day counts once closed: below the complete-day bar it would otherwise sit out.
+  db.log_entries = db.log_entries.filter(e => e.id !== 'p1').concat([{ id: 'p2', date: today, computed_macros: { kcal: Math.round(target * 0.4) } }]);
+  const light = A.weekForecastTargets(db, ahead);
+  ahead.forEach(d => assert.ok(light[d].eff.kcal > closed[d].eff.kcal, 'a closed light day was ignored on ' + d));
+});
+
+test('the Today card offers Done for today, and it toggles', () => {
+  const db = evenWeekAccount(0);
+  const today = A.Store.todayISO();
+  db.buddy = { name: 'Rex' };
+  db.log_entries.push({ id: 'p1', date: today, meal_id: 'm_1', computed_macros: { kcal: 1400, protein: 120, carbs: 120, fat: 40 } });
+  let toast = null;
+  const ui = mount(A.Dashboard, { db, update: (fn) => fn(db), showToast: (m) => { toast = m; }, setView() {}, onCheckIn() {}, onReview() {}, onWeigh() {}, onQuickAdd() {}, onOpenRecipe() {}, onOpenFridge() {}, onOpenPlay() {}, onTalk() {}, isPremium: true, aiCalls: 0 });
+  try {
+    assert.ok(ui.has('Finished eating today?'), 'no way to close the day: ' + ui.text.slice(0, 300));
+    ui.click('Done for today');
+    assert.equal(db.day_closed[today], true);
+    assert.match(toast, /under goes across the rest of the week|check-in is (tomorrow|due)/);
+  } finally { ui.unmount(); }
+});

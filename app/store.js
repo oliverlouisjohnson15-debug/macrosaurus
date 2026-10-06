@@ -261,6 +261,8 @@
       weight_entries: [], // check-ins (weight + body fat)
       targets: [],        // history of targets; last is current
       day_overrides: {},  // per-date carb/fat rebalance: { 'YYYY-MM-DD': { shiftKcal } }
+      day_closed: {},     // per-date "done eating for today": { 'YYYY-MM-DD': true|false }. Lets the
+                          // week forecast count a day as finished before midnight (weekForecastTargets)
       last_checkin: null, // ISO date of last completed weekly check-in (gates cadence)
       checkins: [],       // history: [{ date, weightKg, onTrack, changed, weeklyChangeKg?, deltaKcal?, tdee? }]
       pending_adjustment: null, // an un-actioned check-in proposal: { date, result } (survives reloads until approved/rejected)
@@ -385,7 +387,7 @@
   // The groups a fresh start can clear, and every field each one owns. Keyed so the UI hands back a
   // plain { log: true, weight: false, ... } and neither side has to know the other's field names.
   var FRESH_PARTS = {
-    log:      ['log_entries', 'day_meals', 'day_overrides'],
+    log:      ['log_entries', 'day_meals', 'day_overrides', 'day_closed'],
     weight:   ['weight_entries'],
     checkins: ['checkins'],
     streak:   ['streak_credit', 'freezes', 'records'],
@@ -564,7 +566,7 @@
     log_entries: 'date', weight_entries: 'date', checkins: 'date', targets: 'effective_date',
     week_plans: 'end',
   };
-  var CLEAR_MAPS = ['day_meals', 'day_overrides'];
+  var CLEAR_MAPS = ['day_meals', 'day_overrides', 'day_closed'];
   function enforceCleared(s, mark) {
     if (!s || !mark || !mark.on || !mark.cleared || !mark.cleared.length) return s;
     var on = mark.on, at = +mark.at || 0;
@@ -781,6 +783,7 @@
     // date-keyed maps: union keys, newer wins on a shared date
     out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
+    out.day_closed    = Object.assign({}, older.day_closed || {},    newer.day_closed || {});
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date

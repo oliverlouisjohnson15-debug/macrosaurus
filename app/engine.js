@@ -1024,7 +1024,8 @@
   // included), and the week lands where it was meant to.
   //   opts: { cycling, cyclingHistory (INCLUDING the new entry, minus its spread), changeDate,
   //           settleFrom (first day that may carry the correction, default changeDate),
-  //           windowStart (first day of the current check-in window), baseKcal, floorKcal }
+  //           windowStart (first day of the current check-in window), windowDays (how many days
+  //           it runs, to the day before the next check-in; 7 if omitted), baseKcal, floorKcal }
   // Returns { spreadKcal, from, until }: record all three on the new history entry, so the
   // correction stays attached to the window it was computed for and reaches neither a day outside
   // it nor a day already eaten.
@@ -1038,10 +1039,13 @@
   function cyclingSpread(opts) {
     var ws = opts.windowStart, cd = opts.changeDate, base = +opts.baseKcal || 0;
     var from = opts.settleFrom || cd;
-    var until = ws ? shiftISOdays(ws, 6) : null;
+    // The window runs to the day before the next check-in, which the caller knows and a fixed week
+    // does not: a cycle bending back onto the chosen check-in day can be five days or eleven.
+    var n = (opts.windowDays > 0) ? Math.round(opts.windowDays) : 7;
+    var until = ws ? shiftISOdays(ws, n - 1) : null;
     if (!ws || !cd || !from || cd <= ws || from > until || !base) return { spreadKcal: 0, from: from, until: until };
     var total = 0, remaining = 0;
-    for (var i = 0; i < 7; i++) {
+    for (var i = 0; i < n; i++) {
       var day = shiftISOdays(ws, i);
       total += cyclingDeltaOn(opts.cycling, opts.cyclingHistory, day, base, opts.floorKcal);
       if (day >= from) remaining++;
@@ -1485,7 +1489,12 @@
   //   carryover: {enabled, mode, capKcal} | null,        capKcal default 400 (store default)
   //   cycleStart: 'YYYY-MM-DD',                          first day of the CURRENT cycle, i.e. the
   //                                                      day AFTER the last check-in (exclusive)
+  //   cycleDays: number | undefined                      how many days the cycle runs, from
+  //                                                      cycleStart to the day before the next
+  //                                                      check-in is due; 7 when omitted
   //   eatenByDate: {iso: kcal},                          logged intake for past days of the cycle
+  //   dayClosed: (iso) => boolean | undefined            days the person marked done eating; they
+  //                                                      count as complete whatever their total
   //   targets: [{effective_date, kcal, ...}] | null      the dated target ledger; earlier days in
   //                                                      the cycle are scored against the base in
   //                                                      force on them, so a target set today can't
@@ -1550,9 +1559,14 @@
     if (co && co.enabled && opts.cycleStart) {
       var cap = co.capKcal == null ? 400 : co.capKcal; // nullish: an explicit 0 means "no carryover room"
       var idx = Math.max(0, daysBetweenISO(opts.cycleStart, date)); // days elapsed in the cycle
-      if (idx >= 7) {
-        // Beyond day 7 of a cycle (check-in overdue) the balance EXPIRES rather than dribbling
-        // yesterday's maths into stale days indefinitely.
+      // How long this cycle actually runs: from the check-in it started on to the day before the
+      // next one is due. Check-ins land on a chosen weekday, so a cycle can be five days or eleven,
+      // and a fixed seven spread a short week's balance onto the day after the next check-in and cut
+      // a long week's off two days early. Seven when the caller does not know.
+      var cycleLen = (opts.cycleDays > 0) ? Math.round(opts.cycleDays) : 7;
+      if (idx >= cycleLen) {
+        // Past the end of the cycle (check-in due or overdue) the balance EXPIRES rather than
+        // dribbling yesterday's maths into stale days indefinitely.
         carryDetail = { days: [], balance: 0, mode: co.mode, cap: cap, remaining: 0, applied: 0, cycleStart: opts.cycleStart, expired: true };
       } else {
         var eatenByDate = opts.eatenByDate || {};
@@ -1569,13 +1583,15 @@
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
           var tgt = baseKcalOn(dISO) + planDelta(dISO);
-          if (!isCompleteDay(e, tgt)) continue; // a half-logged day would fake a huge deficit
+          // A half-logged day would fake a huge deficit, so it sits out - unless the person closed it
+          // ("Done for today"), which says the log IS the day, however light it is.
+          if (!isCompleteDay(e, tgt) && !(opts.dayClosed && opts.dayClosed(dISO))) continue;
           var eaten = Math.round(e);
           acc += tgt - eaten;
           days.push({ date: dISO, eaten: eaten, delta: Math.round(tgt - eaten) });
         }
         // Dispersed spreads the balance across the days left in the week; Aggressive dumps it all today.
-        var remaining = co.mode === 'dispersed' ? Math.max(1, 7 - idx) : 1;
+        var remaining = co.mode === 'dispersed' ? Math.max(1, cycleLen - idx) : 1;
         carry = carryoverDispersed(acc, remaining, cap);
         carryDetail = { days: days, balance: Math.round(acc), mode: co.mode, cap: cap, remaining: remaining, applied: carry, cycleStart: opts.cycleStart };
       }
