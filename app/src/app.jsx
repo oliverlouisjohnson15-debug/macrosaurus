@@ -3868,6 +3868,28 @@ function ChoiceRow({ selected, onClick, title, sub }) {
     </button>
   );
 }
+/* A meal's three-letter name, for a chooser with four or more meals on one row: the design draws
+   Edit entry's meal row as BRK / LUN / DIN / SNK (Sheets.dc.html), because BREAKFAST in the pixel
+   face does not fit a quarter of a phone. A meal this does not know takes its first three letters. */
+function mealShort(name) {
+  const n = String(name || '').trim().toLowerCase();
+  const known = { breakfast: 'Brk', lunch: 'Lun', dinner: 'Din', tea: 'Tea', supper: 'Sup', snack: 'Snk', snacks: 'Snk' };
+  return known[n] || (String(name || '').trim().slice(0, 3) || '?');
+}
+/* A row inside a sheet that leads somewhere else: ChoiceRow's frame and type, a 24px glyph where its
+   radio sits, and a chevron on the right. The log sheet's "Can't find it?" routes use it. */
+function RouteRow({ icon, title, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="pixel-btn w-full text-left flex items-center gap-3 p-3" style={{ borderWidth: 2, background: 'var(--card)' }}>
+      <span className="shrink-0 w-6 h-6 flex items-center justify-center">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13.5px] font-semibold leading-snug">{title}</span>
+        {sub && <span className="block text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{sub}</span>}
+      </span>
+      <span className="shrink-0" style={{ color: 'var(--muted)' }}><Icon.chevron width="16" /></span>
+    </button>
+  );
+}
 /* A sheet's primary action: full-bleed gold, the pixel face, the design's 15px of padding. */
 /* The full-bleed version, with the same two tiers as `Btn` above. `accent` commits and wears the
    pixel face at the design's 12px; `ghost` opens or adjusts and stays in Plex Mono, sentence case,
@@ -3912,10 +3934,13 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
    one control, while these commit a setting and want to read as a row of things you can press. The
    pixel face because the labels are short and chrome-like. */
 function Seg({ value, options, onChange }) {
-  return (<div className="flex gap-2.5 flex-wrap">
+  // Four or more choices (a meal: breakfast, lunch, dinner, snacks) share one row instead of wrapping
+  // three-and-one, where the lone fourth button stretched full width and read as the important one.
+  const many = options.length >= 4;
+  return (<div className={'flex flex-wrap ' + (many ? 'gap-2' : 'gap-2.5')}>
     {options.map(o => (
       <button key={o.v} onClick={() => onChange(o.v)}
-        className="pixel-btn flex-1 min-w-[28%] py-2.5 px-2 pf text-[10px] uppercase"
+        className={'pixel-btn flex-1 py-2.5 pf text-[10px] uppercase ' + (many ? 'min-w-[22%] px-1' : 'min-w-[28%] px-2')}
         style={{ letterSpacing: '0.08em', borderWidth: 2,
           background: value === o.v ? 'var(--accent)' : 'var(--card)',
           color: value === o.v ? 'var(--on-accent)' : 'var(--text)' }}>{o.l}</button>
@@ -3927,11 +3952,13 @@ function Seg({ value, options, onChange }) {
    padded box holding two floating chips, which put three edges between "Left" and "Eaten" where the
    design spends none, and made a two-way switch look like two buttons that happened to be adjacent.
    Segments are set in the pixel face here because they are chrome, not prose. */
-function Pill({ value, options, onChange }) {
-  return (<div className="inline-flex" style={{ border: '2px solid var(--border)' }}>
+// `wide` stretches the segments across the row, for a page-level switch (You's Settings/Account,
+// Cook's Discover/Cookbook) rather than a lens tucked into a title bar.
+function Pill({ value, options, onChange, wide }) {
+  return (<div className={wide ? 'flex' : 'inline-flex'} style={{ border: '2px solid var(--border)' }}>
     {options.map(o => (
-      <button key={o.v} onClick={() => onChange(o.v)} className="pf uppercase"
-        style={{ padding: '6px 12px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+      <button key={o.v} onClick={() => onChange(o.v)} className={'pf uppercase' + (wide ? ' flex-1 flex items-center justify-center gap-1.5' : '')}
+        style={{ padding: wide ? '9px 4px' : '6px 12px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
           background: value === o.v ? 'var(--accent)' : 'var(--card)',
           color: value === o.v ? 'var(--on-accent)' : 'var(--muted2)' }}>{o.l}</button>
     ))}
@@ -3972,7 +3999,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
     return (<div className={className}>
       <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
         <span>{label}</span>
-        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : (sub || 'Show')}</span>
+        <span className="pf text-[9px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : (sub || 'Show')}</span>
       </button>
       {open && <div className="fade-in mt-3">{children}</div>}
     </div>);
@@ -3983,7 +4010,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
         <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>{label}</span>
         {sub && <span className="block text-[11px] text-[#8A8A90] mt-1 truncate">{sub}</span>}
       </span>
-      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : 'Show'}</span>
+      <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : 'Show'}</span>
     </button>
     {open && <div className="mt-3 fade-in">{children}</div>}
   </div>);
@@ -4004,6 +4031,27 @@ function rateLabel(r, goalType) {
 // Consistent page header used across every main screen. The little 🦖 is our through-line.
 function PageHeader({ kicker, title }) {
   return (<div className="mb-6"><div className="pf text-[9px] uppercase text-[#8A8A90]">{kicker}</div><h1 className="pf text-xl mt-3">{title}</h1></div>);
+}
+/* THE PAGE BAR, for tab roots (design-plans/34-overhaul/01). The bottom nav already says which tab
+   you are on, so a tab root does not say it again as a 20px title: PageHeader cost ~110px on every
+   tab before the first card. One line instead - the CONTEXT (the date, the block you are running,
+   "your food diary") in the 9px label face, and this page's own actions on the right, drawn as the
+   Cook toolbar always drew them. `actions` is an array of { icon, label, onClick, badge }. */
+function PageBar({ context, actions = [] }) {
+  // The 40px minimum is the action buttons' height, so it only applies when there are some: a bare
+  // context line should sit straight under the page's top padding, not centred in an empty row.
+  return (<div className="flex items-center justify-between gap-3 mb-4" style={{ minHeight: actions.length ? 40 : undefined }}>
+    <div className="pf text-[9px] uppercase truncate min-w-0" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{context}</div>
+    {actions.length > 0 && <div className="flex gap-2 shrink-0">
+      {actions.map((a, i) => (
+        <button key={i} onClick={a.onClick} aria-label={a.label} title={a.label}
+          className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
+          {a.icon}
+          {a.badge ? <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 pf text-[9px] flex items-center justify-center tnum" style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}>{a.badge}</span> : null}
+        </button>
+      ))}
+    </div>}
+  </div>);
 }
 function Loading({ text }) {
   return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[#8A8A90]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelEgg size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
@@ -4273,7 +4321,7 @@ function QualityBar({ nd, onExplain }) {
         className="w-full text-left mb-2.5 active:scale-[.99] transition">
         <div className="flex justify-between items-baseline mb-1">
           <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>DENSITY</span>
-          <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
+          <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
         </div>
         <PipMeter value={0} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine />
       </button>
@@ -4420,7 +4468,7 @@ function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
     <div className="flex items-baseline gap-1 mb-3">
       <span className="text-3xl tnum" style={{ color: heroColor }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
       <span className="text-3xl tnum blink" style={{ color: heroColor }}>_</span>
-      <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
+      <span className="pf text-[9px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
         {isRem ? (over ? 'over' : 'kcal left') : 'kcal eaten'}{avg ? ' (avg)' : ''} · of {et.eff.kcal}
       </span>
     </div>
@@ -4751,7 +4799,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
             <div className="text-[12px] font-bold">Body-fat from a photo</div>
             <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
           </div>
-          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
+          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
         </button>
       )}
       {valid.length === 0 ? (
@@ -5769,7 +5817,7 @@ function WeekPlanBanner({ db, update, showToast, onOpen }) {
   const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return (<div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
     <button onClick={onOpen} className="w-full text-left">
-      <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
+      <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
       <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
       {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
       <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
@@ -6147,7 +6195,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const numbersPanel = (
     <Collapsible variant="inline" label="What I'm reading from" className="mb-4">
       <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
         <div className="flex items-baseline gap-2 flex-wrap">
           <div className="text-xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
           {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
@@ -6272,7 +6320,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
               {/* Say WHICH weights these are. Unlabelled, "87.70 to 87.45" sat under a headline built
                   from them and beside a weight beat that had shown 87.05, and nobody could tell the
                   averages the rate is read between from the trend they had just been shown. */}
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'Weigh-in, last time to this time' : 'Average trend weight, last cycle to this one'}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'Weigh-in, last time to this time' : 'Average trend weight, last cycle to this one'}</div>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
                 <span className="text-[#8A8A90]">to</span>
@@ -6507,7 +6555,7 @@ function DensityWeekCard({ db, inline }) {
   const body = (<>
       {help && <DensityExplainer onClose={() => setHelp(false)} />}
       <div className="flex items-center justify-between mb-1">
-        <div className={inline ? 'pf text-[8px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
+        <div className={inline ? 'pf text-[9px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
         <button onClick={() => setHelp(true)} className="hit text-[10px] text-[#8A8A90] active:opacity-70">Density Score ⓘ</button>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
@@ -6703,7 +6751,7 @@ function behaviourStats(db, days, endISO) {
 function StatTile({ label, value, unit, sub, tone, trend }) {
   const color = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : 'var(--text)';
   return (<div className="min-w-0">
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{label}</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{label}</div>
     <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[10px] text-[#8A8A90]"> {unit}</span>}
       {trend && <span className="text-[10px] ml-1" style={{ color: trend.t === 'up' ? 'var(--good-ink)' : 'var(--fat-ink)' }} title={'vs the previous period'}><PixelGlyph kind={trend.l} size={24} /></span>}</div>
     {sub && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{sub}</div>}
@@ -6774,7 +6822,7 @@ function CoachTimeline({ db }) {
         const why = rationaleFor(c.date);
         return (<div key={c.date + i} className={i ? 'pt-3.5' : ''} style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12px] font-semibold">{d}{c.onTrack ? <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--good-ink)' }}>on track</span> : null}</span>
+            <span className="text-[12px] font-semibold">{d}{c.onTrack ? <span className="pf text-[9px] uppercase ml-2" style={{ color: 'var(--good-ink)' }}>on track</span> : null}</span>
             <span className="text-[11px] tnum shrink-0" style={{ color: delta > 0 ? 'var(--good-ink)' : delta < 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>
               {delta ? (delta > 0 ? '+' : '−') + Math.abs(delta) + ' kcal' : 'no change'}
             </span>
@@ -6900,7 +6948,7 @@ function CyclePanel({ db, onWeigh, footer }) {
         <div className="p-3.5">
           {lad && <>
             <div className="flex items-baseline justify-between gap-2 mb-2">
-              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90]">To your goal</span>
               <span className="tnum text-[11px] text-[#8A8A90]">{fmtWeightDelta(v.done, unit).replace(/^[+\u2212]/, '')} of {fmtWeightDelta(v.total, unit).replace(/^[+\u2212]/, '')}</span>
             </div>
             <div className="flex gap-1">
@@ -6913,8 +6961,8 @@ function CyclePanel({ db, onWeigh, footer }) {
               })}
             </div>
             {!lad.atGoal && <div className="flex justify-between mt-1.5">
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--muted2)' }}>Milestones</span>
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>Milestones</span>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>
                 Next {fmtWeightDelta(lad.nextKg, unit).replace(/^[+\u2212]/, '')}{lad.weeks ? ', about ' + lad.weeks + ' week' + (lad.weeks === 1 ? '' : 's') : ''}
               </span>
             </div>}
@@ -7122,12 +7170,12 @@ function RearrangeLayer({ db, order, onDone, onSave }) {
                 <Grip color={held === k ? 'var(--accent)' : 'var(--cardhead-text)'} />
                 <span className="pf text-[10px] uppercase truncate" style={{ color: held === k ? 'var(--accent)' : 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{LABEL[k]}</span>
               </span>
-              {held === k && <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--cardhead-text)', opacity: 0.7 }}>Moving</span>}
+              {held === k && <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--cardhead-text)', opacity: 0.7 }}>Moving</span>}
             </div>
           </div>
         ))}
         <div className="p-3.5 mt-6" style={{ border: '2px dashed var(--muted2)' }}>
-          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted2)', letterSpacing: '0.14em' }}>What does not move</div>
+          <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted2)', letterSpacing: '0.14em' }}>What does not move</div>
           <div className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             Your buddy's asks, a due check-in, a trip banner and the onboarding checklist are answers the day is waiting on, not furniture. They stay at the top wherever the cards end up.
           </div>
@@ -7191,12 +7239,12 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
                 borrowing the good one to look friendly would be the card claiming a read it has not
                 got. */}
             <div className="px-3.5 pt-2.5 pb-3" style={{ background: 'var(--surface2)', borderBottom: '2px solid var(--border)' }}>
-              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+              <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{buddyName(db)}</div>
               <div className="text-[13px] leading-snug">{hook}</div>
             </div>
             <div className="px-3.5 py-2.5">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <span className="pf text-[8px] uppercase text-[#8A8A90]">To your first read</span>
+                <span className="pf text-[9px] uppercase text-[#8A8A90]">To your first read</span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{doneCells} of {cells} days</span>
                   <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7265,12 +7313,12 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
             secretly a link is the fault design-plans/28 caught in Train. */}
         <button onClick={onOpen} className="w-full text-left block">
           <div className="px-3.5 pt-2.5 pb-3" style={{ background: tint, borderBottom: '2px solid var(--border)' }}>
-            <div className="pf text-[8px] uppercase mb-1" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
+            <div className="pf text-[9px] uppercase mb-1" style={{ color: ink, letterSpacing: '0.12em' }}>{buddyName(db)}</div>
             <div className="text-[13px] leading-snug">{line}</div>
           </div>
           <div className="px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-2 mb-1.5">
-              <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90]">To your goal</span>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{lad ? fmtWeightDelta(v.done, unit).replace(/^[+−]/, '') + ' of ' + fmtWeightDelta(v.total, unit).replace(/^[+−]/, '') : 'Progress'}</span>
                 <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7441,20 +7489,20 @@ function ExpenditureCard({ db, plan }) {
         {bal ? <>
           <div className="flex items-center justify-between gap-3 mb-3">
             <Pill value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} />
-            <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0">28 days</span>
+            <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">28 days</span>
           </div>
           <BalanceBars days={bal.days} lens={lens} />
           <div className="grid grid-cols-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
             <div className="pr-2.5">
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Ate</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Ate</div>
               <div className="text-2xl font-bold tnum" style={{ color: 'var(--hero)' }}>{bal.avgAte != null ? bal.avgAte.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="px-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Target</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Target</div>
               <div className="text-2xl font-bold tnum">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Burn</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Burn</div>
               <div className="text-2xl font-bold tnum">{est.tdee.toLocaleString()}</div>
             </div>
           </div>
@@ -7473,10 +7521,7 @@ function ExpenditureCard({ db, plan }) {
               You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
             </div>;
           })()}
-        </> : <PremiumTease
-          headline="See the deficit you actually ran"
-          blurb="Premium plots what you ate against what you burn, day by day, so a week that went sideways explains itself instead of being guessed at."
-          ghost={<BalanceBars days={null} lens="burn" />} />}
+        </> : <PremiumTease headline="See the deficit you actually ran, day by day" />}
 
         {/* THE BURN, and the arithmetic behind it. It stopped being its own card when it became the
             line the balance above is measured against, and it was already being printed up there as
@@ -7513,7 +7558,7 @@ function ExpenditureCard({ db, plan }) {
             const pts = hist.concat([est.tdee]).slice(-12);
             if (pts.length < 2) return null;
             return <div className="flex items-center gap-3 mt-2.5">
-              <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
+              <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
               <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--hero)" /></div>
             </div>;
           })()}
@@ -7567,14 +7612,13 @@ function BalanceBars({ days, lens }) {
 }
 /* The house shape for a locked block: it says what it is and what it would tell you, with the SHAPE
    of the data ghosted behind it. A padlock over a blank card tells nobody what they are missing. */
-function PremiumTease({ headline, blurb, ghost }) {
-  return (<div>
-    {ghost && <div style={{ opacity: 0.5 }}>{ghost}</div>}
-    <div className="text-[13px] font-bold mt-3">{headline}</div>
-    <div className="text-[12px] text-[#8A8A90] leading-snug mt-1">{blurb}</div>
-    <div className="mt-2.5">
-      <TextBtn onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }}>Try Premium free &rsaquo;</TextBtn>
-    </div>
+/* What Premium would add here, said in one line (design-plans/34-overhaul/07). It used to be a greyed
+   ghost chart, a heading and a paragraph - about 200px of placeholder above the real content of the
+   card, on a visit where Today's prompt slot already offers Premium. */
+function PremiumTease({ headline }) {
+  return (<div className="flex items-center justify-between gap-3">
+    <span className="text-[12.5px] leading-snug min-w-0">{headline}</span>
+    <TextBtn className="shrink-0" onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }}>Try Premium &rsaquo;</TextBtn>
   </div>);
 }
 // Signed kcal, for the one place a figure has to say which side of the line it is on.
@@ -7593,7 +7637,7 @@ function DietBreakCard({ db, update }) {
       <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
         <div className="flex items-center justify-between mb-1">
           <div className="text-lg font-bold">Diet break</div>
-          <span className="text-[8px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>MAINTENANCE</span>
+          <span className="text-[9px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>MAINTENANCE</span>
         </div>
         <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Eating at maintenance (~{mk} kcal) to recharge. <span className="text-[var(--text)]">{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>, then you return to your {goalLabel(brk.returnGoal)} automatically. Keep logging and weighing in.</div>
         <Btn kind="ghost" className="w-full" onClick={() => setEndAsk(true)}>End break now</Btn>
@@ -8514,7 +8558,7 @@ function WeighInline({ unit, seedKg, onSave }) {
               <NumInput value={kg} onChange={e => { setKg(e.target.value); setErr(''); }} aria-label="Weight in kilograms" />
               <span className="text-[11px] text-[#8A8A90]">kg</span>
             </div>}
-        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[8px]">SAVE</span></button>
+        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[9px]">SAVE</span></button>
       </div>
       {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </div>
@@ -8600,7 +8644,7 @@ function StatusStrip({ stats, streak }) {
   const cell = (key, value, colour, extra) => (
     <div key={key} className="min-w-0 px-1 text-center flex flex-col items-center justify-start gap-[3px]" style={{ borderRight: '2px solid var(--border)', padding: '11px 4px' }}>
       <div className="tnum leading-none" style={{ color: colour, fontSize: 17, fontWeight: 700 }}>{value}</div>
-      <div className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 8, letterSpacing: '0.1em' }}>{key}</div>
+      <div className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 9, letterSpacing: '0.1em' }}>{key}</div>
       {extra}
     </div>
   );
@@ -8768,11 +8812,14 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             corner rather than a frame with a sprite in it and nothing else. `?demo&quiet` renders
             it. Speaking, the box below carries its own arrow or its own buttons, so a second mark
             here would be exactly the noise the ▼ rule exists to prevent. */}
-        {!speaking && <span className="pf absolute text-[7px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
+        {!speaking && <span className="pf absolute text-[9px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
       </div>
       {/* The numbers, above the sentence so they cannot move with it. Hidden during incubation, where
           the hatch checklist is the whole content and there is no plan to report against yet. */}
-      {!incubating && <StatusStrip stats={stats} streak={streak} />}
+      {/* THE STATUS STRIP IS PARKED (design-plans/34-overhaul/02). Every figure it carried is on
+          this screen already: kcal left and protein on the plan card, fibre there too, the streak in
+          the app header, and steps on Recovery. StatusStrip and habitatStats are left standing, so
+          putting it back is one line here: {!incubating && <StatusStrip stats={stats} streak={streak} />} */}
       {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
       {incubating && tasks && box(
         <div className="space-y-0.5">
@@ -8780,7 +8827,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1 active:opacity-60 transition-opacity">
               <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{t.done ? <Tick size={12} /> : null}</span>
               <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
-              {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
+              {!t.done && <span className="pf text-[9px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
             </button>
           ))}
         </div>, 'To hatch')}
@@ -8797,7 +8844,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         {msg.choices && msg.choices.length > 0 && (
           // One row, however many answers: a week of days must not wrap onto a stray second line.
           <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
-            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
+            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[9px]">{c.label}</span></button>)}
           </div>
         )}
         {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
@@ -8805,9 +8852,9 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
             {/* ONE GOLD PER CARD. On a day the check-in is due, THAT is what is being asked of you,
                 and this steps down to the fill the secondary already uses - same object, same face,
                 less shout. Every other day it is the loudest thing here, as it should be. */}
-            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5"
+            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[9px] pf inline-flex items-center gap-1.5"
               style={(week && week.due) ? { background: 'var(--surface2)' } : { background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
-            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
+            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
           </div>
         )}
       </>, kind)}
@@ -8824,57 +8871,30 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         {/* A 3px rule, not a 2px one. The day is above it and the road is below it, and this design
             already spends 3px on the edge between two KINDS of thing and 2px on the divisions
             inside one. Six identical rules said all six bands were the same kind of thing. */}
+        {/* ONE ROW, not four (design-plans/34-overhaul/02). The road used to take four bands of this
+            card - the journey readout with its ladder of cells, a "See your full progress" row, a
+            weigh-in row and a check-in row - and Progress, one tap away, draws the same road in full.
+            So Today keeps the headline and the next step, the whole left half is the way into
+            Progress, and the right holds at most ONE button: the check-in when it is due (the one
+            gold thing on the card that day), otherwise the weigh-in when one is owed and the buddy
+            is not already asking for it in words. */}
         <div style={{ height: 3, background: 'var(--border)' }} />
-        <div className="px-3 pt-3 pb-3">
-          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2.5" style={{ letterSpacing: '0.14em' }}>Your journey</div>
-          {/* Alone on its line, so nothing competes with it. */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tnum" style={{ color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
-            <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
-          </div>
-          <div className="text-[11px] mt-1 tnum" style={{ color: 'var(--muted)' }}>{week.since}</div>
-          {/* ONE ROW OF CELLS, whatever is being counted in it. On an established account it is the
-              milestone ladder; in the first week it is the seven days the trend is waiting for, and
-              the labels underneath say which. The day the read lands, the ladder takes the row over
-              rather than a row appearing. */}
-          {week.bar && <>
-            <div className="flex gap-1 mt-3">
-              {Array.from({ length: week.bar.cells }, (_, i) => {
-                const done = i < week.bar.doneCells, next = i === week.bar.doneCells;
-                // The next rung keeps its shape but gives up the gold: it is where you are going,
-                // not something to press.
-                return <div key={i} className="flex-1" style={{ height: 16,
-                  border: '2px solid ' + (next ? 'var(--good-ink)' : 'var(--border)'),
-                  background: done ? 'var(--good)' : next ? 'var(--accent-dim)' : 'var(--track)' }} />;
-              })}
-            </div>
-            {/* The two ends of the road, named. This is the whole reframing in one row: where you
-                started and where you are going, rather than where you were supposed to be by now. */}
-            <div className="flex justify-between mt-1.5">
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.leftLabel}</span>
-              <span className="pf text-[8px] uppercase tnum" style={{ color: 'var(--muted2)' }}>{week.bar.rightLabel}</span>
-            </div>
-          </>}
-          {week.nextLine && <div className="text-[12.5px] mt-3" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</div>}
+        <div className="flex items-center gap-3 pr-3">
+          <button onClick={week.onOpen} aria-label="See your full progress" className="flex-1 min-w-0 text-left pl-3 py-3 active:opacity-80">
+            <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Your journey</span>
+            <span className="flex items-baseline gap-2">
+              <span className="tnum" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
+              <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
+              <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)', alignSelf: 'center' }} />
+            </span>
+            {week.nextLine && <span className="block text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</span>}
+          </button>
+          {week.due
+            ? <Btn kind="accent" className="shrink-0" onClick={week.onCheckIn}>Check in</Btn>
+            : (week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating))
+              ? <Btn kind={(msg && !incubating && msg.primary) ? 'ghost' : 'accent'} className="shrink-0" onClick={week.onWeigh}>Weigh in</Btn>
+              : null}
         </div>
-        {/* THE WAY IN. It was a chevron on the end of a readout, which is a link with nothing on it
-            that says so. A full-width row with a sentence on it and somewhere to put your thumb. */}
-        <button onClick={week.onOpen} className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left active:opacity-80"
-          style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <span className="text-[12.5px]">See your full progress</span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
-        </button>
-        {/* The morning weigh-in, as a row of the road it feeds. The buddy asks for it in words when it
-            can, so this only draws when that ask is not already on the card (and always while the egg
-            incubates, when the buddy is not talking). It gives up the gold to anything else asking. */}
-        {week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating) && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <span className="text-[12.5px]">Not weighed in yet today</span>
-          <Btn kind={(week.due || (msg && !incubating && msg.primary)) ? 'ghost' : 'accent'} onClick={week.onWeigh}>Weigh in</Btn>
-        </div>}
-        {week.due && <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <span className="text-[12.5px]">Weekly check-in due</span>
-          <Btn kind="accent" onClick={week.onCheckIn}>Check in</Btn>
-        </div>}
         {week.thin && <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
           <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>{week.thin}</span>
         </div>}
@@ -9830,8 +9850,8 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
               the one place a bought sky could not be seen standing in. */}
           <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={238}
             terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} />
-          <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
-          {!incubating && <div className="pf absolute text-[8px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
+          <div className="pf absolute text-[9px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
+          {!incubating && <div className="pf absolute text-[9px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
         </div>
         <div className="px-3 py-3.5 flex flex-col items-center text-center gap-2">
           <span className="pf" style={{ fontSize: 18, letterSpacing: '0.06em' }}>{who.toUpperCase()}</span>
@@ -9846,7 +9866,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
               </>}
         </div>
         {!incubating && <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
-          <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
+          <div className="flex justify-between pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
             <span>Growth · {st.name}</span>
             <span>{nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown'}</span>
           </div>
@@ -9911,14 +9931,14 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
   );
   const Wrap = ({ children }) => (
     <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Tap to confirm</div>
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Tap to confirm</div>
       {children}
     </div>
   );
   if (c.kind === 'estimate') {
     return (
       <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
+        <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
         <AiConfirm est={c.est} photos={c.photos || []}
           onAdd={(item) => { onAdd && onAdd(c.mealId, item); onDone('Logged to ' + mealName(c.mealId)); }}
           onAddItems={(items) => { onAddItems && onAddItems(c.mealId, items); onDone('Logged ' + items.length + ' items to ' + mealName(c.mealId)); }}
@@ -9932,8 +9952,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{Math.round(c.macros.kcal)} kcal · P{Math.round(c.macros.protein)} C{Math.round(c.macros.carbs)} F{Math.round(c.macros.fat)} · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAdd && onAdd(c.mealId, { name: c.name, source: 'buddy', qtyLabel: c.grams + ' g', amount: c.grams, unit: 'g', unitNoun: 'g', macros: c.macros }); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -9943,8 +9963,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{c.items.length} item{c.items.length === 1 ? '' : 's'} · {Math.round(c.macros.kcal)} kcal · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAddMeal && onAddMeal(c.mealId, c.items); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -9953,8 +9973,8 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
       <div className="text-[11.5px] font-bold leading-snug mb-2">{fmtWeight(c.kg, db.profile.weight_unit)} today</div>
       <div className="flex gap-2">
         <button onClick={() => { onSaveWeight && onSaveWeight(c.kg); onDone('Weigh-in saved'); }}
-          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
-        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+          className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
@@ -10094,12 +10114,12 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, border: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}><BuddyAvatar buddy={db.buddy || {}} px={1.5} /></div>
           <div className="min-w-0 flex-1">
             <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.1em' }}>{who}</div>
-            <div className="pf text-[7px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
+            <div className="pf text-[9px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
           </div>
           <button onClick={onClose} aria-label="Close" className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}><Icon.close width="16" /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-3" style={{ background: 'var(--bg)' }}>
-          <div className="pf text-[8px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
+          <div className="pf text-[9px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
           {!turns.length && (
             <div className="text-center py-2">
               <div className="text-[11.5px] leading-snug mb-3 max-w-[17rem] mx-auto" style={{ color: 'var(--muted)' }}>I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
@@ -10148,8 +10168,8 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
           return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'free_limit' }); } catch (_) {} }}
             className="shrink-0 flex items-center justify-between gap-2 pb-1.5 text-left w-full">
-            <span className="pf text-[8px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{left} of {FREE_AI_MONTHLY} free AI replies left</span>
-            <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>Go unlimited ›</span>
+            <span className="pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{left} of {FREE_AI_MONTHLY} free AI replies left</span>
+            <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>Go unlimited ›</span>
           </button>;
         })()}
         {/* A photo waits here until you say what it is. A picture with no words is the weakest thing
@@ -10323,7 +10343,7 @@ function TrophyCabinet({ db, streak, onBack }) {
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[8px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
+      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[9px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
       <PipLine className="my-1.5" pct={t.progress * 100} height={8} />
       <div className="text-[9px] text-[#8A8A90] tnum">{count} so far{t.next != null ? ` · next tier at ${t.next}` : ' · maxed out'} · {hint}</div>
     </div>;
@@ -10331,7 +10351,7 @@ function TrophyCabinet({ db, streak, onBack }) {
   return <div className="fade-in">
     <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={24} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
@@ -10339,7 +10359,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     {/* The same object as the streak records above, so the same presentation: centred, with the
         cabinet's own --fat-ink numeral. See design-plans/11-bests-tiles-match-record-tiles.md. */}
     {bests && (<>
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your bests</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Your bests</div>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {Game.BEST_KEYS.map(k => (
           <div key={k} className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -10349,13 +10369,13 @@ function TrophyCabinet({ db, streak, onBack }) {
         ))}
       </div>
     </>)}
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Badges</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
     <Track label="In-range check-ins" count={badges.inRange || 0} hint="trend within 0.1 kg/wk of target" />
     {(() => {
       const ga = db.game_awards || {};
       const earnedCount = TROPHIES.filter(t => ga['trophy:' + t.id]).length + trophyIds.length;
-      return <div className="pf text-[8px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
+      return <div className="pf text-[9px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
     })()}
     <div className="space-y-2 mb-4">
       {/* Achievement trophies: earned ones shine gold, locked ones show as a greyed goal. */}
@@ -10468,14 +10488,14 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         <div className="min-w-0 flex-1 leading-tight">
           <div className="text-[11.5px] font-bold truncate">{c.name}</div>
           <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{c.desc}</div>
-          {!open && <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
+          {!open && <div className="pf text-[9px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
         </div>
         {isOwned
           ? (isWorn
-            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
-            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
+            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[9px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
+            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[9px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
           : ownedLabel
-            ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
+            ? <span className="pf text-[9px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
             : <button onClick={onBuy || (() => buy(c.id))} disabled={!afford || !open}
                 className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1"
                 style={{ background: (afford && open) ? 'var(--fat)' : 'var(--surface2)', color: (afford && open) ? '#1a1400' : 'var(--muted)', opacity: (afford && open) ? 1 : 0.7 }}>
@@ -10572,7 +10592,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
                 </div>
                 <div className="text-[11px] leading-snug mb-1.5" style={{ color: 'var(--text2)' }}>{h.desc}</div>
                 <PipLine pct={prog.pct * 100} color={prog.owned ? 'var(--good)' : 'var(--accent)'} height={10} cells={14} />
-                <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{prog.label}</div>
+                <div className="pf text-[9px] uppercase mt-1" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{prog.label}</div>
               </div>
             );
           })}
@@ -10707,7 +10727,7 @@ function FightScene({ height, label, children }) {
   return (
     <div className="relative overflow-hidden buddy-scene" style={{ height: height || 112, borderBottom: '2px solid var(--border)' }}>
       {children}
-      {label && <div className="pf absolute left-2.5 top-2 text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{label}</div>}
+      {label && <div className="pf absolute left-2.5 top-2 text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{label}</div>}
     </div>
   );
 }
@@ -10745,7 +10765,7 @@ function ChargeTiles({ charges, spent, onSpend }) {
             }}>
             <span style={{ width: 12, height: 12, background: live ? 'var(--on-accent)' : 'transparent',
               border: live ? 'none' : '3px solid var(--muted)', transform: c.key === 'heal' ? 'rotate(45deg)' : 'none' }} />
-            <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.1em' }}>{used ? 'Spent' : c.label}</span>
+            <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.1em' }}>{used ? 'Spent' : c.label}</span>
             <span className="text-[10px] text-center leading-tight">{has ? c.earn : c.need}</span>
           </button>
         );
@@ -11059,7 +11079,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
       {/* THE BOUGHT ARENA. Only ever seen here, which is what makes it worth selling apart from the
           terrarium: its own ground, its own horizon, and a few flat shapes on the floor. */}
       {arenaArt.marks.map((m, i) => <div key={i} className="absolute" style={m} />)}
-      <div className="pf absolute text-[7px] uppercase" style={{ left: 8, top: 6, letterSpacing: '0.14em', color: 'var(--muted)' }}>{arenaArt.name}</div>
+      <div className="pf absolute text-[9px] uppercase" style={{ left: 8, top: 6, letterSpacing: '0.14em', color: 'var(--muted)' }}>{arenaArt.name}</div>
       {/* THE BANNER: a standard planted behind your fighter, carrying the streak it was earned with. */}
       {wornBanner && <div className="absolute" style={{ left: 84, bottom: 26 }}>
         <div style={{ width: 3, height: 52, background: 'var(--border)' }} />
@@ -11083,7 +11103,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
       </div>}
     </div>
   );
-  const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
+  const StatLine = ({ s }) => <div className="text-[9px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
   // A fight card is a CARD, and every card in this app opens with the same filled ink title bar:
@@ -11103,7 +11123,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-bold truncate">{enemy.name}</div>
             <StatLine s={enemy.stats} />
-            {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
+            {enemy.ability && enemy.ability !== 'none' && <div className="text-[9px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
             <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
           </div>
         </div>
@@ -11117,7 +11137,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             bare paragraph, and it says how close the hatch is instead of just refusing. */}
         {phase === 'egg' && <div className="fade-in">
           <PlayPanel title="Still an egg" right={hatchPct + ' percent'}
-            footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
+            footer={<><span className="pf text-[9px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
               <div style={{ color: 'var(--text2)' }}>{hatchLeft > 0 ? hatchLeft + ' more logged day' + (hatchLeft === 1 ? '' : 's') + ' and you will meet me. No fights until then.' : 'Nearly out. No fights until then.'}</div></>}>
             <FightScene height={112}>
               <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14 }}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></div>
@@ -11141,7 +11161,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             <div className="relative overflow-hidden buddy-scene" style={{ height: 200, borderBottom: '2px solid var(--border)' }}>
               {/* Both fighters share the scene now, facing each other, so the card shows the fight
                   rather than a mugshot of the enemy. */}
-              <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>
+              <div className="pf absolute text-[9px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>
                 This week's boss · {bossDaysLeft} {bossDaysLeft === 1 ? 'day' : 'days'} left
               </div>
               <div className="absolute" style={{ left: 28, bottom: 26 }}><SpriteFooting px={3} shadowW={52}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></SpriteFooting></div>
@@ -11164,7 +11184,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
               </div>
             </div>
             <div className="px-2.5 py-2 flex items-center justify-between" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
-              <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
+              <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
               <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber</span>
             </div>
           </div>
@@ -11175,7 +11195,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             {[[fighter.stats.atk, 'Attack', 'var(--pro)'], [fighter.stats.def, 'Defence', 'var(--carb)'], [fighter.stats.hp, 'Health', 'var(--cal)']].map(([v, l, c], i) => (
               <div key={l} className="py-2.5 px-2 text-center flex flex-col gap-0.5" style={i < 2 ? { borderRight: '2px solid var(--border)' } : null}>
                 <span className="pf tnum" style={{ fontSize: 18, color: c }}>{v}</span>
-                <span className="pf text-[7px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{l}</span>
+                <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{l}</span>
               </div>
             ))}
           </div>
@@ -11202,7 +11222,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                   </div>
                   <div className="min-w-0 flex-1 flex flex-col gap-1">
                     <span className="pf text-[13px]" style={{ letterSpacing: '0.04em' }}>{daily.name}</span>
-                    <span className="pf text-[8px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
+                    <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
                   </div>
                 </div>
                 {loggedToday
@@ -11212,7 +11232,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                 {daily.name} saw us off. Day {fight.dailyStreak || 1}, and day {(fight.dailyStreak || 1) + 1} pays {Game.AMBER_REWARDS.dailyStreakBonus} more.
               </div>}
             </div>
-            {!dailyReady && <div className="px-2.5 py-2 pf text-[8px] uppercase" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', letterSpacing: '0.14em', color: 'var(--muted)' }}>One hunt a day · back tomorrow</div>}
+            {!dailyReady && <div className="px-2.5 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', letterSpacing: '0.14em', color: 'var(--muted)' }}>One hunt a day · back tomorrow</div>}
           </PlayPanel>
 
           <PlayPanel title="Boss climb" right={ladderCleared ? 'Prestige ' + (fight.prestige || 0) : (gate.can ? 'Rung ' + ((fight.rank || 0) + 1) + ' of ' + FIGHT_LADDER.length : 'Locked · rung ' + ((fight.rank || 0) + 1))}>
@@ -11315,7 +11335,7 @@ function HomeWeightSpark({ db, onOpen }) {
   if (!last) return null;
   return (
     <button onClick={onOpen} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
-      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[8px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
+      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[9px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
       <div className="flex items-end gap-3">
         <div className="shrink-0 leading-none"><span className="text-2xl font-bold tnum">{fmtWeight(last.scale_weight, unit)}</span></div>
         <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--weight)" /></div>
@@ -11407,7 +11427,7 @@ function DayBars({ items, color, height = 40, goalFill }) {
       </div>
       <div className="flex gap-1.5 mt-1">
         {items.map((it, i) => (
-          <div key={i} className="flex-1 text-center pf" style={{ fontSize: 7, color: it.last ? color : 'var(--muted2)' }}>{it.dow}</div>
+          <div key={i} className="flex-1 text-center pf" style={{ fontSize: 9, color: it.last ? color : 'var(--muted2)' }}>{it.dow}</div>
         ))}
       </div>
     </div>
@@ -11641,9 +11661,9 @@ function StatDial({ label, fill, big, status, sub, color, active, onTap }) {
   return (
     <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1.5 px-1"
       style={{ background: 'transparent', border: 0 }}>
-      <div className="pf text-[8px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
+      <div className="pf text-[9px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
       <div className="tnum font-bold leading-none mt-2 mb-1.5" style={{ fontSize: 25, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
-      <div className="pf uppercase truncate w-full mb-2" style={{ fontSize: 7, minHeight: 9, color: color }}>{status || ''}</div>
+      <div className="pf uppercase truncate w-full mb-2" style={{ fontSize: 9, minHeight: 9, color: color }}>{status || ''}</div>
       <div className="flex gap-[3px] w-full justify-center items-end" style={{ height: 18 }} aria-hidden="true">
         {Array.from({ length: DIAL_SEGMENTS }).map((_, i) => (
           /* Separated by the gap between blocks, not by a border around each one: an outline is ink
@@ -11705,7 +11725,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. {ghConfigured() ? 'Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.' : 'Steps, sleep and readiness will land here once health sync arrives, and your buddy will read them back to you each morning.'}</div>
         {ghConfigured()
           ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
-          : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
+          : <div className="pf text-[9px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
       </Card>
     );
   }
@@ -11743,12 +11763,12 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
 
       {expanded && <div className="fade-in px-3 pb-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1 px-1">
-        <div className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
+        <div className="pf uppercase" style={{ fontSize: 9, color: 'var(--muted2)' }}>Train hard, rest harder</div>
         {synced
-          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
+          ? <span className="pf text-[9px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="hit pf text-[7px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
-            : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
+            ? <button onClick={ghConnectGated} className="hit pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
+            : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
       {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
@@ -11776,7 +11796,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       {night && night.stages && (
         <button type="button" onClick={() => setSheet('sleep')} className="w-full text-left mt-2.5 px-1" style={{ background: 'transparent', border: 0 }}>
           <div className="flex items-center justify-between mb-1">
-            <span className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted)' }}>Last night</span>
+            <span className="pf uppercase" style={{ fontSize: 9, color: 'var(--muted)' }}>Last night</span>
             <span className="tnum text-[9.5px]" style={{ color: 'var(--muted)' }}>{sHrsLabel} asleep</span>
           </div>
           <StageBar stages={night.stages} />
@@ -11786,7 +11806,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       {/* The buddy's morning read now lives in its habitat up top (one buddy voice, one place), so this
           recovery card stays purely the dials + sleep architecture. */}
       {streak >= 3 && (
-        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>
+        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 9, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>
       )}
       </div>}
 
@@ -11852,8 +11872,8 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>steps today{stepGoal > 0 ? ' · ' + pct + '% of goal' : ''}</div>
             </div>
             {stepGoal > 0 && <PipLine className="mb-2" pct={pct} height={9} />}
-            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 8, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>}
-            <div className="pf text-[8px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
+            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 9, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>}
+            <div className="pf text-[9px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
             <DayBars items={trend} color="var(--good)" goalFill={stepGoal > 0 ? Math.min(1, stepGoal / scale) : null} />
             <div className="mt-5">
               <PartRow label="Steps today" detail={'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : '')} value={k(todaySteps)} tint="var(--good)" />
@@ -11899,7 +11919,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
     const hasTrend = trend.filter(t => t.fill != null).length >= 2;
     const TrendBlock = hasTrend ? (
       <div className="mt-5">
-        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 nights</div>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 nights</div>
         <DayBars items={trend} color="var(--sleep)" />
       </div>
     ) : null;
@@ -11922,11 +11942,11 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {SLEEP_BAND_WORD[Game.sleepBand(p.score)]}</div>
           </div>
           <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep · recommended 7-9h</div>
-          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted)' }}>Sleep stages</div>
+          <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)' }}>Sleep stages</div>
           <StageBar stages={stages} height={18} />
           <StageLegend stages={stages} />
           {TrendBlock}
-          <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>How the score is built</div>
+          <div className="pf text-[9px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>How the score is built</div>
           {p.parts.map(part => (
             <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--sleep)" />
           ))}
@@ -11968,12 +11988,12 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               <div className="text-[13px] pb-1" style={{ color: rColor }}>{info ? info.label : ''}</div>
             </div>
             {info && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + rColor }}>
-              <div className="pf uppercase mb-1" style={{ fontSize: 7, color: rColor }}>Today</div>
+              <div className="pf uppercase mb-1" style={{ fontSize: 9, color: rColor }}>Today</div>
               <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{info.blurb}</div>
             </div>}
             <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>Based on {parts.anchorCount} of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.</div>
             {hasTrend && <div className="mt-4">
-              <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 days</div>
+              <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 days</div>
               <DayBars items={trend} color={rColor} />
             </div>}
           </div>
@@ -11986,7 +12006,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></div>}
           </div>
         )}
-        <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>Recovery signals</div>
+        <div className="pf text-[9px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>Recovery signals</div>
         {parts.signals.map(s => (
           <PartRow key={s.key} label={s.label + ' · ' + s.weightPct + '%' + (s.modifierOnly ? ' (modifier)' : '')}
             detail={s.present ? s.note : s.note} value={s.present ? s.value : 'Off'} max={s.present ? 100 : null}
@@ -12286,12 +12306,12 @@ function StageUpCelebration({ db, stage, onClose }) {
           <div className="flex items-end justify-center gap-4 mb-4">
             <div className="text-center" style={{ opacity: 0.45 }}>
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
-              <div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
             </div>
             <span className="pb-4" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
             <div className="text-center">
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
-              <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
+              <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
             </div>
           </div>
         )}
@@ -12390,7 +12410,7 @@ function RecipeMini({ r, onOpen, tag }) {
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
         <RecipeImg src={img} iconSize={24} />
-        {tag && <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
+        {tag && <div className="absolute top-1.5 left-1.5 pf text-[9px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
       </div>
       <div className="p-2">
         <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
@@ -12462,7 +12482,7 @@ function LeftoversStrip({ db, onOpenRecipe }) {
     <div className="space-y-2">
       {left.map(r => (
         <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--card)' }}>
-          <span className="pf text-[8px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
+          <span className="pf text-[9px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
           <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
           {r.macros_per_serving && r.macros_per_serving.kcal > 0 && <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>}
           <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
@@ -12473,10 +12493,23 @@ function LeftoversStrip({ db, onOpenRecipe }) {
 // Free-tier upsell card: contextual, trial-forward, and dismissable (re-shows after 7 days so it
 // nudges without nagging). One per surface only, to stay on the honest-coaching side of the line.
 // Opens the existing paywall via the global MPAYWALL, so it works from any screen without prop-drilling.
+/* ONE INTERRUPTION PER PAGE (design-plans/34-overhaul/01). Upsells, banners, "due" rows and nudges
+   used to render wherever their author put them, so on a busy day three of them stacked up above the
+   thing the page is for. A page now hands its candidates here in priority order and the first one
+   whose `when` holds is the only one drawn. It decides nothing about content and has no look of
+   its own. */
+function PromptSlot({ candidates }) {
+  const c = (candidates || []).find(c => c && c.when);
+  return c ? c.render() : null;
+}
+// Dismissed within the last week. Lifted out of PremiumNudge so a PromptSlot can ask before it
+// chooses, rather than choose a nudge that then draws nothing and leaves the slot empty.
+function nudgeDismissed(db, trackKey) {
+  const until = ((db.profile && db.profile.nudgesDismissed) || {})[trackKey];
+  return !!until && (Date.now() - until) < 7 * 864e5;
+}
 function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '' }) {
-  const dm = (db.profile && db.profile.nudgesDismissed) || {};
-  const until = dm[trackKey];
-  if (until && (Date.now() - until) < 7 * 864e5) return null;
+  if (nudgeDismissed(db, trackKey)) return null;
   const open = () => {
     try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
     try { window.MTRACK && window.MTRACK('paywall_view', { reason: trackKey }); } catch (_) {}
@@ -12487,10 +12520,10 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
   };
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-      <div className="pf text-[8px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+      <div className="pf text-[9px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
       <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
-      <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
+      <div className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
       <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="16" /></button>
     </div>
   );
@@ -13071,14 +13104,8 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageHeader kicker={prettyDate(today)} title="Today" />
-      <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} />
+      <PageBar context={prettyDate(today)} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-      {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
-          it never nags). Hidden during egg incubation so onboarding stays focused on hatching. */}
-      {!isPremium && !eggIncubating && <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
-        headline="Log a meal in one snap"
-        blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." />}
 
       {/* The buddy leads Today. It used to sit below the macro card, which put it at y=871 on a
           390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
@@ -13121,10 +13148,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         <Card className="p-0 mb-4 overflow-hidden">
           {/* The real ink bar, not a pale imitation of one. Every card on this screen opens the same
               way now - and the bar is also the grip you hold to move the card (see REARRANGE). */}
-          <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Today's plan</span>
-            <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
-          </div>
+          <CardHead title="Today's plan" right={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
           <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
             <EnergyBand et={et} tot={tot} mode={mode} />
           </div>
@@ -13142,13 +13166,17 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             const over = tot.carbs > et.eff.carbs_g || tot.fat > et.eff.fat_g;
             return <div className="px-3 pb-2.5 -mt-1 text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {k} kcal of drinks, split across carbs and fat{over ? ', which is part of why those read over' : ''}.</div>;
           })()}
-          <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
+          {/* Fibre and density side by side for a subscriber. A free account gets fibre across the
+              whole row: its density half was an empty, locked meter labelled PREMIUM, which put an
+              upsell inside the data card on the same screen as the one in the prompt slot below
+              (design-plans/34-overhaul/02). */}
+          <div className={isPremium ? 'grid grid-cols-2' : ''} style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={isPremium ? { borderRight: '2px solid var(--border)' } : undefined}>
               <FibreCell tot={tot} et={et} mode={mode} />
             </div>
-            <div className="px-3 py-2.5 flex flex-col gap-1.5">
+            {isPremium && <div className="px-3 py-2.5 flex flex-col gap-1.5">
               <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
-            </div>
+            </div>}
           </div>
           {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
           <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
@@ -13157,9 +13185,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
               <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
               <div className="flex justify-between items-center mt-3">
-                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
+                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
                 {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
-                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
+                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
               </div>
             </Collapsible>
           </div>
@@ -13172,7 +13200,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
             return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
               <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
+              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
             </div>;
           })()}
           {/* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
@@ -13198,10 +13226,30 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             };
             return <div className="px-3 py-2.5 flex items-center justify-between gap-3 text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
               <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span>{lastDay ? '' : ', spread over the rest of the week'}</> : 'Finished eating today?'}</span>
-              <button onClick={() => setClosed(!closed)} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+              <button onClick={() => setClosed(!closed)} className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
             </div>;
           })()}
         </Card>
+        {/* ONE THING ASKING (design-plans/34-overhaul/02). These four used to render wherever they
+            were written - the upsell first on the page, the trip banner above the buddy, the diet
+            break and the low-AI nudge at the bottom - and on a busy day three of them stacked up. Now
+            the first that applies is the only one drawn, here under the numbers so it never stands
+            between someone and their day. It sits inside the plan block so it moves with it. */}
+        <PromptSlot candidates={[
+          { when: !!(() => { const c = E.weekPlanContext(db.week_plans, today); return c.active || c.recovering || c.upcoming; })(),
+            render: () => <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} /> },
+          { when: !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
+            render: () => <DietBreakCard db={db} update={update} /> },
+          { when: !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
+            render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />; } },
+          // Hidden while the egg incubates, so the first week stays about hatching.
+          { when: !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
+            render: () => <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
+              headline="Log a meal in one snap"
+              blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." /> },
+        ]} />
           </>),
           recovery: (<>
         {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
@@ -13215,19 +13263,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
-      {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
-      <DietBreakCard db={db} update={update} />
-
-      {/* The "More" drawer is gone (install lives in Account, the upsell is the top box). Only the
-          contextual "AI logs left" nudge remains, and only when it's genuinely running low. */}
-      {!isPremium && (() => {
-        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-        return freeLeft <= 3
-          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />
-          : null;
-      })()}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {/* The way in, said once and quietly. Hold-to-move is the gesture, but a gesture nobody is
@@ -13278,19 +13313,19 @@ function CarryoverSheet({ et, onClose }) {
         </div>
 
         {cd && cd.days.length > 0 && <>
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-3">This week · since {dd(cd.cycleStart)}</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">This week · since {dd(cd.cycleStart)}</div>
           <div className="flex items-end gap-1.5 mb-2" style={{ height: '64px' }}>
             {cd.days.map((d, i) => {
               const h = Math.round(5 + (Math.abs(d.delta) / maxAbs) * 40);
               const under = d.delta > 0, over = d.delta < 0;
               return <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
-                <span className="tnum text-[7px] mb-1" style={{ color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
+                <span className="tnum text-[9px] mb-1" style={{ color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
                 <div style={{ width: '100%', height: h + 'px', background: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--border)' }}></div>
               </div>;
             })}
           </div>
           <div className="flex gap-1.5 mb-3">
-            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[7px] text-[#8A8A90]">{dShort(d.date)}</div>)}
+            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[9px] text-[#8A8A90]">{dShort(d.date)}</div>)}
           </div>
           <div className="flex justify-between text-[9px] text-[#8A8A90] mb-4">
             <span><Icon.square width="16" style={{ color: 'var(--good-ink)' }} /> under target</span>
@@ -13342,7 +13377,7 @@ function MealHeadMacros({ macros }) {
         // on. Both carry the macro's colour: a grey letter beside a coloured number reads as two
         // things rather than as one label.
         <span key={k} className="flex items-baseline gap-[1px]" style={{ color: c }}>
-          <span className="pf text-[8px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
+          <span className="pf text-[9px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
           <span className="text-[10.5px] font-semibold">{Math.round(v || 0)}</span>
         </span>
       ))}
@@ -13722,7 +13757,7 @@ function FoodLog({ db, update, openLog, showToast }) {
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
       onTouchEnd={(e) => { if (!swipe.current || drag || Date.now() - draggedAt.current < 500) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageHeader kicker="Your food diary" title="Food log" />
+      <PageBar context="Your food diary" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
       {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
@@ -13768,24 +13803,23 @@ function FoodLog({ db, update, openLog, showToast }) {
         const rem = et.eff.kcal - tot.kcal;
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
-            carrying the target, then a divided interior. It leads with the same 34px figure and the
-            same hero meter as Today's energy band, so the number you are logging against looks
-            identical on both pages instead of being a smaller restatement of it. */}
+            carrying the target, then one row per instrument. */}
         return <Card className="p-0 mb-4 overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Day total</span>
-            <span className="pf text-[10px] uppercase tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>of {et.eff.kcal} kcal</span>
-          </div>
-          <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="pf tnum" style={{ fontSize: 34, lineHeight: 1, color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
-              <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>{over ? 'kcal over' : 'kcal left'}</span>
-            </div>
-            <PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} cells={PLAN_CELLS} />
-          </div>
+          <CardHead title="Day total" right={'of ' + et.eff.kcal + ' kcal'} />
           {/* The same blocks as Today, laid out on one line each because this card is a reminder of
-              where the day stands rather than the place you study it. Same instrument, same reading. */}
+              where the day stands rather than the place you study it. Same instrument, same reading.
+              Calories take the same row as the macros (design-plans/34-overhaul/03): this card used
+              to lead with Today's own 34px figure and hero meter, which made the Food tab open on a
+              copy of Today. The target stays on the title bar and the row says what is left, so the
+              card says each number once. */}
           <div className="px-3 py-3 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <span className="pf text-[9px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>KCAL</span>
+              <div className="flex-1 min-w-0"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} small /></div>
+              <span className="pf tnum text-[10px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>
+                {over ? Math.abs(Math.round(rem)) + ' over' : Math.round(rem) + ' left'}
+              </span>
+            </div>
             {[['PROT', tot.protein, et.eff.protein_g, PRO, PRO_T], ['CARB', tot.carbs, et.eff.carbs_g, CARB, CARB_T], ['FATS', tot.fat, et.eff.fat_g, FAT, FAT_T]].map(([l, e, t, c, ink]) => (
               <div key={l} className="flex items-center gap-2.5">
                 <span className="pf text-[9px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{l}</span>
@@ -13811,7 +13845,7 @@ function FoodLog({ db, update, openLog, showToast }) {
               const dnd = E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
               return (
                 <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70" style={{ minHeight: 24 }}>
-                  <span className="pf text-[8px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
+                  <span className="pf text-[9px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
                   <div className="flex-1 min-w-0">
                     <PipMeter value={dnd.score == null ? 0 : dnd.score} target={dnd.target} cells={10}
                       scale={100 / dnd.target} color={densityColor(dnd.score)} small overIsFine />
@@ -13882,12 +13916,16 @@ function FoodLog({ db, update, openLog, showToast }) {
                     quieter and truer, and the add action right below it is the way out - and it
                     gets no macro line either, for the same reason: "P0 C0 F0" is that same lazy
                     placeholder three times over. */}
-                <div className="flex flex-col items-end gap-[2px] leading-tight">
+                {/* A meal with ONE food in it gets neither line: the food's own row, directly below,
+                    carries exactly the same calories and macros, so the heading would be saying them
+                    twice (design-plans/34-overhaul/03). From two foods up the heading is a total
+                    nobody can read off a single row, and it earns its place again. */}
+                {me.length !== 1 && <div className="flex flex-col items-end gap-[2px] leading-tight">
                   <span className="pf text-[10px] tnum" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
                     {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                   </span>
-                  {me.length > 0 && <MealHeadMacros macros={ms} />}
-                </div>
+                  {me.length > 1 && <MealHeadMacros macros={ms} />}
+                </div>}
                 <div className="relative" data-no-mealdrag>
                   <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
                   {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
@@ -13909,7 +13947,8 @@ function FoodLog({ db, update, openLog, showToast }) {
                 inside the panel rather than as the panel's own construction. */}
             <div>
               {me.map(e => renderEntry(e, m, mc))}
-              {!me.length && !drag && <div className="px-3 py-3 text-[12px]" style={{ color: 'var(--muted)' }}>Nothing logged yet.</div>}
+              {/* No "Nothing logged yet." row: the add row below is the empty state, and two rows saying
+                  one thing is the clutter this pass removes (design-plans/34-overhaul/03). */}
               {drag && me.length === 0 && <div className="m-3 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
             </div>
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
@@ -13921,7 +13960,7 @@ function FoodLog({ db, update, openLog, showToast }) {
                 states now, and only the divider still tells the two apart. */}
             <button onClick={() => openLog({ date, mealId: m.id })}
               className="pf text-[10px] uppercase w-full text-left flex items-center px-3"
-              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>+ Add food</button>
+              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: me.length ? '2px solid var(--border)' : 'none' }}>+ Add food</button>
           </Card>
           </React.Fragment>);
       })}
@@ -14154,7 +14193,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
               </button>}
         </div>
       </div>
-      {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: x.name }))} /></div>}
+      {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: meals.length >= 4 ? mealShort(x.name) : x.name }))} /></div>}
       {canSwitch && <div><SheetLabel className="block mb-[7px]">Measure in</SheetLabel><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
       <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun}
@@ -14232,9 +14271,10 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
     <Sheet title={title} onClose={onClose} wide z={80}>
       <div>
       {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
+      {/* The same meal control as Edit entry, not a third hand-rolled row of chips. */}
       {meals && <div className="mb-3">
-        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
-        <div className="flex gap-1.5 flex-wrap">{meals.map(m => <button key={m.id} onClick={() => setSelMeal(m.id)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{m.name}</button>)}</div>
+        <SheetLabel className="block mb-[7px]">Into which meal</SheetLabel>
+        <Seg value={selMeal} onChange={setSelMeal} options={meals.map(m => ({ v: m.id, l: meals.length >= 4 ? mealShort(m.name) : m.name }))} />
       </div>}
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Quick copy to</div>
       <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
@@ -14484,25 +14524,19 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
       {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
     </>}
     <div className="mt-5">
-      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Can't find it?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
-      {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
-        <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Estimate a meal from text, voice or a photo</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
-      <button onClick={() => setManual(true)} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>
-      {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
-          pick before every single log, so it waits down here with the other "it isn't in the list"
-          answers instead of taxing the top of the sheet on every visit. */}
-      {onAlcohol && <button onClick={onAlcohol} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Beer, wine or spirits, with the units</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
+      {/* THE OTHER ROUTES, on the sheet's own blocks (design-plans/34-overhaul/04): a 2px rule either
+          side of the sheet label, then rows built like ChoiceRow with a chevron where its radio
+          goes. They were the last legacy dark boxes on the sheet, and the AI route was called
+          "Describe it to the AI" here while the tab it opens is called ESTIMATE. One name now. */}
+      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /><SheetLabel>Can't find it?</SheetLabel><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /></div>
+      <div className="flex flex-col gap-2">
+        {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="From a description, your voice or a photo" />}
+        <RouteRow onClick={() => setManual(true)} icon={<Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} />} title="Enter it manually" sub="Type in the macros yourself" />
+        {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
+            pick before every single log, so it waits down here with the other "it isn't in the list"
+            answers instead of taxing the top of the sheet on every visit. */}
+        {onAlcohol && <RouteRow onClick={onAlcohol} icon={<PixelGlyph kind="drink" color="var(--muted)" size={24} />} title="Log a drink" sub="Beer, wine or spirits, with the units" />}
+      </div>
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
     {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
@@ -14622,7 +14656,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
             const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
             return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
               <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
+              <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
             </button>;
           })()}
           {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onPickMore={i => onAdd(mealId, Object.assign({}, i, { keepOpen: true }))} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
@@ -15050,9 +15084,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
     <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="16" /> Back</TextBtn>
     {estimated
-      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[8px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
+      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[9px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
       : saved
-        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[8px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
+        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[9px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
         : <div className="text-[12px] text-[#8A8A90] mb-3">{note}</div>}
     {dodgy && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
@@ -15100,11 +15134,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[#8A8A90]">Wrong product, or the numbers look off</div></div>
         <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
-      {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
-        <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Not packaged, or nothing to scan</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
+      {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="Not packaged, or nothing to scan" />}
     </div>}
 
   </div>);
@@ -15324,7 +15354,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       {items.map((it, i) => (
         <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
+            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
             <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
             <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="16" /></button>
           </div>
@@ -15761,7 +15791,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
               {/* Measured or reasoned, said once per dish and never louder than the dish's own name.
                   It is the most useful thing we can tell someone about a number they are about to act
                   on, and it is the difference between a tool and a guess with a nice font. */}
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
+              <span className="pf text-[9px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
             </div>
             {s.description && <div className="text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
             <div className="tnum text-[12.5px] mt-1.5">
@@ -15840,7 +15870,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                 {it.price && <span className="tnum text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
               </div>
               {it.description && <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{it.description}</div>}
-              {it.section && <div className="pf text-[8px] uppercase mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{it.section}</div>}
+              {it.section && <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{it.section}</div>}
             </button>
           ))}
           {narrowed && matches.length === 0 && <div style={{ border: '2px solid var(--border)', borderTop: 'none' }} />}
@@ -15932,7 +15962,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-2">{imgs.map(f => (
       <div key={f.id} className="relative">
         {f.pdf
-          ? <div className="w-16 h-16 flex items-center justify-center pf text-[8px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
+          ? <div className="w-16 h-16 flex items-center justify-center pf text-[9px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
           : <img src={f.url} alt="" className="w-16 h-16 object-cover" style={{ border: '2px solid var(--border)' }} />}
         <button onClick={() => remFile(f.id)} aria-label={'Remove ' + f.name} className="hit absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}><Icon.close width="16" /></button>
       </div>))}</div>}
@@ -16397,10 +16427,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
       <div className="min-w-0"><div className="text-sm font-medium">No barcode? Scan the label</div><div className="text-[11px] text-[#8A8A90]">Point your camera at the nutrition label and it reads the exact numbers.</div></div>
     </button>
     {onAskAI && <div className="flex items-center gap-3 my-3"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">or</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>}
-    {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition">
-      <div className="w-11 h-11 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-      <div className="min-w-0"><div className="text-sm font-medium">Nothing to scan? Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Type, say, or photograph a meal and the AI estimates it.</div></div>
-    </button>}
+    {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Nothing to scan? Estimate it instead" sub="Type, say, or photograph a meal and the AI estimates it." />}
     {busy && <div className="text-[12px] text-[#4A9EEB] mt-3 fade-in">{busy}</div>}{err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}</div>);
 }
 // UK drink standards: [label, default ABV %, residual carbs g/100ml]. Calories = alcohol (7 kcal/g,
@@ -16504,7 +16531,7 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, backLabel }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBack, backLabel }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
@@ -16517,11 +16544,12 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
   useBackClose(onBack || null);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; {backLabel || 'You'}</button>}
-      {/* The kicker asks the question this page exists to answer, the way Train's progress screen
-          asks "Am I getting stronger?". A page whose kicker describes its contents leaves the buddy
-          answering a question nobody was shown. */}
-      <PageHeader kicker="Is the plan working?" title="Progress" />
+      {/* You go INTO Progress from Today or You, so on a phone it gets the sub-screen bar, flush to the
+          app header like Recipe, rather than a back link floating on the page. On desktop it is a
+          sidebar destination of its own rank, so it takes the tab roots' page bar. The verdict card
+          directly below answers "is the plan working?", so the page does not ask it as well. */}
+      {onBack && <div className="lg:hidden"><SubHeader back={onBack} backLabel={backLabel || 'You'} title="Progress" /></div>}
+      <div className={onBack ? 'hidden lg:block' : ''}><PageBar context="Is the plan working?" /></div>
 
       {/* THE ANSWER, THE EVIDENCE AND THE ACTION, in one panel. */}
       <CyclePanel db={db} onWeigh={onWeigh} footer={db.paused ? null : (() => {
@@ -16568,7 +16596,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
           gives your target. That chain is the entire product, and it was split across two cards at
           the bottom of the page with four unrelated ones in between. One card, in order. */}
       <ExpenditureCard db={db} plan={(liveBurn) => {
-        if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={onEditPlan}>Set your goal</TextBtn></div>;
+        if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
         // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
         // the burn as it stood when that target was written, so the card said 2,582 and then did its
         // arithmetic against 2,786 and printed a deficit that did not subtract.
@@ -16585,13 +16613,20 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
             {gap ? <>{gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn'}, {p.goalType === 'maintain' ? 'which is roughly maintenance' : 'which is what ' + p.rateKgPerWeek + ' kg a week costs'}.</> : null}{db.paused ? ' Currently paused.' : ''}
           </div>
           {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-          <div className="mt-2"><TextBtn onClick={onEditPlan}>Change your goal in Settings</TextBtn></div>
         </div>;
       }} />
 
       {/* Lately is gone from this page. Its two tiles printed two different denominators and are
           now one caption under the figures they qualify, and the density week went with the Food
           tab, where a day-by-day strip of what you ate has somewhere to live. */}
+      {/* WHAT THE PLAN IS SET TO, on the page that says how it is going (design-plans/34-overhaul/07).
+          These rows used to live in You, and this page sent you there with "Change your goal in
+          Settings". MacroFactor keeps goal, programme and adjustments on one Strategy page; this is
+          ours. Each opens the same screen it always did, and its back comes here. */}
+      {base && onOpenSetting && <SettingsGroup title="Your plan">
+        {(() => { const rows = planRows(db); return rows.map((r, i) => <SettingsRow key={r.key} label={r.label} status={r.status} last={i === rows.length - 1} onClick={() => onOpenSetting(r.key)} />); })()}
+      </SettingsGroup>}
+
       {/* THE RECORD, in place rather than behind a door. */}
       <CoachTimeline db={db} />
       <Collapsible label="Weigh-in log"><WeighInLog db={db} update={update} bare /></Collapsible>
@@ -16776,7 +16811,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
       {/* The summary: what this goal costs you a day, and when it finishes. Both update live as you
           drag, which is the whole reason the pace slider is worth having. */}
       {preview && <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
           <span className="text-[12px] text-[#8A8A90]">kcal a day</span>
@@ -16920,14 +16955,21 @@ function SettingsRow({ label, status, onClick, last }) {
     </button>
   );
 }
+// MenuRows inside a SettingsGroup, ruled apart with the card's own 2px border.
+function MenuList({ children }) { return <div className="divide-y-2 divide-[color:var(--border)]">{children}</div>; }
 function SettingsGroup({ title, children }) {
   return (<div className="mb-5">
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 px-1">{title}</div>
     <div className="pixel-box" style={{ background: 'var(--card)' }}>{children}</div>
   </div>);
 }
+// Where a settings subscreen goes back to. You, normally; Progress when it was opened from the plan
+// rows on Progress (design-plans/34-overhaul/07), so the bar names the place you will land on.
+const SubBackLabel = React.createContext('You');
 // One level down from the overview, and never a level below that.
-function SubScreen({ title, intro, onBack, children }) {
+function SubScreen({ title, intro, onBack, backLabel, children }) {
+  const ctxLabel = React.useContext(SubBackLabel);
+  backLabel = backLabel || ctxLabel;
   useBackClose(onBack);
   /* THE SUB-HEADER BAR. Settings.dc.html gives every subscreen a purple bar carrying the way back on
      the left and the screen's name in the middle, which is what tells you at a glance that you are a
@@ -16935,11 +16977,10 @@ function SubScreen({ title, intro, onBack, children }) {
      floating above the title - the only navigation in the app that had no chrome at all.
      Full-bleed: -mx pulls it out through the page's own 20px padding, and -mt up through its 24px of
      top padding, so the bar sits against the app header instead of floating on a band of page. */
+  // The bar itself is SubHeader's, the one implementation of it (design-plans/34-overhaul/01). This
+  // used to hand-roll a second copy that had drifted to a 10px back label at different tracking.
   return (<div className="fade-in">
-    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 -mt-6 mb-4" style={{ background: 'var(--header)', borderBottom: '3px solid var(--border)' }}>
-      <button onClick={onBack} className="pf text-[10px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>&lsaquo; You</button>
-      <span className="pf text-[10px] uppercase flex-1 text-center truncate pr-8" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</span>
-    </div>
+    <SubHeader back={onBack} backLabel={backLabel} title={title} />
     {/* The bar above is the one place a subscreen is named (design-plans/32). A SETTINGS kicker and
         a 25px title repeating it cost ~100px on every screen before the first control. The intro is
         context, so it is set like the rest of the screen's help text rather than as a second heading. */}
@@ -17102,7 +17143,7 @@ function GhDebug({ db, update }) {
       <div className="mt-2">
         <Btn kind="ghost" className="text-sm" onClick={resync} disabled={busy}>{busy ? 'Syncing…' : 'Re-sync now'}</Btn>
         {msg ? <div className="mt-1.5 text-[11px]" style={{ color: 'var(--text)' }}>{msg}</div> : null}
-        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Sleep · last synced nights</div>
+        <div className="pf text-[9px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Sleep · last synced nights</div>
         {sdates.length ? sdates.map(dt => {
           const r = sleep[dt];
           return <div key={dt} className="tnum leading-snug" style={row}>
@@ -17111,7 +17152,7 @@ function GhDebug({ db, update }) {
               : <span style={{ color: 'var(--warn)' }}>no stage data (hours only)</span>}
           </div>;
         }) : <div style={row}>No sleep synced yet.</div>}
-        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Recovery signals · HRV / resting HR</div>
+        <div className="pf text-[9px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Recovery signals · HRV / resting HR</div>
         {hdates.length ? hdates.map(dt => {
           const h = health[dt];
           return <div key={dt} className="tnum leading-snug" style={row}>
@@ -17551,7 +17592,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}{' '}{+iso.slice(8)}</div>
             <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
             {/* Which of the three a day is, in words, so a low day is not told apart by colour alone. */}
-            {!winOn(iso) && <div className="text-[8px] uppercase leading-none mt-0.5" style={{ color: low ? 'var(--carb)' : undefined, opacity: on || low ? 1 : 0 }}>{on ? 'high' : low ? 'low' : 'norm'}</div>}
+            {!winOn(iso) && <div className="text-[9px] uppercase leading-none mt-0.5" style={{ color: low ? 'var(--carb)' : undefined, opacity: on || low ? 1 : 0 }}>{on ? 'high' : low ? 'low' : 'norm'}</div>}
           </button>);
         })}</div>
         {/* The key. Gold and blue on their own are a colour code nobody was told; the tiles carry the
@@ -18186,7 +18227,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
     return (<div key={it.id} className="pixel-box p-3.5" style={{ background: 'var(--card)' }}>
       <div className="flex items-start justify-between gap-3 mb-1">
         <div className="text-sm font-semibold">{it.name}</div>
-        <span className="pf text-[8px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+        <span className="pf text-[9px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
       </div>
       <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-2.5">{it.brings}</div>
       {it.note && <div className="text-[11px] mb-2.5 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
@@ -18254,13 +18295,44 @@ function HealthScreen({ db, update, onBack }) {
 
 /* ---------- the overview ---------- */
 
+// THE PLAN'S ROWS, in one place (design-plans/34-overhaul/07). They are drawn on Progress, which is
+// the plan's home the way MacroFactor's Strategy page is, and searched from You. One builder, so the
+// status lines cannot drift between the two.
+function planRows(db) {
+  const p = db.profile;
+  const base = currentTargets(db) || {};
+  const cyc = Object.assign({ enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 }, p.cycling);
+  const carry = Object.assign({ enabled: false }, p.carryover);
+  const mode = COACH_MODES.find(m => m.v === p.program_mode) || COACH_MODES[0];
+  const weigh = p.weighCadence || 'daily';
+  const checkinDay = p.checkinDay == null ? 1 : p.checkinDay;
+  const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
+  const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
+  return [
+      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
+      { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
+      { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
+      { key: 'weekly', label: 'Weekly shape', status: weeklyShapeSummary(cyc) + ' · evening out ' + (carry.enabled ? 'on' : 'off')
+        // A running or imminent window is the reason this row's numbers won't match what you're eating.
+        + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
+        kw: 'weekly shape cycling high days low days rest days calorie shifting refeed carryover even out banking calories holiday travel away window' },
+      { key: 'weekplans', label: "What's coming up", status: (() => {
+        const t = Store.todayISO();
+        const up = (db.week_plans || []).filter(w => w && w.end >= t).sort((a, b) => (a.start < b.start ? -1 : 1));
+        if (!up.length) return 'Nothing planned, running as normal';
+        const n = up[0];
+        return n.label + ' \u00b7 ' + fmtRange(n.start, n.end) + (up.length > 1 ? ' \u00b7 +' + (up.length - 1) + ' more' : '');
+      })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
+      { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+  ];
+}
 // One line that makes the Progress entry worth tapping: the trend, in words, or the check-in that is
 // waiting. A row that just said "Progress" would read as another setting.
 function progressTeaser(db) {
   const t = Store.todayISO();
   const st = checkinStatus(db, t);
   if (db.pending_adjustment) return 'A change is waiting for your say-so';
-  if (st.due) return 'Your weekly check-in is due';
+  // No "check-in is due" here: Today asks for that, once (design-plans/34-overhaul/08).
   const series = E.trendSeries((db.weight_entries || []).filter(w => w.scale_weight != null));
   if (series.length >= 8) {
     const wk = series[series.length - 1].trend - series[Math.max(0, series.length - 8)].trend;
@@ -18294,26 +18366,17 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
   const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
   const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
 
+  const needle = q.trim().toLowerCase();
   // Each row carries the words a person might search for, not just its label.
   const groups = [
-    { title: 'Your plan', rows: [
-      { key: 'weekplans', label: "What's coming up", status: (() => {
-        const t = Store.todayISO();
-        const up = (db.week_plans || []).filter(w => w && w.end >= t).sort((a, b) => (a.start < b.start ? -1 : 1));
-        if (!up.length) return 'Nothing planned, running as normal';
-        const n = up[0];
-        return n.label + ' \u00b7 ' + fmtRange(n.start, n.end) + (up.length > 1 ? ' \u00b7 +' + (up.length - 1) + ' more' : '');
-      })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
-      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
-      { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
-      { key: 'weekly', label: 'Weekly shape', status: weeklyShapeSummary(cyc) + ' · evening out ' + (carry.enabled ? 'on' : 'off')
-        // A running or imminent window is the reason this row's numbers won't match what you're eating.
-        + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
-        kw: 'weekly shape cycling high days low days rest days calorie shifting refeed carryover even out banking calories holiday travel away window' },
-      { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+    // Progress is the plan's home now (design-plans/34-overhaul/07/08), so its rows live there and
+    // You keeps the way in, plus Fresh start, which is account-level and stays with the account.
+    { title: 'Progress & plan', rows: [
+      { key: 'progress', label: 'Progress', status: progressTeaser(db), kw: 'progress trend weight body fat burn expenditure chart verdict' },
       { key: 'freshstart', label: 'Fresh start', status: (db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set your targets up again') + ' \u00b7 nothing is deleted', kw: 'fresh start over reset restart begin again start again recalculate recalibrate expenditure start date wipe clear plan drifted wrong numbers new chapter' },
-      { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
     ] },
+    // The plan rows themselves are on Progress, but a search from here should still find them.
+    ...(needle ? [{ title: 'Your plan', rows: planRows(db) }] : []),
     { title: 'Your body', rows: [
       { key: 'body', label: 'Body details', status: (p.sex === 'male' ? 'Male' : 'Female') + ' · ' + p.age + ' · ' + fmtHeight(p.heightCm, p.height_unit) + ' · ' + ((ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2]).l), kw: 'body details sex age height activity level weight body fat lean mass' },
       p.sex === 'female' ? { key: 'cycle', label: 'Cycle tracking', status: men.enabled ? 'On · ' + (men.cycleLen || 28) + '-day average' : 'Off', kw: 'cycle period menstrual water weight' } : null,
@@ -18330,28 +18393,17 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         const w = (p.integrationInterest || []).length;
         return 'Apple Health, Garmin, Withings and more' + (w ? ' · ' + w + ' on your list' : '');
       })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung polar coros renpho eufy integrations connect coming soon roadmap request' },
-      { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
-    ] },
+      // Only when it can actually connect: for everyone else it was a "Coming soon" row that opened a
+      // screen saying it was coming soon - a promise in the settings list, not a setting.
+      ghConfigured() && { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
+    ].filter(Boolean) },
   ];
 
-  const needle = q.trim().toLowerCase();
   const match = (r) => !needle || (r.label + ' ' + r.status + ' ' + r.kw).toLowerCase().includes(needle);
   const shown = groups.map(g => Object.assign({}, g, { rows: g.rows.filter(match) })).filter(g => g.rows.length);
   const appearanceMatches = !needle || 'appearance theme dark light units kg stone pounds st lb cm feet inches metric imperial'.includes(needle);
 
   return (<div className="fade-in">
-    {/* Progress lives here now rather than in the tab bar, so it needs to be the FIRST thing on this
-        screen and to look like a destination, not a settings row. The daily read (verdict, weight
-        spark, check-in prompt) is still on Today; this is where the full charts and the expenditure
-        engine live. Hidden while searching settings, because then you are looking for something else. */}
-    {!q && <button onClick={onOpenProgress} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'var(--card)' }}>
-      <span className="min-w-0">
-        <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Progress</span>
-        <span className="block text-sm font-semibold mt-1">{progressTeaser(db)}</span>
-        <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>Weight and body-fat trends, your real burn, and how closely you have stuck to it.</span>
-      </span>
-      <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-    </button>}
     <div className="mb-4">
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
     </div>
@@ -18373,13 +18425,14 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
               </span>
               <span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: r.on ? 'var(--accent)' : 'var(--surface3)', color: r.on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{r.on ? 'ON' : 'OFF'}</span>
             </button>
-          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => onOpen(r.key)} />)}
+          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => r.key === 'progress' ? onOpenProgress() : onOpen(r.key)} />)}
       </SettingsGroup>
     ))}
 
-    {appearanceMatches && <Card className="p-0 mb-5 overflow-hidden">
-      <CardHead title="Appearance" />
-      <div className="p-3.5">
+    {/* One group style on this page: Appearance's label sits outside its box like every other
+        group's, rather than on an ink bar of its own (design-plans/34-overhaul/08). */}
+    {appearanceMatches && <SettingsGroup title="Appearance">
+      <div className="p-4">
         {/* The theme names describe what the two themes ARE now. "Game Boy Color" was accurate when
             light meant a gold-on-white handheld; the light theme is warm paper with a purple bar and
             an ink frame, and calling it Game Boy Color sends people looking for something else. */}
@@ -18389,7 +18442,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
         <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
       </div>
-    </Card>}
+    </SettingsGroup>}
 
     {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
   </div>);
@@ -18418,7 +18471,7 @@ function ChangePassword({ email }) {
   }
   return (<div>
     <MenuRow label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="16" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
-    {open && <div className="pixel-box p-4 mt-2 fade-in" style={{ background: 'var(--card)' }}>
+    {open && <div className="px-4 pb-4 fade-in">
       <Field label="Current password"><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={e => setCur(e.target.value)} placeholder="current password" /></Field>
       <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
       <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} placeholder="type it again" /></Field>
@@ -18503,12 +18556,12 @@ function FeedbackSheet({ email, onClose }) {
                 const st = ticketStatusMeta(t.status);
                 return (<div key={t.id} className="pixel-box p-3 bg-[#1E1E22]">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+                    <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
                     <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
                   </div>
                   <div className="text-[12px] whitespace-pre-wrap break-words">{t.body}</div>
                   {t.admin_reply && <div className="mt-2 pixel-box p-2.5 bg-[#0F0F12]" style={{ borderColor: 'var(--accent)' }}>
-                    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>Reply from Macrosaurus</div>
+                    <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>Reply from Macrosaurus</div>
                     <div className="text-[12px] whitespace-pre-wrap break-words">{t.admin_reply}</div>
                   </div>}
                 </div>);
@@ -18518,7 +18571,7 @@ function FeedbackSheet({ email, onClose }) {
     </Sheet>
   );
 }
-function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
+function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn }) {
   const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -18543,7 +18596,8 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
   }
   // One level of subscreen, never two. Rendered in place of the overview so the tab strip and page
   // header stay out of the way while you're inside a single setting.
-  const back = () => setScreen(null);
+  // A subscreen opened from Progress goes back to Progress, not to this overview.
+  const back = () => { if (backTo && onReturn) onReturn(); else setScreen(null); };
   const SCREENS = {
     weekplans: () => <WeekPlansScreen db={db} update={update} onBack={back} showToast={showToast} isPremium={isPremium} />,
     goal: () => <GoalScreen db={db} update={update} onBack={back} showToast={showToast} />,
@@ -18561,63 +18615,70 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     reset: () => <ResetScreen db={db} onBack={back} onConfirm={onReset} onExport={exportData} />,
   };
   if (screen && SCREENS[screen]) return (
-    <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+    <SubBackLabel.Provider value={backTo ? 'Progress' : 'You'}>
+      <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+    </SubBackLabel.Provider>
   );
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <PageHeader kicker="Your profile & settings" title="You" />
-      <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['settings', 'Settings'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <PageBar context="Your profile & settings" />
+      <div className="mb-5"><Pill wide value={tab} onChange={setTab} options={[{ v: 'settings', l: 'Settings' }, { v: 'account', l: 'Account' }]} /></div>
 
       {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />}
 
-      {tab === 'account' && <div className="space-y-2.5">
-        <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
-          <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1">Signed in as</div>
-          <div className="text-sm font-semibold break-all">{email || 'your account'}</div>
-        </div>
+      {/* The Account tab in the page's one list style (design-plans/34-overhaul/08): SettingsGroups
+          with the 9px label outside the box, rather than a stack of free-standing cards whose
+          labels used a fourth style of their own. */}
+      {tab === 'account' && <div>
+        <SettingsGroup title="Signed in as">
+          <div className="px-4 py-3.5 text-sm font-semibold break-all">{email || 'your account'}</div>
+        </SettingsGroup>
 
-        {isPremium ? (
-          <div className="pixel-box p-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Premium</div>
-              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90]">Trial: {daysLeft(sub.trial_end)}</div>}
+        <SettingsGroup title={isPremium ? 'Premium' : 'Free plan'}>
+          {isPremium ? (
+            <div className="p-4">
+              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90] mb-1">Trial: {daysLeft(sub.trial_end)}</div>}
+              <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
+              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
+              <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
             </div>
-            <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
-            <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
-          </div>
-        ) : (
-          <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-            <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent-ink)' }}>Free plan</div>
-            <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
-            <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
-          </div>
-        )}
+          ) : (
+            <div className="p-4" style={{ background: 'var(--accent-dim)' }}>
+              <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
+              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+              <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
+            </div>
+          )}
+        </SettingsGroup>
 
-        {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
-        <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
-        <InstallMenuRow />
-        <ChangePassword email={email} />
-        <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
-        <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
-        <MenuRow label="Sign out" onClick={onSignOut} />
+        <SettingsGroup title="Your account"><MenuList>
+          {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
+          <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
+          <InstallMenuRow />
+          <ChangePassword email={email} />
+          <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
+          <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
+          <MenuRow label="Sign out" onClick={onSignOut} />
+        </MenuList></SettingsGroup>
 
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Help & feedback</div>
-        <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+        <SettingsGroup title="Help & feedback"><MenuList>
+          <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+        </MenuList></SettingsGroup>
 
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Legal & privacy</div>
-        <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
-        <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
-        <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
-        <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
+        <SettingsGroup title="Legal & privacy"><MenuList>
+          <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
+          <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
+          <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
+          <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
+        </MenuList></SettingsGroup>
 
         {/* Fresh start used to sit here, and that was the wrong shelf: it deletes nothing by default,
             and somebody whose numbers feel wrong looks in their plan settings, not in the danger
-            zone. It lives under Your plan now. What is left here genuinely is irreversible. */}
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
-        <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
-        <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
+            zone. It lives with Progress & plan now. What is left here genuinely is irreversible. */}
+        <SettingsGroup title="Danger zone"><MenuList>
+          <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
+          <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
+        </MenuList></SettingsGroup>
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
@@ -18642,10 +18703,13 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
 }
 function Row2({ k, v, last }) { return (<div className={`flex justify-between items-center py-2.5 ${last ? '' : 'border-b border-[#262629]'}`}><span className="text-[#8A8A90] text-sm">{k}</span><span className="font-medium tnum">{v}</span></div>); }
 // A clean, tappable settings row: label (+ optional description) on the left, chevron on the right.
+// Since design-plans/34-overhaul/08 these are rows of a SettingsGroup (MenuList below draws the rules
+// between them) rather than a stack of separate boxes. Coloured labels take the INK of their colour:
+// the gold fill on the card measures well under 4.5:1.
 function MenuRow({ label, desc, onClick, tone, right }) {
-  const color = tone === 'danger' ? 'var(--danger)' : tone === 'accent' ? 'var(--accent)' : 'var(--text)';
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'accent' ? 'var(--accent-ink)' : 'var(--text)';
   return (
-    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 pixel-box p-3.5 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }}>
+    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left active:scale-[.99] transition">
       <div className="min-w-0">
         <div className="text-sm font-semibold" style={{ color }}>{label}</div>
         {desc && <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{desc}</div>}
@@ -18739,7 +18803,7 @@ function AdminSupport() {
   const FILTERS = [['open', 'Open'], ['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved'], ['all', 'All']];
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!tickets ? <div className="mt-6"><DinoLoader label="Loading tickets" /></div>
       : !tickets.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
@@ -18755,12 +18819,12 @@ function AdminTicketCard({ ticket, onPatch }) {
   async function sendReply() { const r = reply.trim(); if (!r) return; setBusy('reply'); setErr(''); try { const j = await adminSupport('reply_ticket', { ticketId: t.id, reply: r }); onPatch(j.ticket); } catch (e) { setErr(e.message); } setBusy(''); }
   return (<div className="pixel-box p-3 bg-[#1E1E22]">
     <div className="flex items-center justify-between gap-2 mb-1">
-      <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+      <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
       <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
     </div>
     <div className="text-[11px] text-[#8A8A90] mb-1 break-all">{t.email || 'unknown'}</div>
     <div className="text-[13px] whitespace-pre-wrap break-words mb-3">{t.body}</div>
-    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[8px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[9px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} maxLength={4000} className={inputCls + ' resize-y leading-relaxed text-[12px]'} placeholder="Write a reply (the user sees this; sending resolves the ticket)…" />
     <div className="flex justify-between items-center mt-2 gap-2">
       {err ? <span className="text-[11px]" style={{ color: 'var(--danger-ink)' }}>{err}</span> : <span />}
@@ -18857,7 +18921,7 @@ function AdminAiLogs() {
   const FILTERS = [['all', 'All'], ['meal', 'Meals'], ['label', 'Labels'], ['coach', 'Coach'], ['other', 'Other']];
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!logs ? <div className="mt-6"><DinoLoader label="Loading logs" /></div>
       : !logs.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
@@ -18865,7 +18929,7 @@ function AdminAiLogs() {
           {logs.map(r => (
             <button key={r.id} onClick={() => open(r.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
+                <span className="pf text-[9px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
                 <span className="text-[10px] text-[#8A8A90]">{adminFmtWhen(r.created_at)}</span>
               </div>
               <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[10px] ml-1.5" style={{ color: 'var(--danger-ink)' }}>error</span>}</div>
@@ -18889,16 +18953,16 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
       <div>
         <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
           <div className="grid grid-cols-3 gap-2">{log.images.map((src, i) => <button key={i} onClick={() => onImage(src)} className="pixel-box overflow-hidden p-0" style={{ aspectRatio: '1', boxShadow: 'none' }}><img src={src} className="w-full h-full object-cover" alt={'input ' + (i + 1)} /></button>)}</div>
           <div className="text-[10px] text-[#8A8A90] mt-1.5">Tap to enlarge.</div>
         </div>}
         <div className="mb-4">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Result</div>
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Result</div>
           <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3" style={{ boxShadow: 'none' }}>{resultDisplay}</pre>
         </div>
         <details>
-          <summary className="pf text-[8px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
+          <summary className="pf text-[9px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
           <pre className="text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2" style={{ boxShadow: 'none', color: '#8A8A90' }}>{log.prompt || '(none)'}</pre>
         </details>
         <div className="text-[10px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
@@ -18991,14 +19055,14 @@ function AdminPanel({ onBack, adminEmail, update }) {
         </div>}
         {tab === 'users' && <div className="fade-in">
           <TextInput value={q} onChange={e => setQ(e.target.value)} placeholder="Search by email…" />
-          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
+          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[9px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
           <div className="mt-4 space-y-2">
             {filtered.map(u => { const pm = userPlanMeta(u); return (
               <button key={u.id} onClick={() => openUser(u.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
                 <div className="flex justify-between items-center gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
-                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[7px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
+                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[9px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
@@ -19929,7 +19993,7 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
         <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
         <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="16" height="16" /> YOU</button>
       </div>
-      <div className="mt-auto pf text-[8px] text-[#8A8A90] px-1">{BRAND}</div>
+      <div className="mt-auto pf text-[9px] text-[#8A8A90] px-1">{BRAND}</div>
     </div>
   );
 }
@@ -19944,13 +20008,13 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
           <div className="text-[9px] flex items-center gap-1.5">
             {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}><Icon.trend_up width="16" /> {streak}d</span>}
-            <span className="pf text-[7px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
+            <span className="pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
           </div>
         </div>
       </button>
       <button onClick={onOpenYou} aria-label="You and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
         <Icon.gear width="24" height="24" />
-        <span className="pf text-[8px]">YOU</span>
+        <span className="pf text-[9px]">YOU</span>
       </button>
     </div>
   );
@@ -20018,7 +20082,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
           <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
-          {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
+          {!it.done && <span className="pf text-[9px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
         </button>
       ))}
     </div>
@@ -20091,7 +20155,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
         {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
       {chips.length > 0 && <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-        {chips.map((c, i) => <span key={i} className="pf text-[7px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
+        {chips.map((c, i) => <span key={i} className="pf text-[9px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
       </div>}
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
         <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
@@ -20156,8 +20220,9 @@ function RecipeBuilder({ onSave, onCancel }) {
     onSave(Object.assign(rec, { private: true }));
   }
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="text-lg font-bold mb-1">Build a recipe</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onCancel} backLabel="Cook" title="Build a recipe" />
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Add what goes in, in grams. The macros for a serving work themselves out as you go.</div>
     <Field label="Name"><TextInput value={title} onChange={e => { setTitle(e.target.value); setErr(''); }} placeholder="e.g. Chicken and chickpea curry" aria-label="Recipe name" /></Field>
     <Field label="Serves"><NumInput value={servings} onChange={e => setServings(e.target.value)} aria-label="Servings" /></Field>
@@ -20237,8 +20302,9 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   if (draft) return <RecipeReview recipe={draft} note={note} onSave={onSaved} onCancel={() => { setNote(''); setDraft(null); }} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="text-lg font-bold mb-3">Import a recipe</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onCancel} backLabel="Cook" title="Import a recipe" />
     <ShareTip className="mb-4" />
     <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
     <Field label="Video link">
@@ -20321,7 +20387,7 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"><Icon.close width="16" /></button></div>
       <div className="text-[11px] text-[#8A8A90] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
-      <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3">{tabs.map(([k, l]) => <button key={k} onClick={() => { setTab(k); setErr(''); }} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <div className="mb-3"><Pill wide value={tab} onChange={k => { setTab(k); setErr(''); }} options={tabs.map(([k, l]) => ({ v: k, l }))} /></div>
       {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
       {tab === 'search' && <div>
         <div className="flex gap-2 mb-2"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} className={inputCls + ' flex-1'} placeholder="brand or food" /><input value={grams} onChange={e => setGrams(e.target.value)} type="number" inputMode="numeric" className={inputCls + ' w-20 text-right tnum'} placeholder="g" /></div>
@@ -20522,9 +20588,9 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             were only ever used to filter Discover, which is the one place you are NOT looking at the
             recipe. Collections sit in the same row, because to a reader they are the same object. */}
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-          {chips.map((c, i) => <span key={'t' + i} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
-          {(recipe.collections || []).map(c => <span key={c} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
-          <button onClick={() => setShowColl(true)} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
+          {chips.map((c, i) => <span key={'t' + i} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
+          {(recipe.collections || []).map(c => <span key={c} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
+          <button onClick={() => setShowColl(true)} className="pf text-[9px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
         </div>
       </div>
     </Card>
@@ -20541,11 +20607,11 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             ['fat', Math.round(recipe.macros_per_serving.fat) + 'G', 'FATS', 'var(--fat-ink)']].map(([k, v, l, col]) => (
             <SheetBox key={k} className="py-2.5 px-1 flex flex-col items-center gap-1">
               <span className="pf text-[13px] tnum" style={{ color: col }}>{v}</span>
-              <SheetLabel className="text-[8px]">{l}</SheetLabel>
+              <SheetLabel className="text-[9px]">{l}</SheetLabel>
             </SheetBox>
           ))}
         </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
-        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal. You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
+        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
         {busy ? <div className="text-[12px] flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
           : <SheetBtn tone="ghost" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</SheetBtn>}
         {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
@@ -20558,7 +20624,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Ingredients</span>
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={() => setEditIng(v => !v)} className="hit pf text-[9px] uppercase mr-1" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{editIng ? 'Done' : 'Edit'}</button>
-          <span className="pf text-[8px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
+          <span className="pf text-[9px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
           <button onClick={() => setServings(recipe.servings - 1)} aria-label="Fewer servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>–</button>
           <span className="pf text-[11px] tnum w-4 text-center" style={{ color: 'var(--cardhead-text)' }}>{recipe.servings}</span>
           <button onClick={() => setServings(recipe.servings + 1)} aria-label="More servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>+</button>
@@ -20731,14 +20797,11 @@ function ShoppingListView({ db, update, showToast, onBack }) {
   );
 
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="flex items-center justify-between mb-3 gap-3">
-      <h1 className="text-xl font-bold">Shopping list</h1>
-      <div className="flex items-center gap-3 shrink-0">
-        {unchecked.length > 0 && <button onClick={shareList} className="hit text-[12px] flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}><Icon.share width="24" height="24" /> Share</button>}
-        {checked.length > 0 && <button onClick={clearChecked} className="hit text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
-      </div>
-    </div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="Shopping list"
+      actions={unchecked.length > 0 ? [{ icon: <Icon.share width="16" height="16" />, label: 'Share the list', onClick: shareList }] : []} />
+    {checked.length > 0 && <div className="flex justify-end mb-3"><TextBtn tone="quiet" onClick={clearChecked}>Clear ticked</TextBtn></div>}
 
     <form onSubmit={e => { e.preventDefault(); addManual(); }} className="flex gap-2 mb-4">
       <input value={add} onChange={e => setAdd(e.target.value)} placeholder="Add an item, e.g. 2 milk" className="flex-1 min-w-0 pixel-box px-3 py-2 text-[14px] bg-transparent" style={{ color: 'var(--text)' }} />
@@ -20750,12 +20813,12 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       : <>
         {cats.map(c => (
           <div key={c} className="mb-4">
-            <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
+            <div className="pf text-[9px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
             <div className="space-y-0.5">{groups[c].map(row)}</div>
           </div>
         ))}
         {checked.length > 0 && <div className="mb-4 pt-2" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
+          <div className="pf text-[9px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
           <div className="space-y-0.5">{checked.map(row)}</div>
         </div>}
       </>}
@@ -20765,7 +20828,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       {showPantry && <Card className="p-3 mt-2">
         <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
         <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
-          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
+          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[9px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
         ))}</div>
       </Card>}
     </div>}
@@ -20793,17 +20856,16 @@ function ChefCard({ db }) {
        sentence of explanation. It used to spend its top-right corner on a big number that duplicated
        what the title bar now says in a quarter of the space. */
     <Card className="p-0 mb-4 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-        <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Community cookbook · Lvl {bt.level}</span>
-        <span className="pf text-[10px] uppercase shrink-0 tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{shared} shared</span>
-      </div>
-      <div className="px-3 py-3 flex flex-col gap-2.5">
+      <CardHead title={'Community cookbook · Lvl ' + bt.level} right={shared + ' shared'} />
+      {/* One line, then the bar (design-plans/34-overhaul/06). The sentence explaining the system is
+          for someone who has not used it yet, so it goes once anything has been shared. */}
+      <div className="px-3 py-2.5 flex flex-col gap-2">
         <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[15px] font-semibold truncate">{name}</span>
+          <span className="text-[13.5px] font-semibold truncate">{name}</span>
           {bt.next != null && <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{toGo} to {nextName}</span>}
         </div>
         {bt.next != null && <PipLine pct={(bt.progress || 0) * 100} color="var(--accent)" height={9} />}
-        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>
+        {(shared === 0 || bt.next == null) && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>}
       </div>
     </Card>
   );
@@ -20873,7 +20935,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     return (<div className="fade-in">
       <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
         <div className="p-4">
-          <div className="pf text-[8px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+          <div className="pf text-[9px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
           <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
           <div className="text-[12px] text-[#8A8A90] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
           <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>TRY PREMIUM FREE</button>
@@ -20956,9 +21018,10 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   const forecast = weekForecastTargets(db, days);
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="flex items-center justify-between mb-3">
-      <PageHeader kicker="Cook" title="Meal plan" />
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="Meal plan" />
+    <div className="flex items-center justify-end mb-3">
       <div className="flex items-center gap-1.5 shrink-0">
         <button onClick={() => setWeekStart(shiftISO(weekStart, -7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Previous week"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <button onClick={() => setWeekStart(today)} className="pixel-box px-2.5 h-9 text-[11px] flex items-center" style={{ background: 'var(--surface3)' }}>This week</button>
@@ -20985,7 +21048,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                   <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
                   <span className="text-[10px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
                 </button>
-                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[9px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
                 <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
               </div>); })}
           </div>}
@@ -21013,7 +21076,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
   const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">{label}</div>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">{label}</div>
     <div className="flex flex-wrap gap-2">
       {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
     </div>
@@ -21024,7 +21087,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="mb-4">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
           {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
@@ -21036,11 +21099,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <Group label="Main ingredient" k="main" values={present('main')} />
       <Group label="Effort" k="effort" values={present('effort')} />
       {diets.length > 0 && <div className="mb-4">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Diet</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Diet</div>
         <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
       </div>}
       <div className="mb-5">
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Sort by</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Sort by</div>
         <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--accent)' : 'var(--surface3)', color: sort === k ? 'var(--on-accent)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
       </div>
       <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={onClear}>Clear all</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Show recipes</Btn></div>
@@ -21057,7 +21120,7 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
       <div className="flex-1 min-w-0 p-3">
         <div className="flex items-start gap-2 mb-1">
           <div className="font-bold text-[14px] leading-tight flex-1" style={clamp2}>{r.title}</div>
-          {m.source === 'discover' && <span className="pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
+          {m.source === 'discover' && <span className="pf text-[9px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]">
           {kcal > 0 && <span className="tnum">{Math.round(kcal)} kcal</span>}
@@ -21160,8 +21223,9 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} title="Photograph your fridge" subtitle="Snap a shelf or two of what you've got" frameHint="Fit a shelf in the frame, then tap to capture. Add more after." unavailable="Camera unavailable here, upload a photo of your fridge instead." fileName="fridge.jpg" />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="text-lg font-bold mb-1">Cook from your fridge</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="From your fridge" />
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
     {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
@@ -21208,7 +21272,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
+      <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[9px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
       <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
       {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
       <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
@@ -21377,52 +21441,29 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && <>
-      <div className="flex items-center justify-between mb-4">
-        <PageHeader kicker="Cook" title="Recipes" />
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
-          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Cook from your fridge">
-            <Icon.cam width="24" height="24" />
-          </button>
-          <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
-            <Icon.calendar width="24" height="24" />
-          </button>
-          <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
-            <Icon.cart width="24" height="24" />
-            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{shoppingCount}</span>}
-          </button>
-        </div>
-      </div>
-      {/* Cook-from-fridge is the tab's best-kept secret, so give it a labelled hero here (not just the
-          icon in the toolbar): snap the fridge, get recipes you can make now. */}
-      <button onClick={() => setScreen('fridge')} className="w-full pixel-box p-3.5 mb-4 flex items-center gap-3 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }} aria-label="Cook from your fridge">
-        <span className="shrink-0 w-11 h-11 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }}>
-          <Icon.cam width="24" height="24" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-bold leading-tight">Cook from your fridge</span>
-          <span className="block text-[11px] text-[#8A8A90] leading-snug mt-0.5">Snap what you've got and I'll find recipes you can make right now.</span>
-        </span>
-        <span className="shrink-0" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
-      </button>
-      <ChefCard db={db} />
+      {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
+      {/* The two places first and the tool last. The fridge is reached from here and from the buddy's
+          own nudge on Today ("Cook from my fridge"), so it no longer needs a hero card of its own as
+          well - that was two doors to one room, side by side (design-plans/34-overhaul/06). */}
+      <PageBar context="Cook" actions={[
+        { icon: <Icon.calendar width="24" height="24" />, label: 'Meal plan', onClick: () => setScreen('plan') },
+        { icon: <Icon.cart width="24" height="24" />, label: 'Shopping list', onClick: () => setScreen('shopping'), badge: shoppingCount > 0 ? shoppingCount : null },
+        { icon: <Icon.cam width="24" height="24" />, label: 'Cook from your fridge', onClick: () => setScreen('fridge') },
+      ]} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
-      {/* The house segmented control again: one frame, butted segments, pixel face. */}
-      <div className="grid grid-cols-2 mb-4" style={{ border: '2px solid var(--border)' }}>
-        {[['discover', 'Discover'], ['mine', 'Cookbook']].map(([k, l]) => (
-          <button key={k} onClick={() => setHubTab(k)} className="pf uppercase flex items-center justify-center gap-1.5"
-            style={{ padding: '9px 4px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
-              background: hubTab === k ? 'var(--accent)' : 'var(--card)',
-              color: hubTab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>
-            {l}{k === 'discover' && !isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}
-          </button>
-        ))}
-      </div>
+      <div className="mb-4"><Pill wide value={hubTab} onChange={setHubTab} options={[
+        { v: 'discover', l: <>Discover{!isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}</> },
+        { v: 'mine', l: 'Cookbook' },
+      ]} /></div>
       {hubTab === 'discover'
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
         : !allRecipes.length ? <>
-        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
+        {/* The two ways in, side by side on one row: they are a pair of answers to "where does a
+            recipe come from", not two full-width slabs above everything (design-plans/34-overhaul/06). */}
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
+          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
+        </div>
         <ShareTip className="mb-4" />
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="48" height="48" style={{ color: 'var(--muted)' }} /></div>
@@ -21430,11 +21471,13 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, upload your own, or build one from ingredients, and it becomes a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
         </Card>
       </> : <>
-        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
+          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
+        </div>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
+          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[9px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
         </div>
         <div className="my-3" />
         {showRails
@@ -21445,6 +21488,10 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </>
           : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent-ink)' }}>Clear filters</button></div>}
       </>}
+      {/* The contributor level is a reward to look at, not a task to do, so it comes after the
+          recipes rather than above them (design-plans/34-overhaul/06). Cookbook only: it is about
+          what you have shared. */}
+      {hubTab !== 'discover' && <div className="mt-4"><ChefCard db={db} /></div>}
       {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
@@ -21556,7 +21603,8 @@ function App() {
      buddy's coach line, a milestone, the weekly recap, a notification) return where it came from,
      rather than each call site having to remember to say so. */
   const [goalsFrom, setGoalsFrom] = useState('more');
-  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); if (v !== view) { try { window.scrollTo(0, 0); } catch (_) {} } _setView(v); };
+  // Leaving for any other tab also forgets a "came from Progress" settings return (settingFrom, below).
+  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); if (v !== view) { try { window.scrollTo(0, 0); } catch (_) {} } if (v !== 'more') setSettingFrom(null); _setView(v); };
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.
@@ -21565,6 +21613,8 @@ function App() {
   // A settings subscreen to open on arrival, so Progress can send you to the ONE goal editor in
   // Settings rather than carrying a second copy of it.
   const [settingScreen, setSettingScreen] = useState(null);
+  // 'goals' while a settings subscreen is open from Progress's plan rows, so its back returns there.
+  const [settingFrom, setSettingFrom] = useState(null);
   const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -22357,8 +22407,9 @@ function App() {
         }}
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
-      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
+      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
+        backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
           bar and the centre Add button get out of the way of the one control that matters there. */}

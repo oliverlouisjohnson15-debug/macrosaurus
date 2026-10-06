@@ -374,22 +374,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
   return (
     <div className="fade-in">
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="min-w-0">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>
-            {/* The block's NAME only. The ladder's own title bar says which week, an inch below,
-                and the two together read as the page saying it twice - which is the redundancy this
-                whole screen has been cleared of. The kicker names what you are running; the card
-                says how far through it you are. */}
-            {block && !blockDone ? block.name : 'Your training'}
-          </div>
-          <h1 className="pf text-xl mt-3">Train</h1>
-        </div>
-        <button onClick={() => go('settings')} aria-label="Training settings"
-          className="pixel-box w-11 h-11 flex items-center justify-center shrink-0" style={{ background: 'var(--surface2)' }}>
-          <Icon.sliders width="24" height="24" />
-        </button>
-      </div>
+      {/* The block's NAME only, as the page bar's context. The ladder's own title bar says which week,
+          an inch below, and the two together read as the page saying it twice. No "Train" title:
+          the tab bar already says where you are (design-plans/34-overhaul/01). */}
+      <PageBar context={block && !blockDone ? block.name : 'Your training'} actions={[
+        { icon: <Icon.sliders width="24" height="24" />, label: 'Training settings', onClick: () => go('settings') },
+      ]} />
 
       {/* A session left open, on the screens where nothing else says so. Same shape as the draft
           card further down - a thing in progress, what state it is in, and the way back into it -
@@ -614,23 +604,23 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               );
             })}
           </div>
-          {/* The way to change which days you train, on the object that shows them. It was reachable
-              only by moving one session inside the builder, one week at a time, which is a different
-              act - that is "the gym was shut on Thursday", this is "I do not train Thursdays". */}
+          {/* ONE FOOTER, not two (design-plans/34-overhaul/05). How much of the week is left, and the
+              way to change which days it falls on, used to be two ruled bands for one thought. */}
           {!viewingAhead && (
-            <button onClick={() => go('schedule', { blockId: block.id })}
-              className="w-full text-left text-[12px] px-3 py-2.5 flex items-center justify-between gap-2"
-              style={{ borderTop: '2px solid var(--border)', color: 'var(--accent-ink)' }}>
-              <span>Change which days you train</span>
-              <Icon.chevron width="14" height="14" />
-            </button>
-          )}
-          {!viewingAhead && (
-            <div className="text-[12px] px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', color: 'var(--muted)' }}>
-              {doneShown >= shownWeekPlan.length
-                ? 'That is the whole week done.'
-                : (shownWeekPlan.length - doneShown) + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week'
-                  + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : '.')}
+            <div className="flex items-center justify-between gap-3 text-[12px] px-3 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
+              <span className="min-w-0" style={{ color: 'var(--muted)' }}>
+                {doneShown >= shownWeekPlan.length
+                  ? 'That is the whole week done.'
+                  : (shownWeekPlan.length - doneShown) + ' session' + (shownWeekPlan.length - doneShown === 1 ? '' : 's') + ' left this week'
+                    + (live ? '. ' + live.session.name.split(' - ')[0] + ' is still open.' : '.')}
+              </span>
+              {/* The way to change which days you train, on the object that shows them. It was
+                  reachable only by moving one session inside the builder, one week at a time, which
+                  is a different act - that is "the gym was shut on Thursday", this is "I do not
+                  train Thursdays". */}
+              <button onClick={() => go('schedule', { blockId: block.id })} className="hit shrink-0 flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}>
+                Change days <Icon.chevron width="14" height="14" />
+              </button>
             </div>
           )}
           {/* Anything the week cannot place. A session whose weekday is missing or out of range - an
@@ -670,25 +660,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           )}
         </Card>
 
-        {/* ---- the way to change the plan, from the screen you actually read it on ----------------
-            The block editor is where a plan gets changed and that is still right: it is a deliberate
-            act on a four-week programme, not a thing to do by accident. What was wrong was that it
-            was the ONLY way in, three taps down behind a button called "Blocks" and a screen headed
-            "Edit block" - so the question this answers ("my gym has not got a pendulum squat") was
-            being asked in front of a week that offered no way to ask it.
-
-            So the route is here, against the week it changes, and it is quiet: the loud thing on
-            this screen is the session you are about to do, and it stays that way. ---- */}
-        <button onClick={() => go('builder', { blockId: block.id, from: 'home', tweak: true })}
-          className="w-full pixel-box p-3.5 mb-4 flex items-center gap-2.5 text-left" style={{ background: 'var(--surface2)' }}>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-semibold leading-tight">Change this block</span>
-            <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
-              Say what you want different and I will change the weeks you have not trained yet.
-            </span>
-          </span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-        </button>
       </>)}
 
       {block && blockDone && (
@@ -811,38 +782,33 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </div>
       )}
 
-      {/* ---- quick links, as three real buttons rather than four text links in a row. Text links
-              this close together and this low-contrast were the least discoverable controls in the
-              app; a button is a button whether it says HISTORY or OPEN LOWER B. "Your blocks" is
-              renamed to fit a one-word button and match the block card's own name for itself. ---- */}
-      {/* The track count follows the number of buttons. It was fixed at three while the third is
-          conditional, so on every ordinary account History and Progress sat in two thirds of the
-          row with a phantom column beside them - two buttons pushed off-centre under a
-          full-width card. */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <button onClick={() => go('history')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>History</button>
-        {/* Progress, not Stats. The screen behind it answers a question now - "am I getting stronger" -
-            rather than showing four scores that by design do not move. The character sheet is one tap
-            further on, which is the right distance for a thing you look at monthly. */}
-        <button onClick={() => go('progress')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Progress</button>
-        {/* Blocks, unconditionally. It was briefly the spine's job to be the route here, which left
-            four ordinary states with no way to the block list at all - including the end of every
-            block. With the spine gone it is a button again, which is what it should always have
-            been: the destination has a name, so the control that goes there says it. */}
-        <button onClick={() => go('blocks')} className="pixel-box h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Blocks</button>
-      </div>
-
-      {/* "Empty session" is for the days that are not in the plan: a class, a holiday gym, a bit of
-          arms on the way past. Worth having, not worth a fourth button - it lives as a quiet link
-          under the three real ones, and only shows once there is a block for it to be an exception
-          to at all. */}
-      {block && !blockDone && onFreeform && (
-        <div className="text-center mb-4">
-          <button onClick={() => setWhyEmpty(true)} className="pf text-[10px] uppercase" style={{ color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>
-            Empty session
-          </button>
-        </div>
-      )}
+      {/* ---- MORE: everything below the week, as one list (design-plans/34-overhaul/05) ------------
+          It used to be five controls in three shapes: a "Change this block" card, a row of three
+          buttons and a centred "Empty session" link. They are all places to go, so they take the
+          app's own list for places to go - SettingsRow, as on You - with a chevron each and a muted
+          line where the name alone does not say enough.
+          - History, Progress and Blocks are unconditional, as before: Blocks has to stay reachable
+            at the end of every block, and Progress answers "am I getting stronger".
+          - Change this block is the way to change the plan from the screen you read it on, and only
+            while a block is running. It is a deliberate act on a four-week programme, so it lives
+            in this list rather than beside the session you are about to do.
+          - Empty session is for the days that are not in the plan: a class, a holiday gym, a bit of
+            arms on the way past. Only once there is a block for it to be an exception to. */}
+      {(() => {
+        const rows = [
+          { key: 'history', label: 'History', onClick: () => go('history') },
+          { key: 'progress', label: 'Progress', status: 'Am I getting stronger?', onClick: () => go('progress') },
+          { key: 'blocks', label: 'Blocks', onClick: () => go('blocks') },
+          block && !blockDone && { key: 'tweak', label: 'Change this block', status: 'Say what you want different and I will change the weeks you have not trained yet.', onClick: () => go('builder', { blockId: block.id, from: 'home', tweak: true }) },
+          block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', onClick: () => setWhyEmpty(true) },
+        ].filter(Boolean);
+        return (
+          <Card className="p-0 mb-4 overflow-hidden">
+            <CardHead title="More" />
+            {rows.map((r, i) => <SettingsRow key={r.key} label={r.label} status={r.status} onClick={r.onClick} last={i === rows.length - 1} />)}
+          </Card>
+        );
+      })()}
 
       {/* This used to set a piece of state that nothing rendered, so the link was a dead button: the
           one way into a session outside the plan, and it did nothing at all. */}
