@@ -13782,21 +13782,23 @@ function FoodLog({ db, update, openLog, showToast }) {
         const rem = et.eff.kcal - tot.kcal;
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
-            carrying the target, then a divided interior. It leads with the same 34px figure and the
-            same hero meter as Today's energy band, so the number you are logging against looks
-            identical on both pages instead of being a smaller restatement of it. */}
+            carrying the target, then one row per instrument. */}
         return <Card className="p-0 mb-4 overflow-hidden">
           <CardHead title="Day total" right={'of ' + et.eff.kcal + ' kcal'} />
-          <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="pf tnum" style={{ fontSize: 34, lineHeight: 1, color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
-              <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>{over ? 'kcal over' : 'kcal left'}</span>
-            </div>
-            <PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} cells={PLAN_CELLS} />
-          </div>
           {/* The same blocks as Today, laid out on one line each because this card is a reminder of
-              where the day stands rather than the place you study it. Same instrument, same reading. */}
+              where the day stands rather than the place you study it. Same instrument, same reading.
+              Calories take the same row as the macros (design-plans/34-overhaul/03): this card used
+              to lead with Today's own 34px figure and hero meter, which made the Food tab open on a
+              copy of Today. The target stays on the title bar and the row says what is left, so the
+              card says each number once. */}
           <div className="px-3 py-3 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <span className="pf text-[9px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>KCAL</span>
+              <div className="flex-1 min-w-0"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} small /></div>
+              <span className="pf tnum text-[10px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>
+                {over ? Math.abs(Math.round(rem)) + ' over' : Math.round(rem) + ' left'}
+              </span>
+            </div>
             {[['PROT', tot.protein, et.eff.protein_g, PRO, PRO_T], ['CARB', tot.carbs, et.eff.carbs_g, CARB, CARB_T], ['FATS', tot.fat, et.eff.fat_g, FAT, FAT_T]].map(([l, e, t, c, ink]) => (
               <div key={l} className="flex items-center gap-2.5">
                 <span className="pf text-[9px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{l}</span>
@@ -13893,12 +13895,16 @@ function FoodLog({ db, update, openLog, showToast }) {
                     quieter and truer, and the add action right below it is the way out - and it
                     gets no macro line either, for the same reason: "P0 C0 F0" is that same lazy
                     placeholder three times over. */}
-                <div className="flex flex-col items-end gap-[2px] leading-tight">
+                {/* A meal with ONE food in it gets neither line: the food's own row, directly below,
+                    carries exactly the same calories and macros, so the heading would be saying them
+                    twice (design-plans/34-overhaul/03). From two foods up the heading is a total
+                    nobody can read off a single row, and it earns its place again. */}
+                {me.length !== 1 && <div className="flex flex-col items-end gap-[2px] leading-tight">
                   <span className="pf text-[10px] tnum" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
                     {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                   </span>
-                  {me.length > 0 && <MealHeadMacros macros={ms} />}
-                </div>
+                  {me.length > 1 && <MealHeadMacros macros={ms} />}
+                </div>}
                 <div className="relative" data-no-mealdrag>
                   <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
                   {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
@@ -13920,7 +13926,8 @@ function FoodLog({ db, update, openLog, showToast }) {
                 inside the panel rather than as the panel's own construction. */}
             <div>
               {me.map(e => renderEntry(e, m, mc))}
-              {!me.length && !drag && <div className="px-3 py-3 text-[12px]" style={{ color: 'var(--muted)' }}>Nothing logged yet.</div>}
+              {/* No "Nothing logged yet." row: the add row below is the empty state, and two rows saying
+                  one thing is the clutter this pass removes (design-plans/34-overhaul/03). */}
               {drag && me.length === 0 && <div className="m-3 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
             </div>
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
@@ -13932,7 +13939,7 @@ function FoodLog({ db, update, openLog, showToast }) {
                 states now, and only the divider still tells the two apart. */}
             <button onClick={() => openLog({ date, mealId: m.id })}
               className="pf text-[10px] uppercase w-full text-left flex items-center px-3"
-              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>+ Add food</button>
+              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: me.length ? '2px solid var(--border)' : 'none' }}>+ Add food</button>
           </Card>
           </React.Fragment>);
       })}

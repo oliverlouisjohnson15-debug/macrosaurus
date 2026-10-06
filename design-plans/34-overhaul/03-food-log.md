@@ -119,3 +119,11 @@ BREAKFAST ............ 425 KCAL       ← single entry: no P/C/F on the header
 ## Design documentation
 
 - None beyond the 00-README rule "say each number once per screen".
+
+## Status
+
+**Done, 2026-10-06.** The first meal card now starts at ≈340px CSS at 390×844 (it was ≈465px).
+One departure from change 2: the title bar keeps "of 2236 kcal" and the new KCAL row says
+"1101 left". Putting "1101 left of 2236" on the bar as well would have said the number twice on
+one card. An empty meal's add row also lost its top rule, so the card no longer draws a double line
+under the title bar. A new test in `tests/meal-header-macros.test.js` pins the one-food rule.

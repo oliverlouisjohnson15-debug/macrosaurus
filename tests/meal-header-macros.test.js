@@ -85,3 +85,16 @@ test('an empty meal keeps its dash and gains no P0 C0 F0', () => {
     assert.ok(!/P\s*0/.test(txt), 'an empty meal should not report zeroed macros: ' + txt);
   } finally { r.unmount(); }
 });
+
+test('a meal holding one food does not repeat that food in its heading', () => {
+  // design-plans/34-overhaul/03: the food's own row, directly below, carries the same calories and
+  // macros, so a heading total over a single food says everything twice.
+  const db = account();
+  db.log_entries = db.log_entries.filter(e => e.id === 'e1');
+  const r = foodLog(db);
+  try {
+    const txt = mealHeads(r)[0].textContent.replace(/\s+/g, ' ');
+    assert.ok(txt.indexOf('195 kcal') === -1, 'one food: no calorie total in the heading: ' + txt);
+    assert.ok(!/P\s*24/.test(txt), 'one food: no macro total in the heading: ' + txt);
+  } finally { r.unmount(); }
+});
