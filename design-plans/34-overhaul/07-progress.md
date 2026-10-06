@@ -119,3 +119,12 @@ Coach timeline · Weigh-in log                        (unchanged)
 
 - Record: "Progress is the plan's home (status and settings), like MacroFactor's Strategy page. You
   holds personal settings and the account."
+
+## Status
+
+**Done, 2026-10-06, together with 08.** `planRows(db)` builds the six rows in one place. Progress
+draws them as "Your plan" under Energy, and "Change your goal in Settings" is gone. Routing works:
+a row opened from Progress shows "‹ Progress" (through a `SubBackLabel` context that `SubScreen`
+reads) and returns there without changing where Progress itself goes back to (`goalsFrom` is
+untouched). Leaving by the tab bar clears the return. The free Energy card's ghost chart and
+paragraph became one line with "Try Premium ›".

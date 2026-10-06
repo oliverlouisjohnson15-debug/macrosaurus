@@ -7521,10 +7521,7 @@ function ExpenditureCard({ db, plan }) {
               You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
             </div>;
           })()}
-        </> : <PremiumTease
-          headline="See the deficit you actually ran"
-          blurb="Premium plots what you ate against what you burn, day by day, so a week that went sideways explains itself instead of being guessed at."
-          ghost={<BalanceBars days={null} lens="burn" />} />}
+        </> : <PremiumTease headline="See the deficit you actually ran, day by day" />}
 
         {/* THE BURN, and the arithmetic behind it. It stopped being its own card when it became the
             line the balance above is measured against, and it was already being printed up there as
@@ -7615,14 +7612,13 @@ function BalanceBars({ days, lens }) {
 }
 /* The house shape for a locked block: it says what it is and what it would tell you, with the SHAPE
    of the data ghosted behind it. A padlock over a blank card tells nobody what they are missing. */
-function PremiumTease({ headline, blurb, ghost }) {
-  return (<div>
-    {ghost && <div style={{ opacity: 0.5 }}>{ghost}</div>}
-    <div className="text-[13px] font-bold mt-3">{headline}</div>
-    <div className="text-[12px] text-[#8A8A90] leading-snug mt-1">{blurb}</div>
-    <div className="mt-2.5">
-      <TextBtn onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }}>Try Premium free &rsaquo;</TextBtn>
-    </div>
+/* What Premium would add here, said in one line (design-plans/34-overhaul/07). It used to be a greyed
+   ghost chart, a heading and a paragraph - about 200px of placeholder above the real content of the
+   card, on a visit where Today's prompt slot already offers Premium. */
+function PremiumTease({ headline }) {
+  return (<div className="flex items-center justify-between gap-3">
+    <span className="text-[12.5px] leading-snug min-w-0">{headline}</span>
+    <TextBtn className="shrink-0" onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }}>Try Premium &rsaquo;</TextBtn>
   </div>);
 }
 // Signed kcal, for the one place a figure has to say which side of the line it is on.
@@ -16535,7 +16531,7 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, backLabel }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBack, backLabel }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
@@ -16600,7 +16596,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
           gives your target. That chain is the entire product, and it was split across two cards at
           the bottom of the page with four unrelated ones in between. One card, in order. */}
       <ExpenditureCard db={db} plan={(liveBurn) => {
-        if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={onEditPlan}>Set your goal</TextBtn></div>;
+        if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
         // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
         // the burn as it stood when that target was written, so the card said 2,582 and then did its
         // arithmetic against 2,786 and printed a deficit that did not subtract.
@@ -16617,13 +16613,20 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack, 
             {gap ? <>{gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn'}, {p.goalType === 'maintain' ? 'which is roughly maintenance' : 'which is what ' + p.rateKgPerWeek + ' kg a week costs'}.</> : null}{db.paused ? ' Currently paused.' : ''}
           </div>
           {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-          <div className="mt-2"><TextBtn onClick={onEditPlan}>Change your goal in Settings</TextBtn></div>
         </div>;
       }} />
 
       {/* Lately is gone from this page. Its two tiles printed two different denominators and are
           now one caption under the figures they qualify, and the density week went with the Food
           tab, where a day-by-day strip of what you ate has somewhere to live. */}
+      {/* WHAT THE PLAN IS SET TO, on the page that says how it is going (design-plans/34-overhaul/07).
+          These rows used to live in You, and this page sent you there with "Change your goal in
+          Settings". MacroFactor keeps goal, programme and adjustments on one Strategy page; this is
+          ours. Each opens the same screen it always did, and its back comes here. */}
+      {base && onOpenSetting && <SettingsGroup title="Your plan">
+        {(() => { const rows = planRows(db); return rows.map((r, i) => <SettingsRow key={r.key} label={r.label} status={r.status} last={i === rows.length - 1} onClick={() => onOpenSetting(r.key)} />); })()}
+      </SettingsGroup>}
+
       {/* THE RECORD, in place rather than behind a door. */}
       <CoachTimeline db={db} />
       <Collapsible label="Weigh-in log"><WeighInLog db={db} update={update} bare /></Collapsible>
@@ -16952,14 +16955,21 @@ function SettingsRow({ label, status, onClick, last }) {
     </button>
   );
 }
+// MenuRows inside a SettingsGroup, ruled apart with the card's own 2px border.
+function MenuList({ children }) { return <div className="divide-y-2 divide-[color:var(--border)]">{children}</div>; }
 function SettingsGroup({ title, children }) {
   return (<div className="mb-5">
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 px-1">{title}</div>
     <div className="pixel-box" style={{ background: 'var(--card)' }}>{children}</div>
   </div>);
 }
+// Where a settings subscreen goes back to. You, normally; Progress when it was opened from the plan
+// rows on Progress (design-plans/34-overhaul/07), so the bar names the place you will land on.
+const SubBackLabel = React.createContext('You');
 // One level down from the overview, and never a level below that.
-function SubScreen({ title, intro, onBack, backLabel = 'You', children }) {
+function SubScreen({ title, intro, onBack, backLabel, children }) {
+  const ctxLabel = React.useContext(SubBackLabel);
+  backLabel = backLabel || ctxLabel;
   useBackClose(onBack);
   /* THE SUB-HEADER BAR. Settings.dc.html gives every subscreen a purple bar carrying the way back on
      the left and the screen's name in the middle, which is what tells you at a glance that you are a
@@ -18285,13 +18295,44 @@ function HealthScreen({ db, update, onBack }) {
 
 /* ---------- the overview ---------- */
 
+// THE PLAN'S ROWS, in one place (design-plans/34-overhaul/07). They are drawn on Progress, which is
+// the plan's home the way MacroFactor's Strategy page is, and searched from You. One builder, so the
+// status lines cannot drift between the two.
+function planRows(db) {
+  const p = db.profile;
+  const base = currentTargets(db) || {};
+  const cyc = Object.assign({ enabled: false, highDays: [], lowDays: [], deltaPct: 0.15 }, p.cycling);
+  const carry = Object.assign({ enabled: false }, p.carryover);
+  const mode = COACH_MODES.find(m => m.v === p.program_mode) || COACH_MODES[0];
+  const weigh = p.weighCadence || 'daily';
+  const checkinDay = p.checkinDay == null ? 1 : p.checkinDay;
+  const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
+  const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
+  return [
+      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
+      { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
+      { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
+      { key: 'weekly', label: 'Weekly shape', status: weeklyShapeSummary(cyc) + ' · evening out ' + (carry.enabled ? 'on' : 'off')
+        // A running or imminent window is the reason this row's numbers won't match what you're eating.
+        + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
+        kw: 'weekly shape cycling high days low days rest days calorie shifting refeed carryover even out banking calories holiday travel away window' },
+      { key: 'weekplans', label: "What's coming up", status: (() => {
+        const t = Store.todayISO();
+        const up = (db.week_plans || []).filter(w => w && w.end >= t).sort((a, b) => (a.start < b.start ? -1 : 1));
+        if (!up.length) return 'Nothing planned, running as normal';
+        const n = up[0];
+        return n.label + ' \u00b7 ' + fmtRange(n.start, n.end) + (up.length > 1 ? ' \u00b7 +' + (up.length - 1) + ' more' : '');
+      })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
+      { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+  ];
+}
 // One line that makes the Progress entry worth tapping: the trend, in words, or the check-in that is
 // waiting. A row that just said "Progress" would read as another setting.
 function progressTeaser(db) {
   const t = Store.todayISO();
   const st = checkinStatus(db, t);
   if (db.pending_adjustment) return 'A change is waiting for your say-so';
-  if (st.due) return 'Your weekly check-in is due';
+  // No "check-in is due" here: Today asks for that, once (design-plans/34-overhaul/08).
   const series = E.trendSeries((db.weight_entries || []).filter(w => w.scale_weight != null));
   if (series.length >= 8) {
     const wk = series[series.length - 1].trend - series[Math.max(0, series.length - 8)].trend;
@@ -18325,26 +18366,17 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
   const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
   const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
 
+  const needle = q.trim().toLowerCase();
   // Each row carries the words a person might search for, not just its label.
   const groups = [
-    { title: 'Your plan', rows: [
-      { key: 'weekplans', label: "What's coming up", status: (() => {
-        const t = Store.todayISO();
-        const up = (db.week_plans || []).filter(w => w && w.end >= t).sort((a, b) => (a.start < b.start ? -1 : 1));
-        if (!up.length) return 'Nothing planned, running as normal';
-        const n = up[0];
-        return n.label + ' \u00b7 ' + fmtRange(n.start, n.end) + (up.length > 1 ? ' \u00b7 +' + (up.length - 1) + ' more' : '');
-      })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
-      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
-      { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
-      { key: 'weekly', label: 'Weekly shape', status: weeklyShapeSummary(cyc) + ' · evening out ' + (carry.enabled ? 'on' : 'off')
-        // A running or imminent window is the reason this row's numbers won't match what you're eating.
-        + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
-        kw: 'weekly shape cycling high days low days rest days calorie shifting refeed carryover even out banking calories holiday travel away window' },
-      { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+    // Progress is the plan's home now (design-plans/34-overhaul/07/08), so its rows live there and
+    // You keeps the way in, plus Fresh start, which is account-level and stays with the account.
+    { title: 'Progress & plan', rows: [
+      { key: 'progress', label: 'Progress', status: progressTeaser(db), kw: 'progress trend weight body fat burn expenditure chart verdict' },
       { key: 'freshstart', label: 'Fresh start', status: (db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set your targets up again') + ' \u00b7 nothing is deleted', kw: 'fresh start over reset restart begin again start again recalculate recalibrate expenditure start date wipe clear plan drifted wrong numbers new chapter' },
-      { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
     ] },
+    // The plan rows themselves are on Progress, but a search from here should still find them.
+    ...(needle ? [{ title: 'Your plan', rows: planRows(db) }] : []),
     { title: 'Your body', rows: [
       { key: 'body', label: 'Body details', status: (p.sex === 'male' ? 'Male' : 'Female') + ' · ' + p.age + ' · ' + fmtHeight(p.heightCm, p.height_unit) + ' · ' + ((ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2]).l), kw: 'body details sex age height activity level weight body fat lean mass' },
       p.sex === 'female' ? { key: 'cycle', label: 'Cycle tracking', status: men.enabled ? 'On · ' + (men.cycleLen || 28) + '-day average' : 'Off', kw: 'cycle period menstrual water weight' } : null,
@@ -18361,28 +18393,17 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         const w = (p.integrationInterest || []).length;
         return 'Apple Health, Garmin, Withings and more' + (w ? ' · ' + w + ' on your list' : '');
       })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung polar coros renpho eufy integrations connect coming soon roadmap request' },
-      { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
-    ] },
+      // Only when it can actually connect: for everyone else it was a "Coming soon" row that opened a
+      // screen saying it was coming soon - a promise in the settings list, not a setting.
+      ghConfigured() && { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
+    ].filter(Boolean) },
   ];
 
-  const needle = q.trim().toLowerCase();
   const match = (r) => !needle || (r.label + ' ' + r.status + ' ' + r.kw).toLowerCase().includes(needle);
   const shown = groups.map(g => Object.assign({}, g, { rows: g.rows.filter(match) })).filter(g => g.rows.length);
   const appearanceMatches = !needle || 'appearance theme dark light units kg stone pounds st lb cm feet inches metric imperial'.includes(needle);
 
   return (<div className="fade-in">
-    {/* Progress lives here now rather than in the tab bar, so it needs to be the FIRST thing on this
-        screen and to look like a destination, not a settings row. The daily read (verdict, weight
-        spark, check-in prompt) is still on Today; this is where the full charts and the expenditure
-        engine live. Hidden while searching settings, because then you are looking for something else. */}
-    {!q && <button onClick={onOpenProgress} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'var(--card)' }}>
-      <span className="min-w-0">
-        <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Progress</span>
-        <span className="block text-sm font-semibold mt-1">{progressTeaser(db)}</span>
-        <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>Weight and body-fat trends, your real burn, and how closely you have stuck to it.</span>
-      </span>
-      <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-    </button>}
     <div className="mb-4">
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
     </div>
@@ -18404,13 +18425,14 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
               </span>
               <span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: r.on ? 'var(--accent)' : 'var(--surface3)', color: r.on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{r.on ? 'ON' : 'OFF'}</span>
             </button>
-          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => onOpen(r.key)} />)}
+          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => r.key === 'progress' ? onOpenProgress() : onOpen(r.key)} />)}
       </SettingsGroup>
     ))}
 
-    {appearanceMatches && <Card className="p-0 mb-5 overflow-hidden">
-      <CardHead title="Appearance" />
-      <div className="p-3.5">
+    {/* One group style on this page: Appearance's label sits outside its box like every other
+        group's, rather than on an ink bar of its own (design-plans/34-overhaul/08). */}
+    {appearanceMatches && <SettingsGroup title="Appearance">
+      <div className="p-4">
         {/* The theme names describe what the two themes ARE now. "Game Boy Color" was accurate when
             light meant a gold-on-white handheld; the light theme is warm paper with a purple bar and
             an ink frame, and calling it Game Boy Color sends people looking for something else. */}
@@ -18420,7 +18442,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
         <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
       </div>
-    </Card>}
+    </SettingsGroup>}
 
     {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
   </div>);
@@ -18449,7 +18471,7 @@ function ChangePassword({ email }) {
   }
   return (<div>
     <MenuRow label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="16" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
-    {open && <div className="pixel-box p-4 mt-2 fade-in" style={{ background: 'var(--card)' }}>
+    {open && <div className="px-4 pb-4 fade-in">
       <Field label="Current password"><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={e => setCur(e.target.value)} placeholder="current password" /></Field>
       <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
       <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} placeholder="type it again" /></Field>
@@ -18549,7 +18571,7 @@ function FeedbackSheet({ email, onClose }) {
     </Sheet>
   );
 }
-function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
+function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn }) {
   const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -18574,7 +18596,8 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
   }
   // One level of subscreen, never two. Rendered in place of the overview so the tab strip and page
   // header stay out of the way while you're inside a single setting.
-  const back = () => setScreen(null);
+  // A subscreen opened from Progress goes back to Progress, not to this overview.
+  const back = () => { if (backTo && onReturn) onReturn(); else setScreen(null); };
   const SCREENS = {
     weekplans: () => <WeekPlansScreen db={db} update={update} onBack={back} showToast={showToast} isPremium={isPremium} />,
     goal: () => <GoalScreen db={db} update={update} onBack={back} showToast={showToast} />,
@@ -18592,7 +18615,9 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     reset: () => <ResetScreen db={db} onBack={back} onConfirm={onReset} onExport={exportData} />,
   };
   if (screen && SCREENS[screen]) return (
-    <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+    <SubBackLabel.Provider value={backTo ? 'Progress' : 'You'}>
+      <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+    </SubBackLabel.Provider>
   );
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
@@ -18601,54 +18626,59 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
 
       {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />}
 
-      {tab === 'account' && <div className="space-y-2.5">
-        <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
-          <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1">Signed in as</div>
-          <div className="text-sm font-semibold break-all">{email || 'your account'}</div>
-        </div>
+      {/* The Account tab in the page's one list style (design-plans/34-overhaul/08): SettingsGroups
+          with the 9px label outside the box, rather than a stack of free-standing cards whose
+          labels used a fourth style of their own. */}
+      {tab === 'account' && <div>
+        <SettingsGroup title="Signed in as">
+          <div className="px-4 py-3.5 text-sm font-semibold break-all">{email || 'your account'}</div>
+        </SettingsGroup>
 
-        {isPremium ? (
-          <div className="pixel-box p-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Premium</div>
-              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90]">Trial: {daysLeft(sub.trial_end)}</div>}
+        <SettingsGroup title={isPremium ? 'Premium' : 'Free plan'}>
+          {isPremium ? (
+            <div className="p-4">
+              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90] mb-1">Trial: {daysLeft(sub.trial_end)}</div>}
+              <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
+              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
+              <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
             </div>
-            <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
-            <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
-          </div>
-        ) : (
-          <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-            <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent-ink)' }}>Free plan</div>
-            <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
-            <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
-          </div>
-        )}
+          ) : (
+            <div className="p-4" style={{ background: 'var(--accent-dim)' }}>
+              <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
+              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+              <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
+            </div>
+          )}
+        </SettingsGroup>
 
-        {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
-        <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
-        <InstallMenuRow />
-        <ChangePassword email={email} />
-        <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
-        <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
-        <MenuRow label="Sign out" onClick={onSignOut} />
+        <SettingsGroup title="Your account"><MenuList>
+          {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
+          <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
+          <InstallMenuRow />
+          <ChangePassword email={email} />
+          <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
+          <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
+          <MenuRow label="Sign out" onClick={onSignOut} />
+        </MenuList></SettingsGroup>
 
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Help & feedback</div>
-        <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+        <SettingsGroup title="Help & feedback"><MenuList>
+          <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+        </MenuList></SettingsGroup>
 
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Legal & privacy</div>
-        <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
-        <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
-        <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
-        <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
+        <SettingsGroup title="Legal & privacy"><MenuList>
+          <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
+          <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
+          <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
+          <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
+        </MenuList></SettingsGroup>
 
         {/* Fresh start used to sit here, and that was the wrong shelf: it deletes nothing by default,
             and somebody whose numbers feel wrong looks in their plan settings, not in the danger
-            zone. It lives under Your plan now. What is left here genuinely is irreversible. */}
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
-        <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
-        <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
+            zone. It lives with Progress & plan now. What is left here genuinely is irreversible. */}
+        <SettingsGroup title="Danger zone"><MenuList>
+          <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
+          <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
+        </MenuList></SettingsGroup>
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
@@ -18673,10 +18703,13 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
 }
 function Row2({ k, v, last }) { return (<div className={`flex justify-between items-center py-2.5 ${last ? '' : 'border-b border-[#262629]'}`}><span className="text-[#8A8A90] text-sm">{k}</span><span className="font-medium tnum">{v}</span></div>); }
 // A clean, tappable settings row: label (+ optional description) on the left, chevron on the right.
+// Since design-plans/34-overhaul/08 these are rows of a SettingsGroup (MenuList below draws the rules
+// between them) rather than a stack of separate boxes. Coloured labels take the INK of their colour:
+// the gold fill on the card measures well under 4.5:1.
 function MenuRow({ label, desc, onClick, tone, right }) {
-  const color = tone === 'danger' ? 'var(--danger)' : tone === 'accent' ? 'var(--accent)' : 'var(--text)';
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'accent' ? 'var(--accent-ink)' : 'var(--text)';
   return (
-    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 pixel-box p-3.5 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }}>
+    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left active:scale-[.99] transition">
       <div className="min-w-0">
         <div className="text-sm font-semibold" style={{ color }}>{label}</div>
         {desc && <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{desc}</div>}
@@ -21570,7 +21603,8 @@ function App() {
      buddy's coach line, a milestone, the weekly recap, a notification) return where it came from,
      rather than each call site having to remember to say so. */
   const [goalsFrom, setGoalsFrom] = useState('more');
-  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); if (v !== view) { try { window.scrollTo(0, 0); } catch (_) {} } _setView(v); };
+  // Leaving for any other tab also forgets a "came from Progress" settings return (settingFrom, below).
+  const setView = (v) => { if (v === 'goals' && view !== 'goals') setGoalsFrom(view === 'more' ? 'more' : view); if (v !== view) { try { window.scrollTo(0, 0); } catch (_) {} } if (v !== 'more') setSettingFrom(null); _setView(v); };
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
   // Read inside showToast, which is a plain function and would otherwise close over a stale value.
@@ -21579,6 +21613,8 @@ function App() {
   // A settings subscreen to open on arrival, so Progress can send you to the ONE goal editor in
   // Settings rather than carrying a second copy of it.
   const [settingScreen, setSettingScreen] = useState(null);
+  // 'goals' while a settings subscreen is open from Progress's plan rows, so its back returns there.
+  const [settingFrom, setSettingFrom] = useState(null);
   const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -22371,8 +22407,9 @@ function App() {
         }}
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
-      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
+      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
+        backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
           bar and the centre Add button get out of the way of the one control that matters there. */}

@@ -112,3 +112,12 @@ APPEARANCE                                       ← SettingsGroup, Seg rows ins
 ## Design documentation
 
 - Record with 07: "You = personal settings and account (MacroFactor's More). The plan lives on Progress."
+
+## Status
+
+**Done, 2026-10-06.** You opens with a "Progress & plan" group (Progress, with its teaser line as
+the status, and Fresh start). The plan rows show only while searching, so "macros" still finds
+Calories & macros. Nothing on You says the check-in is due. Google Health shows only when
+`ghConfigured()`. Appearance is a `SettingsGroup`. The Account tab is groups throughout: `MenuRow`
+is now a flat row, and a new `MenuList` rules the rows apart. Coloured labels moved to their ink
+tokens; gold text on the card had failed contrast.
