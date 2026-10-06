@@ -20187,8 +20187,9 @@ function RecipeBuilder({ onSave, onCancel }) {
     onSave(Object.assign(rec, { private: true }));
   }
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="text-lg font-bold mb-1">Build a recipe</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onCancel} backLabel="Cook" title="Build a recipe" />
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Add what goes in, in grams. The macros for a serving work themselves out as you go.</div>
     <Field label="Name"><TextInput value={title} onChange={e => { setTitle(e.target.value); setErr(''); }} placeholder="e.g. Chicken and chickpea curry" aria-label="Recipe name" /></Field>
     <Field label="Serves"><NumInput value={servings} onChange={e => setServings(e.target.value)} aria-label="Servings" /></Field>
@@ -20268,8 +20269,9 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   if (draft) return <RecipeReview recipe={draft} note={note} onSave={onSaved} onCancel={() => { setNote(''); setDraft(null); }} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="text-lg font-bold mb-3">Import a recipe</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onCancel} backLabel="Cook" title="Import a recipe" />
     <ShareTip className="mb-4" />
     <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
     <Field label="Video link">
@@ -20576,7 +20578,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             </SheetBox>
           ))}
         </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
-        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal. You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
+        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
         {busy ? <div className="text-[12px] flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
           : <SheetBtn tone="ghost" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</SheetBtn>}
         {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
@@ -20762,14 +20764,11 @@ function ShoppingListView({ db, update, showToast, onBack }) {
   );
 
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="flex items-center justify-between mb-3 gap-3">
-      <h1 className="text-xl font-bold">Shopping list</h1>
-      <div className="flex items-center gap-3 shrink-0">
-        {unchecked.length > 0 && <button onClick={shareList} className="hit text-[12px] flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}><Icon.share width="24" height="24" /> Share</button>}
-        {checked.length > 0 && <button onClick={clearChecked} className="hit text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
-      </div>
-    </div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="Shopping list"
+      actions={unchecked.length > 0 ? [{ icon: <Icon.share width="16" height="16" />, label: 'Share the list', onClick: shareList }] : []} />
+    {checked.length > 0 && <div className="flex justify-end mb-3"><TextBtn tone="quiet" onClick={clearChecked}>Clear ticked</TextBtn></div>}
 
     <form onSubmit={e => { e.preventDefault(); addManual(); }} className="flex gap-2 mb-4">
       <input value={add} onChange={e => setAdd(e.target.value)} placeholder="Add an item, e.g. 2 milk" className="flex-1 min-w-0 pixel-box px-3 py-2 text-[14px] bg-transparent" style={{ color: 'var(--text)' }} />
@@ -20824,17 +20823,16 @@ function ChefCard({ db }) {
        sentence of explanation. It used to spend its top-right corner on a big number that duplicated
        what the title bar now says in a quarter of the space. */
     <Card className="p-0 mb-4 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-        <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Community cookbook · Lvl {bt.level}</span>
-        <span className="pf text-[10px] uppercase shrink-0 tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{shared} shared</span>
-      </div>
-      <div className="px-3 py-3 flex flex-col gap-2.5">
+      <CardHead title={'Community cookbook · Lvl ' + bt.level} right={shared + ' shared'} />
+      {/* One line, then the bar (design-plans/34-overhaul/06). The sentence explaining the system is
+          for someone who has not used it yet, so it goes once anything has been shared. */}
+      <div className="px-3 py-2.5 flex flex-col gap-2">
         <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[15px] font-semibold truncate">{name}</span>
+          <span className="text-[13.5px] font-semibold truncate">{name}</span>
           {bt.next != null && <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{toGo} to {nextName}</span>}
         </div>
         {bt.next != null && <PipLine pct={(bt.progress || 0) * 100} color="var(--accent)" height={9} />}
-        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>
+        {(shared === 0 || bt.next == null) && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>}
       </div>
     </Card>
   );
@@ -20987,9 +20985,10 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   const forecast = weekForecastTargets(db, days);
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="flex items-center justify-between mb-3">
-      <PageHeader kicker="Cook" title="Meal plan" />
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="Meal plan" />
+    <div className="flex items-center justify-end mb-3">
       <div className="flex items-center gap-1.5 shrink-0">
         <button onClick={() => setWeekStart(shiftISO(weekStart, -7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Previous week"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <button onClick={() => setWeekStart(today)} className="pixel-box px-2.5 h-9 text-[11px] flex items-center" style={{ background: 'var(--surface3)' }}>This week</button>
@@ -21191,8 +21190,9 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} title="Photograph your fridge" subtitle="Snap a shelf or two of what you've got" frameHint="Fit a shelf in the frame, then tap to capture. Add more after." unavailable="Camera unavailable here, upload a photo of your fridge instead." fileName="fridge.jpg" />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
-    <div className="text-lg font-bold mb-1">Cook from your fridge</div>
+    {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
+        a grey back link floating on the page (design-plans/34-overhaul/06). */}
+    <SubHeader back={onBack} backLabel="Cook" title="From your fridge" />
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
     {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
@@ -21409,41 +21409,28 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && <>
       {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
+      {/* The two places first and the tool last. The fridge is reached from here and from the buddy's
+          own nudge on Today ("Cook from my fridge"), so it no longer needs a hero card of its own as
+          well - that was two doors to one room, side by side (design-plans/34-overhaul/06). */}
       <PageBar context="Cook" actions={[
-        { icon: <Icon.cam width="24" height="24" />, label: 'Cook from your fridge', onClick: () => setScreen('fridge') },
         { icon: <Icon.calendar width="24" height="24" />, label: 'Meal plan', onClick: () => setScreen('plan') },
         { icon: <Icon.cart width="24" height="24" />, label: 'Shopping list', onClick: () => setScreen('shopping'), badge: shoppingCount > 0 ? shoppingCount : null },
+        { icon: <Icon.cam width="24" height="24" />, label: 'Cook from your fridge', onClick: () => setScreen('fridge') },
       ]} />
-      {/* Cook-from-fridge is the tab's best-kept secret, so give it a labelled hero here (not just the
-          icon in the toolbar): snap the fridge, get recipes you can make now. */}
-      <button onClick={() => setScreen('fridge')} className="w-full pixel-box p-3.5 mb-4 flex items-center gap-3 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }} aria-label="Cook from your fridge">
-        <span className="shrink-0 w-11 h-11 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }}>
-          <Icon.cam width="24" height="24" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-bold leading-tight">Cook from your fridge</span>
-          <span className="block text-[11px] text-[#8A8A90] leading-snug mt-0.5">Snap what you've got and I'll find recipes you can make right now.</span>
-        </span>
-        <span className="shrink-0" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
-      </button>
-      <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
-      {/* The house segmented control again: one frame, butted segments, pixel face. */}
-      <div className="grid grid-cols-2 mb-4" style={{ border: '2px solid var(--border)' }}>
-        {[['discover', 'Discover'], ['mine', 'Cookbook']].map(([k, l]) => (
-          <button key={k} onClick={() => setHubTab(k)} className="pf uppercase flex items-center justify-center gap-1.5"
-            style={{ padding: '9px 4px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
-              background: hubTab === k ? 'var(--accent)' : 'var(--card)',
-              color: hubTab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>
-            {l}{k === 'discover' && !isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}
-          </button>
-        ))}
-      </div>
+      <div className="mb-4"><Pill wide value={hubTab} onChange={setHubTab} options={[
+        { v: 'discover', l: <>Discover{!isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}</> },
+        { v: 'mine', l: 'Cookbook' },
+      ]} /></div>
       {hubTab === 'discover'
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
         : !allRecipes.length ? <>
-        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
+        {/* The two ways in, side by side on one row: they are a pair of answers to "where does a
+            recipe come from", not two full-width slabs above everything (design-plans/34-overhaul/06). */}
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
+          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
+        </div>
         <ShareTip className="mb-4" />
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="48" height="48" style={{ color: 'var(--muted)' }} /></div>
@@ -21451,8 +21438,10 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, upload your own, or build one from ingredients, and it becomes a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
         </Card>
       </> : <>
-        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <Btn kind="ghost" className="w-full mb-3" onClick={() => setScreen('build')}>Build one from ingredients</Btn>
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
+          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
+        </div>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
           <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[9px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
@@ -21466,6 +21455,10 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </>
           : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent-ink)' }}>Clear filters</button></div>}
       </>}
+      {/* The contributor level is a reward to look at, not a task to do, so it comes after the
+          recipes rather than above them (design-plans/34-overhaul/06). Cookbook only: it is about
+          what you have shared. */}
+      {hubTab !== 'discover' && <div className="mt-4"><ChefCard db={db} /></div>}
       {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}

@@ -139,3 +139,14 @@ COMMUNITY COOKBOOK · LVL 1 ……… 3 SHARED       ← compact ChefCard, last
 
 - Record: "Every screen you go into uses `SubHeader`. As of 34/06, no floating back links remain in
   Cook."
+
+## Status
+
+**Done, 2026-10-06.** At 390×844 the "Cook for your gap" rail starts at 344px CSS and the first
+recipe card at ≈390px (it was ≈740px; the target was ≤480px). The fridge hero is gone; the toolbar
+camera and the buddy's nudge remain. Discover/Cookbook is `Pill wide`. Import and Build share one
+row. `ChefCard` uses `CardHead`, comes last on the Cookbook tab, and only shows its explanatory
+sentence before anything has been shared. Shopping list, Meal plan, From your fridge, Build and
+Import all open with `SubHeader` ("‹ Cook"). On the shopping list, Share became the bar's icon
+action and "Clear ticked" a quiet `TextBtn`. Recipe detail's sentence no longer repeats the
+serving's kcal.
