@@ -118,3 +118,16 @@ once, puts every meal choice on one row, and moves the leftovers onto the sheet'
 ## Design documentation
 
 - None.
+
+## Status
+
+**Done, 2026-10-06.**
+- The AI route is called "Estimate it instead" in all three places it appears: the Food tab's
+  "Can't find it?", the Recent tab and the Scan tab. The plan only named the first; the other two
+  had the same mismatch.
+- All three places use a new `RouteRow` (ChoiceRow's frame with a chevron).
+- At 390px, BREAKFAST wrapped inside a quarter-width button, so the stop condition's fallback was
+  taken: with four or more meals, Edit entry and Copy-to show the design's BRK / LUN / DIN / SNK
+  (`mealShort`).
+- The speed table was not measured. No step was added, removed or reordered in any logging flow
+  (the changes are labels and styling), so the action counts are unchanged by construction.

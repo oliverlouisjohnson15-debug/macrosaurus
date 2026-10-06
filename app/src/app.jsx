@@ -3868,6 +3868,28 @@ function ChoiceRow({ selected, onClick, title, sub }) {
     </button>
   );
 }
+/* A meal's three-letter name, for a chooser with four or more meals on one row: the design draws
+   Edit entry's meal row as BRK / LUN / DIN / SNK (Sheets.dc.html), because BREAKFAST in the pixel
+   face does not fit a quarter of a phone. A meal this does not know takes its first three letters. */
+function mealShort(name) {
+  const n = String(name || '').trim().toLowerCase();
+  const known = { breakfast: 'Brk', lunch: 'Lun', dinner: 'Din', tea: 'Tea', supper: 'Sup', snack: 'Snk', snacks: 'Snk' };
+  return known[n] || (String(name || '').trim().slice(0, 3) || '?');
+}
+/* A row inside a sheet that leads somewhere else: ChoiceRow's frame and type, a 24px glyph where its
+   radio sits, and a chevron on the right. The log sheet's "Can't find it?" routes use it. */
+function RouteRow({ icon, title, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="pixel-btn w-full text-left flex items-center gap-3 p-3" style={{ borderWidth: 2, background: 'var(--card)' }}>
+      <span className="shrink-0 w-6 h-6 flex items-center justify-center">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13.5px] font-semibold leading-snug">{title}</span>
+        {sub && <span className="block text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{sub}</span>}
+      </span>
+      <span className="shrink-0" style={{ color: 'var(--muted)' }}><Icon.chevron width="16" /></span>
+    </button>
+  );
+}
 /* A sheet's primary action: full-bleed gold, the pixel face, the design's 15px of padding. */
 /* The full-bleed version, with the same two tiers as `Btn` above. `accent` commits and wears the
    pixel face at the design's 12px; `ghost` opens or adjusts and stays in Plex Mono, sentence case,
@@ -3912,10 +3934,13 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
    one control, while these commit a setting and want to read as a row of things you can press. The
    pixel face because the labels are short and chrome-like. */
 function Seg({ value, options, onChange }) {
-  return (<div className="flex gap-2.5 flex-wrap">
+  // Four or more choices (a meal: breakfast, lunch, dinner, snacks) share one row instead of wrapping
+  // three-and-one, where the lone fourth button stretched full width and read as the important one.
+  const many = options.length >= 4;
+  return (<div className={'flex flex-wrap ' + (many ? 'gap-2' : 'gap-2.5')}>
     {options.map(o => (
       <button key={o.v} onClick={() => onChange(o.v)}
-        className="pixel-btn flex-1 min-w-[28%] py-2.5 px-2 pf text-[10px] uppercase"
+        className={'pixel-btn flex-1 py-2.5 pf text-[10px] uppercase ' + (many ? 'min-w-[22%] px-1' : 'min-w-[28%] px-2')}
         style={{ letterSpacing: '0.08em', borderWidth: 2,
           background: value === o.v ? 'var(--accent)' : 'var(--card)',
           color: value === o.v ? 'var(--on-accent)' : 'var(--text)' }}>{o.l}</button>
@@ -14172,7 +14197,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
               </button>}
         </div>
       </div>
-      {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: x.name }))} /></div>}
+      {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: meals.length >= 4 ? mealShort(x.name) : x.name }))} /></div>}
       {canSwitch && <div><SheetLabel className="block mb-[7px]">Measure in</SheetLabel><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
       <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun}
@@ -14250,9 +14275,10 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
     <Sheet title={title} onClose={onClose} wide z={80}>
       <div>
       {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
+      {/* The same meal control as Edit entry, not a third hand-rolled row of chips. */}
       {meals && <div className="mb-3">
-        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
-        <div className="flex gap-1.5 flex-wrap">{meals.map(m => <button key={m.id} onClick={() => setSelMeal(m.id)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{m.name}</button>)}</div>
+        <SheetLabel className="block mb-[7px]">Into which meal</SheetLabel>
+        <Seg value={selMeal} onChange={setSelMeal} options={meals.map(m => ({ v: m.id, l: meals.length >= 4 ? mealShort(m.name) : m.name }))} />
       </div>}
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Quick copy to</div>
       <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
@@ -14502,25 +14528,19 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
       {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
     </>}
     <div className="mt-5">
-      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Can't find it?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
-      {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
-        <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Estimate a meal from text, voice or a photo</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
-      <button onClick={() => setManual(true)} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>
-      {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
-          pick before every single log, so it waits down here with the other "it isn't in the list"
-          answers instead of taxing the top of the sheet on every visit. */}
-      {onAlcohol && <button onClick={onAlcohol} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Beer, wine or spirits, with the units</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
+      {/* THE OTHER ROUTES, on the sheet's own blocks (design-plans/34-overhaul/04): a 2px rule either
+          side of the sheet label, then rows built like ChoiceRow with a chevron where its radio
+          goes. They were the last legacy dark boxes on the sheet, and the AI route was called
+          "Describe it to the AI" here while the tab it opens is called ESTIMATE. One name now. */}
+      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /><SheetLabel>Can't find it?</SheetLabel><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /></div>
+      <div className="flex flex-col gap-2">
+        {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="From a description, your voice or a photo" />}
+        <RouteRow onClick={() => setManual(true)} icon={<Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} />} title="Enter it manually" sub="Type in the macros yourself" />
+        {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
+            pick before every single log, so it waits down here with the other "it isn't in the list"
+            answers instead of taxing the top of the sheet on every visit. */}
+        {onAlcohol && <RouteRow onClick={onAlcohol} icon={<PixelGlyph kind="drink" color="var(--muted)" size={24} />} title="Log a drink" sub="Beer, wine or spirits, with the units" />}
+      </div>
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
     {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
@@ -15118,11 +15138,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[#8A8A90]">Wrong product, or the numbers look off</div></div>
         <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
-      {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
-        <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Not packaged, or nothing to scan</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-      </button>}
+      {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="Not packaged, or nothing to scan" />}
     </div>}
 
   </div>);
@@ -16415,10 +16431,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
       <div className="min-w-0"><div className="text-sm font-medium">No barcode? Scan the label</div><div className="text-[11px] text-[#8A8A90]">Point your camera at the nutrition label and it reads the exact numbers.</div></div>
     </button>
     {onAskAI && <div className="flex items-center gap-3 my-3"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">or</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>}
-    {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition">
-      <div className="w-11 h-11 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
-      <div className="min-w-0"><div className="text-sm font-medium">Nothing to scan? Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Type, say, or photograph a meal and the AI estimates it.</div></div>
-    </button>}
+    {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Nothing to scan? Estimate it instead" sub="Type, say, or photograph a meal and the AI estimates it." />}
     {busy && <div className="text-[12px] text-[#4A9EEB] mt-3 fade-in">{busy}</div>}{err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}</div>);
 }
 // UK drink standards: [label, default ABV %, residual carbs g/100ml]. Calories = alcohol (7 kcal/g,
