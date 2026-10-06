@@ -116,3 +116,10 @@ MORE ─────────────────────────
 ## Design documentation
 
 - None.
+
+## Status
+
+**Done, 2026-10-06.** The week card ends in one row ("1 session left this week." · Change days ›).
+Below the week is one "More" card of `SettingsRow`s: History, Progress, Blocks, Change this block
+and Empty session, each under its old condition. `SettingsRow` resolves in the bundle, so no local
+copy was needed.
