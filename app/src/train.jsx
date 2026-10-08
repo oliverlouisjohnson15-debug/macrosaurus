@@ -68,7 +68,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Your blocks" />
-      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Built, imported and archived</div>
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Built, imported and archived</div>
       <h1 className="pf text-lg mb-2">Your blocks</h1>
       <div className="text-[12.5px] mb-4 leading-relaxed" style={{ color: 'var(--muted)' }}>
         Everything you have built or imported. Tap one to change it, or delete one you made by mistake. The sessions you logged against a block are kept either way.
@@ -79,7 +79,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           since graph paper has said that. */}
       {!blocks.length && (
         <div className="p-5 text-center mb-4" style={{ border: '2px dashed var(--border)' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Nothing here yet</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Nothing here yet</div>
           <div className="text-[12.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             Build one from your kit and your days, or import a plan you already follow.
           </div>
@@ -170,7 +170,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           list is empty or twelve long. Bringing a source is a step inside this now, not a separate
           screen competing with it. */}
       <div className="mt-1">
-        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
+        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
       </div>
 
       {fixing && (() => {
@@ -252,7 +252,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">Coverage</h1>
       <Collapsible label="Hard sets per muscle, per week" sub="How this is counted" variant="inline" className="mb-4">
         <div className="text-[12px] leading-snug mt-2" style={{ color: 'var(--muted)' }}>
@@ -267,7 +267,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
       {lens === 'planned' && block && (
         <div className="flex gap-2 mb-4">
           {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
-            <button key={w} onClick={() => setWeek(w)} className="pixel-box flex-1 py-2 pf text-[9px]"
+            <button key={w} onClick={() => setWeek(w)} className="pixel-box flex-1 py-2 pf text-[11px]"
               style={{ background: week === w ? '#fff' : 'var(--surface2)', color: week === w ? '#111' : 'var(--text2)' }}>W{w}</button>
           ))}
         </div>
@@ -309,7 +309,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 
       {cov.gaps.length > 0 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What is short</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What is short</div>
           {cov.gaps.slice(0, 5).map(g => (
             <div key={g.muscle} className="mb-4">
               <div className="text-[13px] mb-2">{gapSentence(g)}</div>
@@ -333,7 +333,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 
       {block && lens === 'planned' && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>How often each muscle is hit</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>How often each muscle is hit</div>
           <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             Twice a week beats once at the same total. {(() => {
               const once = Training.MUSCLES.filter(m => freq[m] === 1 && cov.rows.filter(r => r.muscle === m)[0].sets >= cov.rows.filter(r => r.muscle === m)[0].mev);
@@ -361,13 +361,13 @@ function ExpandableLiftList({ lifts }) {
     <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 px-3.5 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
       <div className="min-w-0">
         <div className="text-[13px] truncate">{l.name}</div>
-        <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
+        <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
       </div>
       <div className="text-right whitespace-nowrap">
         <div className="text-[13px] font-bold" style={{ color: l.deltaPct > 1 ? 'var(--good)' : l.deltaPct < -1 ? 'var(--danger)' : 'var(--muted)' }}>
           {l.deltaPct > 0 ? '+' : ''}{l.deltaPct}%
         </div>
-        <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>est. 1RM</div>
+        <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>est. 1RM</div>
       </div>
     </div>
   );
@@ -392,7 +392,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   const units = t.prefs.units;
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
-  if (!block) return <div className="fade-in"><button onClick={onBack} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button><div className="mt-6 text-[13px]">That block is gone.</div></div>;
+  if (!block) return <div className="fade-in"><button onClick={onBack} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button><div className="mt-6 text-[13px]">That block is gone.</div></div>;
   const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
 
   async function writeUp() {
@@ -404,22 +404,22 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   }
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">How it went</h1>
       <div className="text-[12px] mb-6" style={{ color: 'var(--muted)' }}>{block.name}</div>
 
       <div className="grid grid-cols-3 gap-2 mb-6">
         <Card className="p-3 text-center">
           <div className="pf text-[15px]" style={{ color: review.adherence >= 80 ? 'var(--good)' : 'var(--warn)' }}>{review.adherence}%</div>
-          <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>sessions done</div>
+          <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>sessions done</div>
         </Card>
         <Card className="p-3 text-center">
           <div className="pf text-[15px]">{review.improved.length}</div>
-          <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>lifts up</div>
+          <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>lifts up</div>
         </Card>
         <Card className="p-3 text-center">
           <div className="pf text-[15px]">{fmtTonnage(review.tonnage, units)}</div>
-          <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>{unitLabel(units)} moved</div>
+          <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{unitLabel(units)} moved</div>
         </Card>
       </div>
 
@@ -434,7 +434,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         const tone = d.needed ? 'var(--warn)' : d.borderline ? 'var(--muted)' : 'var(--good)';
         return (
           <Card className="p-4 mb-4" style={{ background: d.needed ? 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' : 'var(--card)' }}>
-            <div className="pf text-[9px] uppercase mb-2" style={{ color: tone }}>
+            <div className="pf text-[11px] uppercase mb-2" style={{ color: tone }}>
               The verdict · {d.needed ? 'Take a lighter week' : d.borderline ? 'Your call' : 'Straight on'}
             </div>
             <div className="text-[13px] leading-snug mb-2">{d.advice}</div>
@@ -464,13 +464,13 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
             <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 px-3.5 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
               <div className="min-w-0">
                 <div className="text-[13px] truncate">{l.name}</div>
-                <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
+                <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
               </div>
               <div className="text-right whitespace-nowrap">
                 <div className="text-[13px] font-bold" style={{ color: l.deltaPct > 1 ? 'var(--good)' : l.deltaPct < -1 ? 'var(--danger)' : 'var(--muted)' }}>
                   {l.deltaPct > 0 ? '+' : ''}{l.deltaPct}%
                 </div>
-                <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>est. 1RM</div>
+                <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>est. 1RM</div>
               </div>
             </div>
           ))}
@@ -480,7 +480,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
 
       {review.stalled.length > 0 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Stalled</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Stalled</div>
           {review.stalled.map(l => (
             <div key={l.exerciseId} className="text-[12px] mb-2 leading-snug">
               <span className="font-bold">{l.name}.</span> {l.stall.advice}
@@ -507,7 +507,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
       })()}
 
       <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What you actually trained</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What you actually trained</div>
         <div className="text-[11px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>Average sets a week, from the sessions you logged rather than the ones we wrote down.</div>
         <CoverageBars coverage={review.coverage} />
       </Card>
@@ -554,7 +554,7 @@ function RotationCard({ lift, on, chosen, onToggle, onPick, muted }) {
         <div className="min-w-0">
           {/* Once it is switched on, the label has to say what is HAPPENING. It read "Keep it" over a
               card showing an arrow to a replacement, which is the app disagreeing with itself. */}
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: on ? 'var(--accent-ink)' : tone.color }}>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: on ? 'var(--accent-ink)' : tone.color }}>
             {on ? 'Changing' : tone.label} &middot; {ROLE_LABEL[lift.role]}{lift.dayName ? ' · ' + lift.dayName : ''}
           </div>
           <div className="text-[13.5px] font-semibold leading-tight">
@@ -562,7 +562,7 @@ function RotationCard({ lift, on, chosen, onToggle, onPick, muted }) {
           </div>
         </div>
         <button onClick={onToggle} disabled={!lift.candidates.length}
-          className="pf text-[9px] px-3 py-2 shrink-0 hit"
+          className="pf text-[11px] px-3 py-2 shrink-0 hit"
           style={{
             background: on ? 'var(--accent)' : 'var(--surface3)',
             color: on ? 'var(--on-accent)' : 'var(--muted)',
@@ -649,7 +649,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   if (!block || !plan || !rot) {
     return (
       <div className="fade-in">
-        <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+        <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
         <Card className="p-4"><div className="text-[13px]">That block is not here any more.</div></Card>
       </div>
     );
@@ -706,7 +706,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   const LABEL = { sets: 'More work', add: 'Missing' };
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
       <h1 className="pf text-lg mb-1">Run it again</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{rot.headline}</div>
 
@@ -728,7 +728,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
           everything that earned its place is a row you skim in one line. Both had the same visual
           weight before, which is how thirty-four identical cards happened. */}
       {upFront.length > 0 && (
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Worth a change · {upFront.length}</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Worth a change · {upFront.length}</div>
       )}
       {upFront.map(l => (
         <RotationCard key={l.exerciseId + '_' + l.day + '_' + l.index} lift={l} on={!!chosen[l.exerciseId]}
@@ -740,7 +740,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
           said out loud rather than enforced silently. */}
       {rotations.length > (rot.caps.main + rot.caps.accessory) && (
         <Card className="p-4 mb-3" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>That is a lot at once</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>That is a lot at once</div>
           <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
             You are changing {rotations.length} movements. Nothing stops you, but a block where most of
             it is new is a block you cannot compare to this one, and none of what happens can be pinned
@@ -770,7 +770,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
               <button key={key} onClick={() => setExpandedKeep(x => Object.assign({}, x, { [key]: true }))}
                 className="w-full text-left px-3.5 py-3 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)' }}>
                 <span className="text-[13px] font-semibold truncate">{l.name}</span>
-                <span className="pf text-[9px] uppercase shrink-0" style={{ color: l.deltaPct > 1 ? 'var(--good-ink)' : 'var(--accent-ink)' }}>
+                <span className="pf text-[11px] uppercase shrink-0" style={{ color: l.deltaPct > 1 ? 'var(--good-ink)' : 'var(--accent-ink)' }}>
                   {l.deltaPct > 1 ? 'trend ↗' : 'swap ›'}
                 </span>
               </button>
@@ -786,7 +786,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
       )}
 
       {volume.length > 0 && (
-        <div className="pf text-[9px] uppercase mb-2 mt-5" style={{ color: 'var(--accent-ink)' }}>How much</div>
+        <div className="pf text-[11px] uppercase mb-2 mt-5" style={{ color: 'var(--accent-ink)' }}>How much</div>
       )}
       {volume.map((c, i) => {
         const isOff = !!off[i];
@@ -794,7 +794,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
           <Card key={i} className="p-4 mb-3" style={{ opacity: isOff ? 0.5 : 1 }}>
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="min-w-0">
-                <div className="pf text-[9px] uppercase mb-2" style={{ color: c.kind === 'add' ? 'var(--warn)' : 'var(--accent-ink)' }}>
+                <div className="pf text-[11px] uppercase mb-2" style={{ color: c.kind === 'add' ? 'var(--warn)' : 'var(--accent-ink)' }}>
                   {LABEL[c.kind]}{c.dayName ? ' · ' + c.dayName : ''}
                 </div>
                 <div className="text-[13.5px] font-semibold leading-tight">
@@ -803,7 +803,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
                 </div>
               </div>
               <button onClick={() => setOff(o => Object.assign({}, o, { [i]: !isOff }))}
-                className="pf text-[9px] px-3 py-2 shrink-0 hit"
+                className="pf text-[11px] px-3 py-2 shrink-0 hit"
                 style={{ background: isOff ? 'var(--surface3)' : 'var(--accent)', color: isOff ? 'var(--muted)' : 'var(--on-accent)', border: '2px solid var(--border)' }}>
                 {isOff ? 'OFF' : 'ON'}
               </button>
@@ -903,7 +903,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="History" />
-      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What did I actually do?</div>
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What did I actually do?</div>
       <h1 className="pf text-lg mb-2">History</h1>
       <div className="text-[12.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Every session you have logged, newest first. Bests and trends live in Progress.
@@ -938,7 +938,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
                 className="w-full text-left px-3 py-3 flex items-start gap-3"
                 style={i ? { borderTop: '2px solid var(--track)' } : null}>
                 <span className="shrink-0 text-center" style={{ width: 34 }}>
-                  <span className="block pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>{WEEKDAYS[(d.getUTCDay() + 6) % 7]}</span>
+                  <span className="block pf text-[11px] uppercase" style={{ color: 'var(--muted2)' }}>{WEEKDAYS[(d.getUTCDay() + 6) % 7]}</span>
                   <span className="block pf text-[13px] tnum" style={{ color: 'var(--text2)' }}>{d.getUTCDate()}</span>
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1013,20 +1013,20 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; History</button>
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Movement</div>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; History</button>
+      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Movement</div>
       <div className="flex items-start justify-between gap-2 mb-2">
         <h1 className="text-[19px] font-bold leading-tight">{ex ? ex.name : exerciseId}</h1>
         {/* The PR moment the block review celebrates gets a home outside the session too. */}
         {isPB && (
-          <span className="pf text-[8px] uppercase shrink-0 px-2 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.08em' }}>PB ▲</span>
+          <span className="pf text-[11px] uppercase shrink-0 px-2 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.08em' }}>PB ▲</span>
         )}
       </div>
       <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
+          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
           <div className="flex items-baseline gap-2 mb-4">
             <span className="pf text-[18px] tnum">{toDisplayWeight(latest.e1rm, units)}{unitLabel(units)}</span>
             {delta !== 0 && (
@@ -1047,7 +1047,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
           </div>
           <div className="relative mt-2" style={{ height: 12 }}>
             {monthTicks.map((tk, i) => (
-              <span key={i} className="absolute text-[10px]" style={{ color: 'var(--muted2)', left: (tk.i / shownHist.length * 100) + '%' }}>{tk.label}</span>
+              <span key={i} className="absolute text-[11px]" style={{ color: 'var(--muted2)', left: (tk.i / shownHist.length * 100) + '%' }}>{tk.label}</span>
             ))}
           </div>
         </Card>
@@ -1055,7 +1055,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
 
       {cameFrom && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Rotated</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Rotated</div>
           <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
             You came here from {hist.filter(h => h.exerciseId !== exerciseId).slice(-1)[0].name.toLowerCase()} on {cameFrom.dateISO}.
             The earlier sessions are in the chart in grey, because the muscle carried on from where it
@@ -1071,12 +1071,12 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
       )}
 
       <Card className="p-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Every session</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Every session</div>
         {hist.slice().reverse().map((h, i) => (
           <div key={i} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
               {h.dateISO}
-              {h.exerciseId !== exerciseId && <span className="block text-[10px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
+              {h.exerciseId !== exerciseId && <span className="block text-[11px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
             </span>
             <span className="text-[12px]">{h.sets} sets · top {toDisplayWeight(h.topWeight, units)}{unitLabel(units)} x {h.topReps}</span>
           </div>
@@ -1128,7 +1128,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-4">Training settings</h1>
 
       {/* Three groups by WHEN a setting matters - you, in a session, the model - rather than by when
@@ -1143,7 +1143,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
           <Field label="Experience" hint="Sets the volume bands your coverage is judged against.">
             <Seg value={prefs.experience} onChange={v => set('experience', v)} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
           </Field>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>Where you train</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>Where you train</div>
           {gyms.map(g => (
             <button key={g.id} onClick={() => setGymEdit(g)} className="w-full text-left flex items-center justify-between gap-2 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
               <span className="min-w-0">
@@ -1191,7 +1191,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
           <span className="text-[12.5px]" style={{ color: 'var(--text2)' }}>
             {Training.MUSCLES.length} muscles{changedCount ? ' · ' + changedCount + ' changed from default' : ''}
           </span>
-          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{bandsOpen ? 'close' : 'open ›'}</span>
+          <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{bandsOpen ? 'close' : 'open ›'}</span>
         </button>
         {bandsOpen && (
           <div className="px-3.5 pb-3.5" style={{ borderTop: '2px solid var(--border)' }}>
@@ -1209,7 +1209,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
         )}
         <button onClick={onHowItWorks} className="w-full text-left flex items-center justify-between gap-2 px-3.5 py-3" style={{ borderTop: '2px solid var(--border)' }}>
           <span className="text-[12.5px]" style={{ color: 'var(--text2)' }}>How your plan is built</span>
-          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>read ›</span>
+          <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>read ›</span>
         </button>
       </Card>
 
@@ -1696,7 +1696,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">Block library</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Blocks other members are running. Whatever you pick gets rebuilt around your kit and the volume you recover from.
@@ -1736,7 +1736,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
         <button key={pub.id} onClick={() => setPreview(pub)} className="w-full text-left pixel-box p-4 mb-4" style={{ background: 'var(--card)' }}>
           <div className="flex items-baseline justify-between gap-2 mb-1">
             <span className="text-[14px] font-bold truncate">{pub.title}</span>
-            {pub.runs > 0 && <span className="text-[10px] shrink-0 tnum" style={{ color: 'var(--muted2)' }}>{pub.runs} running</span>}
+            {pub.runs > 0 && <span className="text-[11px] shrink-0 tnum" style={{ color: 'var(--muted2)' }}>{pub.runs} running</span>}
           </div>
           <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>
             {pub.days_per_week} days · {SPLIT_LABEL[pub.split] || 'Custom split'} · {Math.round(pub.total_sets)} sets a week
@@ -1745,7 +1745,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
           {/* The muscles it hits hardest, so you can tell at a glance whether it matches what you want. */}
           <div className="flex gap-1 flex-wrap">
             {topMuscles(pub.muscles, 4).map(m => (
-              <span key={m} className="text-[10px] px-2 py-0.5" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{Training.MUSCLE_LABEL[m]}</span>
+              <span key={m} className="text-[11px] px-2 py-0.5" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{Training.MUSCLE_LABEL[m]}</span>
             ))}
           </div>
         </button>
@@ -1790,8 +1790,8 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Library</button>
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Shared block</div>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Library</button>
+      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Shared block</div>
       <h1 className="text-[19px] font-bold leading-tight mb-2">{pub.title}</h1>
       <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
         {pub.days_per_week} days a week · {SPLIT_LABEL[pub.split] || 'Custom split'}
@@ -1802,7 +1802,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
       {/* The honest bit. This is what makes adopting safe rather than a leap of faith. */}
       {(result.swaps.length > 0 || Math.abs(authorSets - yourSets) > 4) && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>What we changed for you</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>What we changed for you</div>
           {Math.abs(authorSets - yourSets) > 4 && (
             <div className="text-[12.5px] mb-2 leading-snug">
               The author runs about {authorSets} sets a week. Yours starts at {yourSets}, because week 1 should be
@@ -1830,7 +1830,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
             <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
             <div className="p-3.5">
               <MesoGrid weeks={read.weeks} sessions={read.sessions} />
-              <div className="text-[10.5px] mt-2.5" style={{ color: 'var(--muted2)' }}>
+              <div className="text-[11px] mt-2.5" style={{ color: 'var(--muted2)' }}>
                 About {read.minutesEach} min a session, once it is re-periodised to your numbers.
               </div>
             </div>
@@ -1839,7 +1839,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
       })()}
 
       <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Your week 1</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Your week 1</div>
         <CoverageBars coverage={cov} limit={6} compact />
       </Card>
 
@@ -1921,7 +1921,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
   if (!draft || !draft.days.length) {
     return (
       <div className="fade-in">
-        <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+        <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
         <h1 className="pf text-lg mb-2">Draft block</h1>
         <Card className="p-4 text-center">
           {/* Every other empty state in the app has the buddy in it. */}
@@ -1963,7 +1963,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
        tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
        button, and the last thing on this screen is how you throw the draft away. */
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       {/* "Draft block" named the object; "What I read" names what you are here to do, which is check
           the app's reading of somebody else's plan before four weeks get built on top of it. */}
       <h1 className="pf text-lg mb-1">What I read</h1>
@@ -1986,7 +1986,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       <div className="sticky z-10 -mx-5 px-5 pb-2.5 mb-3"
         style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
         <div className="pixel-box flex items-center gap-2.5 px-2.5 py-2" style={{ background: 'var(--card)' }}>
-          <span className="shrink-0 flex items-center justify-center pf text-[10px]"
+          <span className="shrink-0 flex items-center justify-center pf text-[11px]"
             style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>
             {flagged ? String(flagged) : <Tick size={12} />}
           </span>
@@ -1997,7 +1997,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           </span>
           {flagged > 0 && (
             <button onClick={() => edit(d => d.days.forEach(day => (day.exercises || []).forEach(e => { delete e.check; })))}
-              className="pf text-[7.5px] uppercase shrink-0 px-2" style={{ minHeight: 44, letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
+              className="pf text-[11px] uppercase shrink-0 px-2" style={{ minHeight: 44, letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
               Accept all
             </button>
           )}
@@ -2052,7 +2052,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             <button onClick={() => edit(d => { d.days.splice(di, 1); })} aria-label="Remove day" className="px-2 text-[16px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
           </div>
           {day.sourceRef && (
-            <div className="text-[10px] mb-2" style={{ color: 'var(--muted2)' }}>
+            <div className="text-[11px] mb-2" style={{ color: 'var(--muted2)' }}>
               from {day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? (day.sourceRef.name || 'a file') : 'text you pasted'}
             </div>
           )}
@@ -2072,7 +2072,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
                   {/* Three words and the name. The row is tappable, so the note's whole job is to
                       say what happened, not to argue for it. */}
                   {differs && (
-                    <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>
+                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>
                       {e.check === 'kit' ? 'Counted as ' + lib.name
                         : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check'
                           : 'Read as ' + lib.name + '?'}
@@ -2108,7 +2108,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
               className="w-full flex items-start justify-between gap-2 py-2 border-t text-left" style={{ borderColor: 'var(--border)' }}>
               <span className="min-w-0 flex-1">
                 <span className="block text-[12.5px] leading-snug" style={{ color: 'var(--muted2)' }}>{m.name}</span>
-                <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>not recognised &middot; choose the movement</span>
+                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>not recognised &middot; choose the movement</span>
               </span>
             </button>
           ))}
@@ -2380,7 +2380,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
               <span className="block text-[13.5px] font-semibold truncate">{g.name}</span>
               {!!gymSummary(g) && <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>}
             </span>
-            <span onClick={(e) => { e.stopPropagation(); setEditing(g); }} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Edit</span>
+            <span onClick={(e) => { e.stopPropagation(); setEditing(g); }} className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Edit</span>
           </button>
         ))}
         <button onClick={() => setEditing('new')} className="pixel-box w-full h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>+ Add a gym</button>
@@ -2446,7 +2446,7 @@ function HowItWorks({ onBack }) {
   ];
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Training</button>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Training</button>
       <h1 className="pf text-lg mb-2">How your plan is built</h1>
       <div className="text-[12px] mb-6 leading-snug" style={{ color: 'var(--muted)' }}>
         None of this is guesswork or an AI making it up as it goes. These rules are written into the app, tested, and every number you see comes out of them.
@@ -2567,7 +2567,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
   const stat = (label, value) => (
     <div className="flex-1 text-center">
       <div className="pf text-[13px] tnum">{value}</div>
-      <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>{label}</div>
+      <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{label}</div>
     </div>
   );
   return (
@@ -2696,7 +2696,7 @@ function StatSheet({ db, onBack }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Stats" />
-      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What the training adds up to</div>
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What the training adds up to</div>
       <h1 className="pf text-lg mb-4">Stats</h1>
 
       <Card className="p-0 overflow-hidden mb-4">
@@ -2727,7 +2727,7 @@ function StatSheet({ db, onBack }) {
           {rows.map(([k, label, why], i) => (
             <div key={k} className="p-3.5" style={i ? { borderTop: '2px solid var(--border)' } : null}>
               <div className="flex items-baseline justify-between gap-2 mb-2">
-                <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em' }}>{label}</span>
+                <span className="pf text-[11px] uppercase" style={{ letterSpacing: '0.14em' }}>{label}</span>
                 <span className="pf text-[13px] tnum" style={{ color: 'var(--accent-ink)' }}>{stats[k]}</span>
               </div>
               {/* Segmented, so it reads as a Game Boy power bar rather than a progress spinner. The
@@ -2748,18 +2748,18 @@ function StatSheet({ db, onBack }) {
           <CardHead title="Behind the numbers" />
           <div className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]">
             <span>Best single lift</span>
-            <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.bestLiftKg, units)}{unitLabel(units)} est. 1RM</span>
+            <span className="pf text-[11px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.bestLiftKg, units)}{unitLabel(units)} est. 1RM</span>
           </div>
           <div className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]" style={{ borderTop: '2px solid var(--border)' }}>
             <span>Hard sets a week</span>
-            <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{stats.setsPerWeek}</span>
+            <span className="pf text-[11px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{stats.setsPerWeek}</span>
           </div>
           {Object.keys(stats.patterns).length > 0 && Object.keys(stats.patterns).map(p => (
             <div key={p} className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]" style={{ borderTop: '2px solid var(--border)' }}>
               <span>
                 {{ squat: 'Best squat pattern', hinge: 'Best hinge', horizPress: 'Best press', vertPull: 'Best pull-up or pulldown' }[p] || p}
               </span>
-              <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.patterns[p], units)}{unitLabel(units)}</span>
+              <span className="pf text-[11px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.patterns[p], units)}{unitLabel(units)}</span>
             </div>
           ))}
         </Card>
@@ -2785,7 +2785,7 @@ function ActionSheet({ title, kicker, actions, onClose, children }) {
             were passing a name the library holds - two of them passing two, joined by "instead of" -
             into a face that runs a full em per character and has no narrow forms. */}
         <div className="px-4 pt-4 pb-2">
-          <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{kicker || 'Options'}</div>
+          <div className="pf text-[11px] uppercase" style={{ color: 'var(--muted)' }}>{kicker || 'Options'}</div>
           {title && <div className="text-[13.5px] font-semibold leading-tight mt-1">{title}</div>}
         </div>
         {/* Free-form content between the title and the action list, for the rare sheet that needs a
@@ -2815,7 +2815,7 @@ function ActionSheet({ title, kicker, actions, onClose, children }) {
                 opacity: a.disabled ? 0.5 : 1,
               }}>
               <span className="block text-[12px] font-semibold leading-tight">{a.label}</span>
-              {a.sub && <span className="block text-[10.5px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>{a.sub}</span>}
+              {a.sub && <span className="block text-[11px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>{a.sub}</span>}
             </button>
           );
         })}
@@ -2920,7 +2920,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
         </span>
         <span className="shrink-0 text-right">
           <LiftSpark series={r.series} tone={tone} />
-          <span className="block pf text-[10px] tnum mt-1" style={{ color: ink, letterSpacing: '0.04em' }}>
+          <span className="block pf text-[11px] tnum mt-1" style={{ color: ink, letterSpacing: '0.04em' }}>
             {r.deltaPct > 0 ? '+' : ''}{r.deltaPct}%
           </span>
         </span>
@@ -2944,7 +2944,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Progress" />
-      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Am I getting stronger?</div>
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Am I getting stronger?</div>
       <h1 className="pf text-lg mb-4">Progress</h1>
 
       {trends.rows.length === 0 ? (
@@ -2978,7 +2978,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
             <div className="px-3.5 pt-6 pb-3.5" style={{ background: HEAD[3] }}>
               {/* The name sits opposite the head so the two never collide, whatever the buddy is
                   called and however wide its frame is. */}
-              <div className="pf text-[9px] uppercase text-right mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>
+              <div className="pf text-[11px] uppercase text-right mb-2" style={{ color: HEAD[2], letterSpacing: '0.12em' }}>
                 {buddyName(db)} · {HEAD[0]}
               </div>
               <div className="text-[13.5px] leading-relaxed">

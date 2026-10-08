@@ -352,19 +352,19 @@ function CoverageBars({ coverage, limit, compact, legend }) {
           {/* The band swatch is a SLICE OF THE BAR, not a colour chip. As a flat square of
               accent-dim on a cream card it was very nearly invisible: the band only reads at all
               because it sits on the darker track, so the key has to carry the track with it. */}
-          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted2)' }}>
             <span className="shrink-0" style={{ width: 22, height: 9, border: '2px solid var(--border)', background: 'var(--track)' }}>
               <span className="block h-full" style={{ width: '60%', marginLeft: '20%', background: 'var(--accent-dim)' }} />
             </span>
             the range
           </span>
-          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted2)' }}>
             <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--good)' }} />in it
           </span>
-          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted2)' }}>
             <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--muted2)' }} />short
           </span>
-          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted2)' }}>
             <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--warn)' }} />past recovery
           </span>
         </div>
@@ -427,7 +427,7 @@ function MuscleTags({ exerciseId, custom }) {
   const prim = Object.keys(c).filter(m => c[m] >= 1);
   const sec = Object.keys(c).filter(m => c[m] < 1);
   return (
-    <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>
+    <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>
       {prim.map(m => Training.MUSCLE_LABEL[m]).join(', ')}
       {sec.length ? ' · ' + sec.map(m => Training.MUSCLE_LABEL[m]).join(', ') : ''}
     </span>
@@ -446,7 +446,7 @@ function BuddySays({ db, children, tone, className }) {
         <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
           <BuddyAvatar buddy={(db && db.buddy) || {}} px={1.6} />
         </div>
-        <div className="pf text-[9px] uppercase truncate" style={{ color: tone || 'var(--accent-ink)' }}>{buddyName(db)}</div>
+        <div className="pf text-[11px] uppercase truncate" style={{ color: tone || 'var(--accent-ink)' }}>{buddyName(db)}</div>
       </div>
       <div className="text-[13px] leading-relaxed whitespace-pre-wrap">{children}</div>
     </Card>

@@ -389,13 +389,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           className="pixel-box w-full text-left p-4 mb-4 flex items-center justify-between gap-3"
           style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--card))' }}>
           <span className="min-w-0">
-            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Still open</span>
+            <span className="pf text-[11px] uppercase block" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Still open</span>
             <span className="block text-[13px] font-semibold mt-1 truncate">{resume.name}</span>
             <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
               {resume.ticked} set{resume.ticked === 1 ? '' : 's'} in, all saved
             </span>
           </span>
-          <span className="pf text-[10px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>carry on ›</span>
+          <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>carry on ›</span>
         </button>
       )}
 
@@ -430,7 +430,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               const ink = wk.deload ? 'var(--warn-ink)' : wk.now ? 'var(--accent-ink)' : wk.past ? 'var(--good-ink)' : 'var(--muted2)';
               return (
                 <div key={wk.week} className="flex-1 min-w-0" style={{ border: '2px solid ' + border, background: bg, padding: '7px 6px' }}>
-                  <div className="pf text-[9px] uppercase truncate" style={{ color: ink, letterSpacing: '0.06em' }}>{label}</div>
+                  <div className="pf text-[11px] uppercase truncate" style={{ color: ink, letterSpacing: '0.06em' }}>{label}</div>
                   <div className="flex gap-[1px] mt-1.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
                     {Array.from({ length: Math.max(1, wk.total) }, (_, i) => (
                       <i key={i} className="flex-1" style={{ height: 7, background: i < wk.done ? tone : 'var(--track)' }} />
@@ -536,7 +536,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                 <button key={w} onClick={() => { setWeekAt(w === prog.week ? null : w); setWeekPick(false); }}
                   className="w-full p-2.5 flex items-center justify-between gap-2 text-left"
                   style={{ border: '2px solid var(--border)', background: w === shownWeek ? 'color-mix(in srgb, var(--accent) 16%, var(--card))' : 'var(--card)' }}>
-                  <span className="pf text-[9px] uppercase" style={{ color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)', letterSpacing: '0.1em' }}>
+                  <span className="pf text-[11px] uppercase" style={{ color: w === shownWeek ? 'var(--accent-ink)' : 'var(--text2)', letterSpacing: '0.1em' }}>
                     Week {w}{w === prog.week ? ' · now' : ''}
                   </span>
                   <span className="text-[11px]" style={{ color: Training.weekSessions(block, w).some(x => x.deload) ? 'var(--warn)' : 'var(--muted)' }}>
@@ -562,7 +562,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               const isNext = !!(slot && !viewingAhead && next && slot.session.id === next.session.id);
               const cell = (
                 <>
-                  <span className="pf text-[9px] uppercase block" style={{ letterSpacing: '0.06em', color: isToday ? 'var(--accent-ink)' : 'var(--muted2)' }}>
+                  <span className="pf text-[11px] uppercase block" style={{ letterSpacing: '0.06em', color: isToday ? 'var(--accent-ink)' : 'var(--muted2)' }}>
                     {(WEEKDAYS[dow] || '')[0]}
                   </span>
                   <span className="block mx-auto mt-1.5 flex items-center justify-center" style={{
@@ -571,13 +571,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                     background: done ? 'var(--good)' : inPlay || isNext ? 'var(--accent)' : 'transparent',
                     color: 'var(--card)',
                   }}>
-                    {done ? <Tick size={12} /> : inPlay ? <span className="pf text-[9px]" style={{ color: 'var(--on-accent)' }}>&hellip;</span> : null}
+                    {done ? <Tick size={12} /> : inPlay ? <span className="pf text-[11px]" style={{ color: 'var(--on-accent)' }}>&hellip;</span> : null}
                   </span>
-                  <span className="block text-[9px] mt-1.5 truncate" style={{ lineHeight: 1.2, color: done ? 'var(--good-ink)' : slot ? (inPlay || isNext ? 'var(--accent-ink)' : 'var(--text2)') : 'var(--muted2)' }}>
+                  <span className="block text-[11px] mt-1.5 truncate" style={{ lineHeight: 1.2, color: done ? 'var(--good-ink)' : slot ? (inPlay || isNext ? 'var(--accent-ink)' : 'var(--text2)') : 'var(--muted2)' }}>
                     {slot ? slot.session.name.split(' - ')[0] : 'Rest'}
                   </span>
                   {extra > 0 && (
-                    <span className="block pf text-[9px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>+{extra}</span>
+                    <span className="block pf text-[11px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>+{extra}</span>
                   )}
                 </>
               );
@@ -633,7 +633,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             if (!lost.length) return null;
             return (
               <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)' }}>
-                <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>No day set</div>
+                <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>No day set</div>
                 <div className="flex flex-wrap gap-1.5">
                   {lost.map(({ session, live: inPlay }) => (
                     <button key={session.id} onClick={() => (inPlay && onResume ? onResume(session, block) : onOpen(session, block))}
@@ -664,7 +664,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {block && blockDone && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--good)' }}>Block finished</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--good)' }}>Block finished</div>
           <div className="text-[15px] font-bold mb-1">{block.name}</div>
           <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
             All {block.weeks} weeks are behind you. See what moved, then build the next one on top of it.
@@ -751,7 +751,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         <div className="pixel-box p-4 mb-4 flex items-center justify-between gap-2" style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
           <button onClick={() => go('draft')} className="min-w-0 flex-1 text-left flex items-center gap-3">
             <span className="min-w-0 flex-1">
-              <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Draft block</span>
+              <span className="pf text-[11px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Draft block</span>
               <span className="block text-[13px] font-semibold mt-1 truncate">{(t.draft && t.draft.name) || 'My block'}</span>
               <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
                 {draftDays} {draftDays === 1 ? 'day' : 'days'} collected, ready when you are

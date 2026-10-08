@@ -223,3 +223,80 @@ Logging actions (tap = 1, typed entry = 1, camera capture = 1, focus on open is 
 
 Train has **17 internal screens**: home, player, preview, builder, wizard, draft, rerun, blocks, library,
 coverage, review, history, exercise, settings, schedule, how and progress (`train-tab.jsx:115–224`).
+
+---
+
+## 7 · Round 2 (2026-10-08, for the full mockup)
+
+The first round (§1–6) still holds and drives the direction. This round fills its gaps. Access
+was the same: **`macrofactor.com` and `strong.app` are blocked by this environment's egress
+proxy** (both WebFetch calls returned `EGRESS_BLOCKED`), so the items below come from search
+results and vendor help centres.
+
+### 7.1 Hevy: history, previous values, rest timer
+- **History is a calendar inside Profile**, not a tab. Tapping a highlighted day opens that workout,
+  and a past date can be logged from the calendar. It is not a planner.
+  [help: calendar](https://help.hevyapp.com/hc/en-us/articles/35380117933207-Track-Your-Workout-Consistency-with-the-Calendar-and-Streak-Features)
+- **Previous values** can show the exercise's overall last performance or the same routine's. Earlier
+  sets, weights and reps are pre-filled and editable. [hevy: track workouts](https://www.hevyapp.com/features/track-workouts/)
+- **The rest timer belongs to each exercise.** It starts when a set is ticked and adjusts from
+  5 s to 5 min, or in ±15 s steps from the live activity. [hevy: rest timer](https://www.hevyapp.com/features/workout-rest-timer/),
+  [hevy: live activity](https://www.hevyapp.com/features/live-activity/)
+
+**Applied:** live session = one exercise window with a PREVIOUS column and the rest timer inline
+(−15 / +15 / Skip). History = Sessions | Lifts, and a past session can be repeated.
+
+### 7.2 Strong
+- I could not confirm Strong's tab bar from any indexed source. Its App Store listing names a body
+  measurement tracker and "Advanced Statistics" (PRs, progression, estimated 1RM).
+  [App Store](https://apps.apple.com/za/app/id464254577)
+
+**Applied:** records appear as rows on the session-done screen and as the hero of exercise detail
+(estimated max and trend).
+
+### 7.3 Cal AI
+- The vendor describes one dashboard showing calories remaining with protein, carb and fat rings,
+  and a home-screen widget showing calories remaining. This is the vendor's own copy, not a review.
+  [chrome-stats listing](https://chrome-stats.com/d/com.productshake.calorieai)
+- I found no independent layout review. By MacroFactor's own count, Cal AI needs about 1.9× its
+  actions (§1.6).
+
+**Applied:** Today's hero is "left" plus three macro meters, and nothing else competes with it.
+
+### 7.4 Lose It!
+- No indexed source describes the current "My Day" layout. Lazyweb holds 175 Lose It! screens
+  (updated May 2026) but its excerpts don't describe them. [lazyweb](https://app.lazyweb.com/company/lose-it)
+  §2 still stands for its logging flow.
+
+### 7.5 How handheld games talk (for the buddy's dialogue pattern)
+- Pokémon-style engines draw the message box from a "windowskin": tiled edges around a centre region
+  that holds the text. Special boxes (money, signposts) get their own skin.
+  [Pokémon Essentials docs: Messages](https://essentialsdocs.fandom.com/wiki/Messages?oldid=460)
+- Classic text engines page two lines at a time with a ▼ prompt, and use control codes to start a
+  new box or scroll a line. [Glitch City: control characters](https://glitchcity.info/wiki/Control_character)
+- Game UIs of this kind are built from a few reusable pieces: panels, text boxes, selection menus
+  and progress bars. Menus stack on top of the paused field.
+  [CS50 Games, lecture 7 notes](https://cs50.harvard.edu/games/notes/7/)
+- I found no source for the exact ▶ cursor or the ▼ timing. Both follow convention.
+
+**Applied:** one `Dialogue` component everywhere the buddy speaks. The buddy stands in a small scene,
+with a window below it whose pixel tail points at him. The name sits on the box, the text is one
+short line, and answers appear as a ▶ menu, or a ▼ shows when there's nothing to answer. HP bars are
+the meters.
+
+### 7.6 Impeccable (process and detector)
+- Impeccable is a skill plus a deterministic detector (`impeccable detect`, no API key needed). It
+  reads `PRODUCT.md` / `DESIGN.md`, and its rules include an 11px floor for functional text, no
+  side-tab stripes, no hard offset shadows, no eyebrow labels, no organic `clip-path` shapes and no
+  glow. [github.com/pbakaus/impeccable](https://github.com/pbakaus/impeccable)
+- Ran on the full mockup: see `mockups-full/metrics.md`. The only finding left is `cream-palette`
+  on the paper page, which the brief keeps.
+
+### 7.7 Patterns added in this round
+
+| # | Pattern | From |
+|---|---|---|
+| P13 | A row's **+ logs the usual amount and the sheet stays open**, so multi-add needs no separate plate step | MF multi-add §1.4, today's recents |
+| P14 | **Rest timer inline in the exercise**, ±15 s | Hevy §7.1 |
+| P15 | **One dialogue box** (scene, tail, name, ▶ menu) for every buddy line | §7.5 |
+| P16 | **Records sit with the session and the exercise**, not on their own screen | Strong §7.2, Hevy §7.1 |

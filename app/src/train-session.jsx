@@ -828,7 +828,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               bar and the tab bar both step aside for a session, so this is the only navigation on
               the screen. It no longer ends anything either - see `onExit` below. */}
           <button onClick={onExit} aria-label="Back to Train"
-            className="pf text-[9px] uppercase hit shrink-0 flex items-center gap-1"
+            className="pf text-[11px] uppercase hit shrink-0 flex items-center gap-1"
             style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
             <Icon.chevron width="12" height="12" style={{ transform: 'rotate(180deg)' }} />Train
           </button>
@@ -855,7 +855,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 <span className="block pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
                   {codes[focus]} {focusEx.name}
                 </span>
-                <span className="block pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>
+                <span className="block pf text-[11px] uppercase truncate mt-[3px]" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>
                   {focusNext < 0 ? 'All sets in' : 'Set ' + (focusNext + 1) + ' of ' + focusWork.length} · Tap to go back
                 </span>
               </button>
@@ -864,7 +864,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.08em' }}>
                   {(session && session.name) || (existing && existing.name) || 'Empty session'}
                 </div>
-                <div className="pf text-[9px] uppercase truncate mt-[3px]" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
+                <div className="pf text-[11px] uppercase truncate mt-[3px]" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>
                   {session && session.week ? 'Week ' + session.week + ' · ' : ''}{doneMovements} of {spine.length} done
                 </div>
               </>
@@ -878,12 +878,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 What stays is the one thing the title cannot say for itself - that you are correcting
                 a past session rather than running one - and that is a fixed short string, not a
                 number that ticks, which is the only thing the pixel face should be asked to set. */}
-            {past && <div className="pf text-[9px] uppercase mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>
+            {past && <div className="pf text-[11px] uppercase mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>
               Editing · {relativeDay(dateISO, today).toLowerCase()}
             </div>}
           </div>
           <button onClick={() => setSessionMenu(true)} aria-label="Session options"
-            className="pf text-[9px] uppercase shrink-0 px-2.5"
+            className="pf text-[11px] uppercase shrink-0 px-2.5"
             style={{ minHeight: 38, background: 'var(--cardhead-bg)', border: '2px solid var(--border)', color: 'var(--header-text)', letterSpacing: '0.1em' }}>More</button>
         </div>
         {/* ---- the spine ----
@@ -939,7 +939,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           Always an offer: someone who slept badly and wants to train anyway is allowed to. */}
       {adjust && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--sleep) 14%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--sleep)' }}>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--sleep)' }}>
             Readiness {readiness}
           </div>
           <div className="text-[12.5px] mb-4 leading-snug">{adjust.text}</div>
@@ -965,7 +965,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           swap five movements by hand before they can start. */}
       {unavailable.length > 0 && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Not at {gym ? gym.name : 'this gym'}</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Not at {gym ? gym.name : 'this gym'}</div>
           <div className="text-[12.5px] mb-4 leading-snug">
             {unavailable.map(u => (Training.byId(u.exerciseId, t.custom) || {}).name).filter(Boolean).join(', ')}
             {unavailable.length === 1 ? ' is not something you can do here.' : ' are not things you can do here.'}
@@ -1037,7 +1037,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             <button onClick={() => { setFocus(open ? -1 : ii); setPlateFor(null); setMenuOpen(false); }}
               className={'w-full flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3')}
               style={open ? { background: 'var(--cardhead-bg)', borderBottom: '2px solid var(--border)' } : null}>
-              <span className="pf text-[10px] shrink-0 flex items-center justify-center"
+              <span className="pf text-[11px] shrink-0 flex items-center justify-center"
                 style={open
                   ? { color: 'var(--accent)' }
                   : { width: 30, height: 30, border: '2px solid var(--border)', background: done ? 'var(--good)' : 'var(--card)', color: done ? '#fff' : 'var(--accent-ink)' }}>{codes[ii]}</span>
@@ -1050,7 +1050,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     Finished: what you actually put in, so a scan down the card stack is a receipt.
                     Ahead of you: what you are being asked for. It used to say the prescription in
                     every state, so a movement you had already done still read as work outstanding. */}
-                <span className="block pf text-[9px] uppercase mt-1.5" style={{
+                <span className="block pf text-[11px] uppercase mt-1.5" style={{
                   color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em',
                 }}>
                   {open
@@ -1213,11 +1213,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     the bar actually answers, which is "can I still reach my next set from here". */}
                 <div ref={open ? openRowsRef : null}>
                 <div className="flex items-center gap-2 pb-2">
-                  <div className="w-8 pf text-[9px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
-                  <div className="flex-1 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
-                  <div className="flex-1 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
-                  {!style.toFailure && <div className="w-11 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
-                  <div className="w-12 pf text-[9px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
+                  <div className="w-8 pf text-[11px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
+                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
+                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
+                  {!style.toFailure && <div className="w-11 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
+                  <div className="w-12 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
                 </div>
 
                 {it.sets.map((s, si) => {
@@ -1301,7 +1301,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                           taken 15% off. Said out loud, because a weight the app quietly lowered
                           reads as a bug rather than as the protocol it is. */}
                       {style.toFailure && !s.done && (s.backOff || s.targetRir > 0) && (
-                        <div className="text-[10.5px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
+                        <div className="text-[11px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
                           {s.backOff
                             ? 'Back-off set: 15% lighter, taken to failure again.'
                             : 'Leave ' + s.targetRir + (s.targetRir === 1 ? ' rep' : ' reps') + ' in the tank on this one.'}
@@ -1328,7 +1328,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       {t.prefs.plateCalc !== false && Training.usesBar(ex) && s.weightKg > 0
                         && (si === 0 || it.sets[si - 1].weightKg !== s.weightKg) && (
                         <button onClick={() => setPlateFor(plateFor === ii + ':' + si ? null : ii + ':' + si)}
-                          className="text-[10px] pl-10 tnum text-left" style={{ color: 'var(--muted2)' }}>
+                          className="text-[11px] pl-10 tnum text-left" style={{ color: 'var(--muted2)' }}>
                           {plateBarLine(s.weightKg, units)}
                         </button>
                       )}
@@ -1482,7 +1482,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 30000, seconds: r.seconds + 30, alerted: false }))} aria-label="Thirty seconds more rest"
               className="shrink-0 w-11 h-11 text-[12px]" style={{ border: '2px solid var(--cardhead-text)', color: 'var(--cardhead-text)' }}>+30</button>
             <button onClick={() => setRest(null)} aria-label="Skip rest"
-              className="shrink-0 h-11 px-3 pf text-[9px] uppercase" style={{ border: '2px solid var(--accent)', background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>Skip</button>
+              className="shrink-0 h-11 px-3 pf text-[11px] uppercase" style={{ border: '2px solid var(--accent)', background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>Skip</button>
           </div>
           {/* The line you read while you are doing nothing else, so it carries the two facts worth
               having at that moment: what is next, and how much is left.
@@ -1508,7 +1508,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               </span>
             )}
             {minsLeft > 0 && (
-              <span className="pf text-[9px] uppercase shrink-0 tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>
+              <span className="pf text-[11px] uppercase shrink-0 tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>
                 ~{minsLeft} min left
               </span>
             )}
@@ -1740,7 +1740,7 @@ function SessionBuddy({ db, pattern, trigger }) {
 function MetaBit({ label, onHelp, muted, hideHelp }) {
   return (
     <button onClick={hideHelp ? undefined : onHelp} aria-label={hideHelp ? label : 'What does ' + label + ' mean?'}
-      className="pf text-[9px] uppercase tnum shrink-0 whitespace-nowrap px-2 py-2"
+      className="pf text-[11px] uppercase tnum shrink-0 whitespace-nowrap px-2 py-2"
       style={{ letterSpacing: '0.08em', border: '2px solid var(--border)', background: 'var(--surface2)',
         color: muted ? 'var(--muted)' : 'var(--text)' }}>{label}</button>
   );
@@ -1819,15 +1819,15 @@ function PastSets({ db, exerciseId, onClose }) {
       <div className="w-full max-w-sm pixel-box p-5 fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         {/* Same rule as everywhere else: the pixel face carries the label, the body face carries the
             name. This heading was setting whatever the library calls a movement in Press Start 2P. */}
-        <div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recent sets</div>
+        <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recent sets</div>
         <h2 className="text-[15px] font-bold leading-tight mb-4">{ex ? ex.name : 'This movement'}</h2>
         {rows.length === 0 && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>You have not logged this one yet.</div>}
         {rows.map((r, i) => (
           <div key={i} className="py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>{r.dateISO}</span>
+              <span className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>{r.dateISO}</span>
               {r.marks.some(Boolean) && (
-                <span className="pf text-[9px] uppercase px-2 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
+                <span className="pf text-[11px] uppercase px-2 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -1995,9 +1995,9 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
   return (
     <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)' }}>
       <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
-        <button onClick={onClose} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Close</button>
-        <div className="pf text-[10px] flex-1 text-center">{title || 'Add exercise'}</div>
-        <button onClick={() => setCreating(true)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>New</button>
+        <button onClick={onClose} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Close</button>
+        <div className="pf text-[11px] flex-1 text-center">{title || 'Add exercise'}</div>
+        <button onClick={() => setCreating(true)} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>New</button>
       </div>
       <div className="p-3">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search movements" autoFocus
@@ -2037,14 +2037,14 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
               style={{ background: o.kind === 'suggested' ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] font-semibold truncate">{ex.name}</span>
-                <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>
+                <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>
                   {(ex.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ')} · {ex.equipment}
                 </span>
               </span>
               {/* The one option that is not an alternative at all: it is the movement the plan asked
                   for in the first place, and saying so is what makes a replacement undoable. */}
               {o.kind === 'original' && (
-                <span className="pf text-[9px] uppercase shrink-0 px-1.5 py-1"
+                <span className="pf text-[11px] uppercase shrink-0 px-1.5 py-1"
                   style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>As written</span>
               )}
             </button>
@@ -2053,13 +2053,13 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             <div className="mb-3">
               {written.length > 0 && (
                 <>
-                  <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
+                  <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
                   {written.map(row)}
                 </>
               )}
               {worked.length > 0 && (
                 <>
-                  <div className="pf text-[9px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
+                  <div className="pf text-[11px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
                     {written.length ? 'Or something that does the same job' : 'Does the same job'}
                   </div>
                   {worked.map(row)}
@@ -2076,7 +2076,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             a machine, and it used to mean searching the library again from scratch. */}
         {parent && siblings.length > 1 && (
           <div className="pixel-box p-3 mb-2" style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
-            <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
+            <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
             <div className="flex flex-wrap gap-2">
               {siblings.map(v => (
                 <button key={v.id} onClick={() => onPick(v.id)} disabled={v.id === basedOn}
@@ -2093,7 +2093,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
           <button onClick={() => setCreating(basedOn)} className="w-full text-left pixel-box p-3 mb-2"
             style={{ background: 'var(--surface2)' }}>
             <div className="text-[13px] font-bold">Make a variation of {parent.name}</div>
-            <div className="text-[10.5px] mt-0.5" style={{ color: 'var(--muted)' }}>A grip, stance or attachment we have not got. Keeps what it trains.</div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>A grip, stance or attachment we have not got. Keeps what it trains.</div>
           </button>
         )}
         {list.map(e => {
@@ -2106,7 +2106,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
               <button onClick={() => onPick(e.id)} className="w-full text-left">
                 <div className="text-[13px] font-bold">{e.name}</div>
                 {Training.isCardio(e)
-                  ? <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
+                  ? <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
                   : <MuscleTags exerciseId={e.id} custom={t.custom} />}
               </button>
               {ways.length > 0 && (

@@ -189,9 +189,10 @@ test('Progress names the screen it will go back to', () => {
   // had not been on.
   const db = cutting();
   const props = { db, update() {}, showToast() {}, onCheckIn() {}, onWeigh() {}, onEditPlan() {}, onBack() {} };
-  assert.ok(render(A.Goals, Object.assign({}, props, { backLabel: 'Today' })).has('Today'),
+  // 35-reset: the back control is an arrow; its name lives in its accessible label.
+  assert.ok(render(A.Goals, Object.assign({}, props, { backLabel: 'Today' })).html.includes('aria-label="Back to Today"'),
     'arriving from Today, the way back should say Today');
-  assert.ok(render(A.Goals, props).has('You'), 'and with nothing said, it still says You');
+  assert.ok(render(A.Goals, props).html.includes('aria-label="Back to You"'), 'and with nothing said, it still says You');
 });
 
 /* ---- the Energy card, before it has a burn to show ----
