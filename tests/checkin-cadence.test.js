@@ -150,7 +150,7 @@ test('the wait label reads as a sentence, and says nothing when one is due', () 
 });
 
 // ---- checking in off your day ----
-// "Check in now anyway" exists for good reasons (home from a trip a day early, a weigh-in you want
+// "Check in early" exists for good reasons (home from a trip a day early, a weigh-in you want
 // read before a weekend), and it used to cost you your day: the full week after an early Saturday
 // check-in landed on the next Saturday before Monday came round, and Saturday it stayed, while
 // Settings went on saying Monday. Every check-in after an off-day one must come back to the day.
