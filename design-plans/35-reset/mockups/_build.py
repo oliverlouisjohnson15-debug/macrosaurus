@@ -62,7 +62,7 @@ _APP_NAME = {'gear': 'gear', 'plus': 'plus', 'chev': 'chevron', 'back': 'arrow_l
 try:
     _art = json.load(open(_ICON_JSON))['icons']
     for k, n in _APP_NAME.items():
-        if n in _art: ICONS[k] = [r[::2] for r in _art[n][::2]]
+        if n in _art: ICONS[k] = _art[n]  # full 24x24 art (pixelarticons sits on odd cells)
 except FileNotFoundError:
     pass
 
@@ -70,7 +70,8 @@ def icon(name, size=20, cls='ic'):
     rows = ICONS[name]
     rects = ''.join(f'<rect x="{x}" y="{y}" width="1" height="1"/>'
                     for y, r in enumerate(rows) for x, c in enumerate(r) if c in 'X#')
-    return (f'<svg class="{cls}" width="{size}" height="{size}" viewBox="0 0 12 12" fill="currentColor" '
+    n = len(rows)
+    return (f'<svg class="{cls}" width="{size}" height="{size}" viewBox="0 0 {n} {n}" fill="currentColor" '
             f'shape-rendering="crispEdges" aria-hidden="true">{rects}</svg>')
 
 def buddy(px=2, cls=''):
