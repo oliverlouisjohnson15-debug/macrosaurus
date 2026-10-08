@@ -5521,45 +5521,34 @@ function Auth() {
   }
   return (
     <div className="theme-light min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      {/* The design's top bar carries the brand and nothing else: the egg is about to appear at 56px
-          six lines below, and a 20px copy of it directly above that is the same picture twice. */}
-      <div className="flex items-center justify-center px-5 py-3.5 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-        <span className="pf text-[11px] uppercase" style={{ color: 'var(--header-text)', letterSpacing: '0.14em' }}>Macrosaurus</span>
-      </div>
-      <div className="flex-1 flex flex-col justify-center px-5 py-8">
+      {/* 35-reset: no bar on the way in. The egg and the name in pixel letters are the brand. */}
+      <div className="flex-1 flex flex-col justify-center px-4 py-8">
       <div className="w-full max-w-sm mx-auto fade-in">
-        <div className="flex flex-col items-center text-center mb-5">
-          <div className="pixel-box p-4 mb-4" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}><PixelEgg size={56} color="#fff" /></div>
-          <h1 className="pf text-[22px]" style={{ color: 'var(--header)', letterSpacing: '0.06em' }}>MACROSAURUS</h1>
-          <p className="text-[13px] mt-3 leading-relaxed" style={{ color: 'var(--muted)' }}>Log your food, hit your macros, and let the plan retune itself every week. Your dino grows on what you actually do.</p>
+        <div className="flex flex-col items-center text-center mb-6">
+          <PixelEgg size={72} className="mb-4" />
+          <h1 className="num text-[24px]" style={{ letterSpacing: '0.06em' }}>Macrosaurus</h1>
+          <p className="text-[15px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>Macros that retune every week, and a dino to do it with.</p>
         </div>
         {/* Log in / Create an account as a pair of buttons at the top, per the design. It was a line
             of small print under the form, which is the last place a new arrival looks and the one
             decision they have to make before anything else on this screen means anything. */}
-        {mode !== 'forgot' && <div className="grid grid-cols-2 gap-2.5 mb-4">
-          {[['login', 'Log in'], ['signup', 'Create an account']].map(([m, l]) => (
-            <button key={m} onClick={() => { setMode(m); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }}
-              className="pixel-btn py-3.5 px-2 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em',
-                background: mode === m ? 'var(--accent)' : 'var(--card)', color: mode === m ? 'var(--on-accent)' : 'var(--text)' }}>{l}</button>
-          ))}
-        </div>}
-        <Card className="p-0 overflow-hidden">
-          <CardHead title={mode === 'signup' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Welcome back'} />
-          <div className="p-4">
+        {mode !== 'forgot' && <div className="mb-4"><Seg value={mode} onChange={(m) => { setMode(m); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }}
+          options={[{ v: 'login', l: 'Log in' }, { v: 'signup', l: 'Create an account' }]} /></div>}
+        {mode === 'forgot' && <h2 className="text-[20px] font-bold mb-3">Reset your password</h2>}
+        <div>
           <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
-          {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
+          {mode === 'forgot' && <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           {/* Purple, not gold. This is the one screen where the brand is the whole point, and the
               design spends the chrome colour on the button that gets you in. */}
-          <button onClick={submit} className="w-full pixel-btn mt-1 py-3.5 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--header)', color: 'var(--header-text)' }}>{busy ? 'Please wait…' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send reset link' : 'Log in'))}</button>
+          <Btn kind="accent" className="w-full mt-1" onClick={submit}>{busy ? 'Please wait…' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send reset link' : 'Log in'))}</Btn>
           {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--accent-ink)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
-          {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
-          {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
-          </div>
-        </Card>
+          {msg && <div className="text-[12px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
+          {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[12px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
+        </div>
         {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
-        <div className="text-[11px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
+        <div className="text-[12px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
           {mode === 'signup' ? 'By creating an account you agree to our ' : 'By using Macrosaurus you agree to our '}
           <button onClick={() => setLegal('terms')} className="underline" style={{ color: 'var(--header)' }}>Terms</button> and <button onClick={() => setLegal('privacy')} className="underline" style={{ color: 'var(--header)' }}>Privacy Policy</button>, and understand it is <button onClick={() => setLegal('health')} className="underline" style={{ color: 'var(--header)' }}>not medical advice</button>. Your data stays private to your account.
         </div>
@@ -5760,26 +5749,25 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
   const brand = f.theme === 'dark' ? 'var(--accent)' : 'var(--header)';
   return (
     <div className={(f.theme === 'dark' ? 'theme-dark' : 'theme-light') + ' min-h-screen'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-    <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-      <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
-      <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
-    </div>
-    <div className="max-w-md mx-auto px-6 pt-8 pb-10 fade-in">
-      <div className="flex items-center gap-1.5 mb-6">{steps.map((_, i) => <div key={i} className="h-2 flex-1 pixel-box" style={{ boxShadow: 'none', border: '2px solid var(--border)', background: i <= step ? brand : 'var(--track)' }} />)}</div>
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Step {step + 1} of {steps.length}</div>
-      <h1 className="pf text-xl mb-3" style={{ color: brand }}>{steps[step].t}</h1>
-      {/* The buddy (your just-picked egg) walks you through it, one calm question at a time. */}
-      {steps[step].line && (() => { const bs = buddyStageSprite((buddy && buddy.stage) || 0, buddy); return (
-        <div className="flex items-center gap-3 mb-5 pixel-box p-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-          <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 46, height: 46 }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={1.6} fps={bs.fps} /></div>
-          <div className="text-[12px] leading-snug">{steps[step].line}</div>
-        </div>); })()}
-      {steps[step].body}
-      <div className="flex gap-3 mt-6">
-        {step > 0 ? <Btn kind="ghost" onClick={() => setStep(step - 1)}>Back</Btn> : (onCancel ? <Btn kind="ghost" onClick={onCancel}>Cancel</Btn> : null)}
-        <Btn className="flex-1" onClick={() => { if (need.length) { setTried(true); return; } setTried(false); if (last) onDone(profile); else setStep(step + 1); }}>{last ? 'Save my plan' : 'Continue'}</Btn>
+    {/* 35-reset: no wordmark bar. One row carries the way back, the step meter and the count; the
+        step's name is the page's heading and the buddy's line is its one sentence under it. */}
+    <div className="max-w-md mx-auto px-4 pt-2 pb-28 fade-in">
+      <div className="flex items-center gap-3" style={{ minHeight: 52 }}>
+        {(step > 0 || onCancel)
+          ? <button onClick={() => (step > 0 ? setStep(step - 1) : onCancel())} aria-label={step > 0 ? 'Back' : 'Cancel'} className="w-11 h-11 -ml-2 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.arrow_left width="24" /></button>
+          : <span className="w-9 shrink-0"><PixelEgg size={24} /></span>}
+        <div className="flex gap-1 flex-1">{steps.map((_, i) => <span key={i} className="flex-1" style={{ height: 6, background: i <= step ? brand : 'var(--track)' }} />)}</div>
+        <span className="text-[13px] shrink-0" style={{ color: 'var(--muted)' }}>{step + 1} of {steps.length}</span>
       </div>
-      {tried && need.length > 0 && <div className="text-[12px] mt-3" role="alert" style={{ color: 'var(--danger-ink)' }}>Add your {need.join(', ')} to carry on.</div>}
+      <h1 className="text-[24px] font-bold leading-tight mt-3">{steps[step].t}</h1>
+      {steps[step].line && <div className="text-[15px] mt-1 mb-5 leading-snug" style={{ color: 'var(--muted)' }}>{steps[step].line}</div>}
+      {steps[step].body}
+      {tried && need.length > 0 && <div className="text-[13px] mt-4" role="alert" style={{ color: 'var(--danger-ink)' }}>Add your {need.join(', ')} to carry on.</div>}
+      <div className="fixed bottom-0 inset-x-0 z-10" style={{ background: 'var(--bg)', borderTop: '1px solid var(--hairline)' }}>
+        <div className="max-w-md mx-auto px-4 pt-3 pb-4">
+          <Btn kind="accent" className="w-full" onClick={() => { if (need.length) { setTried(true); return; } setTried(false); if (last) onDone(profile); else setStep(step + 1); }}>{last ? 'Save my plan' : 'Continue'}</Btn>
+        </div>
+      </div>
       {bfPick && <BodyFatPicker sex={f.sex} prevBf={f.bodyFatPct} onPick={v => set('bodyFatPct', v)} onClose={() => setBfPick(false)} />}
     </div>
     </div>
@@ -12284,49 +12272,39 @@ function EggPickerOnboarding({ update, onDone }) {
     });
     onDone();
   }
+  // 35-reset: the first thing anyone sees is the buddy talking - the dialogue box and a menu of two
+  // answers - then a grid of eggs and one button. The same pattern Today and the check-in use.
   return (
-    <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
-      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
-        <div className="pixel-box p-5 mb-4 flex items-center justify-center buddy-scene" style={{ minWidth: 150, minHeight: 150 }}>
-          <SpriteSheet palette="female" species={step === 'egg' ? species : 'doux'} group="egg" anim="move" px={5} fps={4} />
-        </div>
-        {step === 'familiarity' ? (
-          <>
-            <div className="text-[13px] leading-relaxed mb-5 max-w-xs">Macrosaurus sets your calories and protein, learns from your weigh-ins and retunes them every week. First, a buddy to do it with.</div>
-            <div className="text-lg font-bold mb-1">How well do you know macros?</div>
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs">Your buddy coaches you either way. This just sets how much it explains as you go.</div>
-            <button onClick={() => { setNewbie(true); setStep('egg'); }} className="pixel-btn w-full py-3 mb-2 text-left px-4" style={{ background: 'var(--surface2)' }}>
-              <div className="text-[13px] font-bold">New to this</div>
-              <div className="text-[11px] text-[#8A8A90] leading-snug">Teach me the ropes as I go.</div>
-            </button>
-            <button onClick={() => { setNewbie(false); setStep('egg'); }} className="pixel-btn w-full py-3 text-left px-4" style={{ background: 'var(--surface2)' }}>
-              <div className="text-[13px] font-bold">I’ve tracked before</div>
-              <div className="text-[11px] text-[#8A8A90] leading-snug">Skip the basics, just the nudges.</div>
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="text-lg font-bold mb-1">Choose your egg</div>
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy.</div>
-            <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
-              {SPRITE_SPECIES.map(s => (
-                // `.pixel-box` sets its border with !important, so the inline accent border this used was
-                // never drawn and the chosen egg looked exactly like the other eleven. The class wins.
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'Egg ' + (SPRITE_SPECIES.indexOf(s) + 1) + ' of ' + SPRITE_SPECIES.length} aria-pressed={species === s.id}
-                  className={'pixel-box p-1 flex items-center justify-center buddy-scene' + (species === s.id ? ' box-accent' : '')}
-                  style={{ boxShadow: species === s.id ? '0 -2px 0 0 var(--accent), 0 2px 0 0 var(--accent), -2px 0 0 0 var(--accent), 2px 0 0 0 var(--accent)' : 'none', background: species === s.id ? 'var(--accent-dim)' : undefined }}>
-                  <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2 w-full">
-              <Btn kind="ghost" onClick={() => setStep('familiarity')}>Back</Btn>
-              <Btn onClick={finish} className="flex-1">This one</Btn>
-            </div>
-          </>
-        )}
-      </div>
+    <div className="fixed inset-0 z-[90] flex flex-col" style={{ background: 'var(--bg)' }}>
+      {step === 'familiarity' ? (
+        <div className="flex-1 overflow-y-auto"><div className="max-w-md mx-auto px-4 pt-4 pb-6">
+          <div className="mb-6" style={{ height: 32 }}><PixelEgg size={24} /></div>
+          <Dialogue name="Your egg" emote="!" sprite={<SpriteSheet palette="female" species="doux" group="egg" anim="move" px={3} fps={4} />}
+            text="Hi! I’m your buddy. Well, I will be once I hatch. I’ll set your calories and protein and retune them every week. How well do you know macros?">
+            <Menu items={[
+              { key: 'new', label: 'New to this', sub: 'teach me as I go', onClick: () => { setNewbie(true); setStep('egg'); } },
+              { key: 'old', label: 'I’ve tracked before', sub: 'just the nudges', onClick: () => { setNewbie(false); setStep('egg'); } },
+            ]} />
+          </Dialogue>
+        </div></div>
+      ) : (<>
+        <div className="flex-1 overflow-y-auto"><div className="max-w-md mx-auto px-4 pt-2 pb-6">
+          <button onClick={() => setStep('familiarity')} aria-label="Back" className="w-11 h-11 -ml-2 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.arrow_left width="24" /></button>
+          <h1 className="text-[24px] font-bold leading-tight mt-2">Choose your egg</h1>
+          <div className="text-[15px] mt-1 mb-4" style={{ color: 'var(--muted)' }}>Nobody knows what’s inside yet.</div>
+          <div className="grid grid-cols-4 gap-3" role="radiogroup" aria-label="Eggs">
+            {SPRITE_SPECIES.map((sp, i) => {
+              const on = species === sp.id;
+              return <button key={sp.id} onClick={() => setSpecies(sp.id)} role="radio" aria-checked={on} aria-label={'Egg ' + (i + 1) + ' of ' + SPRITE_SPECIES.length}
+                className="flex items-center justify-center" style={{ aspectRatio: '1', margin: 2, background: on ? 'var(--accent-dim)' : 'var(--card)',
+                  boxShadow: on ? '0 -3px 0 0 var(--accent), 0 3px 0 0 var(--accent), -3px 0 0 0 var(--accent), 3px 0 0 0 var(--accent)' : '0 -2px 0 0 var(--hairline-strong), 0 2px 0 0 var(--hairline-strong), -2px 0 0 0 var(--hairline-strong), 2px 0 0 0 var(--hairline-strong)' }}>
+                <SpriteSheet palette="female" species={sp.id} group="egg" anim="move" px={2} fps={on ? 4 : 2} />
+              </button>;
+            })}
+          </div>
+        </div></div>
+        <div className="shrink-0 max-w-md w-full mx-auto px-4 pt-3 pb-4"><Btn kind="accent" className="w-full" onClick={finish}>This one</Btn></div>
+      </>)}
     </div>
   );
 }
@@ -21534,7 +21512,6 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && hubTab === 'discover' && <>
       <SubHeader back={() => setHubTab('mine')} backLabel="Cook" title="Discover" />
-      <div className="h-[52px] lg:hidden" />
       <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
       {/* The contributor level is a reward to look at, so it sits at the foot of the community page. */}
       <div className="mt-6"><ChefCard db={db} /></div>
