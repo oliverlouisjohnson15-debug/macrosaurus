@@ -4527,21 +4527,6 @@ function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
     {entries && <QualityBar nd={nd} onExplain={onExplain} />}
   </>);
 }
-const DINO_QUOTES = [
-  '"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"',
-  '"PROTEIN FIRST. THE REST FOLLOWS. RAWR."',
-  '"SMALL BITES, BIG GAINS. RAWR."',
-  '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."',
-  '"STAY CONSISTENT, STAY PREHISTORIC."',
-  '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."',
-  // A little lore, funny and non-invasive, to build a bond with your buddy.
-  '"I SURVIVED THE METEOR. YOU CAN SURVIVE A ROUGH DAY."',
-  '"MY ANCESTORS RULED THE EARTH. YOU RULE YOUR MACROS. TEAMWORK."',
-  '"BEFORE APPS, WE TRACKED MACROS ON CAVE WALLS. YOU HAVE IT EASY."',
-  '"LEGEND SAYS A MACROSAURUS NEVER SKIPS BREAKFAST. BE A LEGEND."',
-  '"I HATCHED JUST TO WATCH YOU HIT YOUR PROTEIN. WORTH IT."',
-  '"65 MILLION YEARS OF EVOLUTION LED TO US. LET\'S NOT WASTE IT ON CRISPS."',
-];
 // Little backstory tidbits shown on the buddy's own screen. A rotating myth or fun fact to make the
 // creature feel like it has a history, so you get attached to it rather than a stat readout.
 const BUDDY_LORE = [
@@ -7143,7 +7128,8 @@ function CycleSpark({ db, days = 90, w = 104, h = 34 }) {
    checklist. Those are answers the day is waiting on rather than furniture, so they stay pinned
    above the cards wherever the cards end up.
    ===================================================================== */
-const TODAY_BLOCKS = ['buddy', 'plan', 'recovery'];
+// 35-reset: the hero leads, the buddy's line under it, then the section of rows.
+const TODAY_BLOCKS = ['plan', 'buddy', 'recovery'];
 // Tolerant of a stored order written by an older or newer build: unknown keys are dropped, missing
 // ones are appended in their default position, so a block added in a later release still appears.
 function todayOrderOf(db) {
@@ -7155,7 +7141,7 @@ function RearrangeLayer({ db, order, onDone, onSave }) {
   const [held, setHeld] = useState(null);
   const rows = useRef({});
   useBackClose(onDone);
-  const LABEL = { buddy: buddyName(db), plan: "Today's plan", recovery: 'Recovery' };
+  const LABEL = { buddy: buddyName(db), plan: "What's left today", recovery: 'Training, weight & recovery' };
   // The live order lives in a ref as well as in state: state draws it, the ref is what a drag reads
   // and what the save writes. A drag that ended without its pointerup ever arriving (a cancel, a
   // second finger, a synthetic event) used to leave its listeners attached, and the next release
@@ -8733,228 +8719,6 @@ function StatusStrip({ stats, streak }) {
    world, then the buddy's line with the week's read on the end of it, then the day's figures, then
    how far through the goal you are, then the check-in. One frame, one voice, five bands.
    `week` carries everything the read needs; when it is absent this card is exactly what it was. */
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, away, week }) {
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const asleep = bp.mood === 'asleep' || buddy.asleep;
-  /* `stuffed` keys off dayState, NOT off the mood. buddyMood ranks 'content' above 'stuffed', so a
-     day that went over calories but hit its protein returned 'content' and the coma pose never
-     played on exactly the kind of big day it was drawn for. dayState.full is the honest test: over
-     on calories, whatever else went right. */
-  const stuffed = !asleep && bp.dayState === 'full';
-  // Paused, not lapsed. The buddy is downcast because the account is on hold, which is a state the
-  // user chose and can undo, and never because a single day went badly.
-  const sad = !asleep && !!db.paused;
-  const mood = MOOD_META[bp.mood] || MOOD_META.content;
-  const incubating = !!(db.buddy && db.buddy.hatched === false);
-  const eq = equippedCosmetics(db.buddy);
-  const who = incubating ? 'Your egg' : (bp.name || (bp.form ? bp.form.name : st.name));
-  const tDone = tasks ? tasks.filter(t => t.done).length : 0;
-  // The nameplate carries the KIND, not the speaker. In a real dialogue box the plate names who is
-  // talking because you would not otherwise know; here the buddy is standing directly above it, so
-  // repeating its name twice in 20px would be the only thing the plate achieved.
-  const kind = !msg ? null
-    : msg.kind === 'read' ? 'Morning read'
-    : (msg.kind === 'ask' || msg.kind === 'weigh') ? 'Asks'
-    : msg.kind === 'lesson' ? 'Teaching'
-    : msg.kind === 'recap' ? 'This week'
-    : 'Says';
-  // The advance arrow is only honest when there is nothing else to press. A box carrying a button,
-  // an inline weigh-in or a row of choices already tells you what to do, and a blinking "continue"
-  // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
-  // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
-  // The 'talk' line used to be excepted here because the dock sat directly beneath it and was the
-  // thing to press. With the dock parked there is nothing one row lower, so a statement with no
-  // buttons is a statement with no buttons whatever its kind, and gets the tap-through like the rest.
-  const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
-    && !msg.weigh && !(msg.choices || []).length);
-  const speaking = !!(msg || (incubating && tasks));
-  /* ASKING vs POINTING. An ask is a question the buddy put to you and is now waiting on: a weigh-in
-     field, a row of day choices, or a yes/no pair. Pointing is the weaker case - it has said
-     something and there is one button to press. Both are read off the message the box is already
-     rendering rather than a new flag, so a new rung in buddyMessage gets the right gesture without
-     anyone remembering to label it. */
-  const asking = !incubating && !!(msg && (msg.weigh || (msg.choices || []).length
-    || (msg.primary && msg.primary.onClick && msg.secondary && msg.secondary.onClick)));
-  const pointing = !incubating && !asking && !!(msg && msg.primary && msg.primary.onClick);
-  /* Answering gets an answer back. `nod` for yes, `shake` for "not now" - the two poses Design drew
-     for exactly this, wrapped around the handlers the box already had so the reaction cannot drift
-     out of step with what the button actually does.
-     It forwards its arguments, and has to: every OTHER handler this wraps is a button that takes
-     none, but the inline weigh-in answers with a number, and a wrapper that quietly ate it handed
-     saveTodayWeight an undefined to call .toFixed on. That threw inside the update() mutator, which
-     meant the weight was never written AND the whole tree came down on the way out. A decorator
-     around somebody else's handler has no business knowing its signature. */
-  const answered = (fn, anim) => fn ? (...a) => { buddyReact(anim); fn(...a); } : fn;
-  /* THE ACCENT RING LIVES ON THIS CARD NOW. It used to ring the macro card, from when that card was
-     the page's one hero. The buddy box carries the day's figures in its status strip and is the
-     thing the page is built around, so the ring follows the hero rather than staying where the hero
-     used to be. Exactly one card on Today wears it - that is the whole point of it. */
-  /* THE DIALOGUE IS A REGION OF THIS CARD, NOT A BOX INSIDE IT.
-     It used to be a `pixel-box box-double` inset 8px from the card's own frame, which made this the
-     only panel in the app to stack full-width frames: card border, gutter, box border, and the two
-     inset rules of the doubled frame, so eighteen pixels of chrome and four dark lines stood between
-     the page and the sentence, against four pixels and one line on every other card on Today. Its
-     drop shadow was then clipped by the card's own overflow, printing a black slab under it, and the
-     8px gutter let the ground band show through either side as two pale slivers. That is what read as
-     belonging to a different app, and none of it was carrying meaning.
-     So the window keeps everything that makes it a window - the nameplate on its top edge, the
-     advance arrow, the world above it - and gives up the frame it was duplicating. It hangs from a
-     single rule of the card's own border weight, full-bleed, which is the same "one object, divided
-     interior" grammar the macro card below it already uses for Balance and the carryover footer. */
-  /* THE PLATE CAME INSIDE. It used to hang off the top rule, overlapping it by 9px, which is the
-     older Game Boy textbox convention. The import puts it on its own row inside the panel, as a
-     bordered chip paired with the dismiss on the opposite end, and that turns out to be the better
-     object here: the plate and the × are the same kind of thing (chrome about the message, not the
-     message), so they belong on the same line. It also stops the chip from covering the ground of
-     the world above it, which the overlap always did. */
-  const box = (body, plate) => (
-    <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
-      className={'relative px-3 pt-3 pb-3.5' + (bare ? ' active:opacity-80' : '')}
-      style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-      <div className="flex items-center justify-between gap-2 mb-2.5">
-        {/* A LABEL, not a button. It sat in the accent, which is the one colour on this card that
-            is supposed to mean "press me", and there were five things wearing it. */}
-        <span className="pf px-1.5 py-[2px] text-[9px] uppercase" style={{ color: 'var(--muted)', border: '2px solid var(--muted2)', lineHeight: 1.4, letterSpacing: '0.12em' }}>{plate}</span>
-        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit flex items-center justify-center text-[14px] active:opacity-60" style={{ color: 'var(--muted2)' }}><Icon.close width="16" /></button>}
-      </div>
-      {body}
-      {bare && <span className="blink absolute pf" style={{ right: 8, bottom: 4, fontSize: 10, color: 'var(--accent-ink)' }}><Icon.tri_down width="16" /></span>}
-    </div>
-  );
-  return (
-    <Card className="hero-card p-0 mb-4 overflow-hidden">
-      {/* THE NAMEPLATE ROW, off the sky. The HUD used to be two labels floated over the scene, which
-          worked while the scene was a gradient and stopped working the moment it became a drawn
-          place: 7px type over drifting clouds is unreadable, and covering the sky is a poor use of
-          the one part of the card that now has something in it. The imported design puts the row
-          above the world inside the same frame, which is also how the hardware did it. */}
-      {/* A FILLED title bar, not a ruled row. The import runs the card's name on an ink strip with
-          the mood in accent on the right, which is what makes the panel read as a piece of hardware
-          with a labelled window in it. */}
-      <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-        <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
-        {/* The mood keeps this slot. The verdict had it for a day and it was the wrong thing to
-            greet somebody with: "BEHIND PLAN" in the title bar of the home screen, every morning,
-            is a report card you cannot put down. How you are doing against the plan is a question
-            with a whole module behind it, and it is answered there. */}
-        <span className="pf text-[10px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb)' : away ? 'var(--carb)' : 'var(--accent)', letterSpacing: '0.12em' }}>
-          {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : away ? 'Foraging' : mood.label}
-        </span>
-      </div>
-      <div className="relative">
-        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
-          {/* `asking` and `pointing` are what the sprite knows about the box directly beneath it:
-              a question still to answer, or a line with a button on it. They drive the tilt and the
-              point, which is what turns a picture above a caption into something addressing you. */}
-          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H} terrarium away={away}
-            floor={WORLD_FLOOR} plant shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} sad={sad}
-            dayState={bp.dayState} say={msg && !incubating ? msg.text : null} asking={asking} pointing={pointing} />
-        </button>
-        {/* THE FALLBACK, and only that. buddyMessage's ladder is total - buddyRest cannot return
-            null - so a hatched buddy always has a box and an incubating one always has its hatch
-            list, and this branch does not render in the app as it stands. It is kept, and kept
-            correct, because "never blank" should survive somebody adding a rung above that returns
-            early: the failure mode of that mistake is then a card with a tap-through in its fourth
-            corner rather than a frame with a sprite in it and nothing else. `?demo&quiet` renders
-            it. Speaking, the box below carries its own arrow or its own buttons, so a second mark
-            here would be exactly the noise the ▼ rule exists to prevent. */}
-        {!speaking && <span className="pf absolute text-[9px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
-      </div>
-      {/* The numbers, above the sentence so they cannot move with it. Hidden during incubation, where
-          the hatch checklist is the whole content and there is no plan to report against yet. */}
-      {/* THE STATUS STRIP IS PARKED (design-plans/34-overhaul/02). Every figure it carried is on
-          this screen already: kcal left and protein on the plan card, fibre there too, the streak in
-          the app header, and steps on Recovery. StatusStrip and habitatStats are left standing, so
-          putting it back is one line here: {!incubating && <StatusStrip stats={stats} streak={streak} />} */}
-      {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
-      {incubating && tasks && box(
-        <div className="space-y-0.5">
-          {tasks.map(t => (
-            <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1 active:opacity-60 transition-opacity">
-              <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{t.done ? <Tick size={12} /> : null}</span>
-              <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
-              {!t.done && <span className="pf text-[9px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
-            </button>
-          ))}
-        </div>, 'To hatch')}
-      {msg && !incubating && box(<>
-        {/* The read rides on the end of a STATEMENT, never on the end of a question. Appended to
-            "how often will you weigh in?" it read as a non-sequitur: two subjects in one paragraph,
-            with the answer buttons underneath belonging to only the first of them. A lesson is the
-            same case - the buddy is teaching, and the week is not the lesson. */}
-        <div className="text-base">{msg.text}</div>
-        {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
-        {/* The weigh-in answers itself: the scale number goes in on the spot. */}
-        {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={answered(msg.weigh.onSave, 'nod')} />}
-        {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
-        {msg.choices && msg.choices.length > 0 && (
-          // One row, however many answers: a week of days must not wrap onto a stray second line.
-          <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
-            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[9px]">{c.label}</span></button>)}
-          </div>
-        )}
-        {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
-          <div className="flex gap-2 mt-2">
-            {/* ONE GOLD PER CARD. On a day the check-in is due, THAT is what is being asked of you,
-                and this steps down to the fill the secondary already uses - same object, same face,
-                less shout. Every other day it is the loudest thing here, as it should be. */}
-            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[9px] pf inline-flex items-center gap-1.5"
-              style={(week && week.due) ? { background: 'var(--surface2)' } : { background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
-            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[9px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
-          </div>
-        )}
-      </>, kind)}
-      {/* THE WEEK, as bands of this card rather than a card of its own. The whole readout opens
-          Progress and carries a chevron saying so. */}
-      {week && <>
-        {/* THE JOURNEY, not the report card. Start weight on the left, goal weight on the right, and
-            the distance you have actually covered called out in the good ink. Whether that distance
-            is ahead of or behind the rate you agreed to is a real question with a whole module
-            behind it, and it is asked and answered THERE - printing "behind plan" on the home screen
-            beside a number somebody worked for is how a good week starts feeling like a bad one.
-            The way into that module is a labelled row, not a lone chevron: the old readout was a
-            link with nothing on it that said so. */}
-        {/* A 3px rule, not a 2px one. The day is above it and the road is below it, and this design
-            already spends 3px on the edge between two KINDS of thing and 2px on the divisions
-            inside one. Six identical rules said all six bands were the same kind of thing. */}
-        {/* ONE ROW, not four (design-plans/34-overhaul/02). The road used to take four bands of this
-            card - the journey readout with its ladder of cells, a "See your full progress" row, a
-            weigh-in row and a check-in row - and Progress, one tap away, draws the same road in full.
-            So Today keeps the headline and the next step, the whole left half is the way into
-            Progress, and the right holds at most ONE button: the check-in when it is due (the one
-            gold thing on the card that day), otherwise the weigh-in when one is owed and the buddy
-            is not already asking for it in words. */}
-        <div style={{ height: 3, background: 'var(--border)' }} />
-        <div className="flex items-center gap-3 pr-3">
-          <button onClick={week.onOpen} aria-label="See your full progress" className="flex-1 min-w-0 text-left pl-3 py-3 active:opacity-80">
-            <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Your journey</span>
-            <span className="flex items-baseline gap-2">
-              <span className="tnum" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: week.moved ? 'var(--good-ink)' : 'var(--text)' }}>{week.big}</span>
-              <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{week.bigLabel}</span>
-              <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)', alignSelf: 'center' }} />
-            </span>
-            {week.nextLine && <span className="block text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--good-ink)' }}>{week.nextLine}</span>}
-          </button>
-          {week.due
-            ? <Btn kind="accent" className="shrink-0" onClick={week.onCheckIn}>Check in</Btn>
-            : (week.weighToday && week.onWeigh && !(msg && msg.weigh && !incubating))
-              ? <Btn kind={(msg && !incubating && msg.primary) ? 'ghost' : 'accent'} className="shrink-0" onClick={week.onWeigh}>Weigh in</Btn>
-              : null}
-        </div>
-        {week.thin && <div className="px-3 py-2" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          <span className="text-[11px] leading-snug" style={{ color: 'var(--fat-ink)' }}>{week.thin}</span>
-        </div>}
-      </>}
-      {/* THE DOCK IS PARKED. It was a camera plus a "Talk to <name>…" field routing into the AI
-          conversation sheet. Pulled deliberately rather than deleted: the conversation is metered at
-          ten free replies a month, which is roughly one chat every three days, and a permanently
-          visible input promising a companion that is actually rationed sells the wrong thing. The
-          sheet, talk.js and the App-level plumbing are all still here and unchanged, so putting the
-          row back is a matter of restoring this block and its two props - do that once the common
-          questions are answered locally and the promise is one the free tier can keep. */}
-    </Card>
-  );
-}
 
 /* ---------- Share card (streak -> shareable image) ----------
    Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
@@ -9873,6 +9637,11 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
   const incubating = buddy.hatched === false;
   const named = !!bp.name;
   const asleep = bp.mood === 'asleep';
+  /* The scene's day poses moved here with the terrarium (35-reset N7). `stuffed` keys off dayState,
+     NOT the mood: buddyMood ranks 'content' above 'stuffed', so an over-calorie day that hit its
+     protein would never play the coma pose. `sad` is for a paused account, never for a bad day. */
+  const stuffed = !asleep && bp.dayState === 'full';
+  const sad = !asleep && !!db.paused;
   const mm = MOOD_META[bp.mood] || MOOD_META.content;
   const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
   const who = incubating ? 'Your egg' : (named ? bp.name : 'Your buddy');
@@ -9895,7 +9664,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
           {/* The terrarium, like Today and Progress. This tab is where scenery is BOUGHT, and it was
               the one place a bought sky could not be seen standing in. */}
           <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={238}
-            terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} />
+            terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} stuffed={stuffed} sad={sad} dayState={bp.dayState} />
           <div className="pf absolute text-[9px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
           {!incubating && <div className="pf absolute text-[9px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
         </div>
@@ -12554,7 +12323,7 @@ function nudgeDismissed(db, trackKey) {
   const until = ((db.profile && db.profile.nudgesDismissed) || {})[trackKey];
   return !!until && (Date.now() - until) < 7 * 864e5;
 }
-function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '' }) {
+function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '', compact }) {
   if (nudgeDismissed(db, trackKey)) return null;
   const open = () => {
     try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
@@ -12564,6 +12333,8 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     e.stopPropagation();
     update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [trackKey]: Date.now() }); });
   };
+  // A prompt row rather than a card, for the one prompt a 35-reset screen allows (PromptSlot).
+  if (compact) return <PromptRow title={headline} sub="Premium · 7 days free" action="Try free" tone="quiet" onAction={open} onDismiss={dismiss} />;
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
       <div className="pf text-[9px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
@@ -12734,12 +12505,183 @@ function journeyBand(db, today, eggIncubating) {
   };
 }
 
+/* =====================================================================
+   TODAY (35-reset, design-plans/35-reset/01-direction.md §5)
+   Job: what's left today, and the one thing to do next. The hero (the one inked frame), the buddy's
+   line under it, one prompt row at most, then a section of three rows that each lead somewhere.
+   ===================================================================== */
+/* The hero. Tapping the figures flips left <-> eaten (the LEFT/EATEN switch it replaced). Everything
+   that used to stack under it in the plan card - fibre, density, the drinks note, balance, the
+   carryover breakdown - is one tap away on `onDetails`; what stays on the card is what is acted on
+   daily (`footer`: the target adjustment and Done for today). */
+function TodayHero({ et, tot, mode, onFlip, onDetails, footer }) {
+  const isRem = mode === 'remaining';
+  const remaining = et.eff.kcal - tot.kcal;
+  const over = remaining < 0;
+  const colour = over ? 'var(--danger)' : 'var(--hero)';
+  const MAC = [['Protein', tot.protein, et.eff.protein_g, PRO, PRO_T], ['Carbs', tot.carbs, et.eff.carbs_g, CARB, CARB_T], ['Fat', tot.fat, et.eff.fat_g, FAT, FAT_T]];
+  return (
+    <Hero className="mb-5">
+      <div className="px-4 pt-3.5 pb-3.5 flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <button onClick={onFlip} aria-label={isRem ? 'Show what you have eaten' : 'Show what is left'} className="text-left min-w-0">
+            <span className="flex items-baseline gap-2.5">
+              <span className="pf tnum" style={{ color: colour, fontSize: 46, lineHeight: 1, letterSpacing: '-0.02em' }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
+              <span className="pf text-[10px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{isRem ? (over ? 'kcal over' : 'kcal left') : 'kcal eaten'}</span>
+            </span>
+            <span className="block text-[12.5px] mt-1.5 tnum" style={{ color: 'var(--muted)' }}>{isRem ? Math.round(tot.kcal) + ' eaten' : Math.max(0, Math.round(remaining)) + ' left'} · {et.eff.kcal} target</span>
+          </button>
+          <button onClick={onDetails} className="hit text-[12px] shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Details ›</button>
+        </div>
+        <PipMeter value={tot.kcal} target={et.eff.kcal} color={colour} cells={PLAN_CELLS} />
+        <div className="grid grid-cols-3 gap-3">
+          {MAC.map(([l, v, tg, c, ink]) => {
+            const o = tg > 0 && v > tg;
+            const n = o ? Math.round(v - tg) : isRem ? Math.max(0, Math.round(tg - v)) : Math.round(v);
+            return (<div key={l} className="min-w-0">
+              <div className="pf text-[9px] uppercase" style={{ color: ink, letterSpacing: '0.12em' }}>{l}</div>
+              <div className="text-[12.5px] mb-1.5 tnum truncate" style={{ color: 'var(--muted)' }}><b style={{ color: o ? 'var(--danger-ink)' : 'var(--text)', fontWeight: 600 }}>{n}g</b> {o ? 'over' : isRem ? 'left' : 'eaten'}</div>
+              <PipMeter value={v} target={tg} color={c} cells={8} small />
+            </div>);
+          })}
+        </div>
+      </div>
+      {footer}
+    </Hero>
+  );
+}
+/* Everything the plan card used to carry under the macros, in one sheet (Today's "Details ›"). */
+function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, remCarbs, remFat, onCarry, onExplainDensity, onClose }) {
+  const today = Store.todayISO();
+  const drinks = entriesOn(db, today).filter(e => e.is_alcohol);
+  const dk = Math.round(drinks.reduce((s, e) => s + ((e.computed_macros || {}).kcal || 0), 0));
+  return (
+    <Sheet title="Today's numbers" onClose={onClose} wide>
+      <div className="flex flex-col gap-2.5">
+        <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} ink={PRO_T} mode={mode} hero />
+        <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
+        <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
+        {drinks.length > 0 && <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {dk} kcal of drinks, split across carbs and fat.</div>}
+      </div>
+      <div className="flex flex-col gap-1.5"><FibreCell tot={tot} et={et} mode={mode} /></div>
+      {isPremium && <div className="flex flex-col gap-1.5"><DensityCell entries={entriesOn(db, today)} onExplain={onExplainDensity} /></div>}
+      <Section title="Balance carbs & fat" className="!mb-0">
+        <div className="py-3">
+          <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
+          <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" aria-label="Shift today's leftover calories between carbs and fat" />
+          <div className="flex justify-between items-center mt-3">
+            <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
+            {override.shiftKcal ? <TextBtn onClick={() => setShift(0)}>Reset</TextBtn> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
+            <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
+          </div>
+        </div>
+      </Section>
+      {(et.cyc !== 0 || et.carry !== 0) && <Row title="Where today's target comes from" sub={'Base ' + et.base.kcal + ' kcal, adjusted to ' + et.eff.kcal} onClick={onCarry} />}
+    </Sheet>
+  );
+}
+/* THE BUDDY'S LINE. The terrarium card it replaced (BuddyHabitat) was a scene, a nameplate, a dialogue
+   box and the journey band in one frame; the scene lives in Play now (N7), the journey is the Weight
+   row below, and what is left is the buddy saying one thing - with its buttons, its inline weigh-in
+   or, while it is still an egg, the hatch list. Tapping the buddy opens Play. */
+function BuddyLine({ db, buddy, bp, onOpenPlay, tasks, msg, away, dueCheckin }) {
+  const asleep = bp.mood === 'asleep' || buddy.asleep;
+  const mood = MOOD_META[bp.mood] || MOOD_META.content;
+  const incubating = !!(db.buddy && db.buddy.hatched === false);
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const who = incubating ? 'Your egg' : (bp.name || (bp.form ? bp.form.name : st.name));
+  const tDone = tasks ? tasks.filter(t => t.done).length : 0;
+  // Answering gets an answer back: `nod` for yes, `shake` for not now. It forwards its arguments,
+  // because the inline weigh-in answers with a number (see the note this came from in history).
+  const answered = (fn, anim) => fn ? (...a) => { buddyReact(anim); fn(...a); } : fn;
+  return (
+    <div className="flex gap-3 items-start mb-5">
+      <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="shrink-0 w-14 h-14 flex items-end justify-center overflow-hidden"
+        style={{ background: 'var(--scene-top)', border: '2px solid var(--border)', boxShadow: 'inset 0 -10px 0 var(--scene-ground)' }}>
+        <BuddyAvatar buddy={db.buddy} px={2} asleep={asleep} />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 min-h-[22px]">
+          <span className="pf text-[11px] uppercase truncate" style={{ letterSpacing: '0.1em' }}>{who}</span>
+          <span className="text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{incubating ? 'hatching ' + tDone + '/' + (tasks ? tasks.length : 0) : away ? 'foraging' : mood.label.toLowerCase()}</span>
+          {msg && msg.dismiss && !incubating && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit ml-auto shrink-0" style={{ color: 'var(--muted)' }}><Icon.close width="16" /></button>}
+        </div>
+        {incubating && tasks && <div className="mt-1">
+          {tasks.map(t => (
+            <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left min-h-[36px]">
+              <span className="w-4 h-4 flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--card)' }}>{t.done && <Icon.check width="12" />}</span>
+              <span className="text-[12.5px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
+              {!t.done && <span className="text-[12px] shrink-0" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Do it ›</span>}
+            </button>
+          ))}
+        </div>}
+        {msg && !incubating && <>
+          <div data-voice className="text-[13.5px] leading-snug mt-0.5">{msg.text}</div>
+          {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
+          {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={answered(msg.weigh.onSave, 'nod')} />}
+          {msg.choices && msg.choices.length > 0 && <div className="flex flex-wrap gap-2 mt-2">
+            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="ms-chip">{c.label}</button>)}
+          </div>}
+          {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && <div className="flex flex-wrap gap-2 mt-2">
+            {/* One gold on the screen: on a check-in day the check-in row below is the ask. */}
+            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className={'ms-chip' + (dueCheckin ? '' : ' on')}>{msg.primary.label}</button>}
+            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="ms-chip">{msg.secondary.label}</button>}
+          </div>}
+        </>}
+      </div>
+    </div>
+  );
+}
+/* The next training session in one line, for Today's Training row. Null with no running block. */
+function trainNextSummary(db) {
+  if (typeof activeBlock !== 'function') return null;
+  const block = activeBlock(db); if (!block) return null;
+  const prog = Training.blockProgress(block, Store.todayISO());
+  if (!prog || prog.done) return { done: true, name: block.name };
+  const wk = weekPlan(block, prog.week, tdb(db).logs);
+  const live = wk.filter(x => x.live)[0];
+  const next = live || wk.filter(x => !x.log)[0];
+  if (!next) return { weekDone: true, name: block.name };
+  return { live: !!live, session: next.session.name, day: WEEKDAYS_FULL[next.session.dayOfWeek] || '', left: wk.filter(x => !x.log).length };
+}
+/* Recovery's one line: sleep and readiness when there is data, an invitation when there is none. */
+function recoverySummary(db) {
+  const today = Store.todayISO();
+  const night = lastSleepNight(db);
+  const ready = readinessFor(db, today);
+  const steps = +((db.steps || {})[today]) || 0;
+  const parts = [];
+  if (night) parts.push(isFinite(night.score) ? 'Slept ' + night.score : 'Slept ' + Math.floor(night.rec.min / 60) + 'h');
+  if (isFinite(ready)) parts.push('Ready ' + Math.round(ready));
+  if (!parts.length && steps) parts.push(steps.toLocaleString('en-GB') + ' steps');
+  return parts.length ? parts.join(' · ') : 'Sleep, steps and readiness';
+}
+/* The journey as ONE row of Today's section (it was the band at the foot of the buddy card). The
+   figure and its label are journeyBand's, so the two states (before the first read, after it) keep
+   the same shape; the row is the way into Progress. */
+function JourneyRow({ week }) {
+  if (!week) return null;
+  return <Row icon={<Icon.goal width="24" />} title="Weight" aria-label="See your full progress" onClick={week.onOpen}
+    sub={<span className="tnum">{week.big} {week.bigLabel}</span>}
+    value={week.thin ? <span style={{ color: 'var(--fat-ink)' }}>Thin week</span> : null} />;
+}
+/* A compact prompt: one row with one action and a way to dismiss it. PromptSlot renders at most one. */
+function PromptRow({ title, sub, action, onAction, tone = 'accent', onDismiss }) {
+  return (<div className="ms-row mb-5" style={{ borderTop: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
+    <span className="min-w-0 flex-1"><span className="ms-row-t">{title}</span>{sub && <span className="ms-row-d">{sub}</span>}</span>
+    {action && <button onClick={onAction} className={'ms-chip shrink-0' + (tone === 'accent' ? ' on' : '')}>{action}</button>}
+    {onDismiss && <button onClick={onDismiss} aria-label="Not now" className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }}><Icon.close width="16" /></button>}
+  </div>);
+}
+
 function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, onTalk, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
+  const [detailOpen, setDetailOpen] = useState(false); // Today's numbers: fibre, density, balance (35-reset)
+  const [recoveryOpen, setRecoveryOpen] = useState(false); // the Recovery row's sheet
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
   const todayTot = sumMacros(entriesOn(db, today));
@@ -12964,7 +12906,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     }
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // (The old missed-log/weigh showNudge is superseded by the buddy's always-present coach line.)
-  const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   /* OPTION B: the week, computed once here and handed to the buddy card, which now carries it.
      Everything in it came off CycleStrip unchanged - the same verdict, the same ladder, the same
      numbers row, the same check-in state - so the two surfaces cannot drift apart while both exist. */
@@ -12972,30 +12913,8 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     const b = journeyBand(db, today, eggIncubating);
     return b && Object.assign(b, { onOpen: () => setView('goals'), onCheckIn, onWeigh: () => onWeigh(true) });
   })();
-  // The order this person put their cards in, and the hold-to-move that changes it.
+  // The order this person put the blocks in (Rearrange Today, in You).
   const todayOrder = todayOrderOf(db);
-  const [arranging, setArranging] = useState(false);
-  const holdRef = useRef(null);
-  // A long press that STARTED on a card's ink bar, and did not turn into a scroll. Anywhere else on
-  // a card is an ordinary tap: the bar is the grip, so only the bar arms this.
-  function armHold(e) {
-    if (arranging) return;
-    const bar = e.target && e.target.closest && e.target.closest('[data-cardbar]');
-    if (!bar || !bar.closest('[data-block]')) return;
-    const y0 = e.clientY, x0 = e.clientX;
-    const cancel = (ev) => {
-      if (ev && ev.type === 'pointermove' && Math.abs(ev.clientY - y0) < 9 && Math.abs(ev.clientX - x0) < 9) return;
-      clearTimeout(holdRef.current); holdRef.current = null;
-      window.removeEventListener('pointermove', cancel); window.removeEventListener('pointerup', cancel); window.removeEventListener('pointercancel', cancel);
-    };
-    holdRef.current = setTimeout(() => {
-      cancel();
-      try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
-      setArranging(true);
-    }, 450);
-    window.addEventListener('pointermove', cancel); window.addEventListener('pointerup', cancel); window.addEventListener('pointercancel', cancel);
-  }
-  useEffect(() => () => clearTimeout(holdRef.current), []);
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
   // The buddy speaks with one voice in the habitat. buddyMessage picks the single top thing to say;
   // here we wire each action string to a handler (the decision stays pure and testable in buddyMessage).
@@ -13150,173 +13069,83 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageBar context={prettyDate(today)} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-
-      {/* The buddy leads Today. It used to sit below the macro card, which put it at y=871 on a
-          390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
-          on first paint. It earns its height rather than taking it: quiet when the ladder has
-          nothing due, taller only when it is actually saying something. */}
-      {/* THE CARDS, in whatever order this person put them in. Each one is wrapped so the page
-          knows which block a long-press landed on; the ink bar is the grip (see RearrangeLayer). */}
       {(() => {
+        // The hero's footer: the two things on the plan card that are acted on, not just read.
+        const adjRow = (et.cyc !== 0 || et.carry !== 0) && (() => {
+          const adj = et.eff.kcal - et.base.kcal;
+          const cd = et.carryDetail;
+          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? cycLabel(et).toLowerCase() : (et.carry > 0 ? 'carried over' : 'carried back');
+          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+          return <div className="px-4 min-h-[44px] flex items-center justify-between text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
+            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
+            {canOpen && <button onClick={() => setShowCarry(true)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Why ›</button>}
+          </div>;
+        })();
+        /* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
+           finished 1,600 from a lunchtime 1,600. Closing the day spreads what is left (or what went
+           over) across the rest of the week now. Only offered with evening out on. */
+        const doneRow = (db.profile.carryover && db.profile.carryover.enabled && !db.paused && todayTot.kcal > 0) && (() => {
+          const closed = dayClosed(db, today);
+          const rem = Math.round(et.eff.kcal - todayTot.kcal);
+          const due = nextCheckinDueISO(db);
+          const dueNow = !!due && due <= today;
+          const lastDay = !!due && daysBetween(today, due) <= 1;
+          const amount = rem === 0 ? 'Bang on target' : Math.abs(rem) + ' kcal ' + (rem > 0 ? 'under' : 'over');
+          const setClosed = (on) => {
+            update(d => { d.day_closed = Object.assign({}, d.day_closed || {}, { [today]: on }); });
+            if (showToast) showToast(!on ? 'Today is open again. It counts once it is over.'
+              : dueNow ? 'Done for today. Your check-in is due, so it reads today as it stands.'
+              : lastDay ? 'Done for today. Your check-in is tomorrow, so it reads today as it stands.'
+              : rem === 0 ? 'Done for today, bang on target. Nothing to carry.'
+              : 'Done for today. ' + amount + ' goes across the rest of the week.');
+          };
+          return <div className="px-4 min-h-[44px] flex items-center justify-between gap-3 text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
+            <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span></> : 'Finished eating today?'}</span>
+            <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+          </div>;
+        })();
+        const msgControls = !!(msg && !eggIncubating && (msg.weigh || (msg.choices || []).length || (msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)));
+        const msgChecksIn = !!(msg && msg.primary && msg.primary.onClick === onCheckIn);
+        const due = !!(week && week.due);
+        const tn = trainNextSummary(db);
         const BLOCKS = {
+          plan: <TodayHero et={et} tot={tot} mode={mode} onFlip={() => setMode(m => m === 'remaining' ? 'consumed' : 'remaining')} onDetails={() => setDetailOpen(true)} footer={<>{adjRow}{doneRow}</>} />,
           buddy: (<>
-        <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
-          away={forageNow.status === 'away'} stats={habitatStats} week={week} />
-
+            <BuddyLine db={db} buddy={buddy} bp={bp} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
+              away={forageNow.status === 'away'} dueCheckin={due && !msgChecksIn} />
+            {/* ONE THING ASKING. The first of these that applies is the only one drawn, as a row. The
+                quieter ones wait while the buddy is already asking something of its own. */}
+            <PromptSlot candidates={[
+              { when: due && !msgChecksIn, render: () => <PromptRow title="Your weekly check-in is due" sub="Two minutes, and next week's targets follow" action="Check in" onAction={onCheckIn} /> },
+              { when: !!(week && week.weighToday && !(msg && msg.weigh) && !msgControls), render: () => <PromptRow title="Weigh in today" action="Weigh in" onAction={() => onWeigh(true)} /> },
+              { when: !msgControls && !!(() => { const c = E.weekPlanContext(db.week_plans, today); return c.active || c.recovering || c.upcoming; })(),
+                render: () => <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} /> },
+              { when: !msgControls && !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
+                render: () => <DietBreakCard db={db} update={update} /> },
+              { when: !msgControls && !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
+                render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge compact db={db} update={update} reason="free_limit" trackKey="dash_ai_low"
+                  headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"} />; } },
+              // Hidden while the egg incubates, so the first week stays about hatching.
+              { when: !msgControls && !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
+                render: () => <PremiumNudge compact db={db} update={update} reason="manual" trackKey="today_top" headline="Log a meal in one snap" /> },
+            ]} />
           </>),
-          /* THE WEEKLY READ IS NOT A CARD ANY MORE. It is bands of the buddy's own box above, which
-             is the whole of option B. CycleStrip itself is left standing and still tested: if this
-             trial does not survive contact, putting the card back is one line here. */
-          cycle: null,
-          plan: (<>
-        {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
-            Balance is a power tool behind Adjust; everything secondary is in More below.
-            The heading and the lens control used to float above the card on their own row. The card
-            already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
-            detached from the numbers it changes. Both now live on the card's own top line. */}
-        {/* THE BREAKDOWN, in the buddy box's mould. It was a p-5 card wearing the accent ring and
-            leading with a 48px number, which was right while it was the only thing on Today carrying
-            figures. The status strip above now answers "how am I doing" in the first glance, so this
-            card's job changed from headline to detail: it is where you come to see WHICH macro is
-            short and to shift the balance, not to find out the total.
-            So it takes the same construction as the box above - one object with a divided interior,
-            a nameplate row on top, bands split by a rule of the card's own border weight - instead of
-            the padded box with hairline separators it used to be. Two cards built the same way read as
-            one screen; two cards built differently read as two products. */}
-        {/* TODAY'S PLAN, band for band as the import draws it: a title bar carrying the lens control,
-            the energy band (one big figure, its caption, the target on the right, one hero meter), the
-            three macro rows, a two-up FIBRE | DENSITY split, and the balance footer on an inset strip.
-            The two secondary measures moved OUT of the macro list and into the split for a reason: as
-            a fourth and fifth row they read as two more macros, which is exactly what neither of them
-            is. Side by side under a rule they read as what they are - the day's two quality checks. */}
-        <Card className="p-0 mb-4 overflow-hidden">
-          {/* The real ink bar, not a pale imitation of one. Every card on this screen opens the same
-              way now - and the bar is also the grip you hold to move the card (see REARRANGE). */}
-          <CardHead title="Today's plan" right={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
-          <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
-            <EnergyBand et={et} tot={tot} mode={mode} />
-          </div>
-          <div className="px-3 pt-3 pb-3.5 flex flex-col gap-2.5">
-            <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} ink={PRO_T} mode={mode} hero />
-            <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
-            <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
-          </div>
-          {/* A drink's calories are split across carbs and fat so the day still balances, which can turn
-              a carb row red on a day the food was fine. Say so, once, rather than leave it a mystery. */}
-          {(() => {
-            const drinks = entriesOn(db, today).filter(e => e.is_alcohol);
-            if (!drinks.length) return null;
-            const k = Math.round(drinks.reduce((s, e) => s + ((e.computed_macros || {}).kcal || 0), 0));
-            const over = tot.carbs > et.eff.carbs_g || tot.fat > et.eff.fat_g;
-            return <div className="px-3 pb-2.5 -mt-1 text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {k} kcal of drinks, split across carbs and fat{over ? ', which is part of why those read over' : ''}.</div>;
-          })()}
-          {/* Fibre and density side by side for a subscriber. A free account gets fibre across the
-              whole row: its density half was an empty, locked meter labelled PREMIUM, which put an
-              upsell inside the data card on the same screen as the one in the prompt slot below
-              (design-plans/34-overhaul/02). */}
-          <div className={isPremium ? 'grid grid-cols-2' : ''} style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="px-3 py-2.5 flex flex-col gap-1.5" style={isPremium ? { borderRight: '2px solid var(--border)' } : undefined}>
-              <FibreCell tot={tot} et={et} mode={mode} />
-            </div>
-            {isPremium && <div className="px-3 py-2.5 flex flex-col gap-1.5">
-              <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
-            </div>}
-          </div>
-          {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
-          <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
-            <Collapsible variant="inline" label={<span style={{ fontSize: 12.5, color: 'var(--text)' }}>Balance carbs &amp; fat{override.shiftKcal ? <> · <strong style={{ color: 'var(--fat-ink)' }}>{(override.shiftKcal > 0 ? '+' : '−') + Math.abs(override.shiftKcal)}</strong> kcal adjusted</> : null}</span>} sub="Adjust ›">
-              <div className="text-[12px]" style={{ color: 'var(--muted)', marginBottom: 12 }}>Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
-              <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
-              <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-              <div className="flex justify-between items-center mt-3">
-                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
-                {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
-                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
-              </div>
-            </Collapsible>
-          </div>
-          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
-          {(et.cyc !== 0 || et.carry !== 0) && (() => {
-            const adj = et.eff.kcal - et.base.kcal;
-            const cd = et.carryDetail;
-            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? cycLabel(et).toLowerCase() : (et.carry > 0 ? 'carried over' : 'carried back');
-            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-            return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
-              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
-            </div>;
-          })()}
-          {/* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
-              finished 1,600 from a lunchtime 1,600, and treating the lunchtime one as finished banked
-              calories nobody had saved. So the person says so: closing the day spreads what is left
-              (or what went over) across the rest of the week now, rather than at midnight. Only
-              offered with evening out on, since without it a closed day changes nothing. */}
-          {(db.profile.carryover && db.profile.carryover.enabled && !db.paused && todayTot.kcal > 0) && (() => {
-            const closed = dayClosed(db, today);
-            const rem = Math.round(et.eff.kcal - todayTot.kcal);
-            const due = nextCheckinDueISO(db);
-            // Nothing left in this cycle to spread over: the check-in is tomorrow, or already due.
-            const dueNow = !!due && due <= today;
-            const lastDay = !!due && daysBetween(today, due) <= 1;
-            const amount = rem === 0 ? 'Bang on target' : Math.abs(rem) + ' kcal ' + (rem > 0 ? 'under' : 'over');
-            const setClosed = (on) => {
-              update(d => { d.day_closed = Object.assign({}, d.day_closed || {}, { [today]: on }); });
-              if (showToast) showToast(!on ? 'Today is open again. It counts once it is over.'
-                : dueNow ? 'Done for today. Your check-in is due, so it reads today as it stands.'
-                : lastDay ? 'Done for today. Your check-in is tomorrow, so it reads today as it stands.'
-                : rem === 0 ? 'Done for today, bang on target. Nothing to carry.'
-                : 'Done for today. ' + amount + ' goes across the rest of the week.');
-            };
-            return <div className="px-3 py-2.5 flex items-center justify-between gap-3 text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
-              <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span>{lastDay ? '' : ', spread over the rest of the week'}</> : 'Finished eating today?'}</span>
-              <button onClick={() => setClosed(!closed)} className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
-            </div>;
-          })()}
-        </Card>
-        {/* ONE THING ASKING (design-plans/34-overhaul/02). These four used to render wherever they
-            were written - the upsell first on the page, the trip banner above the buddy, the diet
-            break and the low-AI nudge at the bottom - and on a busy day three of them stacked up. Now
-            the first that applies is the only one drawn, here under the numbers so it never stands
-            between someone and their day. It sits inside the plan block so it moves with it. */}
-        <PromptSlot candidates={[
-          { when: !!(() => { const c = E.weekPlanContext(db.week_plans, today); return c.active || c.recovering || c.upcoming; })(),
-            render: () => <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} /> },
-          { when: !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
-            render: () => <DietBreakCard db={db} update={update} /> },
-          { when: !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
-            render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />; } },
-          // Hidden while the egg incubates, so the first week stays about hatching.
-          { when: !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
-            render: () => <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
-              headline="Log a meal in one snap"
-              blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." /> },
-        ]} />
-          </>),
-          recovery: (<>
-        {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
-            data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
-        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
-          </>),
+          recovery: (<Section title="Today">
+            <Row icon={<Icon.dumbbell width="24" />} title="Training" onClick={() => setView('train')}
+              sub={!tn ? 'Set up a training block' : tn.done ? tn.name + ' is finished' : tn.weekDone ? 'This week is done' : (tn.live ? 'In progress · ' : '') + tn.session + (tn.day ? ' · ' + tn.day : '')} />
+            <JourneyRow week={week} />
+            <Row icon={<Icon.moon width="24" />} title="Recovery" sub={recoverySummary(db)} onClick={() => setRecoveryOpen(true)} />
+          </Section>),
         };
-        return todayOrder.map(k => BLOCKS[k] ? <div key={k} data-block={k} onPointerDown={armHold}>{BLOCKS[k]}</div> : null);
+        return todayOrder.map(k => BLOCKS[k] ? <div key={k} data-block={k}>{BLOCKS[k]}</div> : null);
       })()}
-      {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
-          needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
+      {detailOpen && <TodayDetailSheet db={db} et={et} tot={tot} mode={mode} isPremium={isPremium} override={override} setShift={setShift} remCarbs={remCarbs} remFat={remFat}
+        onCarry={() => { setDetailOpen(false); setShowCarry(true); }} onExplainDensity={() => setDensityHelp(true)} onClose={() => setDetailOpen(false)} />}
+      {recoveryOpen && <Sheet title="Recovery" onClose={() => setRecoveryOpen(false)} wide><StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} /></Sheet>}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
-
-      <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
-      {/* The way in, said once and quietly. Hold-to-move is the gesture, but a gesture nobody is
-          told about is a feature nobody has: this is the line that tells them, and it costs one row
-          at the very bottom of the page rather than a grip on all four bars. */}
-      <div className="text-center mt-3"><TextBtn onClick={() => setArranging(true)}>Rearrange this page</TextBtn></div>
-      {arranging && <RearrangeLayer db={db} order={todayOrder} onDone={() => setArranging(false)}
-        onSave={(next) => update(d => { d.profile = Object.assign({}, d.profile, { todayOrder: next }); })} />}
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
     </div>
   );
@@ -18398,6 +18227,7 @@ function progressTeaser(db) {
 }
 function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) {
   const [commit, tick] = useCommit(update);
+  const [arranging, setArranging] = useState(false);
   const p = db.profile;
   const [q, setQ] = useState('');
   const unit = p.weight_unit;
@@ -18494,7 +18324,12 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
         <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
       </div>
+      {/* Rearranging Today moved here from a link at the foot of Today itself (35-reset): it is a
+          setting about the page, not part of the day. */}
+      <div className="px-4" style={{ borderTop: '2px solid var(--border)' }}><Row title="Rearrange Today" sub="Choose the order of Today's blocks" onClick={() => setArranging(true)} /></div>
     </SettingsGroup>}
+    {arranging && <RearrangeLayer db={db} order={todayOrderOf(db)} onDone={() => setArranging(false)}
+      onSave={(next) => update(d => { d.profile = Object.assign({}, d.profile, { todayOrder: next }); })} />}
 
     {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
   </div>);
