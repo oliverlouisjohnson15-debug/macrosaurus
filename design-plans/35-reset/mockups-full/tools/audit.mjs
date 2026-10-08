@@ -122,7 +122,7 @@ if (mode === 'mock') {
       await p.close();
     }
   }
-  fs.writeFileSync(here + 'before.json', JSON.stringify(results, null, 1));
+  fs.writeFileSync(here + (process.argv[3] || 'before.json'), JSON.stringify(results, null, 1));
 }
 await b.close();
 console.log(Object.keys(results).length, 'audits');
