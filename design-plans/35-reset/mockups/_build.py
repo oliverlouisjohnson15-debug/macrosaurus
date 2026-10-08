@@ -249,9 +249,9 @@ HEAD = '''<!doctype html><html lang="en-GB"><head><meta charset="utf-8">
 <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="{skin}.css">
 </head><body class="skin-{skin} screen-{key}">'''
 
-for skin in ('a', 'b'):
+for skin in ('a', 'b', 'c'):
     for key, label, fn in SCREENS:
         html = HEAD.format(title=f'{skin.upper()} · {label}', skin=skin, key=key) + fn() + '</body></html>\n'
         with open(os.path.join(HERE, f'{skin.upper()}-{key}.html'), 'w') as f:
             f.write(html)
-print('built', 2 * len(SCREENS), 'mockups')
+print('built', 3 * len(SCREENS), 'mockups')

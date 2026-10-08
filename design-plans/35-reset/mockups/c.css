@@ -1,0 +1,149 @@
+/* Direction C · Handheld.
+   B's calm (plain rows, one family for UI text, one hero) dressed in the Game Boy Color / Advance UI
+   the app was born from. The GBC world is carried by details, never by costume:
+   - WINDOWS have pixel-notched corners (the axis-aligned 2px rings the handhelds drew), not radii.
+   - METERS are HP bars: stepped cells, a two-tone fill (light top row), a dark pixel frame.
+   - The BUDDY speaks in a GBA dialogue box: double frame, nameplate on the frame, ▼ to advance.
+   - The active TAB carries the menu cursor ▶ instead of a colour change alone.
+   - Pixel numerals (Silkscreen) for tracked figures and the buddy's name ONLY; every label, button and
+     line of UI text is IBM Plex Sans at 11px or more (Impeccable's floor and its display-font ban).
+   - A limited GBC-style palette: 4 warm neutrals, the gold A-button, and the macro hues as data. */
+:root {
+  --bg: #f4efe2; --surface: #fffaf0; --surface-2: #ebe4d3; --track: #e3dccb;
+  --ink: #2a2433; --text: #2a2433; --muted: #5f5768; --line: #d6ccb8; --frame: #2a2433;
+  --brand: #5B4FA6; --brand-ink: #4c4196; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #2a2433;
+  --accent-ink: #4c4196; --focus: #5B4FA6;
+  --pro: #C7472F; --carb: #3D6FB4; --fat: #E0A21B; --cal: #2E7D6B; --weight: #5B4FA6;
+  --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe2;
+  --sky: #fbe9d7; --ground: #ead6bf; --scrim: rgba(42,36,51,.42);
+  --header: var(--bg); --header-text: var(--ink); --nav-off: #5f5768; --nav-on: var(--brand-ink);
+  --face-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --face-px: 'Silkscreen', 'IBM Plex Mono', monospace;
+  --t-tab: 11px; --t-xs: 12px; --t-sm: 13px; --t-body: 15px; --t-lg: 17px; --t-xl: 24px; --t-hero: 52px;
+  --appbar-h: 52px; --tabbar-h: 66px; --row-h: 54px; --gap: 24px;
+  /* The pixel ring: four axis-aligned 2px shadows draw a frame whose corners stay notched, which is
+     how the handhelds drew every window. Never a diagonal offset. */
+  --ring: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame);
+  --ring-soft: 0 -2px 0 0 var(--line), 0 2px 0 0 var(--line), -2px 0 0 0 var(--line), 2px 0 0 0 var(--line);
+}
+:root[data-theme="dark"] {
+  --bg: #17141f; --surface: #221e2d; --surface-2: #1c1926; --track: #2e2a3c;
+  --ink: #f1ecf7; --text: #f1ecf7; --muted: #aca5b9; --line: #3a3550; --frame: #8f84d8;
+  --brand: #a99cf0; --brand-ink: #c2b8f7; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
+  --accent-ink: #c2b8f7; --focus: #c2b8f7;
+  --pro: #ef6b55; --carb: #6c9be0; --fat: #F0B429; --cal: #52c79c; --weight: #a99cf0;
+  --pro-ink: #f4917e; --carb-ink: #93b8ee; --fat-ink: #f2c45a; --good-ink: #6fd3b2; --good-bg: #163027;
+  --sky: #2a2540; --ground: #362f50; --scrim: rgba(0,0,0,.6);
+  --nav-off: #aca5b9; --nav-on: #c2b8f7;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17141f; --surface: #221e2d; --surface-2: #1c1926; --track: #2e2a3c;
+  --ink: #f1ecf7; --text: #f1ecf7; --muted: #aca5b9; --line: #3a3550; --frame: #8f84d8;
+  --brand: #a99cf0; --brand-ink: #c2b8f7; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
+  --accent-ink: #c2b8f7; --focus: #c2b8f7;
+  --pro: #ef6b55; --carb: #6c9be0; --fat: #F0B429; --cal: #52c79c; --weight: #a99cf0;
+  --pro-ink: #f4917e; --carb-ink: #93b8ee; --fat-ink: #f2c45a; --good-ink: #6fd3b2; --good-bg: #163027;
+  --sky: #2a2540; --ground: #362f50; --scrim: rgba(0,0,0,.6);
+  --nav-off: #aca5b9; --nav-on: #c2b8f7;
+  color-scheme: dark;
+} }
+::selection { background: var(--accent); color: var(--on-accent); }
+
+/* chrome: a plain bar on the page colour, a tab bar with the menu cursor */
+.appbar { background: var(--header); color: var(--header-text); }
+.ab-ctx { font-size: var(--t-lg); font-weight: 600; }
+.ab-avatar .buddy { margin-top: 4px; }
+.tabbar { background: var(--surface-2); border-top: 2px solid var(--line); }
+.tab { color: var(--nav-off); position: relative; }
+.tab span { font-weight: 500; }
+.tab[aria-current] { color: var(--nav-on); }
+.tab[aria-current] span { font-weight: 700; }
+/* The GBA menu cursor: a pixel ▶ beside the chosen item. */
+.tab[aria-current]::before { content: ''; position: absolute; top: 6px; left: calc(50% - 22px); width: 6px; height: 10px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.fab { background: var(--accent) linear-gradient(var(--accent) calc(100% - 4px), var(--accent-dark) 0); color: var(--on-accent); box-shadow: var(--ring); }
+
+/* the one window on a screen: the hero */
+.hero { background: var(--surface); box-shadow: var(--ring); margin: 2px; }
+.num { font-family: var(--face-px); font-size: var(--t-hero); line-height: 1; color: var(--cal); letter-spacing: -.02em; }
+.unit { font-size: var(--t-sm); color: var(--muted); font-weight: 500; }
+.hero-k { font-size: var(--t-sm); font-weight: 600; }
+.hero-title { font-weight: 700; }
+.mac-l { font-size: var(--t-xs); font-weight: 700; }
+
+/* HP-bar meters: stepped cells in a dark pixel frame, a two-tone fill */
+.meter { background: var(--track); box-shadow: var(--ring); margin: 2px; gap: 2px; padding: 2px; height: 16px; }
+.meter i { background: transparent; }
+.meter i.on { background: var(--c); box-shadow: inset 0 2px 0 0 rgba(255,255,255,.38); }
+.meter-sm { height: 10px; padding: 1px; gap: 1px; }
+.meter-sm i.on { box-shadow: inset 0 1px 0 0 rgba(255,255,255,.38); }
+.meter-xs { height: 6px; padding: 0; gap: 1px; box-shadow: none; margin: 0; }
+
+/* sections: plain rows on the page, a hairline in the line colour */
+.sec-h { border-bottom: 2px solid var(--line); padding-bottom: 6px; }
+.sec-h h2 { font-size: var(--t-sm); font-weight: 700; color: var(--muted); }
+.sec-h h2:empty { display: none; }
+.sec-more { color: var(--accent-ink); font-weight: 600; }
+.rows > * + * { border-top: 1px solid var(--line); }
+.row-t { font-weight: 600; }
+.row-lead { color: var(--brand-ink); }
+.chip { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; font-weight: 600; }
+/* The A button: gold with its darker pixel row along the bottom, drawn as part of the fill. */
+.chip-primary, .btn-primary { background: var(--accent) linear-gradient(var(--accent) calc(100% - 3px), var(--accent-dark) 0); color: var(--on-accent); box-shadow: var(--ring); }
+.btn-primary { font-size: var(--t-lg); margin: 2px; width: calc(100% - 4px); }
+
+/* the buddy: a sprite window and a GBA dialogue box */
+.bud-tile { background: var(--sky); box-shadow: var(--ring); margin: 2px; background-image: linear-gradient(transparent 76%, var(--ground) 76%); }
+.budline { gap: 14px; align-items: stretch; }
+.bud-main { background: var(--surface); padding: 12px 14px 12px; position: relative; margin: 2px;
+  box-shadow: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame), inset 0 0 0 2px var(--surface), inset 0 0 0 3px var(--line); }
+.bud-name { position: absolute; top: -12px; left: 10px; background: var(--surface); padding: 0 6px; }
+.pxname { font-family: var(--face-px); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.bud-say { padding-top: 4px; }
+.bud-main::after { content: ''; position: absolute; right: 12px; bottom: 8px; width: 8px; height: 4px; background: var(--brand-ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bud-main::after { animation: none; } }
+
+/* food */
+.daynav .day { font-size: var(--t-lg); font-weight: 600; }
+.seg { background: var(--surface-2); padding: 3px; box-shadow: var(--ring-soft); margin: 2px; }
+.seg button { font-weight: 600; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--ring); }
+.sum-k b { font-family: var(--face-px); font-size: 20px; color: var(--good-ink); font-weight: 400; }
+.sum-k { font-size: var(--t-sm); color: var(--muted); }
+.meal .sec-h h2 { font-size: var(--t-lg); color: var(--text); }
+.entry .row-trail { font-family: var(--face-px); font-weight: 400; font-size: 14px; }
+
+/* sheet: a window rising from the bottom */
+.sheet { background: var(--bg); box-shadow: 0 -2px 0 0 var(--frame); }
+.grab { background: var(--line); }
+.banner { padding: 0; }
+.banner b { font-family: var(--face-px); color: var(--good-ink); font-weight: 400; }
+.search { background: var(--surface); box-shadow: var(--ring); margin: 2px; }
+.scanbtn { color: var(--brand-ink); border-left: 2px solid var(--line); }
+.rec-add { color: var(--brand-ink); }
+
+/* train */
+.dcell .d-box { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; width: 26px; height: 26px; }
+.dcell.done .d-box { background: var(--cal); color: #fff; box-shadow: var(--ring); }
+.dcell.next .d-box { background: var(--accent); box-shadow: var(--ring); }
+.dcell.rest .d-box { background: transparent; }
+
+/* progress */
+.hero .num { color: var(--good-ink); }
+.badge { font-weight: 700; box-shadow: var(--ring-soft); margin: 2px; }
+.badge.good { background: var(--good-bg); color: var(--good-ink); }
+.seg-sm { align-self: flex-start; }
+.seg-sm button { padding: 0 10px; flex: none; }
+
+/* you: grouped settings windows */
+.screen-you .rows { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; padding: 0 14px; }
+.screen-you .sec-h { border-bottom: 0; }
+.avatar { background: var(--sky); box-shadow: var(--ring-soft); margin: 2px; }
+.tog { background: var(--track); box-shadow: var(--ring-soft); margin: 2px; }
+.tog i { background: var(--surface); box-shadow: var(--ring); }
+.tog.on { background: var(--cal); }
+
+.d-n { font-size: 11px; }
