@@ -269,15 +269,13 @@ test('the band keeps its shape when the read arrives', () => {
   assert.ok(/start/.test(after.bar.leftLabel), 'after the read the labels are the road: ' + after.bar.leftLabel);
 });
 
-test('the band is rendered on the buddy card in both states', () => {
+test('the journey is drawn on Today in both states', () => {
+  // design-plans/35-reset: the band left the buddy card and became Today's Weight row (JourneyRow).
+  // Same intent as before: drawn whether or not there is a read yet, and it is the way into Progress.
   [startingOut(3), cutting()].forEach((db, i) => {
     const b = Object.assign(band(db), { onOpen() {}, onCheckIn() {} });
-    const bp = { mood: 'content', dayState: 'ok', name: 'Beans', daysTogether: 12, bond: { hearts: 2 } };
-    const r = render(A.BuddyHabitat, { db, buddy: { stage: 4, name: 'Beans' }, bp,
-      streak: 3, onOpenPlay() {}, tasks: null, msg: {}, stats: null, away: false, week: b });
-    assert.ok(r.has('Your journey'), 'state ' + i + ' should draw the band: ' + r.text.slice(0, 200));
-    // One row since design-plans/34-overhaul/02: the band itself is the way into Progress, named
-    // for a screen reader rather than spelled out as a row of its own.
+    const r = render(A.JourneyRow, { week: b });
+    assert.ok(r.has(b.big) && r.has(b.bigLabel), 'state ' + i + ' should draw the journey figure: ' + r.text.slice(0, 200));
     assert.ok(/aria-label="See your full progress"/.test(r.html), 'and the way into Progress: ' + r.text.slice(0, 200));
   });
 });

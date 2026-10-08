@@ -22,8 +22,11 @@ export const collect = (scopeSel) => {
   const ctrls = [...document.querySelectorAll('button,a[href],input,select,textarea,[role=button],[role=tab]')].filter(el => vis(el) && !chrome(el) && !el.disabled);
   // `.hit` widens the tap area to 44x44 with a pseudo-element (styles.css), so its box can be smaller.
   const small = ctrls.filter(el => { if (el.classList.contains('hit')) return false; const r = el.getBoundingClientRect(); return r.height < 44 || r.width < 44; }).length;
-  const prose = [...document.querySelectorAll('p,div,span,li')].filter(el => vis(el) && !chrome(el) && !el.closest('button,a,[role=button],[data-not-help]') && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().split(/\s+/).length >= 5));
+  const prose = [...document.querySelectorAll('p,div,span,li')].filter(el => vis(el) && !chrome(el) && !el.closest('button,a,[role=button],[data-not-help],[data-voice]') && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().split(/\s+/).length >= 5));
   let sentences = 0;
   for (const el of prose) { const t = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').trim(); sentences += (t.match(/[^.!?]+[.!?]+(\s|$)/g) || []).filter(s => s.trim().split(/\s+/).length >= 4).length; }
-  return { outerBlocks: outer.length, nestedBlocks: boxes.length - outer.length, controls: ctrls.length, under44: small, helpSentences: sentences, pageHeight: document.documentElement.scrollHeight };
+  // The buddy's one line is the screen's voice, not help text; it is counted on its own so it stays visible.
+  let voice = 0;
+  for (const el of document.querySelectorAll('[data-voice]')) { if (!vis(el) || chrome(el)) continue; voice += (el.textContent.match(/[^.!?]+[.!?]+(\s|$)/g) || []).length; }
+  return { voiceSentences: voice, outerBlocks: outer.length, nestedBlocks: boxes.length - outer.length, controls: ctrls.length, under44: small, helpSentences: sentences, pageHeight: document.documentElement.scrollHeight };
 };
