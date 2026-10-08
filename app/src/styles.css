@@ -562,7 +562,7 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
    design-plans/35-reset/01-direction.md, direction A. A screen is: the app bar, ONE hero (the only
    inked frame), then sections of plain rows on the page. These classes back the primitives of the
    same names in app.jsx (Hero, Section, Row); nothing else should draw a frame around a group. */
-.ms-hero { background: var(--card); margin: 3px; box-shadow: 0 -3px 0 0 var(--hero-ring), 0 3px 0 0 var(--hero-ring), -3px 0 0 0 var(--hero-ring), 3px 0 0 0 var(--hero-ring), inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--hairline-strong); }
+.ms-hero { background: var(--card); margin: 3px 3px 24px; box-shadow: 0 -3px 0 0 var(--hero-ring), 0 3px 0 0 var(--hero-ring), -3px 0 0 0 var(--hero-ring), 3px 0 0 0 var(--hero-ring), inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--hairline-strong); }
 .theme-dark .ms-hero { box-shadow: 0 -2px 0 0 var(--hero-ring), 0 2px 0 0 var(--hero-ring), -2px 0 0 0 var(--hero-ring), 2px 0 0 0 var(--hero-ring); }
 .ms-sec-h { display: flex; align-items: center; gap: 8px; min-height: 32px; border-bottom: 2px solid var(--border); padding-bottom: 6px; }
 .theme-dark .ms-sec-h { border-bottom-color: var(--hairline-strong); }

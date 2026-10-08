@@ -258,7 +258,7 @@ test('checking in two days early keeps your day, and the dialog says when the ne
   try {
     assert.ok(ui.has('Next check-in'), ui.text.slice(0, 300));
     // Clicked on the same (pinned) day the screen was drawn on: the dialog re-reads today.
-    at(wed, () => ui.click('Check in now anyway'));
+    at(wed, () => ui.click('Check in early'));
     assert.ok(ui.has('Check in early?'));
     assert.ok(ui.has('It has been 5 days'), ui.text.slice(-500));
     assert.ok(ui.has('Your check-in day stays Friday'), 'the dialog should promise the day, not a reset: ' + ui.text.slice(-500));
@@ -284,7 +284,7 @@ test('the day of a check-in, and the day after, offer no second one', () => {
     const db = account({ rate: -0.75, lastCheckin: TODAY, today: day });
     const ui = progress(db, day);
     try {
-      assert.ok(!ui.has('Check in now anyway'), 'a second check-in was offered ' + gap + ' day(s) after the last');
+      assert.ok(!ui.has('Check in early'), 'a second check-in was offered ' + gap + ' day(s) after the last');
       assert.ok(ui.has(gap === 0 ? 'You checked in today' : 'You checked in yesterday'), ui.text.slice(0, 400));
     } finally { ui.unmount(); }
   }
@@ -303,7 +303,7 @@ test('on your day it is simply due, with no early door', () => {
   const ui = progress(db, TODAY);
   try {
     assert.ok(ui.has('Due now'), ui.text.slice(0, 300));
-    assert.ok(!ui.has('Check in now anyway'));
+    assert.ok(!ui.has('Check in early'));
   } finally { ui.unmount(); }
 });
 
@@ -365,7 +365,7 @@ test('a full week waiting on your day is not called a short cycle', () => {
   db.profile.checkinDay = 1;
   const ui = progress(db, sat);
   try {
-    at(sat, () => ui.click('Check in now anyway'));
+    at(sat, () => ui.click('Check in early'));
     assert.ok(ui.has('there is a full week to read'), ui.text.slice(-500));
     assert.ok(!ui.has('shorter than the week'), 'a seven-day cycle was called short');
     assert.ok(ui.has('Your check-in day stays Monday'));
