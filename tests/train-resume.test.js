@@ -50,7 +50,8 @@ test('starting a session on an account with two gyms asks which one, from the pr
     db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
   });
   try {
-    ui.click('Open ' + block.sessions[0].name.split(' - ')[0]);
+    // The session's name on the Next card opens the preview; its gold button starts it outright.
+    ui.click(block.sessions[0].name.split(' - ')[0]);
     assert.ok(ui.has('movements'), 'the preview opened: ' + ui.text.slice(0, 200));
     ui.click('Start ' + block.sessions[0].name.split(' - ')[0]);
     assert.ok(ui.has('Where are you training?'),
@@ -67,10 +68,28 @@ test('one gym, or none, and the session starts without being asked anything', ()
     onFocusMode(on) { if (on) started = true; },
   });
   try {
-    ui.click('Open ' + block.sessions[0].name.split(' - ')[0]);
+    // The session's name on the Next card opens the preview; its gold button starts it outright.
+    ui.click(block.sessions[0].name.split(' - ')[0]);
     ui.click('Start ' + block.sessions[0].name.split(' - ')[0]);
     assert.ok(!ui.has('Where are you training?'), 'nothing to choose between, so nothing to ask');
     assert.ok(started, 'it went straight into the session');
+  } finally { ui.unmount(); }
+});
+
+test('starting straight from the Next card asks about the gym too', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  db.training.gyms = [
+    { id: 'g1', name: 'Home', equipment: ['db'] },
+    { id: 'g2', name: 'The gym', equipment: ['bb', 'db', 'machine'] },
+  ];
+  db.training.prefs.currentGymId = 'g1';
+  const ui = mount(A.TrainTab, {
+    db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onFocusMode() {},
+  });
+  try {
+    ui.click('Start ' + block.sessions[0].name.split(' - ')[0]);
+    assert.ok(ui.has('Where are you training?'), ui.text.slice(0, 300));
   } finally { ui.unmount(); }
 });
 

@@ -171,7 +171,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
-      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard', { from: 'blocks' })}
+      onBack={() => go('block')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard', { from: 'blocks' })}
       onProgramme={(key) => go('builder', { from: 'blocks', draft: Training.programmeBlock(key, { custom: tdb(db).custom, startISO: Store.todayISO() }) })}
       onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
       onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
@@ -189,7 +189,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'library') {
     return page(<BlockLibrary db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      onBack={() => go('home')} onAdopt={(block) => go('builder', { draft: block })} />);
+      onBack={() => go('block')} onAdopt={(block) => go('builder', { draft: block })} />);
   }
   if (screen.name === 'coverage') {
     return page(<CoverageScreen db={db} update={update} isPremium={isPremium} onUpgrade={onUpgrade}
@@ -202,27 +202,30 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
       onNext={(draft) => go('builder', { draft })} />);
   }
   if (screen.name === 'history') {
-    return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onOpenExercise={(id) => go('exercise', { exerciseId: id })}
+    return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onTab={(v) => go(v === 'lifts' ? 'progress' : 'history')} onOpenExercise={(id) => go('exercise', { exerciseId: id })}
       onOpenSession={(log) => go('player', { logId: log.id, sessionId: log.sessionId || null, blockId: log.blockId || null, from: 'history' })} />);
   }
   if (screen.name === 'exercise') {
-    return page(<ExerciseDetail db={db} exerciseId={screen.exerciseId} onBack={() => go('history')} />);
+    return page(<ExerciseDetail db={db} exerciseId={screen.exerciseId} onBack={() => go('progress')} />);
   }
   if (screen.name === 'settings') {
-    return page(<TrainSettings db={db} update={update} showToast={showToast} onBack={() => go('home')} onHowItWorks={() => go('how')} />);
+    return page(<TrainSettings db={db} update={update} showToast={showToast} onBack={() => go('block')} onHowItWorks={() => go('how')} />);
   }
   if (screen.name === 'schedule') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
     return page(<ScheduleDays db={db} update={update} showToast={showToast}
-      block={blk} fresh={!!screen.fresh} onBack={() => go('home')} />);
+      block={blk} fresh={!!screen.fresh} onBack={() => go(screen.fresh ? 'home' : 'block')} />);
   }
   if (screen.name === 'how') {
-    return page(<HowItWorks onBack={() => go('settings')} />);
+    return page(<HowItWorks onBack={() => go('block')} />);
+  }
+  if (screen.name === 'block') {
+    return page(<BlockPlace db={db} block={block} go={go} />);
   }
   if (screen.name === 'progress') {
-    return page(<TrainProgress db={db} onBack={() => go('home')} go={go}
+    return page(<TrainProgress db={db} onBack={() => go('home')} go={go} onTab={(v) => go(v === 'lifts' ? 'progress' : 'history')}
       onOpenExercise={(id) => go('exercise', { exerciseId: id })} />);
   }
   // The character sheet is no longer a Train destination. It answered nothing anyone opens this tab
@@ -377,9 +380,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {/* The block's NAME only, as the page bar's context. The ladder's own title bar says which week,
           an inch below, and the two together read as the page saying it twice. No "Train" title:
           the tab bar already says where you are (design-plans/34-overhaul/01). */}
-      <PageBar context={block && !blockDone ? block.name : 'Your training'} actions={[
-        { icon: <Icon.sliders width="24" height="24" />, label: 'Training settings', onClick: () => go('settings') },
-      ]} />
+      <PageBar context={block && !blockDone ? block.name : 'Your training'} />
 
       {/* A session left open, on the screens where nothing else says so. Same shape as the draft
           card further down - a thing in progress, what state it is in, and the way back into it -
@@ -414,33 +415,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           The arithmetic is `Training.blockWeeks`, shared with `blockSpine`, so there is one
           definition of a finished week rather than two that drift. */}
       {block && !blockDone && weeks.length > 1 && (
-        <Card className="p-0 mb-4 overflow-hidden">
-          <CardHead title={'Week ' + prog.week + ' of ' + block.weeks}
-            right={weeksDone + ' of ' + weeksTotal + ' sessions'} />
-          <div className="p-3 flex gap-1.5">
-            {weeks.map(wk => {
-              const tone = wk.now ? 'var(--accent)' : 'var(--good)';
-              const border = wk.now ? 'var(--accent)' : wk.past ? 'var(--border)' : '#cfc8ba';
-              const bg = wk.now ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))'
-                : wk.past ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))' : 'var(--card)';
-              // A light week is a different KIND of week, not a lesser one, so it is named rather
-              // than shaded - the block's plan is the reason it looks empty, and a pale cell with no
-              // explanation reads as a week you missed.
-              const label = wk.deload ? 'Light' : 'Wk ' + wk.week;
-              const ink = wk.deload ? 'var(--warn-ink)' : wk.now ? 'var(--accent-ink)' : wk.past ? 'var(--good-ink)' : 'var(--muted2)';
-              return (
-                <div key={wk.week} className="flex-1 min-w-0" style={{ border: '2px solid ' + border, background: bg, padding: '7px 6px' }}>
-                  <div className="pf text-[11px] uppercase truncate" style={{ color: ink, letterSpacing: '0.06em' }}>{label}</div>
-                  <div className="flex gap-[1px] mt-1.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
-                    {Array.from({ length: Math.max(1, wk.total) }, (_, i) => (
-                      <i key={i} className="flex-1" style={{ height: 7, background: i < wk.done ? tone : 'var(--track)' }} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+        <div className="mb-4">
+          <div className="flex items-baseline justify-between text-[13px] mb-2"><span style={{ fontWeight: 600 }}>Week {prog.week} of {block.weeks}</span><span className="tnum" style={{ color: 'var(--muted)' }}>{weeksDone} of {weeksTotal} sessions</span></div>
+          <PipMeter value={weeksDone} target={Math.max(1, weeksTotal)} scale={1} cells={Math.max(4, Math.min(24, weeksTotal))} color="var(--weight)" small overIsFine />
+        </div>
       )}
 
       {/* The block spine used to sit here: every block you had run, drawn end to end. It went
@@ -463,14 +441,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             in, it steps aside entirely: offering this week's session off week three's page is the
             app answering a question nobody asked. */}
         {!viewingAhead && next && (
-          <Card className="p-0 mb-4 overflow-hidden">
-            <CardHead title={live ? 'In progress' : 'Next up'} right={WEEKDAYS_FULL[next.session.dayOfWeek] || ''} />
-            <div className="p-3.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[17px] font-bold leading-tight">{next.session.name.split(' - ')[0]}</span>
-                <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>about {sessionMins(next.session.exercises)} min</span>
-              </div>
-              <div className="text-[12px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>
+          <Card hero className="mb-6">
+            <div className="p-4">
+              <div className="flex items-baseline justify-between gap-2 text-[13px]" style={{ fontWeight: 600 }}><span style={{ color: 'var(--link)' }}>{live ? 'In progress' : 'Next'}{WEEKDAYS_FULL[next.session.dayOfWeek] ? ' · ' + WEEKDAYS_FULL[next.session.dayOfWeek] : ''}</span><span className="tnum" style={{ color: 'var(--muted)', fontWeight: 400 }}>about {sessionMins(next.session.exercises)} min</span></div>
+              <button onClick={() => onOpen(next.session, block)} className="block text-left text-[24px] leading-tight mt-1" style={{ fontWeight: 700, minHeight: 44 }} aria-label={'Open ' + next.session.name.split(' - ')[0]}>{next.session.name.split(' - ')[0]}</button>
+              <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {live
                   ? (() => {
                     const ticked = (live.log.sets || []).filter(x => x.done && (x.type || 'work') !== 'warmup').length;
@@ -494,9 +469,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                       + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
                   })()}
               </div>
-              <button onClick={() => (live && onResume ? onResume(next.session, block) : onOpen(next.session, block))}
-                className="pixel-btn w-full mt-3.5 py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-                <Icon.play width="16" /> {live ? 'Carry on with ' : 'Open '}{next.session.name.split(' - ')[0]}
+              <button onClick={() => (onResume ? onResume(next.session, block) : onOpen(next.session, block))}
+                className="pixel-btn w-full mt-4 text-[15px] flex items-center justify-center gap-2" style={{ minHeight: 48, fontWeight: 700, background: 'var(--accent)', color: 'var(--on-accent)' }}>
+                <Icon.play width="16" /> {live ? 'Carry on with ' : 'Start '}{next.session.name.split(' - ')[0]}
               </button>
             </div>
           </Card>
@@ -796,17 +771,14 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             arms on the way past. Only once there is a block for it to be an exception to. */}
       {(() => {
         const rows = [
-          { key: 'history', label: 'History', onClick: () => go('history') },
-          { key: 'progress', label: 'Progress', status: 'Am I getting stronger?', onClick: () => go('progress') },
-          { key: 'blocks', label: 'Blocks', onClick: () => go('blocks') },
-          block && !blockDone && { key: 'tweak', label: 'Change this block', status: 'Say what you want different and I will change the weeks you have not trained yet.', onClick: () => go('builder', { blockId: block.id, from: 'home', tweak: true }) },
-          block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', onClick: () => setWhyEmpty(true) },
-        ].filter(Boolean);
+          { key: 'history', label: 'History', status: 'Sessions and lifts', icon: 'history', onClick: () => go('history') },
+          { key: 'block', label: block && !blockDone ? 'Block & schedule' : 'Blocks', status: block && !blockDone ? (block.weeks + ' weeks · ' + (block.sessions || []).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek).map(x => WEEKDAYS[x.dayOfWeek]).filter((d, i, arr) => arr.indexOf(d) === i).join(' ')) : 'Start or pick one', icon: 'calendar', onClick: () => go('block') },
+          block && !blockDone && { key: 'tweak', label: 'Change this block', status: 'Say what you want different', icon: 'edit', onClick: () => go('builder', { blockId: block.id, from: 'home', tweak: true }) },
+          block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', icon: 'plus', onClick: () => setWhyEmpty(true) },        ].filter(Boolean);
         return (
-          <Card className="p-0 mb-4 overflow-hidden">
-            <CardHead title="More" />
-            {rows.map((r, i) => <SettingsRow key={r.key} label={r.label} status={r.status} onClick={r.onClick} last={i === rows.length - 1} />)}
-          </Card>
+          <Section title="More">
+            {rows.map(r => <Row key={r.key} icon={<PixelGlyph kind={r.icon} size={24} />} title={r.label} sub={r.status} onClick={r.onClick} />)}
+          </Section>
         );
       })()}
 
@@ -858,3 +830,36 @@ function relativeDay(iso, todayISO) {
 // logging app eventually gets. The apps that feel good in a gym either keep rows very dense (Hevy)
 // or focus one movement at a time (Gravl). We are a PLAN app, and a plan has an order, so focusing
 // is the honest fit. The chip strip along the top is the safety valve: the rack being taken is not
+/* BLOCK & SCHEDULE (35-reset). One page for everything about the block that used to be its own
+   screen: the weeks, the days you train, coverage, changing it, reviewing it, every block, the
+   ready-made programmes and the training settings. Each row opens the screen it always opened. */
+function BlockPlace({ db, block, go }) {
+  const t = tdb(db);
+  const today = Store.todayISO();
+  const prog = block ? Training.blockProgress(block, today) : null;
+  const done = !block || !prog || prog.done;
+  const days = block ? (block.sessions || []).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek) : [];
+  return (
+    <div className="fade-in">
+      <SubHeader back={() => go('home')} backLabel="Train" title={block && !done ? block.name : 'Blocks'}
+        actions={[{ icon: <Icon.help width="24" />, label: 'How it works', onClick: () => go('how') }]} />
+      {block && !done && <>
+        <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>Week {prog.week} of {block.weeks} · {weekRangeLabel(block.startISO, prog.week)}</div>
+        <Section title="Schedule" right={{ label: 'Move days', onClick: () => go('schedule', { blockId: block.id }) }}>
+          {days.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i).map(s => (
+            <Row key={s.id} title={s.name.split(' - ')[0]} sub={(s.exercises || []).length + ' exercises · about ' + sessionMins(s.exercises) + ' min'}
+              icon={<span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}>{WEEKDAYS[s.dayOfWeek]}</span>}
+              onClick={() => go('preview', { sessionId: s.id, blockId: block.id })} />))}
+        </Section>
+      </>}
+      <Section title={block && !done ? 'Block' : 'Start one'}>
+        {block && !done && <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />}
+        {block && <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
+        <Row icon={<Icon.plus width="24" />} title="Start a new block" sub="Answer a few questions and I will build it" onClick={() => go('wizard', { from: 'block' })} />
+        <Row icon={<Icon.book width="24" />} title="Ready-made programmes" onClick={() => go('library')} />
+        <Row icon={<Icon.history width="24" />} title="All blocks" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />
+        <Row icon={<Icon.sliders width="24" />} title="Training settings" sub={(t.prefs.units || 'kg') + ' · rest timer · reps in reserve'} onClick={() => go('settings')} />
+      </Section>
+    </div>
+  );
+}
