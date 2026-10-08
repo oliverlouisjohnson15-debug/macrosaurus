@@ -852,7 +852,7 @@ function recentSleepShort(db) {
  * soup the design system exists to prevent, and the same fault this screen was already fixed for
  * once on its other tab. One panel per week, ruled rows inside it.
  */
-function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
+function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -903,11 +903,8 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="History" />
-      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What did I actually do?</div>
-      <h1 className="pf text-lg mb-2">History</h1>
-      <div className="text-[12.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-        Every session you have logged, newest first. Bests and trends live in Progress.
-      </div>
+      {/* 35-reset: History and Progress are one place - sessions, or each lift's trend. */}
+      {onTab && <div className="mb-4"><Seg value="sessions" onChange={onTab} options={[{ v: 'sessions', l: 'Sessions' }, { v: 'lifts', l: 'Lifts' }]} /></div>}
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a session or a movement"
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
@@ -2881,7 +2878,7 @@ function LiftSpark({ series, tone }) {
   );
 }
 
-function TrainProgress({ db, onBack, onOpenExercise, go }) {
+function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -2943,9 +2940,8 @@ function TrainProgress({ db, onBack, onOpenExercise, go }) {
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Train" title="Progress" />
-      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Am I getting stronger?</div>
-      <h1 className="pf text-lg mb-4">Progress</h1>
+      <SubHeader back={onBack} backLabel="Train" title="History" />
+      {onTab && <div className="mb-4"><Seg value="lifts" onChange={onTab} options={[{ v: 'sessions', l: 'Sessions' }, { v: 'lifts', l: 'Lifts' }]} /></div>}
 
       {trends.rows.length === 0 ? (
         <Card className="p-4">
