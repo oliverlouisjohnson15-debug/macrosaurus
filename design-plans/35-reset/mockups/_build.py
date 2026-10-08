@@ -85,7 +85,7 @@ def appbar(context, back=None):
     # The egg is the app's logo and keeps the top-left; the buddy lives in the middle, pottering along
     # beside the date (direction C, owner's note). On a sub-screen the left slot is the way back.
     left = (f'<button class="ab-btn" aria-label="Back to {back}">{icon("back")}<span class="ab-back">{back}</span></button>'
-            if back else f'<button class="ab-btn ab-logo" aria-label="Macrosaurus, open Play">{icon("egg", 26, "ic ab-egg")}</button>')
+            if back else '<button class="ab-btn ab-logo" aria-label="Macrosaurus, open Play"><span class="egg"></span><span class="wordmark">Macrosaurus</span></button>')
     walker = '' if back else '<span class="ab-stage" aria-hidden="true"><span class="walker"></span></span>'
     return (f'<header class="appbar" data-chrome>{left}<div class="ab-ctx">{walker}<span class="ab-label">{context}</span></div>'
             f'<button class="ab-btn" aria-label="You and settings">{icon("gear")}</button></header>')

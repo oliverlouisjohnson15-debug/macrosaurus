@@ -9,54 +9,56 @@
      line of UI text is IBM Plex Sans at 11px or more (Impeccable's floor and its display-font ban).
    - A limited GBC-style palette: 4 warm neutrals, the gold A-button, and the macro hues as data. */
 :root {
-  /* Paper is PAPER: a light warm sheet with cream windows. The ink frame is for the hero alone;
-     every other window is ringed in the line colour, so the page never reads dark. */
-  --bg: #faf6ec; --surface: #fffdf8; --surface-2: #f2ecdf; --track: #ece5d6;
-  --ink: #2a2433; --text: #2a2433; --muted: #5f5768; --line: #e2d9c7; --frame: #2a2433;
-  --brand: #5B4FA6; --brand-ink: #4c4196; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #2a2433;
-  --accent-ink: #4c4196; --focus: #5B4FA6;
+  /* The app's own palette, unchanged (styles.css): paper page, cream cards, ink, the purple bars,
+     gold, and the macro hues. C changes structure, type and frames - not the colours. */
+  --bg: #e7e3da; --surface: #fffdf7; --surface-2: #f8f4e8; --track: #ece7dc;
+  --ink: #241f2e; --text: #241f2e; --muted: #6b6459; --line: #d3cbbb; --frame: #241f2e;
+  --brand: #5B4FA6; --brand-ink: #7a5600; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
+  --accent-ink: #7a5600; --focus: #3D6FB4;
   --pro: #C7472F; --carb: #3D6FB4; --fat: #E0A21B; --cal: #2E7D6B; --weight: #5B4FA6;
-  --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe2;
-  --sky: #fdf1e7; --ground: #f1e2cf; --scrim: rgba(42,36,51,.32);
-  --header: var(--bg); --header-text: var(--ink); --nav-off: #5f5768; --nav-on: var(--brand-ink);
+  --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe4;
+  --sky: #fdf1e7; --ground: #f3e4d4; --scrim: rgba(20,17,26,.5);
+  --header: #5B4FA6; --header-text: #fffdf7; --nav-off: #ddd7f2; --nav-on: #FFD05E;
+  --fab-bg: #fffdf7; --fab-ink: #241f2e;
   --face-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --face-px: 'Silkscreen', 'IBM Plex Mono', monospace;
   --t-tab: 11px; --t-xs: 12px; --t-sm: 13px; --t-body: 15px; --t-lg: 17px; --t-xl: 24px; --t-hero: 52px;
   --appbar-h: 52px; --tabbar-h: 66px; --row-h: 54px; --gap: 24px;
-  /* The pixel ring: four axis-aligned 2px shadows draw a frame whose corners stay notched, which is
-     how the handhelds drew every window. Never a diagonal offset. */
   --ring: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame);
   --ring-soft: 0 -2px 0 0 var(--line), 0 2px 0 0 var(--line), -2px 0 0 0 var(--line), 2px 0 0 0 var(--line);
 }
 :root[data-theme="dark"] {
-  --bg: #17141f; --surface: #221e2d; --surface-2: #1c1926; --track: #2e2a3c;
-  --ink: #f1ecf7; --text: #f1ecf7; --muted: #aca5b9; --line: #3a3550; --frame: #8f84d8;
-  --brand: #a99cf0; --brand-ink: #c2b8f7; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
-  --accent-ink: #c2b8f7; --focus: #c2b8f7;
-  --pro: #ef6b55; --carb: #6c9be0; --fat: #F0B429; --cal: #52c79c; --weight: #a99cf0;
-  --pro-ink: #f4917e; --carb-ink: #93b8ee; --fat-ink: #f2c45a; --good-ink: #6fd3b2; --good-bg: #163027;
-  --sky: #2a2540; --ground: #362f50; --scrim: rgba(0,0,0,.6);
-  --nav-off: #aca5b9; --nav-on: #c2b8f7;
+  /* The app's own dark: neon on black, unchanged. */
+  --bg: #050507; --surface: #0c0c11; --surface-2: #101017; --track: #1a1a22;
+  --ink: #e8e8ea; --text: #e8e8ea; --muted: #8b8b98; --line: #2f2f3a; --frame: #3DFF62;
+  --brand: #3DFF62; --brand-ink: #3DFF62; --accent: #3DFF62; --accent-dark: #1f9e38; --on-accent: #06120a;
+  --accent-ink: #3DFF62; --focus: #35E0E8;
+  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
+  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
+  --sky: #07070b; --ground: #20202a; --scrim: rgba(0,0,0,.7);
+  --header: #000000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
+  --fab-bg: #0c0c11; --fab-ink: #3DFF62;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #17141f; --surface: #221e2d; --surface-2: #1c1926; --track: #2e2a3c;
-  --ink: #f1ecf7; --text: #f1ecf7; --muted: #aca5b9; --line: #3a3550; --frame: #8f84d8;
-  --brand: #a99cf0; --brand-ink: #c2b8f7; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
-  --accent-ink: #c2b8f7; --focus: #c2b8f7;
-  --pro: #ef6b55; --carb: #6c9be0; --fat: #F0B429; --cal: #52c79c; --weight: #a99cf0;
-  --pro-ink: #f4917e; --carb-ink: #93b8ee; --fat-ink: #f2c45a; --good-ink: #6fd3b2; --good-bg: #163027;
-  --sky: #2a2540; --ground: #362f50; --scrim: rgba(0,0,0,.6);
-  --nav-off: #aca5b9; --nav-on: #c2b8f7;
+  --bg: #050507; --surface: #0c0c11; --surface-2: #101017; --track: #1a1a22;
+  --ink: #e8e8ea; --text: #e8e8ea; --muted: #8b8b98; --line: #2f2f3a; --frame: #3DFF62;
+  --brand: #3DFF62; --brand-ink: #3DFF62; --accent: #3DFF62; --accent-dark: #1f9e38; --on-accent: #06120a;
+  --accent-ink: #3DFF62; --focus: #35E0E8;
+  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
+  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
+  --sky: #07070b; --ground: #20202a; --scrim: rgba(0,0,0,.7);
+  --header: #000000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
+  --fab-bg: #0c0c11; --fab-ink: #3DFF62;
   color-scheme: dark;
 } }
 ::selection { background: var(--accent); color: var(--on-accent); }
 
 /* chrome: a plain bar on the page colour, a tab bar with the menu cursor */
-.appbar { background: var(--header); color: var(--header-text); }
-.ab-ctx { font-size: var(--t-lg); font-weight: 600; }
+.appbar { background: var(--header); color: var(--header-text); box-shadow: 0 3px 0 0 var(--frame); margin-bottom: 3px; }
+.ab-ctx { font-size: var(--t-sm); font-weight: 600; }
 .ab-avatar .buddy { margin-top: 4px; }
-.tabbar { background: var(--surface-2); border-top: 2px solid var(--line); }
+.tabbar { background: var(--header); border-top: 3px solid var(--frame); }
 .tab { color: var(--nav-off); position: relative; }
 .tab span { font-weight: 500; }
 .tab[aria-current] { color: var(--nav-on); }
@@ -64,7 +66,7 @@
 /* The GBA menu cursor: a pixel ▶ beside the chosen item. */
 .tab[aria-current]::before { content: ''; position: absolute; top: 6px; left: calc(50% - 22px); width: 6px; height: 10px; background: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
-.fab { background: var(--accent) linear-gradient(var(--accent) calc(100% - 4px), var(--accent-dark) 0); color: var(--on-accent); box-shadow: var(--ring); }
+.fab { background: var(--fab-bg); color: var(--fab-ink); box-shadow: 0 -3px 0 0 var(--frame), 0 3px 0 0 var(--frame), -3px 0 0 0 var(--frame), 3px 0 0 0 var(--frame); }
 
 /* the one window on a screen: the hero */
 .hero { background: var(--surface); box-shadow: var(--ring); margin: 2px; }
@@ -157,8 +159,17 @@
    strolls across a short stage, stops, turns and strolls back - the overworld idle of every handheld
    RPG - and stands still under reduced motion. */
 .ab-logo { justify-self: start; }
-.ab-egg { color: var(--cal); }
-.ab-ctx { display: inline-flex; align-items: flex-end; gap: 6px; position: relative; padding-left: 0; }
+/* The app's logo, as the website draws it: the green-spotted egg straight on the purple bar beside
+   the MACROSAURUS wordmark in the pixel face. The wordmark steps aside below 360px. */
+.egg { width: 22px; height: 22px; overflow: hidden; position: relative; flex: none; }
+.egg::before { content: ''; position: absolute; left: -4px; top: -4px; width: 30px; height: 30px; background: url(assets/egg-move.png) 0 0 / 120px 30px no-repeat; image-rendering: pixelated; }
+.ab-logo { gap: 10px; padding: 0 6px; }
+.wordmark { font-family: var(--face-px); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--header-text); }
+@media (max-width: 359px) { .wordmark { display: none; } }
+/* Bar layout: logo left, the buddy and the context right, then the gear. */
+.appbar { grid-template-columns: auto 1fr auto; }
+.appbar > .ab-ctx { justify-self: end; }
+.ab-ctx { color: var(--header-text); display: inline-flex; align-items: flex-end; gap: 6px; position: relative; padding-left: 0; }
 .ab-label { line-height: 1; padding-bottom: 6px; }
 .ab-stage { position: relative; width: 64px; height: 26px; overflow: hidden; }
 .walker { position: absolute; bottom: 0; left: 0; width: 24px; height: 24px; image-rendering: pixelated;
