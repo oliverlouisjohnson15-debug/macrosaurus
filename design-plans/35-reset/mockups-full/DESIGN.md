@@ -1,6 +1,6 @@
 # DESIGN.md · Macrosaurus
 
-Status: proposal for review (35-reset, full mockup). When approved, it moves to the repo root, where
+Status: approved 2026-10-08 (35-reset, full mockup). It moves to the repo root in the foundation PR, where
 Impeccable and every later design pass read it first. The tokens and primitives are in
 `system.css`, and the HTML versions of each primitive are in `tools/kit.py`.
 

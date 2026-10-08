@@ -10,7 +10,7 @@ those: purple chrome stays, paper gets lighter and warmer, Plex Sans is used for
 pixel identity is concentrated in windows, HP meters, the ▶ cursor, pixel numerals, the sprites, and
 one game-style dialogue box.
 
-**No app code changes until the owner approves the mockup.**
+**Approved by the product owner on 2026-10-08, with every decision in §5 accepted** (N3–N8, including removing the settings search). Implementation follows §6.
 
 ---
 
@@ -162,7 +162,7 @@ the 4-step route stays for anyone who wants it. No count goes up.
 
 ## 5 · Decisions for the owner
 
-| # | Decision | Default in the mockup |
+| # | Decision (all approved 2026-10-08) | In the mockup |
 |---|---|---|
 | N3 | **The sheet stays open after a +**, with an "Added" strip, Undo and Done (multi-add without a plate; the same entries are logged) | shown |
 | N4 ⚑ | **Remove the settings search** (removes a feature) | removed in the mockup; kept if you say no |
