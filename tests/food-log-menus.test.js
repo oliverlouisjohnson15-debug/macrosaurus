@@ -92,12 +92,13 @@ test('the rest of the meal menu is alive to a tap too', () => {
   } finally { r.unmount(); }
 });
 
-test('a logged food\'s own menu copies that one item', () => {
+test('a logged food\'s own sheet copies that one item', () => {
+  // 35-reset: the per-row menu went; tapping the row opens its edit sheet, which carries Copy to….
   const db = account();
   const r = foodLog(db);
   try {
-    const more = Array.from(r.host.querySelectorAll('button')).filter(b => b.getAttribute('aria-label') === 'Entry options')[0];
-    r.tap(more);
+    const row = Array.from(r.host.querySelectorAll('button')).filter(b => (b.getAttribute('title') || '').indexOf('Tap to edit') === 0)[0];
+    r.tap(row);
     r.tap(r.findEl('Copy to…'));
     r.tap(r.findEl('Tomorrow'));
     const copied = db.log_entries.filter(e => e.date === tomorrow);

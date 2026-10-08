@@ -4226,7 +4226,14 @@ function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'r
     </label>
   );
 }
-function Card({ children, className = '', ...rest }) { return <div className={`bg-[#161618] pixel-box ${className}`} {...rest}>{children}</div>; }
+/* A GROUP ON THE PAGE (35-reset). `Card` used to be a framed, filled box, and with ~150 of them a screen
+   read as a pile of crates. A group now sits on the page as a section: no frame, no fill, its heading
+   (CardHead) over a rule. The one framed surface a screen gets is its Hero. `hero` opts a Card into
+   being that surface. */
+function Card({ children, className = '', hero, ...rest }) {
+  if (hero) return <Hero className={className} {...rest}>{children}</Hero>;
+  return <div className={'ms-card ' + className} {...rest}>{children}</div>;
+}
 /* A ⋯ MENU THAT ESCAPES ITS CARD. An absolutely positioned pop-up is clipped by the first ancestor
    with `overflow: hidden`, and every panel in this app has one (the full-bleed title bar needs it),
    so a menu opened on the last row of a meal simply lost its bottom items - Delete included. It is
@@ -4289,7 +4296,7 @@ function CardHead({ title, right, onRight, rightTone = 'accent', padLeft }) {
   // 35-reset: a card's name is a section heading - Plex 15/700 over a 2px rule - not a title bar.
   const rc = rightTone === 'muted' ? 'var(--muted)' : 'var(--link)';
   return (
-    <div data-cardbar className="flex items-center justify-between gap-2 px-3" style={{ minHeight: 44, borderBottom: '2px solid var(--hairline-strong)', paddingLeft: padLeft || undefined }}>
+    <div data-cardbar className="ms-cardhead flex items-center justify-between gap-2" style={{ minHeight: 44, paddingLeft: padLeft || undefined }}>
       <span className="text-[15px] truncate" style={{ fontWeight: 700 }}>{title}</span>
       {right != null && (onRight
         ? <button onClick={onRight} className="hit text-[13px] shrink-0" style={{ color: rc, fontWeight: 600 }}>{right}</button>
@@ -4756,38 +4763,15 @@ function PipLine({ pct, color = 'var(--good)', height = 10, cells = 10, classNam
    the change from the four-row table this replaces. Four meters each carrying "75g / 131g" put
    fifteen numbers in a block whose job is to be glanced at, and every one of them was the day rather
    than the food - which the sentence underneath already says, in words, once. */
-function DayImpact({ rest, target, add, label = 'THIS ENTRY', verb = 'Saving' }) {
-  const kcal = Math.round(add.kcal || 0);
-  const parts = [['PROT', add.protein, PRO, 4], ['CARB', add.carbs, CARB, 4], ['FATS', add.fat, FAT, 9]];
-  const fromMacros = parts.reduce((s, [, g, , kpg]) => s + (g || 0) * kpg, 0);
-  // Alcohol and rounding both mean the macros need not add up to the stated calories, so the bars are
-  // scaled by whichever is larger. A bar that overflows its own frame is worse than a short one.
-  const denom = Math.max(kcal, fromMacros, 1);
+/* What this entry does to the rest of today, said once (35-reset). The entry's own calories and macros
+   are already the sheet's headline, so this is one line: what is left after it. */
+function DayImpact({ rest, target, add, label, verb = 'Saving' }) {
   const canSay = rest && target && target.kcal > 0;
-  const leftK = canSay ? Math.round(target.kcal - (rest.kcal || 0) - (add.kcal || 0)) : 0;
-  const leftP = canSay && target.protein > 0 ? Math.round(target.protein - (rest.protein || 0) - (add.protein || 0)) : null;
-  return (
-    <SheetBox>
-      <div className="flex justify-between items-center px-2.5 py-2" style={{ borderBottom: '2px solid var(--border)' }}>
-        <SheetLabel>{label}</SheetLabel>
-        <span className="pf text-[13px] tnum" style={{ color: 'var(--accent-ink)', letterSpacing: '0.04em' }}>{kcal} KCAL</span>
-      </div>
-      <div className="px-2.5 py-2.5 flex flex-col gap-2">
-        {parts.map(([cap, g, color, kpg]) => (
-          <div key={cap} className="grid items-center gap-2.5" style={{ gridTemplateColumns: '2.75rem 1fr auto' }}>
-            <SheetLabel>{cap}</SheetLabel>
-            {/* scale 1 with the denominator as the target, so the frame IS the entry and there is no
-                goal notch to draw: nothing here can be over or under, it is just a split. */}
-            <PipMeter value={(g || 0) * kpg} target={denom} color={color} cells={20} scale={1} overIsFine small />
-            <span className="pf text-[11px] tnum" style={{ color: `var(--${cap === 'PROT' ? 'pro' : cap === 'CARB' ? 'carb' : 'fat'}-ink)` }}>{Math.round(g || 0)}G</span>
-          </div>
-        ))}
-        {canSay && <span className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
-          {verb} this leaves {leftK.toLocaleString()} kcal{leftP != null ? ` and ${leftP} g protein` : ''} for the rest of today.
-        </span>}
-      </div>
-    </SheetBox>
-  );
+  if (!canSay) return label ? <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{label}</div> : null;
+  const leftK = Math.round(target.kcal - (rest.kcal || 0) - (add.kcal || 0));
+  const leftP = target.protein > 0 ? Math.round(target.protein - (rest.protein || 0) - (add.protein || 0)) : null;
+  return <Row icon={<Icon.goal width="24" />} title={label || 'After this'}
+    sub={<span className="tnum">{leftK < 0 ? Math.abs(leftK).toLocaleString('en-GB') + ' kcal over' : leftK.toLocaleString('en-GB') + ' kcal left'}{leftP != null ? ' · ' + Math.max(0, leftP) + ' g protein left' : ''}</span>} />;
 }
 // The amount is the sheet's headline, and its own keypad: tap it and type.
 // Steppers are for small adjustments around a common default (Nielsen Norman Group's guidance is
@@ -4802,36 +4786,29 @@ function DayImpact({ rest, target, add, label = 'THIS ENTRY', verb = 'Saving' })
    guesses they are meaningful for grams and servings alike. They only appear when a base amount is
    known to multiply. */
 const PORTION_MULTS = [0.5, 1, 1.5, 2];
-function AmountField({ value, onChange, unitLabel, step, onStep, label = 'PORTION', base, onSetAmount }) {
-  const trim = { border: '2px solid var(--border)', background: 'var(--surface2)', height: 54, color: 'var(--text)' };
+function AmountField({ value, onChange, unitLabel, step, onStep, label = 'Amount', base, onSetAmount }) {
+  const ring = '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)';
   const cur = +value || 0;
-  return (<div className="flex flex-col gap-[7px]">
+  return (<div className="flex flex-col gap-2">
     <div className="flex justify-between items-baseline">
       <SheetLabel>{label}</SheetLabel>
-      {base > 0 && <span className="text-[11px]" style={{ color: 'var(--muted)' }}>base {fmtCount(base)} {unitLabel}</span>}
+      {base > 0 && <span className="text-[13px]" style={{ color: 'var(--muted)' }}>was {fmtCount(base)} {unitLabel}</span>}
     </div>
     {/* minmax(0,1fr), not 1fr: the auto minimum of a grid track is its content's intrinsic width, so
         a plain `1fr` lets the number field refuse to shrink and shoves the + button off the screen. */}
     <div className="grid gap-2" style={{ gridTemplateColumns: '52px minmax(0,1fr) 52px' }}>
-      <button type="button" onClick={() => onStep(-step)} className="pixel-btn pf text-[16px] flex items-center justify-center" style={trim} aria-label="Less">–</button>
-      <div className="flex items-baseline justify-center gap-2 px-2" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', height: 54 }}>
+      <button type="button" onClick={() => onStep(-step)} className="flex items-center justify-center m-[2px]" style={{ height: 52, background: 'var(--card)', boxShadow: ring, color: 'var(--link)' }} aria-label="Less"><Icon.arrow_left width="24" /></button>
+      <div className="flex items-baseline justify-center gap-2 px-2 m-[2px]" style={{ background: 'var(--card)', boxShadow: ring, height: 52 }}>
         <input value={value} onChange={onChange} inputMode="decimal" type="text" aria-label="Amount"
           onFocus={e => { try { e.target.select(); } catch (_) {} }}
-          className="min-w-0 flex-1 bg-transparent border-0 outline-none pf text-[26px] tnum text-center"
+          className="min-w-0 flex-1 bg-transparent border-0 outline-none num text-[24px] tnum text-center self-center"
           style={{ color: 'var(--text)' }} />
-        <SheetLabel className="shrink-0">{unitLabel}</SheetLabel>
+        <span className="shrink-0 text-[13px] self-center" style={{ color: 'var(--muted)', fontWeight: 600 }}>{unitLabel}</span>
       </div>
-      <button type="button" onClick={() => onStep(step)} className="pixel-btn pf text-[16px] flex items-center justify-center" style={trim} aria-label="More">+</button>
+      <button type="button" onClick={() => onStep(step)} className="flex items-center justify-center m-[2px]" style={{ height: 52, background: 'var(--card)', boxShadow: ring, color: 'var(--link)' }} aria-label="More"><Icon.arrow_right width="24" /></button>
     </div>
-    {base > 0 && onSetAmount && <div className="grid grid-cols-4 gap-[7px]">
-      {PORTION_MULTS.map(mu => {
-        const target = +(base * mu).toFixed(2);
-        const on = Math.abs(cur - target) < 0.005;
-        return <button key={mu} type="button" onClick={() => onSetAmount(String(target))}
-          className="pixel-btn py-2.5 pf text-[11px]" style={{ borderWidth: 2, letterSpacing: '0.06em',
-            background: on ? 'var(--accent)' : 'var(--surface2)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>{mu}×</button>;
-      })}
-    </div>}
+    {base > 0 && onSetAmount && <Seg value={PORTION_MULTS.find(mu => Math.abs(cur - +(base * mu).toFixed(2)) < 0.005)} onChange={(mu) => onSetAmount(String(+(base * mu).toFixed(2)))}
+      options={PORTION_MULTS.map(mu => ({ v: mu, l: mu + '×' }))} />}
   </div>);
 }
 // One tracked quantity: name on the left, ONE number on the right, blocks underneath.
@@ -12716,22 +12693,6 @@ function RecipeMini({ r, onOpen, tag }) {
     </div>
   </button>);
 }
-function RecipeRail({ title, meta, tag, items, onOpenRecipe }) {
-  if (!items || !items.length) return null;
-  return (<div className="mb-4">
-    <div className="flex items-baseline justify-between flex-wrap gap-x-3 mb-2">
-      <div className="text-lg font-bold">{title}</div>
-      {meta && <div className="text-[11px] text-[#8A8A90] tnum whitespace-nowrap">{meta}</div>}
-    </div>
-    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      {items.map(r => <RecipeMini key={r.id} r={r} tag={tag} onOpen={() => onOpenRecipe(r.id)} />)}
-    </div>
-  </div>);
-}
-// Turn the library into a few purposeful, labelled rails instead of one random-feeling strip. The
-// tracker's edge is the top rail: recipes that fit what's LEFT of today's macros, protein-ranked.
-// The rest are time-of-day aware and use the auto-tags. Recipes are deduped across rails so each is
-// a fresh reason to tap. Rails need >=2 cards to earn their caption; empty facets simply don't show.
 function buildRecipeRails(db) {
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -12761,31 +12722,6 @@ function buildRecipeRails(db) {
   if (topC) { const items = take(priced.filter(r => (r.tags || {}).cuisine === topC), 8); if (items.length >= 2) rails.push({ key: 'cuisine', title: 'More ' + Rcp.taxLabel(topC), items }); }
   if (!rails.length) { const items = take(priced.slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0)), 8); if (items.length) rails.push({ key: 'recent', title: 'Your recipes', items }); }
   return rails;
-}
-function RecipeRails({ db, onOpenRecipe, limit }) {
-  const rails = buildRecipeRails(db).slice(0, limit || 4);
-  if (!rails.length) return null;
-  return <>{rails.map(rl => <RecipeRail key={rl.key} title={rl.title} meta={rl.meta} tag={rl.tag} items={rl.items} onOpenRecipe={onOpenRecipe} />)}</>;
-}
-// Dashboard keeps it tight: the top two rails only (fits-your-gap + one more).
-function CookGapStrip({ db, onOpenRecipe }) { return <RecipeRails db={db} onOpenRecipe={onOpenRecipe} limit={2} />; }
-// Dashboard strip: batch-cooked meals with servings still going spare, so leftovers get used (and
-// logged) before you cook something new. Taps through to the recipe to log a serving.
-function LeftoversStrip({ db, onOpenRecipe }) {
-  const left = (db.recipes || []).filter(r => Rcp.batchLeft(r) > 0);
-  if (!left.length) return null;
-  return (<div className="mb-4">
-    <div className="text-lg font-bold mb-2">Leftovers to use up</div>
-    <div className="space-y-2">
-      {left.map(r => (
-        <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--card)' }}>
-          <span className="pf text-[11px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
-          <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
-          {r.macros_per_serving && r.macros_per_serving.kcal > 0 && <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>}
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
-        </button>))}
-    </div>
-  </div>);
 }
 // Free-tier upsell card: contextual, trial-forward, and dismissable (re-shows after 7 days so it
 // nudges without nagging). One per surface only, to stay on the honest-coaching side of the line.
@@ -13751,7 +13687,8 @@ function PixelGrip() {
 // --*-on-head and NOT --*-ink: the title bar is the one dark ground in the paper theme and the ink
 // tokens are unreadable on it - see the note beside those tokens in styles.css.
 function MealHeadMacros({ macros }) {
-  const parts = [['P', macros.protein, 'var(--pro-on-head)'], ['C', macros.carbs, 'var(--carb-on-head)'], ['F', macros.fat, 'var(--fat-on-head)']];
+  // 35-reset: the heading sits on the page now, so the macros take their INK colours.
+  const parts = [['P', macros.protein, 'var(--pro-ink)'], ['C', macros.carbs, 'var(--carb-ink)'], ['F', macros.fat, 'var(--fat-ink)']];
   return (
     <span className="flex items-baseline gap-[7px] shrink-0 tnum">
       {parts.map(([k, v, c]) => (
@@ -13759,8 +13696,7 @@ function MealHeadMacros({ macros }) {
         // on. Both carry the macro's colour: a grey letter beside a coloured number reads as two
         // things rather than as one label.
         <span key={k} className="flex items-baseline gap-[1px]" style={{ color: c }}>
-          <span className="pf text-[11px]" style={{ letterSpacing: '0.06em' }}>{k}</span>
-          <span className="text-[11px] font-semibold">{Math.round(v || 0)}</span>
+          <span className="text-[12px] font-semibold">{k}{Math.round(v || 0)}</span>
         </span>
       ))}
     </span>
@@ -13768,7 +13704,7 @@ function MealHeadMacros({ macros }) {
 }
 /* Food's two views (35-reset): the diary, and the recipes that used to be the Cook tab. */
 function FoodSwitch({ value, onChange }) {
-  return <div className="mb-4"><Pill wide value={value} onChange={onChange} options={[{ v: 'diary', l: 'Diary' }, { v: 'recipes', l: 'Recipes' }]} /></div>;
+  return <div className="mb-3"><Pill wide value={value} onChange={onChange} options={[{ v: 'diary', l: 'Diary' }, { v: 'recipes', l: 'Cook' }]} /></div>;
 }
 function FoodLog({ db, update, openLog, showToast, onSwitch }) {
   const today = Store.todayISO();
@@ -14090,7 +14026,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             · 360 g" ran to two lines on a 375px screen and the row grew a head taller than the
             design's, which is most of why the diary read as a different page. */}
         <div className="min-w-0">
-          <span className="text-[13.5px] block" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>{e.name}</span>
+          <span className="text-[15px] block" style={{ fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>{e.name}</span>
         </div>
         {/* The macros are back, now that dropping the grab handle and moving the amount up have paid
             for them. They earn the place: this is a macro tracker, and "how much protein was that?"
@@ -14100,7 +14036,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         {/* No "·" between the calories and the macros: it measured 16px, which was exactly the
             16px the line was over by, and the colour change already does a separator's job. */}
         <div className="flex items-center gap-1.5 mt-[3px] min-w-0">
-          <span className="text-[11px] tnum truncate min-w-0" style={{ color: 'var(--muted)' }}>{e.qty_label || ''}</span>
+          <span className="text-[13px] tnum truncate min-w-0" style={{ color: 'var(--muted)' }}>{e.qty_label || ''}</span>
           {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
               say the same thing twice in one row. The number stays because colour alone is not a
               channel everyone has, and a phone has no hover to fall back on. */}
@@ -14112,22 +14048,14 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           support line under the name, which put the row's least-scanned text in its most-scanned
           position and left the right edge empty. */}
       <div className="flex flex-col items-end gap-[3px] shrink-0 tnum">
-        <span className="pf text-[11px]" style={{ color: 'var(--text)' }}>{Math.round(e.computed_macros.kcal)}</span>
-        <span className="flex gap-1.5 text-[11px]">
-          <span style={{ color: PRO_T }}>P{Math.round(e.computed_macros.protein || 0)}</span>
-          <span style={{ color: CARB_T }}>C{Math.round(e.computed_macros.carbs || 0)}</span>
-          <span style={{ color: FAT_T }}>F{Math.round(e.computed_macros.fat || 0)}</span>
+        <span className="flex items-baseline gap-1"><span className="num text-[15px]" style={{ color: 'var(--text)' }}>{Math.round(e.computed_macros.kcal)}</span><span className="text-[12px]" style={{ color: 'var(--muted)' }}>kcal</span></span>
+        <span className="flex gap-1.5 text-[12px]" style={{ fontWeight: 600 }}>
+          <span style={{ color: 'var(--pro-ink)' }}>P{Math.round(e.computed_macros.protein || 0)}</span>
+          <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(e.computed_macros.carbs || 0)}</span>
+          <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(e.computed_macros.fat || 0)}</span>
         </span>
       </div>
       </button>
-      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu && menu.id === e.id ? null : { id: e.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options"><Icon.more width="16" /></button>
-      {menu && menu.id === e.id && (<AnchoredMenu rect={menu.rect} onClose={() => setMenu(null)} className="w-44">
-        <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
-        {E.photoUpdatable(e) && <button onClick={() => { setPhotoUp(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Update with a photo</button>}
-        <button onClick={() => dup(e)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Duplicate</button>
-        <button onClick={() => { setCopyTo({ title: 'Copy ' + e.name, entries: [e], srcDate: date, pickMeal: true, meal: e.meal_id }); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>
-        <button onClick={() => del(e)} className="block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]">Delete</button>
-      </AnchoredMenu>)}
     </div>); };
 
   const first = new Date(calMonth.y, calMonth.m, 1); const startDow = (first.getDay() + 6) % 7; // Mon=0
@@ -14155,15 +14083,15 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           press to change the WHOLE PAGE looks pressable and the two step buttons stay quiet. The ⋯
           menu is not in the design but holds real day-level actions (add a meal, copy the day), so
           it stays as a fourth slim column rather than being dropped. */}
-      <div className="grid items-stretch gap-2 mb-4" style={{ gridTemplateColumns: '38px 1fr 38px auto' }}>
-        <button onClick={() => setDate(shiftISO(date, -1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Previous day"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
-        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="pixel-btn flex items-center justify-center gap-2 px-3 py-2.5" style={{ background: 'var(--card)', borderWidth: 2 }}>
-          <span className="text-[14px] font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+      <div className="grid items-center gap-1 mb-2" style={{ gridTemplateColumns: '44px 1fr 44px 44px' }}>
+        <button onClick={() => setDate(shiftISO(date, -1))} aria-label="Previous day" className="h-11 flex items-center justify-center" style={{ color: 'var(--link)' }} aria-label="Previous day"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="h-11 flex items-center justify-center gap-1.5">
+          <span className="text-[15px]" style={{ fontWeight: 600 }}>{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <span className="text-[11px]" style={{ color: 'var(--muted)' }}><PixelGlyph kind={showCal ? 'caret_up' : 'caret_down'} size={16} /></span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Next day"><Icon.chevron width="16" /></button>
+        <button onClick={() => setDate(shiftISO(date, 1))} aria-label="Next day" className="h-11 flex items-center justify-center" style={{ color: 'var(--link)' }} aria-label="Next day"><Icon.chevron width="16" /></button>
         <div className="relative flex items-center">
-          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options"><Icon.more width="16" /></button>
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center text-[#8A8A90]" aria-label="Day options"><Icon.more width="16" /></button>
           {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
             <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
             {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
@@ -14192,67 +14120,25 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
             carrying the target, then one row per instrument. */}
-        return <Card className="p-0 mb-4 overflow-hidden">
-          <CardHead title="Day total" right={'of ' + et.eff.kcal + ' kcal'} />
-          {/* The same blocks as Today, laid out on one line each because this card is a reminder of
-              where the day stands rather than the place you study it. Same instrument, same reading.
-              Calories take the same row as the macros (design-plans/34-overhaul/03): this card used
-              to lead with Today's own 34px figure and hero meter, which made the Food tab open on a
-              copy of Today. The target stays on the title bar and the row says what is left, so the
-              card says each number once. */}
-          <div className="px-3 py-3 space-y-2">
-            <div className="flex items-center gap-2.5">
-              <span className="pf text-[11px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>KCAL</span>
-              <div className="flex-1 min-w-0"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} small /></div>
-              <span className="pf tnum text-[11px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>
-                {over ? Math.abs(Math.round(rem)) + ' over' : Math.round(rem) + ' left'}
-              </span>
-            </div>
-            {[['PROT', tot.protein, et.eff.protein_g, PRO, PRO_T], ['CARB', tot.carbs, et.eff.carbs_g, CARB, CARB_T], ['FATS', tot.fat, et.eff.fat_g, FAT, FAT_T]].map(([l, e, t, c, ink]) => (
-              <div key={l} className="flex items-center gap-2.5">
-                <span className="pf text-[11px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{l}</span>
-                <div className="flex-1 min-w-0"><PipMeter value={e} target={t} color={c} small /></div>
-                {/* The figure is set in the pixel face and carries its macro's colour, as the design
-                    has it. In grey body type it was the quietest thing on a row whose whole job is
-                    to report a number. The INK of that colour, not the fill: measured, the amber came
-                    out at 2.21:1 against the card. Same rule as MacroRow on Today. */}
-                <span className="pf tnum text-[11px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : ink }}>
-                  {e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'}
-                </span>
-              </div>
-            ))}
-            {/* Density belongs here: this is the page where you are looking at the food that produced
-                the score. It takes the same one-line shape as the macros above rather than the taller
-                Today treatment, because this card is a reminder of where the day stands, not the place
-                you study it. Scored for THIS date, so paging back a day scores that day.
-                Premium only, and unlike Today it carries no locked upsell row: the upgrade path is
-                already on Today, and a second one on the next tab along is nagging rather than
-                offering. */}
-            {(() => {
-              if (window.MISPREMIUM !== true) return null;
-              const dnd = E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
-              return (
-                <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70" style={{ minHeight: 24 }}>
-                  <span className="pf text-[11px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
-                  <div className="flex-1 min-w-0">
-                    <PipMeter value={dnd.score == null ? 0 : dnd.score} target={dnd.target} cells={10}
-                      scale={100 / dnd.target} color={densityColor(dnd.score)} small overIsFine />
-                  </div>
-                  <span className="tnum text-[11px] w-[64px] text-right shrink-0 whitespace-nowrap"
-                    style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)') }}>
-                    {dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}
-                  </span>
-                </button>
-              );
-            })()}
+        // 35-reset: the day as ONE line (Food owns "eaten"; Today owns "left") and one thin meter.
+        const dnd = window.MISPREMIUM === true ? E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol }))) : null;
+        return <div className="mb-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>of {Math.round(et.eff.kcal).toLocaleString('en-GB')} kcal</span></span>
+            <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(tot.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(tot.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(tot.fat)}</span></span>
           </div>
-        </Card>;
+          <div className="mt-2"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} small /></div>
+          {dnd && <button onClick={() => setDensityHelp(true)} className="w-full flex items-center justify-between text-[13px] mt-1" style={{ minHeight: 44 }}>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Density</span>
+            <span className="tnum" style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)'), fontWeight: 600 }}>{dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}</span>
+          </button>}
+        </div>;
       })()}
 
       </div>
 
       <div className="min-w-0">
-      {db.log_entries.length === 0 && <Card className="p-4 mb-3 fade-in" style={{ borderTopColor: 'var(--accent)', borderTopWidth: '5px' }}>
+      {false && <Card className="p-4 mb-3 fade-in">
         <div className="text-[13px] font-semibold mb-1">Log your first item</div>
         <div className="text-[11px] text-[#8A8A90] leading-relaxed">Tap <span className="text-[#4A9EEB] font-medium">+ Add food</span> on any meal below, or the big <Icon.plus width="24" /> button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.</div>
       </Card>}
@@ -14276,83 +14162,48 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
              above and the cards on Today. */
           <React.Fragment key={m.id}>
           {mealDrag && mealDropAt && mealDropAt.beforeId === m.id && mealDropBar}
-          <Card className="p-0 mb-3 overflow-hidden" data-meal-drop={m.id} data-meal-card={m.id} style={Object.assign({},
-            drag && dropAt && dropAt.mealId === m.id ? { outline: '3px solid var(--accent)', outlineOffset: '-3px', boxShadow: '0 -2px 0 0 var(--accent), 0 2px 0 0 var(--accent), -2px 0 0 0 var(--accent), 2px 0 0 0 var(--accent)' } : null,
-            mealDrag && mealDrag.id === m.id ? { opacity: 0.4, outline: '2px dashed var(--muted)', outlineOffset: '-2px' } : null)}>
-            {/* The title bar IS the reorder control: hold it and the meal comes with you. The grip
-                on the left says so without adding a second thing to aim at, and it starts the drag
-                on contact because a handle cannot mean anything else. */}
-            <div onPointerDown={(ev) => { if (editMeal === m.id) return; if (ev.target.closest && ev.target.closest('[data-no-mealdrag]')) return; startMealDrag(ev, m, me, false); }}
-              className="flex justify-between items-center gap-2 px-2.5 py-[6px]"
-              style={{ borderBottom: '2px solid var(--border)', background: mealArming === m.id ? 'var(--surface2)' : 'var(--cardhead-bg)', transition: 'background .18s linear', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span onPointerDown={(ev) => { if (editMeal === m.id) return; startMealDrag(ev, m, me, true); }}
-                  className="hit shrink-0 flex items-center px-1 -mx-1" aria-hidden="true"
-                  style={{ color: 'var(--cardhead-text)', opacity: 0.55, cursor: 'grab', touchAction: 'none' }} title="Drag to reorder"><PixelGrip /></span>
-                {editMeal === m.id
-                  ? <input autoFocus data-no-mealdrag value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="px-2 py-1 text-sm font-semibold w-40" style={{ background: 'var(--card)', color: 'var(--text)', border: '2px solid var(--border)' }} />
-                  : <button onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[11px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="16" /></span></button>}
-              </div>
-              <div className="flex items-start gap-1.5">
-                {/* The meal's calories over its macros - see MealHeadMacros. Still no meal-level
-                    Density Score: it would sit on the day's per-calorie scale while the blocks
-                    beside each food sit on the per-100 g one, so a meal holding one food would
-                    disagree with the food inside it. */}
-                {/* An empty meal reads as an invitation, not a report. "0 kcal" is the lazy
-                    placeholder the empty-state literature warns about: it states a fact nobody
-                    needed and makes an ordinary mid-afternoon look like a failure. The dash is
-                    quieter and truer, and the add action right below it is the way out - and it
-                    gets no macro line either, for the same reason: "P0 C0 F0" is that same lazy
-                    placeholder three times over. */}
-                {/* A meal with ONE food in it gets neither line: the food's own row, directly below,
-                    carries exactly the same calories and macros, so the heading would be saying them
-                    twice (design-plans/34-overhaul/03). From two foods up the heading is a total
-                    nobody can read off a single row, and it earns its place again. */}
-                {me.length !== 1 && <div className="flex flex-col items-end gap-[2px] leading-tight">
-                  <span className="pf text-[11px] tnum" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
-                    {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
-                  </span>
+          <section className="mt-5" data-meal-drop={m.id} data-meal-card={m.id} style={Object.assign({},
+            drag && dropAt && dropAt.mealId === m.id ? { outline: '3px solid var(--accent)', outlineOffset: '2px' } : null,
+            mealDrag && mealDrag.id === m.id ? { opacity: 0.4, outline: '2px dashed var(--muted)', outlineOffset: '2px' } : null)}>
+            {/* THE MEAL'S HEADING (35-reset): a section heading on the page, not a dark title bar. Hold it
+                to carry the meal; tap its name for the meal's actions; the + opens the log sheet on it. */}
+            <div data-meal-head onPointerDown={(ev) => { if (ev.target.closest && ev.target.closest('[data-no-mealdrag]')) return; startMealDrag(ev, m, me, false); }}
+              className="flex justify-between items-center gap-2 pb-1"
+              style={{ borderBottom: '2px solid var(--border)', background: mealArming === m.id ? 'var(--surface2)' : 'transparent', transition: 'background .18s linear', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label="Meal options"
+                className="text-[15px] text-left truncate min-w-0" style={{ fontWeight: 700, minHeight: 44, minWidth: 44 }}>{m.name}</button>
+              <div className="flex items-center gap-2 shrink-0">
+                {me.length !== 1 && <div className="flex flex-col items-end leading-tight">
+                  <span className="text-[13px] tnum" style={{ color: 'var(--muted)', fontWeight: 600 }}>{me.length ? <><span className="num" style={{ color: 'var(--text)' }}>{Math.round(ms.kcal)}</span> kcal</> : '–'}</span>
                   {me.length > 1 && <MealHeadMacros macros={ms} />}
                 </div>}
-                <div className="relative" data-no-mealdrag>
-                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
-                  {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
-                    {/* Dragging is the gesture; these are the same move without one, for a keyboard,
-                        a switch, or anyone who would rather not hold a card at arm's length. */}
-                    {mi > 0 && <button onClick={() => { moveMeal(m, -1); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Move up</button>}
-                    {mi < meals.length - 1 && <button onClick={() => { moveMeal(m, 1); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Move down</button>}
-                    {me.length > 0 && <button onClick={() => saveMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Save as meal</button>}
-                    {me.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>}
-                    {me.length > 0 && <button onClick={() => clearMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Clear food</button>}
-                    <button onClick={() => { setMealMenu(null); setConfirm({ title: 'Delete ' + m.name + '?', body: me.length ? `Its ${me.length} logged item${me.length === 1 ? '' : 's'} will move to the meal above so nothing is lost. Only ${date === today ? 'today' : 'this day'} changes.` : `Removes this meal from ${date === today ? 'today' : 'this day'} only.`, confirmLabel: 'Delete meal', onConfirm: () => deleteMeal(m) }); }} className="block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]">Delete meal</button>
-                  </AnchoredMenu>}
-                </div>
+                <button data-no-mealdrag onClick={() => openLog({ date, mealId: m.id })} aria-label={'Add to ' + m.name} className="w-11 h-11 -mr-2 flex items-center justify-center" style={{ color: 'var(--link)' }}>
+                  <span className="flex items-center justify-center" style={{ width: 28, height: 28, boxShadow: '0 -2px 0 0 currentColor, 0 2px 0 0 currentColor, -2px 0 0 0 currentColor, 2px 0 0 0 currentColor' }}><Icon.plus width="16" /></span></button>
               </div>
             </div>
-            {/* No horizontal padding here: each row draws its own full-bleed rule, so the divider
-                runs edge to edge inside the card's frame the way the design does it. A padded
-                container made every rule stop 12px short of both sides, which reads as a table drawn
-                inside the panel rather than as the panel's own construction. */}
-            <div>
+            <div className="ms-rows">
               {me.map(e => renderEntry(e, m, mc))}
-              {/* No "Nothing logged yet." row: the add row below is the empty state, and two rows saying
-                  one thing is the clutter this pass removes (design-plans/34-overhaul/03). */}
-              {drag && me.length === 0 && <div className="m-3 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
+              {!me.length && !drag && <div className="text-[13px] py-3" style={{ color: 'var(--muted)', minHeight: 44 }}>Nothing yet</div>}
+              {drag && me.length === 0 && <div className="my-2 py-4 text-center text-[13px]" style={{ color: 'var(--link)', fontWeight: 600, border: '2px dashed var(--accent)' }}>Drop here</div>}
             </div>
-            {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
-                to do with it and no divider above it. A full meal keeps the rule, because there the
-                button is separating the add action from a list of food. */}
-            {/* The one action every meal card exists for, so it is sized like one. It used to be a
-                19px-tall strip of text in an empty meal, under the 24px WCAG floor and a long way
-                under the 44px anyone can actually hit; the row is full width and 44px tall in both
-                states now, and only the divider still tells the two apart. */}
-            <button onClick={() => openLog({ date, mealId: m.id })}
-              className="pf text-[11px] uppercase w-full text-left flex items-center px-3"
-              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: me.length ? '2px solid var(--border)' : 'none' }}>+ Add food</button>
-          </Card>
+          </section>
           </React.Fragment>);
       })}
       {mealDrag && mealDropAt && mealDropAt.beforeId === null && mealDropBar}
+      {mealMenu && (() => { const mi = meals.findIndex(x => x.id === mealMenu.id); const m = meals[mi]; if (!m) return null; const me = day.filter(e => e.meal_id === m.id);
+        return <Sheet title={m.name} onClose={() => setMealMenu(null)}>
+          <div className="flex flex-col">
+            <Row icon={<Icon.edit width="24" />} title="Rename" onClick={() => { setMealMenu(null); setEditMeal(m.id); setMealName(m.name); }} />
+            {me.length > 0 && <Row icon={<Icon.copy width="24" />} title="Copy to…" sub="Another meal or day" onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} />}
+            {me.length > 0 && <Row icon={<Icon.star width="24" />} title="Save as meal" sub="Log it in one tap next time" onClick={() => saveMeal(m, me)} />}
+            {mi > 0 && <Row icon={<Icon.arrow_up width="24" />} title="Move up" onClick={() => { moveMeal(m, -1); setMealMenu(null); }} />}
+            {mi < meals.length - 1 && <Row icon={<Icon.caret_down width="24" />} title="Move down" onClick={() => { moveMeal(m, 1); setMealMenu(null); }} />}
+            {me.length > 0 && <Row icon={<Icon.close width="24" />} title="Clear food" onClick={() => clearMeal(m, me)} />}
+            <Row icon={<Icon.trash width="24" />} title="Delete meal" onClick={() => { setMealMenu(null); setConfirm({ title: 'Delete ' + m.name + '?', body: me.length ? `Its ${me.length} logged item${me.length === 1 ? '' : 's'} will move to the meal above so nothing is lost. Only ${date === today ? 'today' : 'this day'} changes.` : `Removes this meal from ${date === today ? 'today' : 'this day'} only.`, confirmLabel: 'Delete meal', onConfirm: () => deleteMeal(m) }); }} />
+          </div>
+        </Sheet>; })()}
+      {editMeal && (() => { const m = meals.find(x => x.id === editMeal); if (!m) return null;
+        return <NameSheet title="Rename meal" hint="This day only. Settings, Default meals sets the layout for new days." initial={m.name} saveLabel="Rename" onSave={(nm) => { renameMeal(m, nm); setEditMeal(null); }} onClose={() => setEditMeal(null)} />; })()}
       {(() => {
         const mealIds = new Set(meals.map(m => m.id));
         const orphans = day.filter(e => !mealIds.has(e.meal_id));
@@ -14372,6 +14223,8 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
       {editing && (() => { const dc = dayContextFor(db, date, editing.id); const mm = meals.find(x => x.id === editing.meal_id);
         return <EditEntryModal entry={editing} meals={meals} onSave={saveEdit} onClose={() => setEditing(null)}
           onDelete={() => { del(editing); setEditing(null); }}
+          onCopy={() => { setCopyTo({ title: 'Copy ' + editing.name, entries: [editing], srcDate: date, pickMeal: true, meal: editing.meal_id }); setEditing(null); }}
+          onDuplicate={() => { dup(editing); setEditing(null); }}
           contextLine={[mm && mm.name, ENTRY_SOURCE_LABEL[editing.source]].filter(Boolean).join(' · ') || null}
           onPhotoUpdate={E.photoUpdatable(editing) ? (() => { setPhotoUp(editing); setEditing(null); }) : null}
           dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
@@ -14406,14 +14259,14 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         // and gets clamped, because that finger starts at the far left of the screen and an
         // unclamped card would spend the whole drag mostly off the edge.
         const L = Math.max(8, Math.min(mealGhost.x - 24, VW - W - 8));
-        return <div data-ghost className="fixed z-[80] pointer-events-none pixel-box" style={{ width: W, left: L, top: mealGhost.y - 18, background: 'var(--cardhead-bg)', boxShadow: '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)', transform: 'scale(1.02)', opacity: 0.97 }}>
+        return <div data-ghost className="fixed z-[80] pointer-events-none pixel-box" style={{ width: W, left: L, top: mealGhost.y - 18, background: 'var(--card)', boxShadow: '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)', transform: 'scale(1.02)', opacity: 0.97 }}>
           <div className="flex items-center justify-between gap-2 px-2.5 py-[6px]">
-            <div className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)' }}>
+            <div className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--text)' }}>
               <span className="shrink-0" style={{ opacity: 0.55 }}><PixelGrip /></span>
-              <span className="pf text-[11px] uppercase truncate" style={{ letterSpacing: '0.12em' }}>{mealDrag.name}</span>
+              <span className="text-[15px] truncate" style={{ fontWeight: 700 }}>{mealDrag.name}</span>
             </div>
             <div className="flex flex-col items-end gap-[2px] shrink-0 leading-tight">
-              <span className="pf text-[11px] tnum" style={{ color: mealDrag.count ? 'var(--accent)' : 'var(--cardhead-text)', opacity: mealDrag.count ? 1 : 0.55, letterSpacing: '0.1em' }}>{mealDrag.count ? mealDrag.kcal + ' kcal' : '–'}</span>
+              <span className="pf text-[11px] tnum" style={{ color: mealDrag.count ? 'var(--accent)' : 'var(--muted)', opacity: mealDrag.count ? 1 : 0.55, letterSpacing: '0.1em' }}>{mealDrag.count ? mealDrag.kcal + ' kcal' : '–'}</span>
               {mealDrag.count > 0 && <MealHeadMacros macros={mealDrag.macros} />}
             </div>
           </div>
@@ -14510,7 +14363,7 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
    the thing you were looking at. That is backwards, because the diary entry is the record that has
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
-function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget, meals, favourite, onFavourite }) {
+function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget, meals, favourite, onFavourite }) {
   // No useBackClose here: `Sheet` arms the back layer, and arming it twice pushes two layers so the
   // hardware back button needs two presses to shut one sheet.
   const topRef = useScrolledToTop();
@@ -14625,7 +14478,8 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onPhotoUpdat
           standard answer, and the one the design draws. Cancel is gone with it: the bar has a ✕ and
           the scrim closes on a tap, so a third way out was only ever furniture. */}
       {(onCopy || onDelete) && <div className="flex items-center justify-between gap-2">
-        {onCopy ? <button onClick={onCopy} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.copy width="16" /> Copy</button> : <span />}
+        {onCopy ? <button onClick={onCopy} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.copy width="16" /> Copy to…</button> : <span />}
+        {onDuplicate && <button onClick={onDuplicate} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.plus width="16" /> Duplicate</button>}
         {onDelete && <button onClick={onDelete} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--danger-ink)', fontWeight: 600, minHeight: 44 }}><Icon.trash width="16" /> Delete</button>}
       </div>}
       <SheetBtn disabled={a <= 0} style={a <= 0 ? { opacity: 0.5 } : null} onClick={save}>{(saveVerb || 'Save') + ' · ' + total.kcal + ' kcal'}</SheetBtn>
@@ -20447,7 +20301,7 @@ function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy }) {
       <div className="truncate text-[15px] shrink-0" style={{ color: 'var(--header-text)', fontWeight: 600, maxWidth: '50vw' }}>{context}</div>
       <div className="ms-lane flex-1 relative h-11 overflow-hidden">
         <button onClick={onOpenPlay} aria-label={egg ? 'Your egg. Open Play' : ((buddy && buddy.name) || 'Your buddy') + '. Open Play'} className={'ms-walker' + (egg ? ' slow' : '')}>
-          <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="move" px={2} fps={egg ? 4 : 8} />
+          <span className="ms-walker-face"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="move" px={2} fps={egg ? 4 : 8} /></span>
         </button>
       </div>
       <button onClick={onOpenYou} aria-label="You and settings" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--header-text)' }}>
@@ -20576,30 +20430,10 @@ function recipeChips(recipe) {
   if (out.length < 3 && t.effort === 'quick') out.push({ label: 'Quick' });
   return out.slice(0, 3);
 }
-function RecipeCard({ recipe, onOpen, onFav }) {
+/* A recipe as a row (35-reset): name, then calories and protein per serving. */
+function RecipeRow({ recipe, onOpen }) {
   const m = recipe.macros_per_serving || {};
-  const img = recipe.photo || recipe.thumbnail;
-  const chips = recipeChips(recipe);
-  return (<div onClick={onOpen} className="cursor-pointer active:opacity-90 transition-opacity">
-    <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
-      <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
-        <RecipeImg src={img} iconSize={48} />
-        <div className="absolute inset-x-0 bottom-0 pt-8 px-3 pb-2.5" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.78))' }}>
-          {/* explicit #fff: the .theme-light .text-white remap would paint this dark on the dark scrim */}
-          <div className="font-bold text-[15px] leading-tight" style={{ ...clamp2, color: '#fff' }}>{recipe.title}</div>
-        </div>
-        <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: m.kcal > 0 ? 'var(--text)' : 'var(--muted)' }}>{m.kcal > 0 ? Math.round(m.kcal) + ' kcal' : 'Tap to price'}</div>
-        {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
-      </div>
-      {chips.length > 0 && <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-        {chips.map((c, i) => <span key={i} className="pf text-[11px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
-      </div>}
-      <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
-        <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
-        {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO_T }}>{Math.round(m.protein)}g protein</span></>}
-      </div>
-    </div>
-  </div>);
+  return <Row title={recipe.title} sub={m.kcal > 0 ? <span className="tnum">{Math.round(m.kcal)} kcal · {Math.round(m.protein || 0)} g protein</span> : 'Not priced yet'} onClick={onOpen} />;
 }
 // The headline how-to: sharing a Reel/Short straight into the app is the best path (no link to copy),
 // so we show this prominently on the empty state and the importer.
@@ -21010,7 +20844,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     <Card className="p-0 overflow-hidden mb-3">
       <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface2)', borderBottom: '3px solid var(--border)' }}>
         <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={48} />
-        {hasMacros && <div className="absolute top-2 left-2 px-2 py-1 pf text-[11px] tnum" style={{ background: 'var(--card)', border: '2px solid var(--border)', letterSpacing: '0.1em' }}>{Math.round(recipe.macros_per_serving.kcal)} KCAL / SERVING</div>}
+        {hasMacros && <div className="absolute top-2 left-2 px-2 py-1 text-[12px] tnum" style={{ background: 'var(--card)', fontWeight: 600 }}>{Math.round(recipe.macros_per_serving.kcal)} kcal a serving</div>}
         <label className="absolute bottom-2 right-2 px-2 py-1.5 pf text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)', letterSpacing: '0.1em' }}><Icon.cam width="24" height="24" /> {recipe.photo ? 'CHANGE' : 'PHOTO'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
       </div>
       <div className="p-3.5">
@@ -21038,14 +20872,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <CardHead title="Per serving" right={fit && hasMacros ? (fit.fitsKcal ? 'Fits today' : fit.overKcal + ' over') : null} />
       <div className="p-3.5 flex flex-col gap-3">
         {hasMacros ? <div className="grid grid-cols-4 gap-2">
-          {[['kcal', Math.round(recipe.macros_per_serving.kcal), 'KCAL', 'var(--cal)'],
-            ['protein', Math.round(recipe.macros_per_serving.protein) + 'G', 'PROTEIN', 'var(--pro-ink)'],
-            ['carbs', Math.round(recipe.macros_per_serving.carbs) + 'G', 'CARBS', 'var(--carb-ink)'],
-            ['fat', Math.round(recipe.macros_per_serving.fat) + 'G', 'FATS', 'var(--fat-ink)']].map(([k, v, l, col]) => (
-            <SheetBox key={k} className="py-2.5 px-1 flex flex-col items-center gap-1">
-              <span className="pf text-[13px] tnum" style={{ color: col }}>{v}</span>
-              <SheetLabel className="text-[11px]">{l}</SheetLabel>
-            </SheetBox>
+          {[['kcal', Math.round(recipe.macros_per_serving.kcal), 'kcal', 'Calories', 'var(--text)'],
+            ['protein', Math.round(recipe.macros_per_serving.protein), 'g', 'Protein', 'var(--pro-ink)'],
+            ['carbs', Math.round(recipe.macros_per_serving.carbs), 'g', 'Carbs', 'var(--carb-ink)'],
+            ['fat', Math.round(recipe.macros_per_serving.fat), 'g', 'Fat', 'var(--fat-ink)']].map(([k, v, u, l, col]) => (
+            <div key={k} className="py-1 flex flex-col">
+              <span className="text-[12px]" style={{ color: col, fontWeight: 600 }}>{l}</span>
+              <span className="tnum"><span className="num text-[18px]">{v}</span> <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{u}</span></span>
+            </div>
           ))}
         </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
         {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
@@ -21055,16 +20889,16 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
-    {(recipe.steps || []).length > 0 && <div className="mb-3"><SheetBtn onClick={() => setCooking(true)}><Icon.play width="16" /> Start cooking</SheetBtn></div>}
+    {(recipe.steps || []).length > 0 && <div className="mb-6"><SheetBtn tone="ghost" onClick={() => setCooking(true)}><Icon.play width="16" /> Start cooking</SheetBtn></div>}
     <Card className="p-0 overflow-hidden mb-3">
-      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
-        <span className="pf text-[11px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Ingredients</span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => setEditIng(v => !v)} className="hit pf text-[11px] uppercase mr-1" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{editIng ? 'Done' : 'Edit'}</button>
-          <span className="pf text-[11px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
-          <button onClick={() => setServings(recipe.servings - 1)} aria-label="Fewer servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>–</button>
-          <span className="pf text-[11px] tnum w-4 text-center" style={{ color: 'var(--cardhead-text)' }}>{recipe.servings}</span>
-          <button onClick={() => setServings(recipe.servings + 1)} aria-label="More servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>+</button>
+      <div className="ms-cardhead flex items-center justify-between gap-2" style={{ minHeight: 44 }}>
+        <span className="text-[15px]" style={{ fontWeight: 700 }}>Ingredients</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => setEditIng(v => !v)} className="text-[13px] px-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>{editIng ? 'Done' : 'Edit'}</button>
+          <span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>Serves</span>
+          <button onClick={() => setServings(recipe.servings - 1)} aria-label="Fewer servings" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.arrow_left width="16" /></button>
+          <span className="num text-[15px] tnum w-5 text-center">{recipe.servings}</span>
+          <button onClick={() => setServings(recipe.servings + 1)} aria-label="More servings" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.arrow_right width="16" /></button>
         </div>
       </div>
       <div className="p-3.5">
@@ -21084,14 +20918,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       {/* Each ingredient is ONE ruled line: tick, what it is, what it costs you. The old row stacked
           a "Set macros ›" link under every single item, which doubled the list's height and put a
           call to action on six lines of a shopping list. The number IS the link now. */}
-      <div style={{ border: '2px solid var(--border)' }}>
+      <div>
         {recipe.ingredients.map((ing, i) => (
-          <div key={ing.id} className="flex items-center gap-2.5 px-2.5 py-2.5" style={i ? { borderTop: '2px solid var(--border)' } : null}>
+          <div key={ing.id} className="flex items-center gap-2.5 py-1" style={i ? { borderTop: '1px solid var(--hairline)', minHeight: 52 } : { minHeight: 52 }}>
             <button onClick={() => toggleHave(ing.id)} aria-label="Have it" className="flex items-center justify-center shrink-0" style={{ width: 20, height: 20, border: '2px solid var(--border)', background: ing.have ? 'var(--good)' : 'var(--card)', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
-            <button onClick={() => toggleHave(ing.id)} className="flex-1 min-w-0 text-left text-[13.5px] leading-snug" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
-            <button onClick={() => setMacrosIng(ing)} className="pf text-[11px] tnum shrink-0 flex items-center gap-1" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)', letterSpacing: '0.08em' }}>
+            <button onClick={() => toggleHave(ing.id)} className="flex-1 min-w-0 text-left text-[15px] leading-snug" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
+            <button onClick={() => setMacrosIng(ing)} className="text-[13px] tnum shrink-0 flex items-center gap-1 px-1" style={{ color: ing.macros ? 'var(--muted)' : 'var(--link)', fontWeight: 600, minHeight: 44 }}>
               {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}><PixelGlyph kind="dot" size={16} /></span>}
-              {ing.macros ? Math.round(ing.macros.kcal) + ' KCAL' : 'SET ›'}
+              {ing.macros ? Math.round(ing.macros.kcal) + ' kcal' : 'Set'}
             </button>
           </div>
         ))}
@@ -21107,7 +20941,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <CardHead title="Method" right={editSteps ? 'Done' : 'Edit'} onRight={() => setEditSteps(v => !v)} />
       <div className="p-3.5">
     {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
-      : (recipe.steps || []).length > 0 ? <ol className="flex flex-col gap-2.5">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-2.5 items-start"><span className="pf text-[11px] shrink-0 flex items-center justify-center tnum" style={{ width: 22, height: 22, border: '2px solid var(--border)', background: 'var(--accent)', color: 'var(--on-accent)' }}>{i + 1}</span><span className="text-[13.5px] leading-relaxed pt-0.5">{s}</span></li>))}</ol>
+      : (recipe.steps || []).length > 0 ? <ol className="flex flex-col gap-2.5">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-2.5 items-start"><span className="num text-[15px] shrink-0 tnum" style={{ width: 22, color: 'var(--link)' }}>{i + 1}</span><span className="text-[13.5px] leading-relaxed pt-0.5">{s}</span></li>))}</ol>
       : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>No method yet. Tap Edit to add the steps.</div>}
       </div>
     </Card>
@@ -21123,8 +20957,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="text-[13.5px] font-semibold">Keep this recipe private</div>
         <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Off Discover · nobody else sees it</div>
       </div>
-      <button onClick={togglePrivate} className="pixel-btn shrink-0 pf text-[11px] px-3 py-2" style={{ borderWidth: 2,
-        background: recipe.private ? 'var(--accent)' : 'var(--card)', color: recipe.private ? 'var(--on-accent)' : 'var(--text)' }}>{recipe.private ? 'ON' : 'OFF'}</button>
+      <button onClick={togglePrivate} role="switch" aria-checked={!!recipe.private} aria-label="Keep this recipe private" className="shrink-0 flex items-center" style={{ minHeight: 44 }}><Toggle on={!!recipe.private} /></button>
     </SheetBox>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
@@ -21735,6 +21568,7 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
   const [showFilters, setShowFilters] = useState(false);
   const [hubTab, setHubTab] = useState(isPremium ? 'discover' : 'mine'); // a free user's first sight of Cook was a locked tab // discover (the community hub) | mine (your own recipes)
   const [cookRec, setCookRec] = useState(null); // a transient (unsaved) recipe being cooked from Discover
+  const [showAll, setShowAll] = useState(false);
   const [logRec, setLogRec] = useState(null);   // a transient recipe pending a serving-log after cooking
   const facetCount = Object.values(facets).filter(Boolean).length;
   const setFacet = (k, v) => setFacets(f => { const n = Object.assign({}, f); if (n[k] === v) delete n[k]; else n[k] = v; return n; });
@@ -21877,59 +21711,70 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
   function cancelImport() { onConsumeImport && onConsumeImport(); setScreen('list'); }
 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-    {screen === 'list' && <>
+    {screen === 'list' && hubTab === 'discover' && <>
+      <SubHeader back={() => setHubTab('mine')} backLabel="Cook" title="Discover" />
+      <div className="h-[52px] lg:hidden" />
+      <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
+      {/* The contributor level is a reward to look at, so it sits at the foot of the community page. */}
+      <div className="mt-6"><ChefCard db={db} /></div>
+    </>}
+    {screen === 'list' && hubTab !== 'discover' && <>
       {onSwitch && <FoodSwitch value="recipes" onChange={onSwitch} />}
-      {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
-      {/* The two places first and the tool last. The fridge is reached from here and from the buddy's
-          own nudge on Today ("Cook from my fridge"), so it no longer needs a hero card of its own as
-          well - that was two doors to one room, side by side (design-plans/34-overhaul/06). */}
-      <PageBar context="Cook" actions={[
-        { icon: <Icon.calendar width="24" height="24" />, label: 'Meal plan', onClick: () => setScreen('plan') },
-        { icon: <Icon.cart width="24" height="24" />, label: 'Shopping list', onClick: () => setScreen('shopping'), badge: shoppingCount > 0 ? shoppingCount : null },
-        { icon: <Icon.cam width="24" height="24" />, label: 'Cook from your fridge', onClick: () => setScreen('fridge') },
-      ]} />
-      {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
-      <div className="mb-4"><Pill wide value={hubTab} onChange={setHubTab} options={[
-        { v: 'discover', l: <>Discover{!isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}</> },
-        { v: 'mine', l: 'Cookbook' },
-      ]} /></div>
-      {hubTab === 'discover'
-        ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
-        : !allRecipes.length ? <>
-        {/* The two ways in, side by side on one row: they are a pair of answers to "where does a
-            recipe come from", not two full-width slabs above everything (design-plans/34-overhaul/06). */}
-        <div className="grid grid-cols-2 gap-2.5 mb-4">
-          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
-          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
+      {/* 35-reset: Cook inside Food. One hero (the recipe that fits what is left today), your recipes
+          as rows, then the four places Cook leads to as rows. The search field carries the import
+          button; Discover is a row and its own page now, not a tab. */}
+      <div className="flex gap-2 items-stretch mb-4">
+        <div className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 field-focus" style={{ minHeight: 52, margin: 2 }}>
+          <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+          <input type="search" placeholder="Search your recipes" value={q} onChange={e => setQ(e.target.value)} aria-label="Search your recipes" className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
+          <button onClick={() => setScreen('import')} aria-label="Import a recipe from a link" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.link width="24" /></button>
         </div>
-        <ShareTip className="mb-4" />
-        <Card className="p-6 text-center">
-          <div className="mb-3 flex justify-center"><Icon.recipe width="48" height="48" style={{ color: 'var(--muted)' }} /></div>
-          <div className="text-[14px] font-semibold mb-1">Your cookbook is empty</div>
-          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, upload your own, or build one from ingredients, and it becomes a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
-        </Card>
+        <button onClick={() => setShowFilters(true)} aria-label="Filter and sort" className="w-[52px] flex items-center justify-center shrink-0 m-[2px]"
+          style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--card)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--link)', boxShadow: '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)' }}><Icon.sliders width="24" /></button>
+      </div>
+      {!allRecipes.length ? <div className="text-center pt-6 pb-2">
+          <div className="mb-3 flex justify-center" style={{ color: 'var(--muted)' }}><Icon.recipe width="48" height="48" /></div>
+          <h2 className="text-[17px] mb-1" style={{ fontWeight: 700 }}>No recipes yet</h2>
+          <p className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>Import one from a link, or build your own.</p>
+          <div className="flex justify-center gap-3 flex-wrap"><Btn onClick={() => setScreen('import')}>Import from a link</Btn><Btn kind="ghost" onClick={() => setScreen('build')}>Build</Btn></div>
+        </div>
+      : (q || facetCount || filter !== 'all' || sort !== 'recent' || showAll) ? <>
+        <Section title={recipes.length + ' recipe' + (recipes.length === 1 ? '' : 's')} right={{ label: 'Back', onClick: () => { setQ(''); setFacets({}); setFilter('all'); setSort('recent'); setShowAll(false); } }}>
+          {recipes.map(r => <RecipeRow key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}
+          {!recipes.length && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>No recipes match.</div>}
+        </Section>
       </> : <>
-        <div className="grid grid-cols-2 gap-2.5 mb-4">
-          <Btn kind="accent" onClick={() => setScreen('import')}>Import from video</Btn>
-          <Btn kind="ghost" onClick={() => setScreen('build')}>Build from ingredients</Btn>
-        </div>
-        <div className="flex gap-2 items-stretch">
-          <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="24" height="24" />{facetCount ? <span className="pf text-[11px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
-        </div>
-        <div className="my-3" />
-        {showRails
-          ? <div className="mt-1"><RecipeRails db={db} onOpenRecipe={id => { setActiveId(id); setScreen('detail'); }} limit={4} /></div>
-          : recipes.length ? <>
-            {(facetCount || sort !== 'recent') && <div className="text-[11px] text-[#8A8A90] mb-2 tnum">{recipes.length} recipe{recipes.length === 1 ? '' : 's'}{sort !== 'recent' ? ' · ' + ({ protein: 'most protein', kcal: 'fewest calories', quick: 'quickest' })[sort] : ''}</div>}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} onFav={() => toggleFav(r.id)} />)}</div>
-          </>
-          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent-ink)' }}>Clear filters</button></div>}
+        {(() => {
+          const fit = (buildRecipeRails(db).find(rl => rl.key === 'fits') || {}).items;
+          const r = fit && fit[0];
+          if (!r) return null;
+          const m = r.macros_per_serving || {};
+          return <Hero className="mb-6"><div className="p-4">
+            <div className="flex items-center gap-3">
+              <span className="w-14 h-14 flex items-center justify-center shrink-0" style={{ background: 'var(--surface2)', color: 'var(--link)' }}><Icon.recipe width="24" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px]" style={{ color: 'var(--good-ink)', fontWeight: 600 }}>Fits what’s left</span>
+                <span className="block text-[17px] leading-snug" style={{ fontWeight: 700 }}>{r.title}</span>
+                <span className="block text-[13px] tnum" style={{ color: 'var(--muted)' }}><span className="num" style={{ color: 'var(--text)' }}>{Math.round(m.kcal || 0)}</span> kcal · {Math.round(m.protein || 0)} g protein</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Btn onClick={() => { const ms = mealsForDay(db, Store.todayISO()); onLogRecipe(suggestMealId(db, ms) || ms[0].id, r, 'single', 1); showToast && showToast('Logged ' + r.title); }}>Log a serving</Btn>
+              <button onClick={() => { setActiveId(r.id); setScreen('detail'); }} className="px-3 text-[15px]" style={{ color: 'var(--link)', fontWeight: 700, minHeight: 44 }}>Open</button>
+            </div>
+          </div></Hero>;
+        })()}
+        <Section title="Your recipes" right={{ label: allRecipes.length > 4 ? 'All ' + allRecipes.length : 'New', onClick: () => allRecipes.length > 4 ? setShowAll(true) : setScreen('build') }}>
+          {recipes.slice(0, 4).map(r => <RecipeRow key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}
+          {allRecipes.length > 4 && <Row icon={<Icon.plus width="24" />} title="New recipe" sub="Build from ingredients" onClick={() => setScreen('build')} />}
+        </Section>
       </>}
-      {/* The contributor level is a reward to look at, not a task to do, so it comes after the
-          recipes rather than above them (design-plans/34-overhaul/06). Cookbook only: it is about
-          what you have shared. */}
-      {hubTab !== 'discover' && <div className="mt-4"><ChefCard db={db} /></div>}
+      {!q && <Section title="More">
+        <Row icon={<Icon.calendar width="24" />} title="Meal plan" sub="Plan the week's dinners" onClick={() => setScreen('plan')} />
+        <Row icon={<Icon.cart width="24" />} title="Shopping list" sub={shoppingCount > 0 ? shoppingCount + ' item' + (shoppingCount === 1 ? '' : 's') : 'Nothing on it'} onClick={() => setScreen('shopping')} />
+        <Row icon={<Icon.book width="24" />} title="Discover" sub={isPremium ? 'Recipes from the community' : 'Recipes from the community · Premium'} onClick={() => setHubTab('discover')} />
+        <Row icon={<Icon.fridge width="24" />} title="What can I make?" sub="Photo your fridge" onClick={() => setScreen('fridge')} />
+      </Section>}
       {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
