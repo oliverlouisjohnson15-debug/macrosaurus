@@ -1,0 +1,139 @@
+<title>Macrosaurus Reset Mockups</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Review board: two rows of phone frames, one per direction, under a short brief. */
+:root {
+  --bg: #ebe8e1; --panel: #f7f5f0; --text: #241f2e; --muted: #5f5866; --rule: rgba(36,31,46,.16);
+  --accent: #5B4FA6; --on-accent: #ffffff; --chip: #ffffff;
+  --face-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --face-px: 'Silkscreen', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121117; --panel: #1b1a21; --text: #ecebf0; --muted: #a8a4b2; --rule: rgba(236,235,240,.14);
+  --accent: #b3a8f5; --on-accent: #121117; --chip: #24222b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121117; --panel: #1b1a21; --text: #ecebf0; --muted: #a8a4b2; --rule: rgba(236,235,240,.14);
+  --accent: #b3a8f5; --on-accent: #121117; --chip: #24222b; color-scheme: dark; }
+body { background: var(--bg); color: var(--text); font-family: var(--face-ui); font-size: 15px; line-height: 1.5; margin: 0; }
+.wrap { padding-inline: 16px; padding-block: 28px 56px; max-width: 2560px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; }
+h1 { font-family: var(--face-px); font-weight: 400; font-size: 22px; letter-spacing: .06em; margin: 0 0 6px; text-wrap: balance; }
+.lede { max-width: 64ch; color: var(--muted); margin: 0; }
+.toggle { display: inline-flex; border: 1px solid var(--rule); border-radius: 10px; padding: 3px; background: var(--chip); }
+.toggle button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--muted); padding: 8px 16px; min-height: 40px; border-radius: 7px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+section.dir { margin-bottom: 44px; }
+.dir-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 4px; }
+.dir-h h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.tag { font-family: var(--face-px); font-size: 11px; letter-spacing: .1em; background: var(--accent); color: var(--on-accent); padding: 3px 8px; border-radius: 4px; }
+.dir p { margin: 0 0 14px; color: var(--muted); max-width: 72ch; }
+.strip { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x proximity; }
+figure { margin: 0; flex: none; scroll-snap-align: start; }
+figcaption { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+figcaption a { color: var(--accent); font-weight: 500; }
+iframe { width: 390px; height: 844px; border: 1px solid var(--rule); border-radius: 18px; background: #fff; display: block; max-width: none; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.notes > div { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.notes h3 { margin: 0 0 8px; font-size: 15px; }
+.notes ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.notes li + li { margin-top: 4px; }
+table { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; width: 100%; }
+td, th { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid var(--rule); }
+th { color: var(--muted); font-weight: 500; }
+.tablewrap { overflow-x: auto; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Macrosaurus · Reset</h1>
+      <p class="lede">Two directions for the same layout. Both use one hero per screen, rows instead of boxed cards, one prompt and
+        at most one sentence of help. The proposed tab set (Today · Food · + · Train · Progress) is shown and still needs your approval.
+        Each frame is a real 390×844 page, so you can scroll inside it.</p>
+    </div>
+    <div class="toggle" role="group" aria-label="Theme">
+      <button id="t-light" type="button" aria-pressed="false">Paper / light</button>
+      <button id="t-dark" type="button" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <section class="dir" id="a">
+    <div class="dir-h"><span class="tag">A</span><h2>Paper, restrained</h2></div>
+    <p>The Paper Terrarium kept and quietened. The purple bars, ink and gold stay. The hero is the only inked card on each screen,
+      and everything else is rows on paper under small pixel labels. Silkscreen is kept for numbers, labels and chrome.</p>
+    <div class="strip" data-dir="A"></div>
+  </section>
+
+  <section class="dir" id="b">
+    <div class="dir-h"><span class="tag">B</span><h2>Clean base, pixel accents</h2></div>
+    <p>A calm modern base in Plex Sans with no frames or coloured bars. Purple becomes an accent. Pixel art appears only in the hero
+      numeral and the buddy, which keeps the game feeling like the game.</p>
+    <div class="strip" data-dir="B"></div>
+  </section>
+
+  <div class="notes">
+    <div>
+      <h3>Measured against the budget (390×844)</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Screen</th><th>Primary at (now → A/B)</th><th>Blocks (now → A/B)</th></tr>
+        <tr><td>Today</td><td>613 → 64 / 64 px</td><td>8 → 1 / 1</td></tr>
+        <tr><td>Food</td><td>389 → 241 / 246 px</td><td>5 → 0 / 0</td></tr>
+        <tr><td>Log sheet</td><td>310 → 209 / 207 px</td><td>3 → 1 / 0</td></tr>
+        <tr><td>Train</td><td>316 → 118 / 117 px</td><td>4 → 1 / 1</td></tr>
+        <tr><td>Progress</td><td>150 → 64 / 64 px</td><td>6 → 1 / 1</td></tr>
+        <tr><td>You</td><td>275 → 96 / 96 px</td><td>7 → 0 / 5</td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h3>Logging actions (now → target)</h3>
+      <ul>
+        <li>Recent food: 2 → 2</li>
+        <li>Search and log: 4 → 3 (the + on a result logs its usual serving)</li>
+        <li>Barcode: 5 → 4 (scan button inside the search field)</li>
+        <li>Quick add: 5 → 4 (no amount step)</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What you're choosing</h3>
+      <ul>
+        <li>A or B. The layout, budget and content are identical, only the skin differs.</li>
+        <li>N1: Progress becomes a tab and Cook moves into Food.</li>
+        <li>The other decisions (N2–N8, T1–T2) are listed in 01-direction.md §8.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var screens = [['today', 'Today'], ['food', 'Food · Diary'], ['log', 'Log sheet'], ['train', 'Train'], ['progress', 'Progress'], ['you', 'You']];
+  document.querySelectorAll('.strip').forEach(function (strip) {
+    var d = strip.getAttribute('data-dir');
+    screens.forEach(function (s) {
+      var f = document.createElement('figure');
+      var src = d + '-' + s[0] + '.html';
+      f.innerHTML = '<figcaption><span>' + s[1] + '</span><a href="' + src + '" target="_blank" rel="noopener">Open</a></figcaption>' +
+        '<iframe src="' + src + '" title="Direction ' + d + ', ' + s[1] + '" loading="lazy"></iframe>';
+      strip.appendChild(f);
+    });
+  });
+  var current = null;
+  function prefersDark() { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } }
+  function apply(theme) {
+    current = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('t-light').setAttribute('aria-pressed', theme === 'light');
+    document.getElementById('t-dark').setAttribute('aria-pressed', theme === 'dark');
+    document.querySelectorAll('iframe').forEach(paint);
+  }
+  function paint(fr) {
+    try { var doc = fr.contentDocument; if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', current); } catch (e) {}
+  }
+  document.querySelectorAll('iframe').forEach(function (fr) { fr.addEventListener('load', function () { paint(fr); }); });
+  document.getElementById('t-light').addEventListener('click', function () { apply('light'); });
+  document.getElementById('t-dark').addEventListener('click', function () { apply('dark'); });
+  var root = document.documentElement.getAttribute('data-theme');
+  apply(root === 'dark' || root === 'light' ? root : (prefersDark() ? 'dark' : 'light'));
+})();
+</script>

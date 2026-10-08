@@ -1,0 +1,66 @@
+{
+ "today": {
+  "outerBlocks": 4,
+  "nestedBlocks": 4,
+  "controls": 12,
+  "under44": 8,
+  "helpSentences": 3,
+  "pageHeight": 1213
+ },
+ "food": {
+  "outerBlocks": 5,
+  "nestedBlocks": 0,
+  "controls": 19,
+  "under44": 14,
+  "helpSentences": 0,
+  "pageHeight": 1035
+ },
+ "cook": {
+  "outerBlocks": 5,
+  "nestedBlocks": 0,
+  "controls": 12,
+  "under44": 5,
+  "helpSentences": 0,
+  "pageHeight": 844
+ },
+ "train": {
+  "outerBlocks": 4,
+  "nestedBlocks": 0,
+  "controls": 13,
+  "under44": 3,
+  "helpSentences": 2,
+  "pageHeight": 1185
+ },
+ "you": {
+  "outerBlocks": 7,
+  "nestedBlocks": 0,
+  "controls": 16,
+  "under44": 6,
+  "helpSentences": 1,
+  "pageHeight": 1466
+ },
+ "progress": {
+  "outerBlocks": 5,
+  "nestedBlocks": 1,
+  "controls": 16,
+  "under44": 10,
+  "helpSentences": 5,
+  "pageHeight": 1940
+ },
+ "play": {
+  "outerBlocks": 4,
+  "nestedBlocks": 9,
+  "controls": 17,
+  "under44": 11,
+  "helpSentences": 5,
+  "pageHeight": 1213
+ },
+ "logsheet": {
+  "outerBlocks": 1,
+  "nestedBlocks": 2,
+  "controls": 10,
+  "under44": 6,
+  "helpSentences": 2,
+  "pageHeight": 1213
+ }
+}
