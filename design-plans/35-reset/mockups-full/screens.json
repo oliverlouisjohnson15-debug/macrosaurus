@@ -1,0 +1,446 @@
+[
+ {
+  "id": "today",
+  "group": "Today",
+  "title": "Today",
+  "note": "Hero = kcal left. One buddy dialogue holds the day\u2019s one prompt. Three rows."
+ },
+ {
+  "id": "today-checkin",
+  "group": "Today",
+  "title": "Today \u00b7 check-in due",
+  "note": "Same slot, another prompt: on check-in day the buddy asks this instead. Never both."
+ },
+ {
+  "id": "today-day",
+  "group": "Today",
+  "title": "Today in detail (sheet)",
+  "note": "Tapping the hero. Replaces the old LEFT / EATEN switch and the Details link."
+ },
+ {
+  "id": "weigh",
+  "group": "Today",
+  "title": "Log weight (sheet)",
+  "note": "One weigh sheet for the whole app: the buddy, Progress and the shortcut all open it."
+ },
+ {
+  "id": "recovery",
+  "group": "Today",
+  "title": "Recovery",
+  "note": "From the Recovery row. Sleep and readiness from Google Health."
+ },
+ {
+  "id": "talk",
+  "group": "Today",
+  "title": "Talk to Chompers",
+  "note": "Opened from the buddy (Today dialogue or Play). The same dialogue box, as a conversation."
+ },
+ {
+  "id": "log",
+  "group": "Log (+)",
+  "title": "Log food",
+  "note": "Opens on the meal for this hour, search focused, barcode inside the field. Recents ranked for this meal; + logs the usual amount and keeps the sheet open."
+ },
+ {
+  "id": "log-search",
+  "group": "Log (+)",
+  "title": "Search results",
+  "note": "Typed \u201cchicken th\u201d. + logs the usual amount and the sheet stays open for the next food; tapping the name opens the amount screen."
+ },
+ {
+  "id": "log-barcode",
+  "group": "Log (+)",
+  "title": "Barcode",
+  "note": "From the barcode button in the search field: one tap, straight to the camera."
+ },
+ {
+  "id": "log-quick",
+  "group": "Log (+)",
+  "title": "Quick add",
+  "note": "Calories and macros directly. One serving, so there is no amount step."
+ },
+ {
+  "id": "log-estimate",
+  "group": "Log (+)",
+  "title": "Estimate (AI)",
+  "note": "Describe, photograph or paste a menu link. Menu is now an input here, not a separate tab."
+ },
+ {
+  "id": "log-drink",
+  "group": "Log (+)",
+  "title": "Drink",
+  "note": "Alcohol in units and kcal. Recent drinks first."
+ },
+ {
+  "id": "food-detail",
+  "group": "Log (+)",
+  "title": "Food detail / amount",
+  "note": "Tapping a result\u2019s name. The amount, what it does to today, and Log."
+ },
+ {
+  "id": "edit-entry",
+  "group": "Log (+)",
+  "title": "Edit entry",
+  "note": "Tapping a diary row. Copy, move and delete live here (the per-row \u2261 menu goes)."
+ },
+ {
+  "id": "log-empty",
+  "group": "Empty & first run",
+  "title": "Log food \u00b7 first time",
+  "note": "No history yet: the chips and search carry it; one line says recents will appear."
+ },
+ {
+  "id": "food",
+  "group": "Food",
+  "title": "Diary",
+  "note": "One summary line, then meals as sections and entries as rows. Tap a row to edit; + on each meal."
+ },
+ {
+  "id": "food-meal",
+  "group": "Food",
+  "title": "Meal actions (sheet)",
+  "note": "Tapping a meal\u2019s name. The meal\u2019s existing \u22ef menu, as rows: copy, save, reorder, clear, delete."
+ },
+ {
+  "id": "food-empty",
+  "group": "Empty & first run",
+  "title": "Diary \u00b7 empty day",
+  "note": "A new day. Meals stay as sections so the + is where you expect it."
+ },
+ {
+  "id": "cook",
+  "group": "Food \u00b7 Cook",
+  "title": "Cook",
+  "note": "Cook lives inside Food. Hero = the recipe that fits what\u2019s left today. Your recipes, then four rows."
+ },
+ {
+  "id": "recipe",
+  "group": "Food \u00b7 Cook",
+  "title": "Recipe detail",
+  "note": "Per serving at the top, ingredients and method as plain lists, Log in the footer."
+ },
+ {
+  "id": "recipe-build",
+  "group": "Food \u00b7 Cook",
+  "title": "Recipe builder",
+  "note": "Build from ingredients. The per-serving numbers update as you go and sit in the footer."
+ },
+ {
+  "id": "recipe-import",
+  "group": "Food \u00b7 Cook",
+  "title": "Import a recipe (sheet)",
+  "note": "Paste a link from TikTok, Instagram, YouTube or a recipe site, or photograph a page."
+ },
+ {
+  "id": "meal-plan",
+  "group": "Food \u00b7 Cook",
+  "title": "Meal plan",
+  "note": "The week\u2019s dinners. Gaps are rows you can fill; the list feeds the shopping list."
+ },
+ {
+  "id": "shopping",
+  "group": "Food \u00b7 Cook",
+  "title": "Shopping list",
+  "note": "Grouped by aisle. Tick as you go."
+ },
+ {
+  "id": "discover",
+  "group": "Food \u00b7 Cook",
+  "title": "Discover",
+  "note": "Community recipes, filtered to what fits you. Your contributor level moves to the foot."
+ },
+ {
+  "id": "fridge",
+  "group": "Food \u00b7 Cook",
+  "title": "What can I make?",
+  "note": "After the fridge photo: what it saw, then recipes that fit what\u2019s left today."
+ },
+ {
+  "id": "cook-empty",
+  "group": "Empty & first run",
+  "title": "Cook \u00b7 no recipes",
+  "note": "Two ways in, both on the screen. Discover stays a row."
+ },
+ {
+  "id": "today-first",
+  "group": "Empty & first run",
+  "title": "Today \u00b7 first day",
+  "note": "Before hatching: the egg wobbles in the bar, the egg speaks, and a three-step checklist replaces the Today rows."
+ },
+ {
+  "id": "train",
+  "group": "Train",
+  "title": "Train",
+  "note": "Hero = next session with Start. 17 internal screens become four places: this, Session, History, Block."
+ },
+ {
+  "id": "train-session",
+  "group": "Train",
+  "title": "Session (before Start)",
+  "note": "Preview and player are one screen: this is the session before Start. Tap an exercise to swap it."
+ },
+ {
+  "id": "train-live",
+  "group": "Train",
+  "title": "Live session",
+  "note": "One exercise in the window, a PREVIOUS column you can tap to copy, the rest timer in place. No tab bar."
+ },
+ {
+  "id": "train-done",
+  "group": "Train",
+  "title": "Session done",
+  "note": "The buddy reacts once, in the dialogue box. Records sit under it as rows."
+ },
+ {
+  "id": "train-history",
+  "group": "Train",
+  "title": "History \u00b7 sessions",
+  "note": "Sessions and Lifts in one place (was History + Progress + Exercise)."
+ },
+ {
+  "id": "train-lifts",
+  "group": "Train",
+  "title": "History \u00b7 lifts",
+  "note": "Every exercise you\u2019ve logged, best first. Tap for its detail."
+ },
+ {
+  "id": "train-detail",
+  "group": "Train",
+  "title": "Session detail",
+  "note": "A past session: totals, then each exercise as a row with its sets."
+ },
+ {
+  "id": "train-exercise",
+  "group": "Train",
+  "title": "Exercise detail",
+  "note": "Best and trend in the hero, then recent sessions. How-to is one row."
+ },
+ {
+  "id": "train-block",
+  "group": "Train",
+  "title": "Block & schedule",
+  "note": "One page for the block: weeks, the days you train, and every block-level action (was 8 screens)."
+ },
+ {
+  "id": "train-new",
+  "group": "Train",
+  "title": "New block (flow)",
+  "note": "Wizard, draft and builder become one short flow. Step 2 of 4 shown; answers are a \u25b6 menu."
+ },
+ {
+  "id": "train-picker",
+  "group": "Train",
+  "title": "Exercise picker (sheet)",
+  "note": "The library is a picker inside a session or the builder, not its own screen."
+ },
+ {
+  "id": "train-empty",
+  "group": "Empty & first run",
+  "title": "Train \u00b7 no block yet",
+  "note": "One action: build a block. An empty session stays one tap away."
+ },
+ {
+  "id": "progress",
+  "group": "Progress",
+  "title": "Progress",
+  "note": "The plan\u2019s one home (MacroFactor\u2019s Strategy). Hero = verdict + trend. Plan rows, then More."
+ },
+ {
+  "id": "checkin-1",
+  "group": "Progress",
+  "title": "Check-in \u00b7 1 your week",
+  "note": "A short paged flow. A quiet week is this page and the last."
+ },
+ {
+  "id": "checkin-2",
+  "group": "Progress",
+  "title": "Check-in \u00b7 2 the change",
+  "note": "The one decision of the week, as a \u25b6 menu. Before \u2192 after in a plain table."
+ },
+ {
+  "id": "checkin-3",
+  "group": "Progress",
+  "title": "Check-in \u00b7 3 done",
+  "note": "Done. The new number, said once."
+ },
+ {
+  "id": "goal",
+  "group": "Progress",
+  "title": "Goal & strategy",
+  "note": "Goal, pace, coaching and diet style on one page. Fresh start lives at its foot."
+ },
+ {
+  "id": "targets",
+  "group": "Progress",
+  "title": "Calories & macros",
+  "note": "Today\u2019s target in the hero; each macro as a row with its share."
+ },
+ {
+  "id": "energy",
+  "group": "Progress",
+  "title": "Energy",
+  "note": "What you burn, worked out from what you eat and how your weight moves."
+ },
+ {
+  "id": "shape",
+  "group": "Progress",
+  "title": "Weekly shape",
+  "note": "Same weekly total, spread how you like."
+ },
+ {
+  "id": "weighins",
+  "group": "Progress",
+  "title": "Weigh-ins",
+  "note": "The log, newest first. Log weight in the bar."
+ },
+ {
+  "id": "progress-empty",
+  "group": "Empty & first run",
+  "title": "Progress \u00b7 first week",
+  "note": "Before there\u2019s a trend: what\u2019s being learnt, and how far along."
+ },
+ {
+  "id": "coming-up",
+  "group": "Progress",
+  "title": "What\u2019s coming up",
+  "note": "Holidays, events and rough weeks. The plan bends around them instead of marking you down."
+ },
+ {
+  "id": "you",
+  "group": "You",
+  "title": "You (settings)",
+  "note": "Behind the gear. One list, values on the right, no inline controls and no search (14 rows)."
+ },
+ {
+  "id": "you-account",
+  "group": "You",
+  "title": "Account & Premium",
+  "note": "Account and subscription together (the Settings | Account switch goes)."
+ },
+ {
+  "id": "you-body",
+  "group": "You",
+  "title": "Body details",
+  "note": "A form. What changes your numbers says so once, at the foot."
+ },
+ {
+  "id": "you-meals",
+  "group": "You",
+  "title": "Default meals",
+  "note": "Reorder, rename, add. The diary follows this list."
+ },
+ {
+  "id": "you-reminders",
+  "group": "You",
+  "title": "Reminders",
+  "note": "Each nudge is one switch. Times are one row each."
+ },
+ {
+  "id": "you-apps",
+  "group": "You",
+  "title": "Apps & data",
+  "note": "What\u2019s connected, then what\u2019s coming (you can ask for one)."
+ },
+ {
+  "id": "you-appearance",
+  "group": "You",
+  "title": "Theme & units (sheet)",
+  "note": "Theme and units moved off the list into one small sheet."
+ },
+ {
+  "id": "premium",
+  "group": "You",
+  "title": "Premium (sheet)",
+  "note": "The paywall: the buddy says why once, four rows say what, one button."
+ },
+ {
+  "id": "play",
+  "group": "Play",
+  "title": "Play \u00b7 buddy",
+  "note": "Opened by tapping Chompers. Terrarium is the hero; Battle and Shop are the two other places."
+ },
+ {
+  "id": "play-battle",
+  "group": "Play",
+  "title": "Play \u00b7 battle",
+  "note": "This week\u2019s boss. HP bars are literal here; one Fight button."
+ },
+ {
+  "id": "play-shop",
+  "group": "Play",
+  "title": "Play \u00b7 shop",
+  "note": "Amber to spend. Each item is a row with its price."
+ },
+ {
+  "id": "play-trophies",
+  "group": "Play",
+  "title": "Trophies",
+  "note": "Earned first, then the next few to aim for."
+ },
+ {
+  "id": "play-dressup",
+  "group": "Play",
+  "title": "Dress up",
+  "note": "What\u2019s owned, by slot. Tap to wear."
+ },
+ {
+  "id": "milestone",
+  "group": "Play",
+  "title": "Milestone",
+  "note": "A growth stage or goal moment: the buddy\u2019s scene and one line, then one button. Replaces the confetti modal."
+ },
+ {
+  "id": "hatch",
+  "group": "Play",
+  "title": "Hatching",
+  "note": "The first-week moment: the egg hatches in a scene, then asks for a name."
+ },
+ {
+  "id": "ob-signin",
+  "group": "Onboarding",
+  "title": "1 \u00b7 Sign in",
+  "note": "The only place the wordmark appears."
+ },
+ {
+  "id": "ob-hello",
+  "group": "Onboarding",
+  "title": "2 \u00b7 Hello",
+  "note": "The egg introduces itself in the dialogue box; the familiarity question is a \u25b6 menu."
+ },
+ {
+  "id": "ob-egg",
+  "group": "Onboarding",
+  "title": "3 \u00b7 Choose your egg",
+  "note": "Twelve eggs, one tap, one button."
+ },
+ {
+  "id": "ob-about",
+  "group": "Onboarding",
+  "title": "4 \u00b7 About you",
+  "note": "Step 1 of 4. Units sit next to the field they change."
+ },
+ {
+  "id": "ob-active",
+  "group": "Onboarding",
+  "title": "5 \u00b7 How active",
+  "note": "Step 2. Choices are a \u25b6 menu, not a grid of cards."
+ },
+ {
+  "id": "ob-goal",
+  "group": "Onboarding",
+  "title": "6 \u00b7 Your goal",
+  "note": "Step 3. Goal, goal weight and pace on one screen."
+ },
+ {
+  "id": "ob-plan",
+  "group": "Onboarding",
+  "title": "7 \u00b7 Your starting plan",
+  "note": "Step 4. The numbers in the same hero Today will use."
+ },
+ {
+  "id": "ob-ready",
+  "group": "Onboarding",
+  "title": "8 \u00b7 All set",
+  "note": "Hands over to Today, where the egg keeps talking."
+ }
+]
