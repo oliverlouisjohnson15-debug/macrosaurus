@@ -11,20 +11,22 @@
 :root {
   /* The app's own palette, unchanged (styles.css): paper page, cream cards, ink, the purple bars,
      gold, and the macro hues. C changes structure, type and frames - not the colours. */
-  --bg: #e7e3da; --surface: #fffdf7; --surface-2: #f8f4e8; --track: #ece7dc;
+  --bg: #f5f0e3; --surface: #fffdf7; --surface-2: #f8f4e8; --track: #ece7dc;
   --ink: #241f2e; --text: #241f2e; --muted: #6b6459; --line: #d3cbbb; --frame: #241f2e;
-  --brand: #5B4FA6; --brand-ink: #7a5600; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
+  --brand: #5B4FA6; --brand-ink: #4c4196; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #241f2e;
   --accent-ink: #7a5600; --focus: #3D6FB4;
   --pro: #C7472F; --carb: #3D6FB4; --fat: #E0A21B; --cal: #2E7D6B; --weight: #5B4FA6;
   --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe4;
   --sky: #fdf1e7; --ground: #f3e4d4; --scrim: rgba(20,17,26,.5);
   --header: #5B4FA6; --header-text: #fffdf7; --nav-off: #ddd7f2; --nav-on: #FFD05E;
   --fab-bg: #fffdf7; --fab-ink: #241f2e;
+  --rule: var(--line); --rule-strong: var(--muted); --ring-ctl-c: #857b6b;
   --face-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --face-px: 'Silkscreen', 'IBM Plex Mono', monospace;
   --t-tab: 11px; --t-xs: 12px; --t-sm: 13px; --t-body: 15px; --t-lg: 17px; --t-xl: 24px; --t-hero: 52px;
   --appbar-h: 52px; --tabbar-h: 66px; --row-h: 54px; --gap: 24px;
   --ring: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame);
+  --ring-ctl: 0 -2px 0 0 var(--ring-ctl-c), 0 2px 0 0 var(--ring-ctl-c), -2px 0 0 0 var(--ring-ctl-c), 2px 0 0 0 var(--ring-ctl-c);
   --ring-soft: 0 -2px 0 0 var(--line), 0 2px 0 0 var(--line), -2px 0 0 0 var(--line), 2px 0 0 0 var(--line);
 }
 :root.dark {
@@ -37,7 +39,7 @@
   --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
   --sky: #07070b; --ground: #20202a; --scrim: rgba(0,0,0,.7);
   --header: #000000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
-  --fab-bg: #0c0c11; --fab-ink: #3DFF62;
+  --fab-bg: #0c0c11; --fab-ink: #3DFF62; --ring-ctl-c: #6a6a78;
   color-scheme: dark;
 }
 ::selection { background: var(--accent); color: var(--on-accent); }
@@ -76,43 +78,32 @@
 .sec-h { border-bottom: 2px solid var(--line); padding-bottom: 6px; }
 .sec-h h2 { font-size: var(--t-sm); font-weight: 700; color: var(--muted); }
 .sec-h h2:empty { display: none; }
-.sec-more { color: var(--accent-ink); font-weight: 600; }
+.sec-more { color: var(--brand-ink); font-weight: 600; }
 .rows > * + * { border-top: 1px solid var(--line); }
 .row-t { font-weight: 600; }
-.row-lead { color: var(--brand-ink); }
-.chip { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; font-weight: 600; }
+.row-lead { color: var(--muted); }
+.chip { background: var(--surface); box-shadow: var(--ring-ctl); margin: 2px; font-weight: 600; }
 /* The A button: gold with its darker pixel row along the bottom, drawn as part of the fill. */
 .chip-primary, .btn-primary { background: var(--accent) linear-gradient(var(--accent) calc(100% - 3px), var(--accent-dark) 0); color: var(--on-accent); box-shadow: var(--ring); }
 .btn-primary { font-size: var(--t-lg); margin: 2px; width: calc(100% - 4px); }
 
-/* THE BUDDY: one dialogue window, uniform with every other window on the page (owner's note). The
-   portrait sits inside it on the left, as the GBA dialogue portraits did; the name and mood are the
-   window's first line rather than a plate breaking its border; the ▼ sits in the corner. */
-.budline { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; padding: 12px; gap: 12px; align-items: flex-start; position: relative; }
-.bud-tile { width: 56px; height: 56px; background: var(--sky); background-image: linear-gradient(transparent 76%, var(--ground) 76%); box-shadow: none; margin: 0; }
-.bud-main { background: none; padding: 0; margin: 0; box-shadow: none; position: static; }
-.bud-name { position: static; padding: 0; background: none; }
-.pxname { font-family: var(--face-px); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
-.bud-say { padding-top: 2px; }
-.budline::after { content: ''; position: absolute; right: 12px; bottom: 10px; width: 8px; height: 4px; background: var(--brand-ink);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .budline::after { animation: none; } }
+/* .pxname is the buddy's name in the pixel face */
+.pxname { font-family: var(--face-px); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
 
 /* food */
-.daynav .day { font-size: var(--t-lg); font-weight: 600; }
-.seg { background: var(--surface-2); padding: 3px; box-shadow: var(--ring-soft); margin: 2px; }
+.daynav .day { font-size: var(--t-sm); font-weight: 600; color: var(--header-text); }
+.seg { background: var(--surface); padding: 3px; box-shadow: var(--ring-ctl); margin: 2px; }
 .seg button { font-weight: 600; color: var(--muted); }
-.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--ring-soft); }
+.seg button[aria-selected="true"] { background: var(--ink); color: var(--surface); }
 .sum-k b { font-family: var(--face-px); font-size: 20px; color: var(--good-ink); font-weight: 400; }
 .sum-k { font-size: var(--t-sm); color: var(--muted); }
 .meal .sec-h h2 { font-size: var(--t-lg); color: var(--text); }
-.entry .row-trail { font-family: var(--face-px); font-weight: 400; font-size: 14px; }
+.entry .row-trail { font-size: var(--t-body); font-weight: 600; font-variant-numeric: tabular-nums; }
+.add-row .row-t { color: var(--brand-ink); font-weight: 600; }
+.add-row .row-plus { color: var(--brand-ink); }
 
 /* sheet: a window rising from the bottom */
-.sheet { background: var(--bg); box-shadow: 0 -2px 0 0 var(--frame); }
+.sheet { background: var(--surface); box-shadow: 0 -2px 0 0 var(--frame), 0 -5px 0 0 var(--header); }
 .grab { background: var(--line); }
 .banner { padding: 0; }
 .banner b { font-family: var(--face-px); color: var(--good-ink); font-weight: 400; }
@@ -123,8 +114,9 @@
 /* train */
 .dcell .d-box { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; width: 26px; height: 26px; }
 .dcell.done .d-box { background: var(--cal); color: #fff; box-shadow: none; }
-.dcell.next .d-box { background: var(--accent); box-shadow: none; }
-.dcell.rest .d-box { background: transparent; }
+.dcell.next .d-box { background: var(--surface); box-shadow: var(--ring); color: var(--ink); }
+.dcell.rest .d-box { background: transparent; box-shadow: none; position: relative; }
+.dcell.rest .d-box::after { content: ''; position: absolute; left: 11px; top: 11px; width: 4px; height: 4px; background: var(--line); }
 
 /* progress */
 .hero .num { color: var(--good-ink); }
@@ -137,7 +129,7 @@
 .screen-you .rows { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; padding: 0 14px; }
 .screen-you .sec-h { border-bottom: 0; }
 .avatar { background: var(--sky); box-shadow: var(--ring-soft); margin: 2px; }
-.tog { background: var(--track); box-shadow: var(--ring-soft); margin: 2px; }
+.tog { background: var(--track); box-shadow: var(--ring-ctl); margin: 2px; }
 .tog i { background: var(--surface); box-shadow: var(--ring); }
 .tog.on { background: var(--cal); }
 
@@ -147,16 +139,13 @@
    strolls across a short stage, stops, turns and strolls back - the overworld idle of every handheld
    RPG - and stands still under reduced motion. */
 .ab-logo { justify-self: start; }
-/* The app's logo, as the website draws it: the green-spotted egg straight on the purple bar beside
-   the MACROSAURUS wordmark in the pixel face. The wordmark steps aside below 360px. */
+/* The app's logo, as the website draws it: the green-spotted egg straight on the purple bar. */
 .egg { width: 22px; height: 22px; overflow: hidden; position: relative; flex: none; }
 .egg::before { content: ''; position: absolute; left: -4px; top: -4px; width: 30px; height: 30px; background: url(assets/egg-move.png) 0 0 / 120px 30px no-repeat; image-rendering: pixelated; }
 .ab-logo { gap: 10px; padding: 0 6px; }
-.wordmark { font-family: var(--face-px); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--header-text); }
-@media (max-width: 359px) { .wordmark { display: none; } }
-/* Bar layout: logo left, the buddy and the context right, then the gear. */
-.appbar { grid-template-columns: auto 1fr auto; }
-.appbar > .ab-ctx { justify-self: end; }
+/* Bar layout: the egg left, the buddy and the context centred, the gear right. */
+.appbar { grid-template-columns: minmax(52px, auto) 1fr minmax(52px, auto); }
+.appbar > .ab-ctx { justify-self: center; }
 .ab-ctx { color: var(--header-text); display: inline-flex; align-items: flex-end; gap: 6px; position: relative; padding-left: 0; }
 .ab-label { line-height: 1; padding-bottom: 6px; }
 .ab-stage { position: relative; width: 64px; height: 26px; overflow: hidden; }
@@ -172,3 +161,51 @@
   100% { transform: translateX(0) scaleX(1); } }
 @media (prefers-reduced-motion: reduce) {
   .walker { animation: none; background-image: url(assets/buddy-idle.png); background-size: 72px 24px; transform: translateX(40px); } }
+
+/* THE BUDDY SPEAKS (owner's reference: a handheld RPG talking to you). Chompers stands in a short
+   overworld strip with a "!" over his head; under it sits one wide dialogue window whose pixel tail
+   points up at him. Answers are a ▶ menu inside the window, so no ▼ while there is a choice to make. */
+.talk { display: flex; flex-direction: column; margin: 2px; box-shadow: var(--ring); background: var(--surface); }
+.scene { position: relative; display: block; width: 100%; height: 84px; overflow: hidden; text-align: left;
+  background: linear-gradient(var(--sky) 0 66%, var(--ground) 66% 100%); }
+/* the horizon: one 2px line where the grass meets the sky */
+.scene::before { content: ''; position: absolute; left: 0; right: 0; top: calc(66% - 2px); height: 2px; background: var(--line); }
+.scene-buddy { position: absolute; left: 28px; bottom: 10px; }
+.emote { position: absolute; left: 66px; top: 6px; width: 20px; height: 22px; display: grid; place-items: center;
+  font: 700 13px/1 var(--face-ui); color: var(--ink); background: var(--surface); box-shadow: var(--ring); }
+.emote::after { content: ''; position: absolute; left: 4px; bottom: -6px; width: 4px; height: 4px; background: var(--frame); }
+.textbox { position: relative; padding: 14px 14px 8px; border-top: 2px solid var(--frame); background: var(--surface); }
+/* the speech tail: a stepped pixel wedge cut into the window's top edge, under the dino */
+.textbox::before, .textbox::after { content: ''; position: absolute; left: 44px; width: 16px; height: 8px;
+  -webkit-mask: var(--tail) center / 100% 100% no-repeat; mask: var(--tail) center / 100% 100% no-repeat; }
+.textbox::before { top: -10px; background: var(--frame); }
+.textbox::after { top: -6px; left: 46px; width: 12px; height: 6px; background: var(--surface); }
+.talk { --tail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h2v1h1v1h1v1h1v1h-8v-1h1v-1h1v-1h1z'/%3E%3C/svg%3E"); }
+.tb-name { display: flex; align-items: baseline; gap: 8px; }
+.mood { font-size: var(--t-xs); color: var(--muted); font-weight: 500; }
+.bud-say { margin: 6px 0 4px; font-size: var(--t-body); line-height: 1.45; }
+.choices { display: flex; flex-direction: column; }
+.choice { position: relative; display: flex; align-items: center; min-height: 44px; width: 100%; padding: 0 0 0 20px;
+  font-weight: 600; color: var(--text); text-align: left; }
+.choice + .choice { border-top: 1px solid var(--line); }
+/* the menu cursor sits on the first answer, then follows focus or the pointer */
+.choice::before { content: ''; position: absolute; left: 4px; top: calc(50% - 5px); width: 6px; height: 10px; background: var(--brand-ink); opacity: 0;
+  -webkit-mask: var(--cursor) center / 100% 100% no-repeat; mask: var(--cursor) center / 100% 100% no-repeat; }
+.choices:not(:hover):not(:focus-within) .choice:first-child::before, .choice:hover::before, .choice:focus-visible::before { opacity: 1; }
+.talk { --cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E"); }
+.emote { animation: pop 2.4s steps(1) infinite; }
+@keyframes pop { 0%, 70% { transform: translateY(0); } 75%, 85% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .emote { animation: none; } }
+.range { display: flex; justify-content: flex-end; margin-top: -8px; }
+/* At phone-minimum widths the stage shortens and a long context gives way with an ellipsis. */
+.ab-ctx { min-width: 0; }
+.ab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 359px) {
+  .ab-stage { width: 40px; }
+  @keyframes walk-path {
+    0%   { transform: translateX(0) scaleX(1); }
+    40%  { transform: translateX(16px) scaleX(1); }
+    50%  { transform: translateX(16px) scaleX(-1); }
+    90%  { transform: translateX(0) scaleX(-1); }
+    100% { transform: translateX(0) scaleX(1); } } }
+.sec-h:has(> h2:empty):not(:has(.sec-more)) { display: none; }

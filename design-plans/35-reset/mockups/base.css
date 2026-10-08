@@ -126,7 +126,13 @@ p { margin: 0; }
 .verdict { display: flex; align-items: center; gap: 10px; }
 .badge { font-size: var(--t-xs); padding: 4px 8px; }
 .chart { width: 100%; height: auto; display: block; }
-.chart .ax { font-size: 8px; fill: var(--muted); font-family: var(--face-ui); }
+.chartwrap { position: relative; }
+.chartwrap .ax { position: absolute; font-size: 11px; line-height: 1; color: var(--muted); white-space: nowrap; transform: translateY(-50%); }
+.chartwrap .ax-y { transform: translate(-100%, -50%); }
+.chartwrap .ax-above { transform: translateY(-100%); }
+.chartwrap .ax-below { transform: none; }
+.chartwrap .ax-mid { transform: translateX(-50%); }
+.chartwrap .ax-end { transform: translateX(-100%); }
 .chart .g { stroke: var(--rule); stroke-width: 1; }
 .chart .goal { stroke: var(--good-ink); stroke-width: 1; stroke-dasharray: 3 3; }
 .chart .plan { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 3; }

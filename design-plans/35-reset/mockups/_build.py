@@ -82,14 +82,14 @@ def daynav(label):
     return (f'<span class="daynav"><button class="ab-btn" aria-label="Previous day">{icon("back", 16)}</button>'
             f'<button class="day">{label}</button><button class="ab-btn" aria-label="Next day">{icon("chev", 16)}</button></span>')
 
-def appbar(context, back=None):
+def appbar(context, back=None, here=False):
     # The egg is the app's logo and keeps the top-left; the buddy lives in the middle, pottering along
     # beside the date (direction C, owner's note). On a sub-screen the left slot is the way back.
     left = (f'<button class="ab-btn" aria-label="Back to {back}">{icon("back")}<span class="ab-back">{back}</span></button>'
-            if back else '<button class="ab-btn ab-logo" aria-label="Macrosaurus, open Play"><span class="egg"></span><span class="wordmark">Macrosaurus</span></button>')
-    walker = '' if back else '<span class="ab-stage" aria-hidden="true"><span class="walker"></span></span>'
+            if back else '<button class="ab-btn ab-logo" aria-label="Macrosaurus, open Play"><span class="egg"></span></button>')
+    walker = '' if (back or 'daynav' in context) else '<span class="ab-stage" aria-hidden="true"><span class="walker"></span></span>'
     return (f'<header class="appbar" data-chrome>{left}<div class="ab-ctx">{walker}<span class="ab-label">{context}</span></div>'
-            f'<button class="ab-btn" aria-label="You and settings">{icon("gear")}</button></header>')
+            f'<button class="ab-btn ab-gear" aria-label="You and settings"{" aria-current=\"page\"" if here else ""}>{icon("gear")}</button></header>')
 
 def tabbar(active):
     def tab(k, label, ic):
@@ -131,26 +131,28 @@ def today():
       {meter(1135/2236)}
       <div class="macs">{macro("Protein", 56, 131, "var(--pro)", "var(--pro-ink)")}{macro("Carbs", 107, 257, "var(--carb)", "var(--carb-ink)")}{macro("Fat", 48, 70, "var(--fat)", "var(--fat-ink)")}</div>
     </div>'''
-    bud = f'''<div class="budline">
-      <button class="bud-tile" aria-label="Open Play">{buddy(2)}</button>
-      <div class="bud-main"><div class="bud-name"><span class="pxname">Chompers</span><span class="mood">peckish</span></div>
-        <p class="bud-say">How often will you weigh in?</p>
-        <div class="chips"><button class="chip chip-primary">Most mornings</button><button class="chip">Once a week</button></div></div>
-    </div>'''
+    bud = f'''<section class="talk" aria-label="Chompers">
+      <button class="scene" aria-label="Open Play"><span class="emote" aria-hidden="true">!</span>{buddy(2, 'scene-buddy')}</button>
+      <div class="textbox">
+        <div class="tb-name"><span class="pxname">Chompers</span><span class="mood">peckish</span></div>
+        <p class="bud-say" data-voice>How often will you weigh in?</p>
+        <div class="choices" role="radiogroup" aria-label="Answer"><button class="choice" role="radio" aria-checked="false">Most mornings</button><button class="choice" role="radio" aria-checked="false">Once a week</button></div>
+      </div>
+    </section>'''
     rows = [row('Training', 'Lower B · Friday · ~76 min', lead=icon('train')),
             row('Weight', '83.0 kg trend', '<span class="good">−0.8 kg/wk</span>', lead=icon('scale')),
             row('Recovery', 'Slept 96 · Ready 82', lead=icon('moon'))]
-    return appbar('Thu 8 Oct') + f'<main class="page">{hero}{bud}{section("Today", rows)}</main>' + tabbar('today')
+    return appbar('Thu 8 Oct') + f'<main class="page">{hero}{bud}{section("", rows)}</main>' + tabbar('today')
 
 def entry(name, amt, kcal, p, c, f, primary=False):
     pr = ' data-primary' if primary else ''
     return (f'<button class="row entry"{pr}><span class="row-main"><span class="row-t">{name}</span>'
             f'<span class="row-d">{amt} · <span style="color:var(--pro-ink)">P{p}</span> <span style="color:var(--carb-ink)">C{c}</span> <span style="color:var(--fat-ink)">F{f}</span></span></span>'
-            f'<span class="row-trail num-s">{kcal}</span></button>')
+            f'<span class="row-trail">{kcal}</span></button>')
 
 def meal(name, kcal, entries):
-    k = f'{kcal} kcal' if kcal else '—'
-    body = ''.join(entries) if entries else '<p class="empty">Nothing yet</p>'
+    k = f'{kcal} kcal' if kcal else ''
+    body = ''.join(entries) if entries else f'<button class="row add-row"><span class="row-main"><span class="row-t">Add {name.lower()}</span></span>{icon("plus", 16, "ic row-plus")}</button>'
     return (f'<section class="sec meal"><div class="sec-h"><h2>{name}</h2><span class="sec-sum">{k}</span>'
             f'<button class="sec-add" aria-label="Add to {name}">{icon("plus", 16)}</button></div><div class="rows">{body}</div></section>')
 
@@ -201,13 +203,12 @@ def train():
     </div>'''
     wk = f'''<section class="sec"><div class="sec-h"><h2>This week</h2><span class="sec-sum">1 left</span></div>
       <div class="week">{day("M","Upper A","done")}{day("T","Lower A","done")}{day("W","Rest","rest")}{day("T","Upper B","done")}{day("F","Lower B","next")}{day("S","Rest","rest")}{day("S","Rest","rest")}</div></section>'''
-    prog = f'<div class="blockline"><span>Week 2 of 4 · 7 of 16 sessions</span>{meter(7/16, 16, "meter-xs", "var(--accent)")}</div>'
     rows = [row('History', 'Sessions and lifts'), row('Block &amp; schedule', 'Weeks, days, swaps'), row('Empty session', 'For a day off the plan')]
-    return appbar('Summer growth') + f'<main class="page">{prog}{hero}{wk}{section("More", rows)}</main>' + tabbar('train')
+    return appbar('Summer growth · wk 2/4') + f'<main class="page">{hero}{wk}{section("Training", rows)}</main>' + tabbar('train')
 
 def chart():
     # Trend weight, 24 Sep → 20 Nov. y: 77..86 kg mapped to 120..8; x: 0..300.
-    W, H, x0, x1, y0, y1 = 300, 128, 34, 296, 10, 112
+    W, H, x0, x1, y0, y1 = 280, 132, 30, 276, 12, 112
     kmin, kmax = 77.0, 86.0
     ys = lambda kg: y1 - (kg - kmin) / (kmax - kmin) * (y1 - y0)
     days_total = 57  # 24 Sep .. 20 Nov
@@ -216,30 +217,36 @@ def chart():
     trend = [(0, 84.6), (4, 84.3), (7, 84.0), (11, 83.5), (14, 83.0)]
     plan = [(14, 83.0), (57, 78.4)]
     pts = lambda arr: ' '.join(f'{xs(d):.1f},{ys(k):.1f}' for d, k in arr)
-    grid = ''.join(f'<line x1="{x0}" x2="{x1}" y1="{ys(k):.1f}" y2="{ys(k):.1f}" class="g"/><text x="{x0-6}" y="{ys(k)+3:.1f}" class="ax" text-anchor="end">{k:g}</text>' for k in (78, 82, 86))
+    # Axis labels are HTML laid over the SVG at percentage positions, so they stay at a real 11px
+    # whatever width the chart is drawn at (SVG text would scale with it and drop below the floor).
+    lab = lambda x, y, t, cls='': f'<span class="ax {cls}" style="left:{x / W * 100:.1f}%;top:{y / H * 100:.1f}%">{t}</span>'
+    grid = ''.join(f'<line x1="{x0}" x2="{x1}" y1="{ys(k):.1f}" y2="{ys(k):.1f}" class="g"/>' for k in (78, 82, 86))
+    labels = ''.join(lab(x0 - 6, ys(k), f'{k:g}', 'ax-y') for k in (78, 82, 86))
+    labels += lab(x0 + 4, ys(78) - 2, 'goal 78 kg', 'ax-above') + lab(xs(14) + 4, y0, 'now', 'ax-below')
+    labels += lab(x0, y1 + 4, '24 Sep', 'ax-below') + lab(xs(14), y1 + 4, '8 Oct', 'ax-below ax-mid') + lab(x1, y1 + 4, '20 Nov', 'ax-below ax-end')
     dots = ''.join(f'<rect x="{xs(d)-1.5:.1f}" y="{ys(k)-1.5:.1f}" width="3" height="3" class="wdot"/>' for d, k in weigh)
-    goal = f'<line x1="{x0}" x2="{x1}" y1="{ys(78):.1f}" y2="{ys(78):.1f}" class="goal"/><text x="{x0+4}" y="{ys(78)-4:.1f}" class="ax">goal 78 kg</text>'
-    now = f'<line x1="{xs(14):.1f}" x2="{xs(14):.1f}" y1="{y0}" y2="{y1}" class="g"/><text x="{xs(14)+4:.1f}" y="{y0+8}" class="ax">now</text>'
-    xl = f'<text x="{x0}" y="{H-2}" class="ax">24 Sep</text><text x="{xs(14):.1f}" y="{H-2}" class="ax" text-anchor="middle">8 Oct</text><text x="{x1}" y="{H-2}" class="ax" text-anchor="end">20 Nov</text>'
-    return (f'<svg class="chart" viewBox="0 0 {W} {H}" role="img" aria-label="Trend weight falling from 84.6 to 83.0 kg, projected to reach 78 kg around 20 November">'
+    goal = f'<line x1="{x0}" x2="{x1}" y1="{ys(78):.1f}" y2="{ys(78):.1f}" class="goal"/>'
+    now = f'<line x1="{xs(14):.1f}" x2="{xs(14):.1f}" y1="{y0}" y2="{y1}" class="g"/>'
+    return (f'<div class="chartwrap" role="img" aria-label="Trend weight falling from 84.6 to 83.0 kg, projected to reach 78 kg around 20 November">'
+            f'<svg class="chart" viewBox="0 0 {W} {H}" aria-hidden="true">'
             f'{grid}{goal}{now}<polyline points="{pts(plan)}" class="plan"/>{dots}<polyline points="{pts(trend)}" class="trend"/>'
-            f'<rect x="{xs(14)-3:.1f}" y="{ys(83.0)-3:.1f}" width="6" height="6" class="tnow"/>{xl}</svg>')
+            f'<rect x="{xs(14)-3:.1f}" y="{ys(83.0)-3:.1f}" width="6" height="6" class="tnow"/></svg>{labels}</div>')
 
 def progress():
     hero = f'''<div class="hero" data-primary>
       <div class="verdict"><span class="badge good">Ahead of plan</span><span class="hero-of">this cycle</span></div>
-      <div class="hero-num"><span class="num">−0.8</span><span class="unit">kg a week</span></div>
-      <p class="hero-sub">Target is −0.5. At this rate you reach 78.0 kg in about 6 weeks.</p>
-      <div class="seg seg-sm" role="tablist"><button role="tab">1M</button><button role="tab" aria-selected="true">3M</button><button role="tab">6M</button><button role="tab">1Y</button><button role="tab">All</button></div>
+      <div class="hero-num"><span class="num">-0.8</span><span class="unit">kg a week</span></div>
+      <p class="hero-sub">Target -0.5 · 78.0 kg in about 6 weeks</p>
       {chart()}
-    </div>'''
+    </div>
+    <div class="range"><div class="seg seg-sm" role="tablist"><button role="tab">1M</button><button role="tab" aria-selected="true">3M</button><button role="tab">6M</button><button role="tab">1Y</button><button role="tab">All</button></div></div>'''
     plan = [row('Goal', 'Fat loss · 0.5 kg/wk · 78.0 kg'),
             row('Calories &amp; macros', '2236 kcal · P131 C257 F70'),
-            '<div class="row rowsplit"><span class="row-main"><span class="row-t">Next check-in</span><span class="row-d">Mon 12 Oct · in 4 days</span></span><button class="chip">Check in now</button></div>']
+            '<div class="row rowsplit"><span class="row-main"><span class="row-t">Next check-in</span><span class="row-d">Mon 12 Oct · in 4 days</span></span><a class="sec-more" href="#">Check in now</a></div>']
     more = [row('Energy', 'Burn 2,312–2,852 kcal'), row('Coaching', 'Approve each change'),
             row('Weekly shape', 'Even'), row('Weigh-in log', '8 this cycle')]
     foot = '<button class="footlink">Fresh start</button>'
-    return appbar('Progress') + f'<main class="page">{hero}{section("Plan", plan)}{section("More", more)}{foot}</main>' + tabbar('progress')
+    return appbar('Week 2 of cycle') + f'<main class="page">{hero}{section("Plan", plan)}{section("Details", more)}{foot}</main>' + tabbar('progress')
 
 def toggle(on=True):
     return f'<span class="tog {"on" if on else ""}" role="switch" aria-checked="{str(on).lower()}"><i></i></span>'
@@ -249,12 +256,12 @@ def you():
             row('Try Premium', '7 days free', lead=icon('spark')), row('Sign out', chev=False)]
     body = [row('Body details', 'Male · 32 · 178 cm · Moderately active')]
     food = [row('Default meals', 'Breakfast, Lunch, Dinner, Snacks'),
-            row('Share my recipes', 'Imports help the community library', toggle(True), chev=False)]
+            row('Share my recipes', 'Imports help the community library', toggle(True), chev=False, tag='label')]
     apps = [row('Reminders', 'In-app banner · from 2pm'), row('Integrations', 'Apple Health, Garmin, Withings…')]
     look = [row('Theme', '', 'Paper'), row('Units', '', 'kg · cm'), row('Rearrange Today')]
     secs = (section('Account', acct) + section('Body', body) + section('Food', food) +
             section('Reminders &amp; apps', apps) + section('Appearance', look))
-    return appbar('You', back='Today') + f'<main class="page">{secs}</main>' + tabbar('')
+    return appbar('You', back='Today', here=True) + f'<main class="page">{secs}</main>' + tabbar('')
 
 SCREENS = [('today', 'Today', today), ('food', 'Food · Diary', food), ('log', 'Log sheet', logsheet),
            ('train', 'Train', train), ('progress', 'Progress', progress), ('you', 'You', you)]
@@ -269,10 +276,10 @@ HEAD = '''<!doctype html><html lang="en-GB"{cls}><head><meta charset="utf-8">
 
 # Each screen is written twice: paper (the default) and a fixed dark copy. No system-preference or
 # script switching, so a preview can never show the wrong theme.
-for skin in ('a', 'b', 'c'):
+for skin in ('c',):
     for key, label, fn in SCREENS:
         for suffix, cls in (('', ''), ('-dark', ' class="dark"')):
             html = HEAD.format(title=f'{skin.upper()} · {label}', skin=skin, key=key, cls=cls) + fn() + '</body></html>\n'
             with open(os.path.join(HERE, f'{skin.upper()}-{key}{suffix}.html'), 'w') as f:
                 f.write(html)
-print('built', 6 * len(SCREENS), 'mockups')
+print('built', 2 * len(SCREENS), 'C mockups')
