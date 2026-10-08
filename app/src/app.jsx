@@ -3765,17 +3765,52 @@ function AnchoredMenu({ rect, onClose, className = '', children }) {
    so it is a component, not a pattern to retype. `right` is optional; `onRight` makes it a button.
    Cards using this want `p-0 overflow-hidden`, since the bar is full-bleed. */
 function CardHead({ title, right, onRight, rightTone = 'accent', padLeft }) {
-  const rc = rightTone === 'muted' ? 'var(--cardhead-text)' : 'var(--accent)';
+  // 35-reset: the bar stopped being a filled ink strip. A filled strip on every card is what made a
+  // page read as a pile of crates (design-plans/35-reset/01-direction.md §3). It is now the section
+  // label the rest of the app uses - 9px pixel face, muted, over a 2px rule - and the right-hand
+  // fact keeps the ink tone so it still reads as the one number worth seeing.
+  const rc = rightTone === 'muted' ? 'var(--muted)' : 'var(--accent-ink)';
   return (
-    // padLeft is for the one card the buddy's head leans over: the bar has to start clear of the
-    // portrait rather than run underneath it.
-    <div data-cardbar className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)', paddingLeft: padLeft || undefined }}>
-      <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{title}</span>
+    <div data-cardbar className="flex items-center justify-between gap-2 px-2.5" style={{ minHeight: 34, borderBottom: '2px solid var(--border)', paddingLeft: padLeft || undefined }}>
+      <span className="pf text-[9px] uppercase truncate" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>{title}</span>
       {right != null && (onRight
-        ? <button onClick={onRight} className="hit pf text-[10px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</button>
-        : <span className="pf text-[10px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</span>)}
+        ? <button onClick={onRight} className="hit pf text-[9px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</button>
+        : <span className="pf text-[9px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</span>)}
     </div>
   );
+}
+/* ---------- 35-reset primitives (design-plans/35-reset/01-direction.md §4) ----------
+   A screen is: the app bar, ONE Hero (the only inked frame on it), then Sections of Rows sitting on
+   the page between hairlines. These are the parts every screen is built from; a group of things on a
+   page gets a Section, never a framed card of its own. */
+function Hero({ className = '', style, children, ...rest }) {
+  return <div className={'ms-hero ' + className} style={style} {...rest}>{children}</div>;
+}
+/* A labelled group of rows. `right` is one fact or one action ({ label, onClick }) on the label's line. */
+function Section({ title, right, className = '', children }) {
+  return (<section className={'mb-6 ' + className}>
+    {(title || right) && <div className="ms-sec-h">
+      <h2 className="ms-sec-label">{title}</h2>
+      {right && (right.onClick
+        ? <button onClick={right.onClick} className="hit text-[12px] shrink-0" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{right.label}</button>
+        : <span className="text-[12px] shrink-0" style={{ color: 'var(--muted)' }}>{right}</span>)}
+    </div>}
+    <div className="ms-rows">{children}</div>
+  </section>);
+}
+/* One line of a list: an optional leading glyph, a title with one muted detail line, an optional value,
+   and a chevron when it leads somewhere. 52px tall at least, so the whole row is the tap target. */
+function Row({ icon, title, sub, value, onClick, chevron = !!onClick, trailing, className = '', ...rest }) {
+  const body = (<>
+    {icon && <span className="shrink-0 w-7 flex justify-center" style={{ color: 'var(--muted)' }}>{icon}</span>}
+    <span className="min-w-0 flex-1"><span className="ms-row-t">{title}</span>{sub && <span className="ms-row-d">{sub}</span>}</span>
+    {value != null && <span className="ms-row-v">{value}</span>}
+    {trailing}
+    {chevron && <span className="shrink-0" style={{ color: 'var(--muted)' }}><Icon.chevron width="16" /></span>}
+  </>);
+  return onClick
+    ? <button type="button" onClick={onClick} className={'ms-row ' + className} {...rest}>{body}</button>
+    : <div className={'ms-row ' + className} {...rest}>{body}</div>;
 }
 /* THE SHEET. `Sheets.dc.html` draws roughly twenty different modals and every one of them is the
    same object: a scrim over the page, then a panel on the bottom edge that opens with the same
@@ -3804,7 +3839,12 @@ function Sheet({ title, onClose, children, wide, z = 80, pad = true, bodyClass =
     <div className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4" style={{ zIndex: z, background: 'rgba(20,17,26,0.62)' }} onClick={onClose}>
       <div className={'w-full sheet-panel sheet-up flex flex-col ' + (wide ? 'max-w-md' : 'max-w-sm')}
         style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
-        <CardHead title={title} right={<Icon.close width="16" aria-label="Close" />} onRight={onClose} rightTone="muted" />
+        {/* 35-reset: a grabber and a plain title row instead of the filled ink bar. */}
+        <div className="sm:hidden mx-auto mt-2 shrink-0" style={{ width: 40, height: 4, background: 'var(--hairline-strong)' }} aria-hidden="true" />
+        <div className="flex items-center justify-between gap-2 pl-3.5 pr-1 shrink-0" style={{ minHeight: 48 }}>
+          <h2 className="text-[15px] font-semibold truncate">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }}><Icon.close width="16" /></button>
+        </div>
         <div className={'overflow-y-auto ' + (pad ? 'p-3.5 flex flex-col gap-3.5 ' : '') + bodyClass}
           style={{ paddingBottom: pad ? 'calc(0.875rem + env(safe-area-inset-bottom))' : undefined, ...bodyStyle }}>{children}</div>
       </div>
@@ -3829,21 +3869,25 @@ function SheetLabel({ children, className = '' }) {
    than the tab you were on with different content in it.
    `actions` is an array of { icon, label, onClick, tone }. */
 function SubHeader({ back, backLabel = 'Back', title, actions = [] }) {
+  // 35-reset: ONE bar. A sub-screen's bar used to stack under the app bar as a second purple band;
+  // it is now FIXED over it at the same height on a phone, so going INTO something swaps the bar's
+  // contents - back on the left, the place in the middle, its actions on the right - instead of adding
+  // chrome. Fixed rather than sticky because several callers wrap it in a div, and a sticky element
+  // only sticks inside its parent. (That is also why `.fade-in` animates opacity only: a transform
+  // on an ancestor would make this bar jump for the length of the animation.) On a desktop there is
+  // no app bar, so it sits in the page as it always did.
   return (
-    // -mx-5 -mt-6 cancels the page shell's own `px-5 pt-6`, so the bar is flush against the app
-    // header with no strip of paper showing above or beside it. Chrome that does not reach the edge
-    // of the screen reads as a wide button, not as chrome.
-    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 -mt-6 mb-4 border-b-[3px]"
-      style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+    <div data-subbar className="fixed top-0 inset-x-0 z-[41] h-[52px] lg:static lg:h-auto lg:py-1 lg:-mx-5 lg:-mt-6 lg:mb-4 flex items-center gap-1 px-1.5 border-b-[3px]"
+      style={{ boxSizing: 'border-box', background: 'var(--header)', borderColor: 'var(--border)' }}>
       {back
-        ? <button onClick={back} className="hit pf text-[9px] uppercase shrink-0 truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em', maxWidth: '30%' }}>&lsaquo; {backLabel}</button>
+        ? <button onClick={back} className="flex items-center gap-1 h-11 px-2 shrink-0 truncate text-[12px]" style={{ color: 'var(--nav-off)', maxWidth: '32%' }}><Icon.arrow_left width="16" /><span className="truncate">{backLabel}</span></button>
         : <span className="shrink-0" style={{ width: '18%' }} />}
-      <div className="pf text-[10px] uppercase flex-1 text-center truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</div>
-      <div className="flex items-center gap-1.5 shrink-0 justify-end" style={{ minWidth: '18%' }}>
+      <div className="pf text-[10px] uppercase flex-1 text-center truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.14em' }}>{title}</div>
+      <div className="flex items-center gap-1 shrink-0 justify-end" style={{ minWidth: '18%' }}>
         {actions.map((a, i) => (
           <button key={i} onClick={a.onClick} aria-label={a.label} title={a.label}
-            className="pixel-btn flex items-center justify-center shrink-0"
-            style={{ width: 32, height: 32, borderWidth: 2, boxShadow: 'none', background: a.on ? 'var(--accent)' : 'var(--cardhead-bg)', color: a.on ? 'var(--on-accent)' : (a.tone === 'danger' ? 'var(--danger)' : 'var(--cardhead-text)') }}>{a.icon}</button>
+            className="w-11 h-11 flex items-center justify-center shrink-0"
+            style={{ background: a.on ? 'var(--accent)' : 'transparent', color: a.on ? 'var(--on-accent)' : (a.tone === 'danger' ? 'var(--danger)' : 'var(--header-text)') }}>{a.icon}</button>
         ))}
       </div>
     </div>
@@ -3914,7 +3958,6 @@ function Panel({ bare, className = '', children }) {
   if (bare) return <div className={'mb-6 ' + className}>{children}</div>;
   return <Card className={'p-4 mb-6 ' + className}>{children}</Card>;
 }
-function Section({ title, children, className = '' }) { return (<div className={'mb-6 ' + className}><div className="text-lg font-bold mb-3">{title}</div>{children}</div>); }
 function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'danger', onConfirm, onClose }) {
   useBackClose(onClose);
   return (<div className="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
@@ -4040,8 +4083,11 @@ function PageHeader({ kicker, title }) {
 function PageBar({ context, actions = [] }) {
   // The 40px minimum is the action buttons' height, so it only applies when there are some: a bare
   // context line should sit straight under the page's top padding, not centred in an empty row.
-  return (<div className="flex items-center justify-between gap-3 mb-4" style={{ minHeight: actions.length ? 40 : undefined }}>
-    <div className="pf text-[9px] uppercase truncate min-w-0" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{context}</div>
+  // 35-reset: on a phone the app bar carries the context, so here it only shows on a desktop (which
+  // has no app bar). A PageBar with no actions is then nothing at all on a phone.
+  return (<div className={'items-center justify-between gap-3 mb-4 ' + (actions.length ? 'flex' : 'hidden lg:flex')} style={{ minHeight: actions.length ? 40 : undefined }}>
+    <div className="hidden lg:block pf text-[9px] uppercase truncate min-w-0" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{context}</div>
+    <div className="lg:hidden" />
     {actions.length > 0 && <div className="flex gap-2 shrink-0">
       {actions.map((a, i) => (
         <button key={i} onClick={a.onClick} aria-label={a.label} title={a.label}
@@ -13384,7 +13430,11 @@ function MealHeadMacros({ macros }) {
     </span>
   );
 }
-function FoodLog({ db, update, openLog, showToast }) {
+/* Food's two views (35-reset): the diary, and the recipes that used to be the Cook tab. */
+function FoodSwitch({ value, onChange }) {
+  return <div className="mb-4"><Pill wide value={value} onChange={onChange} options={[{ v: 'diary', l: 'Diary' }, { v: 'recipes', l: 'Recipes' }]} /></div>;
+}
+function FoodLog({ db, update, openLog, showToast, onSwitch }) {
   const today = Store.todayISO();
   const [date, setDate] = useState(today);
   const [menu, setMenu] = useState(null);
@@ -13757,7 +13807,9 @@ function FoodLog({ db, update, openLog, showToast }) {
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
       onTouchEnd={(e) => { if (!swipe.current || drag || Date.now() - draggedAt.current < 500) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
-      <PageBar context="Your food diary" />
+      {/* 35-reset: Food holds two views, the diary and recipes (Cook stopped being a tab). The app bar
+          already says Food, so the switch is the first thing on the page. */}
+      {onSwitch && <FoodSwitch value="diary" onChange={onSwitch} />}
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
       {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
@@ -19925,7 +19977,8 @@ const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.f
 //
 // A briefly-shipped variant folded Cook into Food as a segmented control. That is a nested tab, which
 // both NN/G and Material warn against, and it read as a demotion. Cook is a peer destination again.
-const BOTTOM_NAV = ['dashboard', 'foodlog', 'recipes', 'train'].map(k => NAV_ITEMS.find(([n]) => n === k));
+// 35-reset: Progress is a tab (it is the plan's home) and Cook lives inside Food as its Recipes view.
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'train', 'goals'].map(k => NAV_ITEMS.find(([n]) => n === k));
 // Does this account train? Used to decide whether a shared link needs disambiguating at all. Any
 // block, any logged session, or any stated training preference counts. Deliberately generous: the
 // cost of asking someone who does train is one tap, and the cost of NOT asking is their workout
@@ -19976,12 +20029,19 @@ function BottomNav({ view, setView, onAdd }) {
     </div>
   );
 }
-function navActive(view, k) { return view === k; }
+function navActive(view, k) { return view === k || (k === 'foodlog' && view === 'recipes'); }
 /* 9px with 0.08em of tracking, which is what four separate design files set on this exact label
    (Food, You, Recipe, Train Subscreens all draw the bottom nav identically). The app was drawing its
    PRIMARY NAVIGATION at 7px - below the 8px floor of the entire design set, and the smallest type
    anywhere in the product. Measured on the built page, not guessed at. */
 function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'var(--nav-off)' }}><Ic width="24" height="24" /><span className="pf text-[9px]" style={{ letterSpacing: '0.08em' }}>{l}</span></button>); }
+/* What the app bar says in its middle slot (35-reset). The tab bar already names the tab, so the bar
+   carries the CONTEXT instead: today's date, the block you are running, or the place you are in. */
+function appBarContext(view, db) {
+  if (view === 'dashboard') { const d = new Date(); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]; }
+  if (view === 'train') { const b = typeof activeBlock === 'function' ? activeBlock(db) : null; return (b && b.name) || 'Train'; }
+  return ({ foodlog: 'Food', recipes: 'Food', goals: 'Progress', more: 'You', admin: 'Admin' })[view] || '';
+}
 function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
@@ -19997,24 +20057,22 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
     </div>
   );
 }
-function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
+/* THE APP BAR (35-reset). One 52px bar: the buddy on the left (it IS the way into Play), the page's
+   context in the middle (the date on Today, the block on Train), and the gear for You on the right.
+   It replaced a wordmark, a streak chip, "PLAY ›" and a "YOU" pill - four things saying what the
+   avatar and the gear already say. A sub-screen's SubHeader pins over it at the same height. */
+function MobileHeader({ onOpenPlay, onOpenYou, context, buddy }) {
   return (
-    <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 border-b-[3px]"
-      style={{ background: 'var(--header)', borderColor: 'var(--border)', height: 'var(--appbar-h)', boxSizing: 'border-box' }}>
-      {/* The dino is your buddy: tap it to open the Play hub (Macrodex, egg, catches). */}
-      <button onClick={onOpenPlay} aria-label="Open Play" className="flex items-center gap-2.5 text-left">
-        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
-        <div className="leading-tight">
-          <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
-          <div className="text-[9px] flex items-center gap-1.5">
-            {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}><Icon.trend_up width="16" /> {streak}d</span>}
-            <span className="pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
-          </div>
-        </div>
+    <div className="lg:hidden sticky top-0 z-40 grid items-center px-1.5 border-b-[3px]"
+      style={{ gridTemplateColumns: '1fr auto 1fr', background: 'var(--header)', borderColor: 'var(--border)', height: 'var(--appbar-h)', boxSizing: 'border-box' }}>
+      <button onClick={onOpenPlay} aria-label="Open Play" className="justify-self-start w-11 h-11 flex items-center justify-center">
+        <span className="w-9 h-9 flex items-end justify-center overflow-hidden" style={{ background: 'var(--scene-top)', border: '2px solid var(--border)' }}>
+          {buddy ? <BuddyAvatar buddy={buddy} px={1.25} /> : <PixelEgg size={20} />}
+        </span>
       </button>
-      <button onClick={onOpenYou} aria-label="You and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
+      <div className="pf text-[10px] uppercase truncate text-center" style={{ color: 'var(--header-text)', letterSpacing: '0.14em', maxWidth: '60vw' }}>{context}</div>
+      <button onClick={onOpenYou} aria-label="You and settings" className="justify-self-end w-11 h-11 flex items-center justify-center" style={{ color: 'var(--header-text)' }}>
         <Icon.gear width="24" height="24" />
-        <span className="pf text-[9px]">YOU</span>
       </button>
     </div>
   );
@@ -21288,7 +21346,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
     </div>
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, openFridge, onConsumeFridge, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
+function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, openFridge, onConsumeFridge, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
@@ -21441,6 +21499,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && <>
+      {onSwitch && <FoodSwitch value="recipes" onChange={onSwitch} />}
       {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
       {/* The two places first and the tool last. The fridge is reached from here and from the buddy's
           own nudge on Today ("Cook from my fridge"), so it no longer needs a hero card of its own as
@@ -22383,7 +22442,7 @@ function App() {
           contiguous now: the session bar pins directly under this one at `--appbar-h` with no gap,
           which is the SubHeader relationship the rest of the app already uses for going INTO
           something. */}
-      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} context={appBarContext(view, db)} buddy={db.buddy} />
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
@@ -22394,8 +22453,8 @@ function App() {
         </div>
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} />}
-      {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
+      {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} />}
+      {view === 'recipes' && <Recipes onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}
         onFocusMode={(on) => {
           focusModeRef.current = on;
@@ -22407,7 +22466,9 @@ function App() {
         }}
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
-      {view === 'goals' && <Goals onBack={() => setView(goalsFrom)} backLabel={goalsFrom === 'dashboard' ? 'Today' : goalsFrom === 'train' ? 'Train' : goalsFrom === 'foodlog' ? 'Food' : goalsFrom === 'recipes' ? 'Cook' : 'You'} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
+      {/* Progress is a tab (35-reset), so it is a root with no way back - except when You opened it,
+          where Back returns there. */}
+      {view === 'goals' && <Goals onBack={goalsFrom === 'more' ? () => setView('more') : undefined} backLabel="You" db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
       {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
         backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
