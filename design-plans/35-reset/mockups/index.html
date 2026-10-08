@@ -138,15 +138,16 @@ th { color: var(--muted); font-weight: 500; }
     document.querySelectorAll('iframe').forEach(paint);
   }
   function paint(fr) {
-    // The theme rides on the frame's own link (#light / #dark), which works even where the viewer
-    // keeps each frame on its own origin; reaching into the frame was the fallback that failed.
-    var base = fr.getAttribute('data-src'); if (base && fr.getAttribute('src') !== base + '#' + current) fr.setAttribute('src', base + '#' + current);
-    try { var doc = fr.contentDocument; if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', current); } catch (e) {}
+    // Each screen has a fixed paper file and a fixed dark file (X-screen.html / X-screen-dark.html).
+    var base = fr.getAttribute('data-src'); if (!base) return;
+    var want = current === 'dark' ? base.replace('.html', '-dark.html') : base;
+    if (fr.getAttribute('src') !== want) fr.setAttribute('src', want);
   }
-  document.querySelectorAll('iframe').forEach(function (fr) { fr.addEventListener('load', function () { paint(fr); }); });
+
   document.getElementById('t-light').addEventListener('click', function () { apply('light'); });
   document.getElementById('t-dark').addEventListener('click', function () { apply('dark'); });
   var root = document.documentElement.getAttribute('data-theme');
-  apply(root === 'dark' || root === 'light' ? root : (prefersDark() ? 'dark' : 'light'));
+  // Frames open on paper; the toggle is the only thing that switches them.
+  apply(root === 'dark' ? 'dark' : 'light');
 })();
 </script>

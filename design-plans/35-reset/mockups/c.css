@@ -27,7 +27,7 @@
   --ring: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame);
   --ring-soft: 0 -2px 0 0 var(--line), 0 2px 0 0 var(--line), -2px 0 0 0 var(--line), 2px 0 0 0 var(--line);
 }
-:root[data-theme="dark"] {
+:root.dark {
   /* The app's own dark: neon on black, unchanged. */
   --bg: #050507; --surface: #0c0c11; --surface-2: #101017; --track: #1a1a22;
   --ink: #e8e8ea; --text: #e8e8ea; --muted: #8b8b98; --line: #2f2f3a; --frame: #3DFF62;
@@ -40,18 +40,6 @@
   --fab-bg: #0c0c11; --fab-ink: #3DFF62;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #050507; --surface: #0c0c11; --surface-2: #101017; --track: #1a1a22;
-  --ink: #e8e8ea; --text: #e8e8ea; --muted: #8b8b98; --line: #2f2f3a; --frame: #3DFF62;
-  --brand: #3DFF62; --brand-ink: #3DFF62; --accent: #3DFF62; --accent-dark: #1f9e38; --on-accent: #06120a;
-  --accent-ink: #3DFF62; --focus: #35E0E8;
-  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
-  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
-  --sky: #07070b; --ground: #20202a; --scrim: rgba(0,0,0,.7);
-  --header: #000000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
-  --fab-bg: #0c0c11; --fab-ink: #3DFF62;
-  color-scheme: dark;
-} }
 ::selection { background: var(--accent); color: var(--on-accent); }
 
 /* chrome: a plain bar on the page colour, a tab bar with the menu cursor */

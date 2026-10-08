@@ -258,18 +258,20 @@ def you():
 SCREENS = [('today', 'Today', today), ('food', 'Food · Diary', food), ('log', 'Log sheet', logsheet),
            ('train', 'Train', train), ('progress', 'Progress', progress), ('you', 'You', you)]
 
-HEAD = '''<!doctype html><html lang="en-GB"><head><meta charset="utf-8">
+HEAD = '''<!doctype html><html lang="en-GB"{cls}><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="{skin}.css">
-<script>(function(){{function t(){{var h=(location.hash||"").slice(1);if(h==="light"||h==="dark")document.documentElement.setAttribute("data-theme",h);}}t();addEventListener("hashchange",t);}})();</script>
 </head><body class="skin-{skin} screen-{key}">'''
 
+# Each screen is written twice: paper (the default) and a fixed dark copy. No system-preference or
+# script switching, so a preview can never show the wrong theme.
 for skin in ('a', 'b', 'c'):
     for key, label, fn in SCREENS:
-        html = HEAD.format(title=f'{skin.upper()} · {label}', skin=skin, key=key) + fn() + '</body></html>\n'
-        with open(os.path.join(HERE, f'{skin.upper()}-{key}.html'), 'w') as f:
-            f.write(html)
-print('built', 3 * len(SCREENS), 'mockups')
+        for suffix, cls in (('', ''), ('-dark', ' class="dark"')):
+            html = HEAD.format(title=f'{skin.upper()} · {label}', skin=skin, key=key, cls=cls) + fn() + '</body></html>\n'
+            with open(os.path.join(HERE, f'{skin.upper()}-{key}{suffix}.html'), 'w') as f:
+                f.write(html)
+print('built', 6 * len(SCREENS), 'mockups')

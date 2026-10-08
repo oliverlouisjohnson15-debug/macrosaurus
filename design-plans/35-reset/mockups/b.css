@@ -15,7 +15,7 @@
   --t-tab: 11px; --t-xs: 12px; --t-sm: 13.5px; --t-body: 16px; --t-lg: 17px; --t-xl: 26px; --t-hero: 56px;
   --appbar-h: 52px; --tabbar-h: 68px; --row-h: 54px; --gap: 24px; --radius: 14px;
 }
-:root[data-theme="dark"] {
+:root.dark {
   --bg: #0f0e13; --card: #1b1921; --inset: #15131a; --track: #2a2731;
   --ink: #ecebf0; --text: #ecebf0; --muted: #a29eac;
   --rule: rgba(236,235,240,.09); --rule-strong: rgba(236,235,240,.22);
@@ -26,17 +26,6 @@
   --sky: #1c1a2a; --ground: #2a2638; --scrim: rgba(0,0,0,.6);
   color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0f0e13; --card: #1b1921; --inset: #15131a; --track: #2a2731;
-  --ink: #ecebf0; --text: #ecebf0; --muted: #a29eac;
-  --rule: rgba(236,235,240,.09); --rule-strong: rgba(236,235,240,.22);
-  --header: #0f0e13; --header-text: #ecebf0; --nav-off: #a29eac; --nav-on: #b3a8f5;
-  --accent: #F0B429; --on-accent: #1f1b29; --accent-ink: #b3a8f5; --focus: #b3a8f5; --hero-bg: #1f1c25;
-  --pro: #ef6b55; --carb: #6c9be0; --fat: #F0B429; --cal: #4cc29f; --weight: #9B8BF0;
-  --pro-ink: #f28a77; --carb-ink: #8db2ea; --fat-ink: #f2c45a; --good-ink: #6fd3b2; --good-bg: #16302a;
-  --sky: #1c1a2a; --ground: #2a2638; --scrim: rgba(0,0,0,.6);
-  color-scheme: dark;
-} }
 
 /* chrome: no coloured bars; purple is an accent */
 .appbar { background: var(--header); color: var(--header-text); }

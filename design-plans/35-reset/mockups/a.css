@@ -15,7 +15,7 @@
   --t-tab: 9px; --t-xs: 11px; --t-sm: 12.5px; --t-body: 14px; --t-lg: 16px; --t-xl: 24px; --t-hero: 52px;
   --appbar-h: 52px; --tabbar-h: 64px; --row-h: 52px; --gap: 22px;
 }
-:root[data-theme="dark"] {
+:root.dark {
   --bg: #050507; --card: #0c0c11; --inset: #101017; --track: #1a1a22;
   --ink: #2f2f3a; --text: #e8e8ea; --muted: #8b8b98;
   --rule: rgba(232,232,234,.12); --rule-strong: rgba(232,232,234,.3);
@@ -26,17 +26,6 @@
   --sky: #07070b; --ground: #20202a; --shadow: #2f2f3a; --scrim: rgba(0,0,0,.7);
   color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #050507; --card: #0c0c11; --inset: #101017; --track: #1a1a22;
-  --ink: #2f2f3a; --text: #e8e8ea; --muted: #8b8b98;
-  --rule: rgba(232,232,234,.12); --rule-strong: rgba(232,232,234,.3);
-  --header: #000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
-  --accent: #3DFF62; --on-accent: #06120a; --accent-ink: #3DFF62; --focus: #35E0E8;
-  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
-  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
-  --sky: #07070b; --ground: #20202a; --shadow: #2f2f3a; --scrim: rgba(0,0,0,.7);
-  color-scheme: dark;
-} }
 
 /* chrome */
 .appbar { background: var(--header); color: var(--header-text); border-bottom: 3px solid var(--ink); }
