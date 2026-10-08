@@ -1,0 +1,317 @@
+{
+ "today|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 4,
+  "nested": 0,
+  "controls": 9,
+  "help": [],
+  "buddy": 1,
+  "primaryY": 123,
+  "inSheet": false
+ },
+ "food|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "39x48 Chompers. Open Play",
+   "38x40 Previous day",
+   "218x40 Today",
+   "38x40 Next day"
+  ],
+  "blocks": 8,
+  "nested": 0,
+  "controls": 23,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 453,
+  "inSheet": false
+ },
+ "cook|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [
+   "3.83 11px fits",
+   "3.83 11px fits",
+   "3.83 11px fits"
+  ],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 4,
+  "nested": 0,
+  "controls": 14,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 546,
+  "inSheet": false
+ },
+ "train|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 6,
+  "nested": 0,
+  "controls": 15,
+  "help": [
+   "Opens with Hack squat 4×6-10 · 2 RIR, then 7 more.",
+   "1 session left this week."
+  ],
+  "buddy": 0,
+  "primaryY": 330,
+  "inSheet": false
+ },
+ "progress|paper|390": {
+  "overflowX": 0,
+  "small": [
+   "8px 85.3",
+   "8px 81.3",
+   "8px 77.3",
+   "8px goal 78.0",
+   "8px plan",
+   "8px 20 Nov",
+   "7px NOW",
+   "8px 24 Sept",
+   "8px 8 Oct"
+  ],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "121x32 Check in now anyway ›",
+   "26x44 1M",
+   "26x44 3M",
+   "26x44 6M",
+   "24x44 1Y",
+   "24x44 All",
+   "75x32 Try Premium ›"
+  ],
+  "blocks": 8,
+  "nested": 2,
+  "controls": 17,
+  "help": [
+   "You are losing 0.8 kg a week against a target of 0.5 kg.",
+   "At this rate you reach 78.0 kg in about 6 weeks.",
+   "This cycle, 6 of 7 days logged and 4 of 8 weigh-ins.",
+   "346 below your burn, which is what 0.5 kg a week costs.",
+   "Next weekly check-in: too early to say whether it will move ",
+   "Resting on 6 of 14 days fully logged, protein on 0 of 7."
+  ],
+  "buddy": 0,
+  "primaryY": 106,
+  "inSheet": false
+ },
+ "you|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 9,
+  "nested": 0,
+  "controls": 19,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 210,
+  "inSheet": false
+ },
+ "play|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "117x37 Buddy",
+   "117x37 Battle",
+   "117x37 Shop"
+  ],
+  "blocks": 4,
+  "nested": 2,
+  "controls": 7,
+  "help": [
+   "Peckish · Decent start, feed it up.",
+   "· Decent start, feed it up.",
+   "The food you log feeds Chompers."
+  ],
+  "buddy": 0,
+  "primaryY": 406,
+  "inSheet": true
+ },
+ "log|paper|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 2,
+  "nested": 0,
+  "controls": 7,
+  "help": [
+   "Foods you log show up here for one-tap logging."
+  ],
+  "buddy": 0,
+  "primaryY": 128,
+  "inSheet": true
+ },
+ "today|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 4,
+  "nested": 0,
+  "controls": 9,
+  "help": [],
+  "buddy": 1,
+  "primaryY": 123,
+  "inSheet": false
+ },
+ "food|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "38x40 Previous day",
+   "218x40 Today",
+   "38x40 Next day"
+  ],
+  "blocks": 8,
+  "nested": 0,
+  "controls": 23,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 453,
+  "inSheet": false
+ },
+ "cook|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 4,
+  "nested": 0,
+  "controls": 14,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 546,
+  "inSheet": false
+ },
+ "train|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "21x48 Chompers. Open Play"
+  ],
+  "blocks": 6,
+  "nested": 0,
+  "controls": 15,
+  "help": [
+   "Opens with Hack squat 4×6-10 · 2 RIR, then 7 more.",
+   "1 session left this week."
+  ],
+  "buddy": 0,
+  "primaryY": 330,
+  "inSheet": false
+ },
+ "progress|dark|390": {
+  "overflowX": 0,
+  "small": [
+   "8px 85.3",
+   "8px 81.3",
+   "8px 77.3",
+   "8px goal 78.0",
+   "8px plan",
+   "8px 20 Nov",
+   "7px NOW",
+   "8px 24 Sept",
+   "8px 8 Oct"
+  ],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "121x32 Check in now anyway ›",
+   "26x44 1M",
+   "26x44 3M",
+   "26x44 6M",
+   "24x44 1Y",
+   "24x44 All",
+   "75x32 Try Premium ›"
+  ],
+  "blocks": 8,
+  "nested": 2,
+  "controls": 17,
+  "help": [
+   "You are losing 0.8 kg a week against a target of 0.5 kg.",
+   "At this rate you reach 78.0 kg in about 6 weeks.",
+   "This cycle, 6 of 7 days logged and 4 of 8 weigh-ins.",
+   "346 below your burn, which is what 0.5 kg a week costs.",
+   "Next weekly check-in: too early to say whether it will move ",
+   "Resting on 6 of 14 days fully logged, protein on 0 of 7."
+  ],
+  "buddy": 0,
+  "primaryY": 106,
+  "inSheet": false
+ },
+ "you|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 9,
+  "nested": 0,
+  "controls": 19,
+  "help": [],
+  "buddy": 0,
+  "primaryY": 210,
+  "inSheet": false
+ },
+ "play|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [
+   "117x37 Buddy",
+   "117x37 Battle",
+   "117x37 Shop"
+  ],
+  "blocks": 4,
+  "nested": 2,
+  "controls": 7,
+  "help": [
+   "Peckish · Decent start, feed it up.",
+   "· Decent start, feed it up.",
+   "The food you log feeds Chompers."
+  ],
+  "buddy": 0,
+  "primaryY": 406,
+  "inSheet": true
+ },
+ "log|dark|390": {
+  "overflowX": 0,
+  "small": [],
+  "contrast": [],
+  "fillText": [],
+  "tiny": [],
+  "blocks": 2,
+  "nested": 0,
+  "controls": 7,
+  "help": [
+   "Foods you log show up here for one-tap logging."
+  ],
+  "buddy": 0,
+  "primaryY": 128,
+  "inSheet": true
+ }
+}
