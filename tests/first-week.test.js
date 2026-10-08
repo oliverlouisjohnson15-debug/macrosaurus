@@ -61,7 +61,9 @@ test('the first check-in is offered on Today even before the first trend read', 
   // Setup a week ago, weighed on six mornings but not yet today: no trend read (it needs seven days
   // between weigh-ins), and the check-in is due. The band used to say due: false in that state.
   const db = Store.defaultState();
-  db.profile = { goalType: 'cut', weight_unit: 'kg', rateKgPerWeek: 0.5 };
+  // Today is the chosen check-in day, a week on from the last one, on any day the suite runs. (Left at
+  // the Monday default, the check-in waits for Monday and this was only due when run on one.)
+  db.profile = { goalType: 'cut', weight_unit: 'kg', rateKgPerWeek: 0.5, checkinDay: new Date(today + 'T00:00:00').getDay() };
   db.last_checkin = A.shiftISO(today, -7);
   for (let i = 6; i >= 1; i--) db.weight_entries.push({ id: 'w' + i, date: A.shiftISO(today, -i), scale_weight: 72 - (6 - i) * 0.1 });
   assert.equal(A.progressVerdict(db), null, 'the fixture must be short of a read');
