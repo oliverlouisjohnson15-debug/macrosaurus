@@ -2290,7 +2290,7 @@ function InstallMenuRow() {
     else { setIosOpen(true); window.MTRACK && MTRACK('pwa_ios_help', { from: 'menu' }); }
   }
   return (<React.Fragment>
-    <MenuRow label="Add to home screen" desc={isIOS ? 'Install Macrosaurus as an app from Safari' : 'Install Macrosaurus as an app on your device'} tone="accent" onClick={onClick} />
+    <MenuRow icon={<Icon.plus width="24" />} label="Add to home screen" desc={isIOS ? 'Install Macrosaurus as an app from Safari' : 'Install Macrosaurus as an app on your device'} tone="accent" onClick={onClick} />
     {iosOpen && <IOSInstallSheet onClose={() => setIosOpen(false)} />}
   </React.Fragment>);
 }
@@ -16793,6 +16793,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
         {planRow('coaching')}
         {planRow('weekly')}
         {planRow('checkins')}
+        {onOpenSetting && <Row icon={<Icon.swap width="24" />} title="Fresh start" sub={(db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set up again') + ' \u00b7 nothing is deleted'} onClick={() => onOpenSetting('freshstart')} />}
       </Section>
 
       {open === 'energy' && <Sheet title="Energy" onClose={() => setOpen(null)}>
@@ -17133,24 +17134,13 @@ function useCommit(update) {
 }
 // A row on the overview: what it is, and what it is currently set to. The status line is the whole
 // point of the overview - it answers most settings questions without a tap.
-function SettingsRow({ label, status, onClick, last }) {
-  return (
-    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left active:scale-[.99] transition" style={{ borderBottom: last ? 'none' : '2px solid var(--border)' }}>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold">{label}</span>
-        {status && <span className="block text-[11.5px] text-[#8A8A90] mt-0.5 leading-snug">{status}</span>}
-      </span>
-      <span className="text-[#8A8A90] shrink-0 text-lg leading-none">&rsaquo;</span>
-    </button>
-  );
+// 35-reset: settings lists are the app's one list - a labelled Section of Rows - not boxed cards.
+function SettingsRow({ label, status, onClick, icon, value }) {
+  return <Row icon={icon} title={label} sub={status} value={value} onClick={onClick} />;
 }
-// MenuRows inside a SettingsGroup, ruled apart with the card's own 2px border.
-function MenuList({ children }) { return <div className="divide-y-2 divide-[color:var(--border)]">{children}</div>; }
+function MenuList({ children }) { return <>{children}</>; }
 function SettingsGroup({ title, children }) {
-  return (<div className="mb-5">
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2 px-1">{title}</div>
-    <div className="pixel-box" style={{ background: 'var(--card)' }}>{children}</div>
-  </div>);
+  return <Section title={title}>{children}</Section>;
 }
 // Where a settings subscreen goes back to. You, normally; Progress when it was opened from the plan
 // rows on Progress (design-plans/34-overhaul/07), so the bar names the place you will land on.
@@ -18515,29 +18505,10 @@ function planRows(db) {
       { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
   ];
 }
-// One line that makes the Progress entry worth tapping: the trend, in words, or the check-in that is
-// waiting. A row that just said "Progress" would read as another setting.
-function progressTeaser(db) {
-  const t = Store.todayISO();
-  const st = checkinStatus(db, t);
-  if (db.pending_adjustment) return 'A change is waiting for your say-so';
-  // No "check-in is due" here: Today asks for that, once (design-plans/34-overhaul/08).
-  const series = E.trendSeries((db.weight_entries || []).filter(w => w.scale_weight != null));
-  if (series.length >= 8) {
-    const wk = series[series.length - 1].trend - series[Math.max(0, series.length - 8)].trend;
-    const unit = (db.profile && db.profile.weight_unit) || 'kg';
-    if (Math.abs(wk) >= 0.1) return fmtWeight(Math.abs(wk), unit) + (wk < 0 ? ' down' : ' up') + ' over the last week';
-    return 'Holding steady this week';
-  }
-  // No trend to report yet, so say the one thing that is always knowable: when the next read is.
-  if (st.daysUntil != null) return 'Next check-in ' + (st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days');
-  return 'How your weight and your burn are moving';
-}
 function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) {
   const [commit, tick] = useCommit(update);
   const [arranging, setArranging] = useState(false);
   const p = db.profile;
-  const [q, setQ] = useState('');
   const unit = p.weight_unit;
   const base = currentTargets(db) || {};
   const gh = db.googleHealth;
@@ -18556,18 +18527,9 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
   const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
   const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
 
-  const needle = q.trim().toLowerCase();
-  // Each row carries the words a person might search for, not just its label.
+  const ICONS = { body: 'user', cycle: 'calendar', meals: 'food', share: 'book', reminders: 'bell', integrations: 'plug', health: 'heart_full' };
   const groups = [
-    // Progress is the plan's home now (design-plans/34-overhaul/07/08), so its rows live there and
-    // You keeps the way in, plus Fresh start, which is account-level and stays with the account.
-    { title: 'Progress & plan', rows: [
-      { key: 'progress', label: 'Progress', status: progressTeaser(db), kw: 'progress trend weight body fat burn expenditure chart verdict' },
-      { key: 'freshstart', label: 'Fresh start', status: (db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set your targets up again') + ' \u00b7 nothing is deleted', kw: 'fresh start over reset restart begin again start again recalculate recalibrate expenditure start date wipe clear plan drifted wrong numbers new chapter' },
-    ] },
-    // The plan rows themselves are on Progress, but a search from here should still find them.
-    ...(needle ? [{ title: 'Your plan', rows: planRows(db) }] : []),
-    { title: 'Your body', rows: [
+    { title: 'Body', rows: [
       { key: 'body', label: 'Body details', status: (p.sex === 'male' ? 'Male' : 'Female') + ' · ' + p.age + ' · ' + fmtHeight(p.heightCm, p.height_unit) + ' · ' + ((ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2]).l), kw: 'body details sex age height activity level weight body fat lean mass' },
       p.sex === 'female' ? { key: 'cycle', label: 'Cycle tracking', status: men.enabled ? 'On · ' + (men.cycleLen || 28) + '-day average' : 'Off', kw: 'cycle period menstrual water weight' } : null,
     ].filter(Boolean) },
@@ -18575,10 +18537,8 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
       { key: 'meals', label: 'Default meals', status: meals.length ? meals.join(', ') : 'None set', kw: 'meals default breakfast lunch dinner snack food log' },
       { key: 'share', label: 'Share my recipes', status: shareOn ? 'On · your imports help the community library' : 'Off · your recipes stay private', kw: 'share recipes community privacy public discover', toggle: true, on: shareOn },
     ] },
-    { title: 'Reminders', rows: [
+    { title: 'Reminders & apps', rows: [
       { key: 'reminders', label: 'Reminders', status: (remindersOn ? 'In-app banner on' : 'In-app banner off') + ' · from ' + hourLabel, kw: 'reminders push notifications nudge banner alerts hour' },
-    ] },
-    { title: 'Apps & data', rows: [
       { key: 'integrations', label: 'More integrations', status: (() => {
         const w = (p.integrationInterest || []).length;
         return 'Apple Health, Garmin, Withings and more' + (w ? ' · ' + w + ' on your list' : '');
@@ -18588,58 +18548,43 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
       ghConfigured() && { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
     ].filter(Boolean) },
   ];
-
-  const match = (r) => !needle || (r.label + ' ' + r.status + ' ' + r.kw).toLowerCase().includes(needle);
-  const shown = groups.map(g => Object.assign({}, g, { rows: g.rows.filter(match) })).filter(g => g.rows.length);
-  const appearanceMatches = !needle || 'appearance theme dark light units kg stone pounds st lb cm feet inches metric imperial'.includes(needle);
+  const [look, setLook] = useState(false);
+  const themeName = (p.theme || 'light') === 'dark' ? 'Dark' : 'Paper';
 
   return (<div className="fade-in">
-    <div className="mb-4">
-      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
-    </div>
     <SavedFlash tick={tick} />
-
-    {shown.map(g => (
+    {groups.map(g => (
       <SettingsGroup key={g.title} title={g.title}>
-        {g.rows.map((r, i) => r.toggle
-          ? <button key={r.key} onClick={() => {
+        {g.rows.map(r => r.toggle
+          ? <button key={r.key} role="switch" aria-checked={!!r.on} onClick={() => {
               const next = !r.on;
               commit(d => { d.profile = d.profile || {}; d.profile.shareRecipes = next; });
               // Turning it on backfills the pool with what you've already priced, same as the
               // one-time prompt in Discover does.
               if (next) (db.recipes || []).forEach(rec => { if (!rec.private) submitPublicRecipe(rec); });
-            }} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left" style={{ borderBottom: i === g.rows.length - 1 ? 'none' : '2px solid var(--border)' }}>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">{r.label}</span>
-                <span className="block text-[11.5px] text-[#8A8A90] mt-0.5 leading-snug">{r.status}</span>
-              </span>
-              <span className="pf text-[11px] px-2.5 py-1.5 shrink-0" style={{ background: r.on ? 'var(--accent)' : 'var(--surface3)', color: r.on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{r.on ? 'ON' : 'OFF'}</span>
+            }} className="ms-row">
+              <span className="shrink-0 w-7 flex justify-center ms-row-icon"><PixelGlyph kind={ICONS[r.key]} size={24} /></span>
+              <span className="min-w-0 flex-1"><span className="ms-row-t">{r.label}</span><span className="ms-row-d">{r.status}</span></span>
+              <Toggle on={r.on} />
             </button>
-          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => r.key === 'progress' ? onOpenProgress() : onOpen(r.key)} />)}
+          : <SettingsRow key={r.key} icon={<PixelGlyph kind={ICONS[r.key] || 'dot'} size={24} />} label={r.label} status={r.status} onClick={() => onOpen(r.key)} />)}
       </SettingsGroup>
     ))}
 
-    {/* One group style on this page: Appearance's label sits outside its box like every other
-        group's, rather than on an ink bar of its own (design-plans/34-overhaul/08). */}
-    {appearanceMatches && <SettingsGroup title="Appearance">
-      <div className="p-4">
-        {/* The theme names describe what the two themes ARE now. "Game Boy Color" was accurate when
-            light meant a gold-on-white handheld; the light theme is warm paper with a purple bar and
-            an ink frame, and calling it Game Boy Color sends people looking for something else. */}
-        <Field label="Theme" hint="Paper is warm and printed; Dark is neon on black.">
-          <Seg value={p.theme || 'light'} onChange={v => commit(d => { d.profile.theme = v; })} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={24} /> Paper</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={24} /> Dark</span> }]} />
-        </Field>
-        <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
-        <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
-      </div>
+    <SettingsGroup title="Appearance">
+      <SettingsRow icon={<Icon.palette width="24" />} label="Theme" value={themeName} onClick={() => setLook(true)} />
+      <SettingsRow icon={<Icon.ruler width="24" />} label="Units" value={(unit === 'st_lb' ? 'st/lb' : 'kg') + ' \u00b7 ' + (p.height_unit === 'ft_in' ? 'ft/in' : 'cm')} onClick={() => setLook(true)} />
       {/* Rearranging Today moved here from a link at the foot of Today itself (35-reset): it is a
           setting about the page, not part of the day. */}
-      <div className="px-4" style={{ borderTop: '2px solid var(--border)' }}><Row title="Rearrange Today" sub="Choose the order of Today's blocks" onClick={() => setArranging(true)} /></div>
-    </SettingsGroup>}
+      <SettingsRow icon={<Icon.sliders width="24" />} label="Arrange Today" onClick={() => setArranging(true)} />
+    </SettingsGroup>
+    {look && <Sheet title="Theme & units" onClose={() => setLook(false)}>
+      <Field label="Theme"><Seg value={p.theme || 'light'} onChange={v => commit(d => { d.profile.theme = v; })} options={[{ v: 'light', l: 'Paper' }, { v: 'dark', l: 'Dark' }]} /></Field>
+      <Field label="Weight"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'kg', l: 'kg' }, { v: 'st_lb', l: 'st / lb' }]} /></Field>
+      <Field label="Height"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
+    </Sheet>}
     {arranging && <RearrangeLayer db={db} order={todayOrderOf(db)} onDone={() => setArranging(false)}
       onSave={(next) => update(d => { d.profile = Object.assign({}, d.profile, { todayOrder: next }); })} />}
-
-    {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
   </div>);
 }
 // Change password while signed in. We re-verify the current password first (signInWithPassword)
@@ -18665,7 +18610,7 @@ function ChangePassword({ email }) {
     setBusy(false);
   }
   return (<div>
-    <MenuRow label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="16" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
+    <MenuRow icon={<Icon.lock width="24" />} label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="16" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
     {open && <div className="px-4 pb-4 fade-in">
       <Field label="Current password"><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={e => setCur(e.target.value)} placeholder="current password" /></Field>
       <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
@@ -18767,7 +18712,6 @@ function FeedbackSheet({ email, onClose }) {
   );
 }
 function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn }) {
-  const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
   useEffect(() => { if (initialScreen && onConsumeInitial) onConsumeInitial(); }, []);
@@ -18809,79 +18753,57 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} onExport={exportData} />,
     reset: () => <ResetScreen db={db} onBack={back} onConfirm={onReset} onExport={exportData} />,
   };
-  if (screen && SCREENS[screen]) return (
-    <SubBackLabel.Provider value={backTo ? 'Progress' : 'You'}>
-      <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
-    </SubBackLabel.Provider>
-  );
-  return (
-    <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <PageBar context="Your profile & settings" />
-      <div className="mb-5"><Pill wide value={tab} onChange={setTab} options={[{ v: 'settings', l: 'Settings' }, { v: 'account', l: 'Account' }]} /></div>
-
-      {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />}
-
-      {/* The Account tab in the page's one list style (design-plans/34-overhaul/08): SettingsGroups
-          with the 9px label outside the box, rather than a stack of free-standing cards whose
-          labels used a fourth style of their own. */}
-      {tab === 'account' && <div>
-        <SettingsGroup title="Signed in as">
-          <div className="px-4 py-3.5 text-sm font-semibold break-all">{email || 'your account'}</div>
-        </SettingsGroup>
-
-        <SettingsGroup title={isPremium ? 'Premium' : 'Free plan'}>
-          {isPremium ? (
-            <div className="p-4">
-              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[11px] text-[#8A8A90] mb-1">Trial: {daysLeft(sub.trial_end)}</div>}
-              <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
-              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
-              <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
-            </div>
-          ) : (
-            <div className="p-4" style={{ background: 'var(--accent-dim)' }}>
-              <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-              <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
-              <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
-            </div>
-          )}
-        </SettingsGroup>
-
-        <SettingsGroup title="Your account"><MenuList>
-          {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
-          <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
-          <InstallMenuRow />
-          <ChangePassword email={email} />
-          <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
-          <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
-          <MenuRow label="Sign out" onClick={onSignOut} />
-        </MenuList></SettingsGroup>
-
-        <SettingsGroup title="Help & feedback"><MenuList>
-          <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
-        </MenuList></SettingsGroup>
-
-        <SettingsGroup title="Legal & privacy"><MenuList>
-          <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
-          <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
-          <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
-          <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
-        </MenuList></SettingsGroup>
-
-        {/* Fresh start used to sit here, and that was the wrong shelf: it deletes nothing by default,
-            and somebody whose numbers feel wrong looks in their plan settings, not in the danger
-            zone. It lives with Progress & plan now. What is left here genuinely is irreversible. */}
-        <SettingsGroup title="Danger zone"><MenuList>
-          <MenuRow label="Reset data" desc="Choose what to wipe - log, weigh-ins, training, buddy, the lot - and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
-          <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
-        </MenuList></SettingsGroup>
-
-        <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
-      </div>}
+  const planLine = isPremium
+    ? (sub && sub.status === 'trialing' ? 'Free trial \u00b7 ' + daysLeft(sub.trial_end) : 'Premium' + (sub && sub.cancel_at_period_end ? ' \u00b7 ends at the period end' : sub && sub.current_period_end ? ' \u00b7 renews ' + fmtDate(sub.current_period_end) : ''))
+    : 'Free \u00b7 ' + freeLeft + ' of ' + FREE_AI_MONTHLY + ' AI logs left this month';
+  // ACCOUNT, one level down from You (35-reset): who you are signed in as, Premium, your data, help,
+  // the legal pages and the danger zone. It used to be a second tab of the same page.
+  SCREENS.account = () => <SubScreen title="Account" onBack={() => setScreen(null)} backLabel="You">
+    <Section>
+      <Row icon={<Icon.user width="24" />} title={<span className="break-all">{email || 'your account'}</span>} sub="Signed in" />
+    </Section>
+    <SettingsGroup title={isPremium ? 'Premium' : 'Free plan'}>
+      {isPremium
+        ? <Row icon={<Icon.star width="24" />} title={sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium' + (sub && sub.plan ? ' \u00b7 ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : '')}
+            sub={sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period' : sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) : 'Unlimited AI logging and body-fat scans'}
+            value="Manage" onClick={onManage} />
+        : <>
+          <Row icon={<Icon.star width="24" />} title="AI logs" sub={freeLeft + ' of ' + FREE_AI_MONTHLY + ' left this month' + (rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus' : '') + ', resetting on the 1st'} />
+          <div className="py-3"><Btn kind="accent" className="w-full" onClick={onUpgrade}>Try Premium free for 7 days</Btn></div>
+        </>}
+      <MenuRow icon={<Icon.share width="24" />} label="Invite friends" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' \u00b7 ' + rewards.referrals_count + ' joined so far' : '')} onClick={() => setInvite(true)} />
+    </SettingsGroup>
+    <SettingsGroup title="Your account">
+      {isAdmin && <MenuRow icon={<Icon.lock width="24" />} label="Admin panel" desc="Manage users, AI limits and support" onClick={onOpenAdmin} />}
+      <InstallMenuRow />
+      <ChangePassword email={email} />
+      <MenuRow icon={<Icon.play width="24" />} label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
+    </SettingsGroup>
+    <SettingsGroup title="Your data">
+      <MenuRow icon={<Icon.share width="24" />} label="Export my data" desc="A JSON file of everything" onClick={exportData} />
+      <MenuRow icon={<Icon.arrow_left width="24" />} label="Sign out" onClick={onSignOut} />
+    </SettingsGroup>
+    <SettingsGroup title="Help & legal">
+      <MenuRow icon={<Icon.chat width="24" />} label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+      <MenuRow icon={<Icon.book width="24" />} label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
+      <MenuRow icon={<Icon.book width="24" />} label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
+      <MenuRow icon={<Icon.heart_full width="24" />} label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
+      <MenuRow icon={<Icon.star width="24" />} label="Credits" desc="The artists behind the art" onClick={() => setLegal('credits')} />
+    </SettingsGroup>
+    {/* Fresh start lives with the plan, on Progress: it deletes nothing by default. What is left here
+        genuinely is irreversible. */}
+    <SettingsGroup title="Danger zone">
+      <MenuRow icon={<Icon.trash width="24" />} label="Reset data" desc="Choose what to wipe and start over. Keeps your login" tone="danger" onClick={() => setScreen('reset')} />
+      <MenuRow icon={<Icon.trash width="24" />} label="Delete account" desc="Removes everything, for good" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
+    </SettingsGroup>
+    <div className="text-[12px] pt-2 text-center" style={{ color: 'var(--muted)' }}>{BRAND} · your data syncs to your account</div>
+  </SubScreen>;
+  const overlays = (<>
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
-      {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
-        <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger-ink)' }}>Delete your account?</h2>
-          <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">This permanently erases your account and all of your data, and cannot be undone. You would need to sign up again to come back. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
+      {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'var(--scrim)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
+        <div className="w-full max-w-sm ms-hero p-5 fade-in" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+          <h2 className="text-[20px] font-bold mb-2" style={{ color: 'var(--danger-ink)' }}>Delete your account?</h2>
+          <div className="text-[13px] mb-3 leading-relaxed" style={{ color: 'var(--text2)' }}>This permanently erases your account and all of your data, and cannot be undone. You would need to sign up again to come back. Type <span className="font-bold" style={{ color: 'var(--text)' }}>DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
           {delErr && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>{delErr}</div>}
           <div className="flex gap-2 mt-4">
@@ -18893,6 +18815,21 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
       {guide && <WelcomeCarousel reviewing buddy={db.buddy} theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
       {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
       {invite && <InviteSheet rewards={rewards} onClose={() => setInvite(false)} toast={showToast} />}
+  </>);
+  if (screen && SCREENS[screen]) return (
+    <SubBackLabel.Provider value={backTo ? 'Progress' : 'You'}>
+      <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+      {overlays}
+    </SubBackLabel.Provider>
+  );
+  return (
+    <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
+      <PageBar context="Your profile & settings" />
+      <Section>
+        <Row icon={<Icon.user width="24" />} title={<span className="break-all">{email || 'Your account'}</span>} sub={planLine} onClick={() => setScreen('account')} aria-label="Account" />
+      </Section>
+      <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />
+      {overlays}
     </div>
   );
 }
@@ -18901,17 +18838,10 @@ function Row2({ k, v, last }) { return (<div className={`flex justify-between it
 // Since design-plans/34-overhaul/08 these are rows of a SettingsGroup (MenuList below draws the rules
 // between them) rather than a stack of separate boxes. Coloured labels take the INK of their colour:
 // the gold fill on the card measures well under 4.5:1.
-function MenuRow({ label, desc, onClick, tone, right }) {
-  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'accent' ? 'var(--accent-ink)' : 'var(--text)';
-  return (
-    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left active:scale-[.99] transition">
-      <div className="min-w-0">
-        <div className="text-sm font-semibold" style={{ color }}>{label}</div>
-        {desc && <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{desc}</div>}
-      </div>
-      <span className="text-[#8A8A90] shrink-0">{right || <Icon.chevron width="16" />}</span>
-    </button>
-  );
+function MenuRow({ label, desc, onClick, tone, right, icon }) {
+  const color = tone === 'danger' ? 'var(--danger-ink)' : 'var(--text)';
+  return <Row icon={icon} title={<span style={{ color }}>{label}</span>} sub={desc} onClick={onClick}
+    chevron={!right} value={right || null} />;
 }
 
 /* =====================================================================
