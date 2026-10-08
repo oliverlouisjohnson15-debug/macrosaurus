@@ -10051,43 +10051,40 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
      of flavour belongs in Talk, where the buddy is actually speaking. */
   return (
     <div className="fade-in">
-      <div className="pixel-box p-0 mb-3 overflow-hidden" style={{ background: 'var(--card)' }}>
-        <div className="relative" style={{ borderBottom: '2px solid var(--border)', lineHeight: 0 }}>
+      <Hero className="overflow-hidden">
+        <div className="relative" style={{ lineHeight: 0 }}>
           {/* The terrarium, like Today and Progress. This tab is where scenery is BOUGHT, and it was
               the one place a bought sky could not be seen standing in. */}
-          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={238}
-            terrarium floor={terraFloor(238)} plant shadowW={64} eq={eq} asleep={asleep} stuffed={stuffed} sad={sad} dayState={bp.dayState} />
-          <div className="pf absolute text-[11px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
-          {!incubating && <div className="pf absolute text-[11px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
+          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w="100%" h={200}
+            terrarium floor={terraFloor(200)} plant shadowW={64} eq={eq} asleep={asleep} stuffed={stuffed} sad={sad} dayState={bp.dayState} />
+          <div className="absolute text-[12px]" style={{ left: 10, top: 8, color: 'var(--muted)', lineHeight: 1.3 }}>{sceneName}</div>
         </div>
-        <div className="px-3 py-3.5 flex flex-col items-center text-center gap-2">
-          <span className="pf" style={{ fontSize: 18, letterSpacing: '0.06em' }}>{who.toUpperCase()}</span>
-          {incubating
-            ? <span className="text-[11.5px] leading-snug max-w-[17rem]" style={{ color: 'var(--carb-ink)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</span>
-            : <>
-                <span className="text-[12px] leading-snug"><span style={{ color: mm.color, fontWeight: 700 }}>{mm.label}</span> <span style={{ color: 'var(--text2)' }}>· {line}</span></span>
-                <div className="flex items-center gap-1.5">
-                  {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
-                  <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={24} /></span>
-                </div>
-              </>}
-        </div>
-        {!incubating && <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
-          <div className="flex justify-between pf text-[11px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
-            <span>Growth · {st.name}</span>
-            <span>{nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown'}</span>
+        <div className="p-4" style={{ borderTop: '2px solid var(--hairline-strong)' }}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="num text-[20px]">{who}</span>
+            <span className="text-[13px]" style={{ color: 'var(--muted)' }}>{incubating ? 'Incubating' : st.name}</span>
           </div>
-          <PipLine pct={prog * 100} color="var(--cal)" height={12} cells={14} />
-        </div>}
-      </div>
-      {!incubating && onChat && <button onClick={onChat} className="pixel-btn w-full py-3 mb-3 text-[11px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        <PixelGlyph kind="chat" color="currentColor" size={24} /> TALK TO {(named ? bp.name : 'YOUR BUDDY').toUpperCase()}
-      </button>}
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={onTrophies} className="pixel-btn py-3 text-[11px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--card)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={24} /> TROPHIES</button>
-        <button onClick={onDressUp} className="pixel-btn py-3 text-[11px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--card)' }}><PixelGlyph kind="star" color="var(--accent-ink)" size={24} /> DRESS UP</button>
-      </div>
-      {!incubating && <div className="text-center text-[11px] mt-3" style={{ color: 'var(--muted)' }}>The food you log feeds {who}.</div>}
+          {incubating
+            ? <div className="text-[13px] leading-snug mt-1" style={{ color: 'var(--carb-ink)' }}>Do the getting-started tasks on Today to hatch it.</div>
+            : <>
+              <div className="text-[13px] leading-snug mt-1"><span style={{ color: mm.color, fontWeight: 700 }}>{mm.label}</span> <span style={{ color: 'var(--text2)' }}>· {line}</span></div>
+              <div className="flex justify-between text-[13px] mt-3 mb-1" style={{ fontWeight: 600 }}>
+                <span>Growth</span>
+                <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown'}</span>
+              </div>
+              <PipMeter value={Math.round(prog * 100)} target={100} cells={14} scale={1} color="var(--good)" small overIsFine />
+              {named && <div className="flex items-center justify-between text-[13px] mt-3" style={{ fontWeight: 600 }}>
+                <span>Bond</span><BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />
+              </div>}
+            </>}
+        </div>
+      </Hero>
+      <Section title={incubating ? null : who}>
+        {!incubating && onChat && <Row icon={<Icon.chat width="24" />} title={'Talk to ' + (named ? bp.name : 'your buddy')} onClick={onChat} />}
+        <Row icon={<Icon.trophy width="24" />} title="Trophies" onClick={onTrophies} />
+        <Row icon={<Icon.shirt width="24" />} title="Dress up" sub={sceneName} onClick={onDressUp} />
+        {!incubating && <Row icon={<Icon.flame width="24" />} title="Streak" sub={streak + ' day' + (streak === 1 ? '' : 's') + ' \u00b7 ' + (freezeReady ? 'freeze ready' : 'freeze used this month')} />}
+      </Section>
     </div>
   );
 }
@@ -10448,18 +10445,10 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, o
           {/* THE WALLET BELONGS TO THE HUB, NOT THE SHOP. Amber is earned in Battle and spent in
               Shop, so burying the balance inside one of the three tabs meant the number was missing
               from the screen that pays it. One line above the tabs, visible on all three. */}
-          <div className="flex items-center justify-end mb-2">
-            <span className="pf text-[11px] uppercase" style={{ letterSpacing: '0.1em', color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
+          <div className="flex items-center justify-end -mt-1 mb-2 text-[13px]" style={{ color: 'var(--fat-ink)', fontWeight: 600 }}>
+            <span className="num">{amber}</span>&nbsp;amber
           </div>
-          <div className="grid grid-cols-3 mb-4" style={{ border: '3px solid var(--border)' }}>
-            {[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l], i) => (
-              <button key={k} onClick={() => setView(k)} className="pf uppercase"
-                style={{ padding: '11px 2px', fontSize: 11, letterSpacing: '0.1em', lineHeight: 1.4,
-                  borderRight: i < 2 ? '3px solid var(--border)' : undefined,
-                  background: view === k ? 'var(--accent)' : 'var(--card)',
-                  color: view === k ? 'var(--on-accent)' : 'var(--muted)' }}>{l}</button>
-            ))}
-          </div>
+          <div className="mb-4"><Seg value={view} onChange={setView} options={[{ v: 'buddy', l: 'Buddy' }, { v: 'battle', l: 'Battle' }, { v: 'shop', l: 'Shop' }]} /></div>
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} onChat={() => setChatting(true)} onDressUp={() => setView('shop')} isPremium={isPremium} />}
 
@@ -10737,10 +10726,6 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
       {/* No explainer under the heading. It listed three of the four ways Amber is earned and the
           buddy's own nudge listed a different three; both were partial and they disagreed. Every
           reward is already priced where it is earned, on Battle, which is where a reward is legible. */}
-      <div className="flex items-baseline justify-between gap-3 mb-4">
-        <h2 className="text-lg font-semibold">Amber Shop</h2>
-        <span className="pf text-[11px] shrink-0" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
-      </div>
 
       {/* THIS WEEK'S STALL. Six tabs at 390px runs to 8px type and leaves the rotation nowhere to
           live, so the shop leads with a stall that changes on Monday and collapses the rest. */}
@@ -12350,7 +12335,7 @@ function EggPickerOnboarding({ update, onDone }) {
 // stage, level and history are all preserved - only the buddy's look is now theirs to choose.
 const BUDDY_UPGRADE_HIGHLIGHTS = [
   ['egg', 'A buddy you raise', 'Pick an egg, hatch it, and grow it as you log. It has moods, evolves, and levels up alongside you.'],
-  ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and confetti for every milestone.'],
+  ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and a moment for every milestone.'],
   ['trend_up', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."],
   ['trophy', 'A Founding Saur trophy', "For being one of the first pack. It's yours to keep, right in your trophy cabinet."],
 ];
@@ -12432,6 +12417,21 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
 // itself) is reached: confetti, the buddy bouncing, the headline + the buddy's line, the projection to
 // the finish, and a share button (same card pipeline as the streak share). onClose marks it shown.
 const CONFETTI_COLORS = ['#39FF14', '#F5C518', '#4A9EEB', '#F0655F', '#7FD46B', '#B98CFF'];
+/* 35-reset: a moment is a full-screen page in the buddy's voice - the dialogue box, the facts as
+   rows, and the one button at the foot. Confetti and a bouncing sprite in a frame were a second
+   visual language for the same character. */
+function MomentPage({ title, onClose, children, footer }) {
+  return (
+    <div className="fixed inset-0 z-[95] flex flex-col" role="dialog" aria-modal="true" aria-label={title} style={{ background: 'var(--bg)' }}>
+      <div className="shrink-0 flex items-center gap-2 px-2" style={{ height: 52, background: 'var(--header)', color: 'var(--header-text)', borderBottom: '2px solid var(--border)' }}>
+        {onClose && <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><Icon.arrow_left width="24" /></button>}
+        <h1 className="text-[17px] font-bold truncate">{title}</h1>
+      </div>
+      <div className="flex-1 overflow-y-auto"><div className="max-w-md mx-auto px-4 pt-4 pb-6">{children}</div></div>
+      <div className="shrink-0 max-w-md w-full mx-auto px-4 pt-3 pb-4" style={{ borderTop: '1px solid var(--hairline)' }}>{footer}</div>
+    </div>
+  );
+}
 function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMaintain }) {
   const buddy = db.buddy || {};
   const s = buddyStageSprite(buddy.stage || 0, buddy);
@@ -12443,26 +12443,22 @@ function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMa
     try { await shareMilestone({ headline: milestone.headline, sub: reached ? 'Goal reached' : 'since I started', reached, name: buddy.name, art: stage.art, colors: stage.colors }, showToast); } catch (_) {}
     setBusy(false);
   }
+  const who = buddy.name || 'Your buddy';
   return (
-    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
-      <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
-      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
-        <div className="pf text-[11px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent-ink)' }}><Spark size={12} />{reached ? 'Goal reached' : 'Milestone'}<Spark size={12} /></div>
-        <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 180, minHeight: 180 }}>
-          <div className="celebrate-bounce inline-block"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={7} fps={s.fps} /></div>
-        </div>
-        <div className="text-3xl font-bold mb-3" style={{ color: reached ? 'var(--fat-ink)' : 'var(--accent-ink)' }}>{milestone.headline}</div>
-        <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{milestone.text}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
-        {etaText && <div className="text-[12px] mb-5 max-w-xs leading-snug" style={{ color: 'var(--good-ink)' }}>{etaText}</div>}
-        <div className="flex gap-2 w-full max-w-xs">
-          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-3 text-[11px] pf inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
-          {onMaintain
-            ? <button onClick={onMaintain} className="pixel-btn flex-1 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>MAINTENANCE</button>
-            : <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{milestone.cta}</button>}
-        </div>
-        {onMaintain && <button onClick={onClose} className="hit mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Keep my current goal</button>}
-      </div>
-    </div>
+    <MomentPage title={reached ? 'Goal reached' : 'Milestone'} onClose={onClose}
+      footer={<div className="flex gap-2">
+        <Btn kind="ghost" onClick={doShare} disabled={busy} style={{ opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'Share'}</Btn>
+        {onMaintain
+          ? <Btn kind="accent" className="flex-1" onClick={onMaintain}>Switch to maintenance</Btn>
+          : <Btn kind="accent" className="flex-1" onClick={onClose}>{milestone.cta}</Btn>}
+      </div>}>
+      <Dialogue className="mb-5" name={who} mood={stage.name} emote="!" sprite={<SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />} text={milestone.text} />
+      <Section>
+        <Row icon={<Icon.goal width="24" />} title={milestone.headline} sub={reached ? 'Goal reached' : 'Since you started'} />
+        {etaText && <Row icon={<Icon.star width="24" />} title="Next" sub={etaText} />}
+      </Section>
+      {onMaintain && <button onClick={onClose} className="w-full text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}>Keep my current goal</button>}
+    </MomentPage>
   );
 }
 /* The GROWTH moment. Reaching a new BUDDY_STAGES rung used to be a silent number change on a progress
@@ -12484,8 +12480,6 @@ function StageUpCelebration({ db, stage, onClose }) {
   const s = buddyStageSprite(stage, buddy);
   const eq = equippedCosmetics(buddy);
   const line = STAGE_UP_LINES[crHash((db.game_salt || '') + 'stage' + stage) % STAGE_UP_LINES.length];
-  const fromPx = 5 * stageScale(Math.max(0, stage - 1));
-  const toPx = 5 * stageScale(stage);
   const [busy, setBusy] = useState(false);
   async function doShare() {
     setBusy(true);
@@ -12497,41 +12491,21 @@ function StageUpCelebration({ db, stage, onClose }) {
     } catch (_) {}
     setBusy(false);
   }
+  const next = BUDDY_STAGES[stage + 1] || null;
   return (
-    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
-      <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
-      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
-        <div className="pf text-[11px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent-ink)' }}><Spark size={12} />{who} grew<Spark size={12} /></div>
-        <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 200, minHeight: 190 }}>
-          <div className="celebrate-bounce inline-block" style={{ filter: auraFilter(eq) || undefined }}>
-            <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={toPx} fps={s.fps} />
-          </div>
-        </div>
-        <div className="text-3xl font-bold mb-3" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
-        {/* The size jump, shown rather than claimed: the stage it left beside the stage it reached. */}
-        {stage > 1 && (
-          <div className="flex items-end justify-center gap-4 mb-4">
-            <div className="text-center" style={{ opacity: 0.45 }}>
-              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
-              <div className="pf text-[11px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
-            </div>
-            <span className="pb-4" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
-            <div className="text-center">
-              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
-              <div className="pf text-[11px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
-            </div>
-          </div>
-        )}
-        <div className="pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
-        {/* People do not share features, they share proof. A buddy that grew because someone logged
-            for thirty days is the most personal proof this app produces, and until now it was the one
-            celebration with no way out of the app. */}
-        <div className="flex gap-2 w-full max-w-xs">
-          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-3 text-[11px] pf" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
-          <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NICE ONE</button>
-        </div>
-      </div>
-    </div>
+    <MomentPage title="Milestone" onClose={onClose}
+      footer={<div className="flex gap-2">
+        <Btn kind="ghost" onClick={doShare} disabled={busy} style={{ opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'Share'}</Btn>
+        <Btn kind="accent" className="flex-1" onClick={onClose}>Nice one</Btn>
+      </div>}>
+      <Dialogue className="mb-5" name={who} mood={st.name} emote="!"
+        sprite={<span style={{ filter: auraFilter(eq) || undefined, display: 'inline-block' }}><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} /></span>}
+        text={line + ' ' + who + ' is a ' + st.name + ' now.'} />
+      <Section>
+        <Row icon={<Icon.egg width="24" />} title="Stage" sub={(stage > 0 ? prev.name + ' \u2192 ' : '') + st.name} />
+        {next && <Row icon={<Icon.star width="24" />} title="Next" sub={next.name + ' \u00b7 keep logging'} />}
+      </Section>
+    </MomentPage>
   );
 }
 // The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
