@@ -33,12 +33,10 @@ const account = () => S.migrate({
 });
 const foodLog = (db) => mount(A.FoodLog, { db, update: (fn) => { fn(db); }, openLog() {}, showToast() {} });
 
-// A meal card marks itself for the drag code, and its title bar is the one --cardhead-bg ground
-// inside it - between them a test can find the heading without depending on the rest of the markup.
-// (The day-total card at the top of the page has a title bar too, hence the data-meal-card scope.)
+// A meal section marks itself for the drag code, and its heading carries data-meal-head (35-reset: the
+// heading is a section heading on the page now, not a dark title bar).
 function mealHeads(r) {
-  return Array.from(r.host.querySelectorAll('[data-meal-card]'))
-    .map(c => Array.from(c.querySelectorAll('div')).find(d => (d.getAttribute('style') || '').indexOf('--cardhead-bg') !== -1));
+  return Array.from(r.host.querySelectorAll('[data-meal-card]')).map(c => c.querySelector('[data-meal-head]'));
 }
 
 test('a meal heading totals the macros of the food in it', () => {
@@ -55,19 +53,19 @@ test('a meal heading totals the macros of the food in it', () => {
   } finally { r.unmount(); }
 });
 
-test('the macros are drawn in the on-bar colours, never the ink ones', () => {
-  // The ink tokens are the dark-on-light pass: --pro-ink measures 2.0:1 on the title bar. Using them
-  // here would be an invisible line, so this is worth pinning rather than trusting to review.
+test('the macros are drawn in the ink colours that read on the page, never the on-bar ones', () => {
+  // Same rule as before, other way round: the heading moved off the dark title bar onto the paper
+  // page (35-reset), where the --*-on-head lifts are the unreadable ones and the ink pairs clear 5:1.
   const db = account();
   const r = foodLog(db);
   try {
     const head = mealHeads(r)[0];
     const styles = Array.from(head.querySelectorAll('span')).map(s => s.getAttribute('style') || '').join(' ');
-    for (const t of ['--pro-on-head', '--carb-on-head', '--fat-on-head']) {
+    for (const t of ['--pro-ink', '--carb-ink', '--fat-ink']) {
       assert.ok(styles.indexOf(t) !== -1, 'the heading should colour its macros with ' + t);
     }
-    for (const t of ['--pro-ink', '--carb-ink', '--fat-ink']) {
-      assert.ok(styles.indexOf(t) === -1, t + ' is unreadable on the title bar and must not appear there');
+    for (const t of ['--pro-on-head', '--carb-on-head', '--fat-on-head']) {
+      assert.ok(styles.indexOf(t) === -1, t + ' is unreadable on the page and must not appear there');
     }
   } finally { r.unmount(); }
 });

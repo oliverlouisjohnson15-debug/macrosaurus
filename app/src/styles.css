@@ -587,8 +587,11 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 .ms-lane { container-type: inline-size; }
 .ms-walker { position: absolute; left: 0; top: -2px; width: 48px; height: 48px; animation: ms-pace 9s linear infinite; }
 .ms-walker.slow { animation-duration: 16s; }
-@keyframes ms-pace { 0% { transform: translateX(0) scaleX(1); } 48% { transform: translateX(calc(100cqw - 48px)) scaleX(1); }
-  50% { transform: translateX(calc(100cqw - 48px)) scaleX(-1); } 98% { transform: translateX(0) scaleX(-1); } 100% { transform: translateX(0) scaleX(1); } }
+/* Pacing and turning are two animations: the walk is linear, the turn is an instant step at each end. */
+@keyframes ms-pace { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(calc(100cqw - 48px)); } }
+.ms-walker-face { display: block; width: 48px; height: 48px; animation: ms-turn 9s steps(1) infinite; }
+.ms-walker.slow .ms-walker-face { animation-duration: 16s; }
+@keyframes ms-turn { 0% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
 /* THE DIALOGUE (DESIGN.md): a scene, then one wide window with a stepped tail pointing at the speaker. */
 .ms-scene { position: relative; height: 80px; overflow: hidden; color: var(--terra-ink); }
 .ms-dune { position: absolute; bottom: 12px; width: 64px; height: 12px; color: var(--terra-pale); }
@@ -611,3 +614,9 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 .ms-menu-pop { background: var(--card); box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
 /* Sliders get the 44px target height like every other control; the thumb takes the A-button gold. */
 input[type="range"] { min-height: 44px; accent-color: var(--accent); }
+/* A Card is a section on the page, not a crate (35-reset): no frame, no fill, no side padding. Its
+   CardHead is the section heading - 15/700 over a 2px rule. Inside a Hero it keeps the hero's padding. */
+.ms-card { background: transparent !important; box-shadow: none !important; border: 0 !important; padding-left: 0 !important; padding-right: 0 !important; margin-bottom: 24px; }
+.ms-cardhead { border-bottom: 2px solid var(--border); padding-left: 0; padding-right: 0; }
+.theme-dark .ms-cardhead { border-bottom-color: var(--hairline-strong); }
+.ms-hero .ms-cardhead { padding-left: 16px; padding-right: 16px; border-bottom: 1px solid var(--hairline); }

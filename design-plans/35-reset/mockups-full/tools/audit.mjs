@@ -100,7 +100,7 @@ if (mode === 'mock') {
 } else {
   // The current app. Primary locators match the mockups' data-primary on the same screens.
   const SCREENS = [
-    ['today', [], 'kcal left'], ['food', ['^Food$'], 'Porridge'], ['cook', ['^Food$', '^Recipes$'], 'Cottage cheese'],
+    ['today', [], 'kcal left'], ['food', ['^Food$'], 'Porridge'], ['cook', ['^Food$', '^(Recipes|Cook)$'], 'Cottage cheese'],
     ['train', ['^Train$'], 'Lower B'], ['progress', ['^Progress$'], 'Ahead of plan|This cycle'], ['you', ['You and settings'], 'Progress'],
     ['play', ['Open Play'], 'CHOMPERS|Chompers'], ['log', ['^\\+$|Log food|Add food'], 'Search foods'],
   ];
