@@ -608,3 +608,6 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 .ms-menu { margin-top: 10px; padding-top: 4px; border-top: 1px solid var(--hairline); }
 .ms-menu-i { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; font-size: 15px; font-weight: 600; text-align: left; }
 .ms-menu-i + .ms-menu-i { border-top: 1px solid var(--hairline); }
+.ms-menu-pop { background: var(--card); box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
+/* Sliders get the 44px target height like every other control; the thumb takes the A-button gold. */
+input[type="range"] { min-height: 44px; accent-color: var(--accent); }

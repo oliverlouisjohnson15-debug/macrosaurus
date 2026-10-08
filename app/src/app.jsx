@@ -4326,6 +4326,17 @@ function Row({ icon, title, sub, value, onClick, chevron = !!onClick, trailing, 
     {trailing}
     {chevron && <span className="shrink-0" style={{ color: 'var(--muted)' }}><Icon.chevron width="16" /></span>}
   </>);
+  // A row that leads somewhere AND carries its own controls (a +, a delete) is a div holding two kinds
+  // of button side by side - never a button inside a button.
+  if (onClick && trailing) return (<div className={'ms-row ' + className} {...rest}>
+    <button type="button" onClick={onClick} className="flex items-center gap-3 flex-1 min-w-0 text-left self-stretch">
+      {icon && <span className="shrink-0 w-7 flex justify-center ms-row-icon">{icon}</span>}
+      <span className="min-w-0 flex-1"><span className="ms-row-t">{title}</span>{sub && <span className="ms-row-d">{sub}</span>}</span>
+      {value != null && <span className="ms-row-v">{value}</span>}
+    </button>
+    {trailing}
+    {chevron && <span className="shrink-0" style={{ color: 'var(--muted)' }}><Icon.chevron width="16" /></span>}
+  </div>);
   return onClick
     ? <button type="button" onClick={onClick} className={'ms-row ' + className} {...rest}>{body}</button>
     : <div className={'ms-row ' + className} {...rest}>{body}</div>;
@@ -4360,7 +4371,7 @@ function Sheet({ title, onClose, children, wide, z = 80, pad = true, bodyClass =
         {/* 35-reset: a grabber and a plain title row instead of the filled ink bar. */}
         <div className="sm:hidden mx-auto mt-2 shrink-0" style={{ width: 40, height: 4, background: 'var(--hairline-strong)' }} aria-hidden="true" />
         <div className="flex items-center justify-between gap-2 pl-4 pr-1 shrink-0" style={{ minHeight: 52 }}>
-          <h2 className="text-[20px] truncate" style={{ fontWeight: 700, lineHeight: 1.25 }}>{title}</h2>
+          <h2 className={"text-[20px] min-w-0 " + (typeof title === "string" ? "truncate" : "")} style={{ fontWeight: 700, lineHeight: 1.25 }}>{title}</h2>
           <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--text)' }}><Icon.close width="24" /></button>
         </div>
         <div className={'overflow-y-auto ' + (pad ? 'px-4 pt-1 pb-4 flex flex-col gap-4 ' : '') + bodyClass}
@@ -4494,12 +4505,12 @@ function Pill({ value, options, onChange, wide }) {
 }
 // `compact` swaps the full-height input for an inline trigger that reads as a line of text with a
 // caret, for places where a labelled box would cost more room than the choice is worth.
-function Dropdown({ value, options, onChange, compact }) {
+function Dropdown({ value, options, onChange, compact, big }) {
   const [open, setOpen] = useState(false); const cur = options.find(o => o.v === value);
   if (compact) return (<div className="relative">
-    <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[13px] text-left max-w-full" style={{ color: 'var(--accent-ink)', minHeight: 32 }}>
-      <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0"><Icon.caret_down width="16" /></span></button>
-    {open && <div className="absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}
+    <button onClick={() => setOpen(o => !o)} className={'flex items-center gap-1 text-left max-w-full ' + (big ? 'text-[20px]' : 'text-[13px]')} style={{ color: big ? 'var(--text)' : 'var(--link)', fontWeight: big ? 700 : 600, minHeight: 44 }}>
+      <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0"><Icon.caret_down width={big ? '24' : '16'} /></span></button>
+    {open && <div role="menu" className="ms-menu-pop absolute z-40 mt-1 min-w-[12rem] py-1 max-h-64 overflow-y-auto">{options.map(o => <button key={o.v} role="menuitem" onClick={() => { onChange(o.v); setOpen(false); }} className="ms-menu-i px-3" style={{ color: 'var(--text)', fontWeight: o.v === value ? 700 : 500 }}><span className="w-2.5 flex" style={{ color: 'var(--cursor)' }}>{o.v === value && <Cursor />}</span>{o.l}</button>)}</div>}
   </div>);
   return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2"><Icon.caret_down width="16" /></span></button>
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
@@ -14499,7 +14510,7 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
    the thing you were looking at. That is backwards, because the diary entry is the record that has
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
-function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget, meals }) {
+function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget, meals, favourite, onFavourite }) {
   // No useBackClose here: `Sheet` arms the back layer, and arming it twice pushes two layers so the
   // hardware back button needs two presses to shut one sheet.
   const topRef = useScrolledToTop();
@@ -14553,22 +14564,19 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
   function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
   function save() { onSave({ meal_id: (meals && mealId && mealId !== entry.meal_id) ? mealId : undefined, name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (
-    <Sheet title={saveVerb === 'Add' ? 'Add entry' : 'Edit entry'} onClose={onClose} wide z={50}>
-      {/* The identity row the design opens every entry sheet with: the food's own tile, its name at
-          16px, and one muted line of provenance underneath. The name is still editable in place -
-          the dotted underline is the mark for that - but it is no longer competing with a heading,
-          a subtitle and a stray × for the top of the sheet, because the sheet has a title bar now. */}
-      <div ref={topRef} className="flex gap-3 items-start">
-        <FoodTile name={entry.name} isAlcohol={entry.is_alcohol} nq={entry.nq} size={52} />
-        <div className="min-w-0 flex-1 flex flex-col gap-1">
-          {renaming
-            ? <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setRenaming(false); } }} aria-label="Name" />
-            : <button onClick={() => setRenaming(true)} className="text-left w-full">
-                <span className="block text-[15px] font-semibold leading-tight" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--muted)', textUnderlineOffset: 4 }}>{name || title || 'Edit food'}</span>
-                {contextLine && <span className="block text-[11.5px] mt-1" style={{ color: 'var(--muted)' }}>{contextLine}</span>}
-              </button>}
+    <Sheet title={name || title || 'Edit food'} onClose={onClose} wide z={50}>
+      {/* 35-reset: the food's name is the sheet's title; the entry's calories are its one big figure,
+          with the macros beside it, and renaming is a quiet link rather than a field. */}
+      <div ref={topRef}>
+        {contextLine && <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>{contextLine}</div>}
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="flex items-baseline gap-2"><span className="num tnum" style={{ fontSize: 48, lineHeight: 1 }}>{total.kcal}</span><span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>kcal</span></span>
+          <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(total.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(total.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(total.fat)}</span></span>
         </div>
+        {renaming
+          ? <div className="mt-3"><TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setRenaming(false); } }} aria-label="Name" /></div>
+          : <button onClick={() => setRenaming(true)} className="text-[13px] mt-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Rename</button>}
       </div>
       {meals && meals.length > 1 && entry.meal_id && <div><SheetLabel className="block mb-[7px]">Meal</SheetLabel><Seg value={mealId} onChange={setMealId} options={meals.map(x => ({ v: x.id, l: meals.length >= 4 ? mealShort(x.name) : x.name }))} /></div>}
       {canSwitch && <div><SheetLabel className="block mb-[7px]">Measure in</SheetLabel><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
@@ -14589,10 +14597,12 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
       {/* Sits with "Numbers look off?" because it answers the same question, and above it because a
           photograph settles an amount better than typing a gram figure at it does. Only offered on
           entries where it means something: see Engine.photoUpdatable. */}
-      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 pixel-btn py-3 px-3 text-left" style={{ borderWidth: 2, background: 'var(--surface2)' }}>
-        <Icon.cam width="24" height="24" className="shrink-0" />
+      {onFavourite && <button onClick={onFavourite} role="switch" aria-checked={!!favourite} className="w-full flex items-center gap-3 text-left" style={{ minHeight: 52 }}>
+        <span style={{ color: 'var(--link)' }}><Icon.star width="24" /></span><span className="flex-1 text-[15px]" style={{ fontWeight: 600 }}>Favourite</span><Toggle on={!!favourite} /></button>}
+      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-3 py-2 text-left" style={{ minHeight: 56 }}>
+        <span style={{ color: 'var(--link)' }}><Icon.cam width="24" height="24" className="shrink-0" /></span>
         <span className="min-w-0">
-          <span className="block text-[13px] font-medium" style={{ color: 'var(--text)' }}>Update with a photo</span>
+          <span className="block text-[15px]" style={{ color: 'var(--text)', fontWeight: 600 }}>Update with a photo</span>
           {/* Once these numbers have come from a photo of the real plate they are no longer a
               forecast, and the pitch for re-doing it would be a lie. Say what happened instead. */}
           <span className="block text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>{entry.photo_updated_at
@@ -14614,10 +14624,11 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
           and it sat a thumb's width from Save. A red LABEL set apart from the primary action is the
           standard answer, and the one the design draws. Cancel is gone with it: the bar has a ✕ and
           the scrim closes on a tap, so a third way out was only ever furniture. */}
-      <SheetBtn disabled={a <= 0} style={a <= 0 ? { opacity: 0.5 } : null} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</SheetBtn>
-      {onDelete && <div className="flex justify-end items-center px-0.5">
-        <TextBtn onClick={onDelete} tone="danger">Delete entry</TextBtn>
+      {(onCopy || onDelete) && <div className="flex items-center justify-between gap-2">
+        {onCopy ? <button onClick={onCopy} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.copy width="16" /> Copy</button> : <span />}
+        {onDelete && <button onClick={onDelete} className="flex items-center gap-1.5 text-[15px]" style={{ color: 'var(--danger-ink)', fontWeight: 600, minHeight: 44 }}><Icon.trash width="16" /> Delete</button>}
       </div>}
+      <SheetBtn disabled={a <= 0} style={a <= 0 ? { opacity: 0.5 } : null} onClick={save}>{(saveVerb || 'Save') + ' · ' + total.kcal + ' kcal'}</SheetBtn>
     </Sheet>
   );
 }
@@ -14798,7 +14809,7 @@ function searchGenericFoods(list, query, limit) {
    tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
    match depends on is the app's own food search. */
 function cofidCheck(list, items) { return Cofid.check(searchGenericFoods, list, items); }
-function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, day }) {
+function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, onQuick, onScan, day }) {
   const [q, setQ] = useState('');
   const [dbTry, setDbTry] = useState(0); const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -14868,55 +14879,65 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
       onAdd={onPick} onAddMore={addMore} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
     return <ConfirmFood note="Check it looks right before logging." per100 source="off" onAddMore={addMore} branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
-  const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
-    <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
-    <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
-  const Head = (t) => <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mt-4 mb-2">{t}</div>;
+  // One-tap: a row's + logs the food's usual amount (35-reset N5) and the sheet stays open. Your own
+  // foods log their last amount, exactly as tapping a recent always did; a UK basic food logs the
+  // amount its confirm screen would have filled in, scored the same way. Branded results open the
+  // confirm screen, because that is where a dodgy label gets caught.
+  const quickMine = (f) => { const it = { name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }; (onPickMore || onPick)(it); };
+  const quickGeneric = (g) => {
+    const tp = typicalPortion(g.name); const grams = tp ? tp.g : 100; const k = grams / 100;
+    const macros = { kcal: Math.round(g.per100.kcal * k), protein: Math.round(g.per100.protein * k * 10) / 10, carbs: Math.round(g.per100.carbs * k * 10) / 10, fat: Math.round(g.per100.fat * k * 10) / 10, fiber: Math.round((g.per100.fiber || 0) * k * 10) / 10 };
+    const ex = g.extra;
+    const nq = (ex && ex.satfat != null && ex.sugars != null && ex.salt != null) ? E.ndPer100kcal({ kcal: g.per100.kcal, protein: g.per100.protein, fiber: g.per100.fiber, fat: g.per100.fat }, Object.assign({}, ex, { grams: 100 })) : null;
+    (onPickMore || onPick)({ name: g.name, source: 'cofid', qtyLabel: grams + ' g', macros, unit: 'g', amount: grams, unitNoun: 'g', edited: false, baseMacros: g.per100, baseKind: 'per100', savedServingG: tp ? tp.g : 0, savedServingLabel: tp ? tp.label : '', barcode: null, is_alcohol: false, nq });
+  };
+  const AddBtn = ({ label, onClick }) => <button onClick={onClick} aria-label={'Add ' + label} className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}>
+    <span className="flex items-center justify-center" style={{ width: 28, height: 28, boxShadow: '0 -2px 0 0 currentColor, 0 2px 0 0 currentColor, -2px 0 0 0 currentColor, 2px 0 0 0 currentColor' }}><Icon.plus width="16" /></span></button>;
+  const kcalLine = (mac, extra) => <span className="tnum">{extra ? extra + ' · ' : ''}{Math.round(mac.kcal)} kcal</span>;
+  const MyRow = (f) => (<Row key={f.id} title={f.name} sub={kcalLine(f.macros, f.last_qty)} onClick={() => (f.corrected && f.saved_base) ? pickMine(f) : setQtyFor(f)} chevron={false}
+    trailing={<><DensityChip nq={f.nq} /><AddBtn label={f.name} onClick={(ev) => { ev && ev.stopPropagation && ev.stopPropagation(); (f.corrected && f.saved_base) ? pickMine(f) : quickMine(f); }} /></>} />);
+  const usual = mealName ? 'Usual for ' + mealName.toLowerCase() : 'Recent';
   return (<div>
-    {/* Focused on open. Searching is what this tab is for, and making the first move a tap on the
-        field before you can type is a step that never had a reason to exist. */}
-    <TextInput autoFocus placeholder="Search foods and brands…" value={q} onChange={e => setQ(e.target.value)} />
+    {/* Focused on open: searching is what this sheet is for. The barcode button sits INSIDE the
+        field (MacroFactor's toolbar), so a scan is one tap from the sheet opening. */}
+    <div className="flex items-center gap-2 pl-3 pr-1 field-focus" style={{ minHeight: 52, margin: 2 }}>
+      <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+      <input autoFocus type="search" placeholder="Search foods and brands" value={q} onChange={e => setQ(e.target.value)} aria-label="Search foods and brands"
+        className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
+      {onScan && <button onClick={onScan} aria-label="Scan a barcode" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.barcode width="24" /></button>}
+    </div>
+    <div className="flex flex-wrap gap-2 mt-3">
+      {onQuick && <button onClick={onQuick} className="ms-chip"><Icon.bolt width="16" style={{ color: 'var(--link)' }} />Quick add</button>}
+      {onAskAI && <button onClick={onAskAI} className="ms-chip"><Icon.sparkle width="16" style={{ color: 'var(--link)' }} />Estimate</button>}
+      {onAlcohol && <button onClick={onAlcohol} className="ms-chip"><Icon.drink width="16" style={{ color: 'var(--link)' }} />Drink</button>}
+    </div>
     {!query && <>
-      {favs.length > 0 && <>{Head('Favourites')}<div className="space-y-2">{favs.map(MyRow)}</div></>}
-      {myShown.length > 0 && <>{Head('Recent')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
-      {savedMeals.length > 0 && <>{Head('Saved meals')}<div className="space-y-2">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (<div key={sm.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5"><button onClick={() => onLogMeal(sm.items)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{sm.name} <span className="text-[#8A8A90]">· {sm.items.length} item{sm.items.length === 1 ? '' : 's'}</span></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(t.kcal)} kcal · P{Math.round(t.protein)} C{Math.round(t.carbs)} F{Math.round(t.fat)}</div></button><button onClick={() => setConfirmDel(sm)} className="w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none" aria-label="Delete saved meal"><Icon.close width="16" /></button></div>); })}</div></>}
-      {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Search for a food above, scan a barcode, or estimate a meal. Anything you log appears here for one-tap logging next time.</div>}
+      {favs.length > 0 && <Section title="Favourites" className="mt-5 !mb-0">{favs.map(MyRow)}</Section>}
+      {myShown.length > 0 && <Section title={usual} className="mt-5 !mb-0">{myShown.map(MyRow)}</Section>}
+      {savedMeals.length > 0 && <Section title="Saved meals" className="mt-5 !mb-0">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (
+        <Row key={sm.id} title={sm.name} sub={<span className="tnum">{sm.items.length} item{sm.items.length === 1 ? '' : 's'} · {Math.round(t.kcal)} kcal</span>} onClick={() => onLogMeal(sm.items)} chevron={false}
+          trailing={<button onClick={(ev) => { ev.stopPropagation(); setConfirmDel(sm); }} className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }} aria-label="Delete saved meal"><Icon.trash width="16" /></button>} />); })}</Section>}
+      {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center py-8"><div className="flex justify-center mb-3" style={{ color: 'var(--muted)' }}><Icon.search width="48" /></div><p className="text-[13px]" style={{ color: 'var(--muted)' }}>Foods you log show up here for one-tap logging.</p></div>}
     </>}
     {query && <>
-      {myShown.length > 0 && <>{Head('Your foods')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
-      {/* Generic foods sit ABOVE the branded database. If you cooked it yourself, the plain entry
-          is the answer you want, and putting the packaged results first meant scrolling past six
-          supermarket versions of a thing to reach it. */}
-      {generic.length > 0 && <>{Head('Basic foods')}<div className="space-y-2">{generic.map((g, idx) => (
-        <button key={'gen' + idx} onClick={() => setSel({ generic: g })} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left">
-          <div className="min-w-0"><div className="text-sm truncate">{g.name}</div>
-            <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
-          <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
-        </button>))}</div></>}
-      {Head('Brands and packets')}
-      {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
-      {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span></button>))}</div>}
-      {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
-      {dbErr && <div className="text-[12px] py-1 flex items-center justify-between gap-3" style={{ color: 'var(--fat-ink)' }}><span>{dbErr}</span><button onClick={() => setDbTry(n => n + 1)} className="hit text-[12px] font-semibold shrink-0" style={{ color: 'var(--accent-ink)' }}>Retry</button></div>}
-      {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
+      {myShown.length > 0 && <Section title="Your foods" className="mt-5 !mb-0">{myShown.map(MyRow)}</Section>}
+      {/* Generic foods sit ABOVE the branded database: if you cooked it yourself, the plain entry is
+          the answer you want. */}
+      {generic.length > 0 && <Section title="UK basic foods" className="mt-5 !mb-0">{generic.map((g, idx) => (
+        <Row key={'gen' + idx} title={g.name} sub={<span className="tnum">{Math.round(g.per100.kcal)} kcal · {Math.round(g.per100.protein)} g protein / 100 g</span>} onClick={() => setSel({ generic: g })} chevron={false}
+          trailing={<AddBtn label={g.name} onClick={(ev) => { ev.stopPropagation(); quickGeneric(g); }} />} />))}</Section>}
+      <Section title="Brands and packets" className="mt-5 !mb-0">
+        {dbLoading && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>Searching…</div>}
+        {!dbLoading && dbResults.map((r, idx) => (<Row key={'db' + idx} title={r.name} sub={<span className="tnum">{r.brand ? r.brand.split(',')[0] + ' · ' : ''}{Math.round(r.per100.kcal)} kcal / 100 g</span>} onClick={() => setSel(r)} />))}
+        {!dbLoading && !dbResults.length && !dbErr && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>No matches in the brands database.</div>}
+        {dbErr && <div className="text-[13px] py-2 flex items-center justify-between gap-3" style={{ color: 'var(--fat-ink)' }}><span>{dbErr}</span><button onClick={() => setDbTry(n => n + 1)} className="text-[13px] shrink-0 px-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44, minWidth: 44 }}>Retry</button></div>}
+        {genericErr && <div className="text-[13px] py-2" style={{ color: 'var(--muted)' }}>Only branded products are showing just now.</div>}
+      </Section>
     </>}
-    <div className="mt-5">
-      {/* THE OTHER ROUTES, on the sheet's own blocks (design-plans/34-overhaul/04): a 2px rule either
-          side of the sheet label, then rows built like ChoiceRow with a chevron where its radio
-          goes. They were the last legacy dark boxes on the sheet, and the AI route was called
-          "Describe it to the AI" here while the tab it opens is called ESTIMATE. One name now. */}
-      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /><SheetLabel>Can't find it?</SheetLabel><div className="flex-1" style={{ height: 2, background: 'var(--border)' }} /></div>
-      <div className="flex flex-col gap-2">
-        {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="From a description, your voice or a photo" />}
-        <RouteRow onClick={() => setManual(true)} icon={<Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} />} title="Enter it manually" sub="Type in the macros yourself" />
-        {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
-            pick before every single log, so it waits down here with the other "it isn't in the list"
-            answers instead of taxing the top of the sheet on every visit. */}
-        {onAlcohol && <RouteRow onClick={onAlcohol} icon={<PixelGlyph kind="drink" color="var(--muted)" size={24} />} title="Log a drink" sub="Beer, wine or spirits, with the units" />}
-      </div>
-    </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
-    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
+    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }}
+      favourite={!!qtyFor.is_favorite} onFavourite={() => { star(qtyFor); setQtyFor(Object.assign({}, qtyFor, { is_favorite: !qtyFor.is_favorite })); }}
+      onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
 // Store.uid() is Date.now().toString(36) + 5 random chars, so a log entry's id encodes the exact time
@@ -14978,73 +14999,93 @@ function suggestMealId(db, meals, now) {
 // barcode) doesn't reset to the Food tab every time.
 // The add sheet opens on Food every time. It used to remember the last tab, so one failed AI try left
 // every later + Add food opening on Estimate with your recents out of sight.
+/* THE LOG SHEET (35-reset, design-plans/35-reset/01-direction.md §4). One place to log, opened by the +:
+   the meal as its title, what is left today, the search field with the barcode button inside it, and
+   three chips for the routes that are not a search (Quick add, Estimate, Drink). A row's + logs that
+   food's usual amount and the sheet stays open for the next one, with a running "Added" strip; tapping
+   a row's name opens the amount screen. Every route the four tabs had is still here:
+     search · barcode (in the field) · Quick add (plus the per-100 g manual form) · Estimate (describe,
+     photo, a label scan or a menu link) · Drink (recents and new). */
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
-  // `Sheet` arms the back layer for us.
-  const [isAlc, setIsAlc] = useState(!!target.alc);
-  // A first drink has no recents to show, so the drink detour opens on New drink until there are some.
   const hasDrinkRecents = (db.foods || []).some(f => f.is_alcohol);
-  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? (hasDrinkRecents ? 'recent' : 'manual') : 'food');
-  const setTab = (t) => { setTabRaw(t); setScanNow(0); };
-  // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
+  const [mode, setModeRaw] = useState(target.scan ? 'scan' : target.describe ? 'describe' : target.alc ? 'drink' : 'food');
+  const [drinkTab, setDrinkTab] = useState(hasDrinkRecents ? 'recent' : 'manual');
+  const [aiTab, setAiTab] = useState('describe');
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
+  const setMode = (m) => { setModeRaw(m); setScanNow(m === 'scan' ? (n => n + 1) : 0); };
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  const [added, setAdded] = useState([]);
   const day = dayContextFor(db, target.date);
-  // What is already sat in the meal being logged into. Only the Menu tab uses it, and only to offer
-  // a pre-planned dinner as provisional rather than as a fact (see MenuTab).
+  const meal = meals.find(m => m.id === mealId) || {};
   const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
-  // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
-  // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
-  // Ideas is the one tab that runs BEFORE the food exists, so it sits at the end: the three to its
-  // left all answer "what was that?", and it answers "what should it be?". It is absent from the
-  // alcohol detour on purpose, since nobody needs three ranked options for a pint.
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate'], ['menu', 'Menu']];
-  useEffect(() => { if (isAlc && tab === 'food') setTabRaw(hasDrinkRecents ? 'recent' : 'manual'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw('food'); }, [isAlc]);
+  // A + keeps the sheet open; everything else closes it as it always did.
+  const addKeep = (item) => { onAdd(mealId, Object.assign({}, item, { keepOpen: true })); setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0) }])); };
+  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal - added.reduce((n, x) => n + x.kcal, 0)), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
+  const aiNote = !isPremium && (mode === 'scan' || mode === 'describe') && (() => {
+    const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+    return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
+      <span className="text-[13px]">{n > 0 ? (n + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
+      <span className="text-[13px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>Go unlimited</span>
+    </button>;
+  })();
+  const title = <Dropdown compact big value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />;
+  const back = mode !== 'food' && <button onClick={() => setMode('food')} className="flex items-center gap-1 text-[13px] mb-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.arrow_left width="16" /> Search</button>;
   return (
-    <Sheet title={'Log ' + (isAlc ? 'alcohol' : 'food')} onClose={onClose} wide z={50} pad={false}
-      bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
-        {/* This header was 300px tall: a grab bar, a title, a full-height Meal box, a Food/Alcohol
-            toggle and a tab row. On a 667px phone that is HALF the sheet, permanently, leaving about
-            three search results visible, and it stayed pinned over the confirm screen where none of
-            it applied. The title is the sheet's own bar now, the meal is a line under it, the Type
-            toggle is gone (see the tabs note below) and the barcode icon went with it, since "Scan"
-            is a tab 40px away. */}
-        <div className="px-3.5 pt-3 pb-3 flex-none">
-          <div className="flex justify-between items-start gap-3 mb-3">
-            <div className="min-w-0">
-              {/* Alcohol as the labelled detour the comment below always described: entered from
-                  the bottom of the Food tab, left by this link. The meal picker stays put either
-                  way, so a drink still lands where you want it. */}
-              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to food</button>}
-              <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
-            </div>
-          </div>
-          {/* The sheet's tabs, in the import's shape: one frame around the whole strip, segments butted
-              together, the pixel face because they are chrome. Same grammar as the LEFT/EATEN switch
-              on Today, so a segmented control means one thing everywhere in the app. */}
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(' + tabs.length + ', 1fr)', border: '2px solid var(--border)' }}>
-            {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className="pf uppercase"
-              style={{ padding: '9px 2px', fontSize: 11, letterSpacing: '0.08em', lineHeight: 1.4,
-                background: tab === k ? 'var(--accent)' : 'var(--card)',
-                color: tab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>{l}</button>)}
-          </div>
+    <Sheet title={title} onClose={onClose} wide z={50} pad={false} bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
+      <div className="px-4 pb-3 flex-none">
+        {left && <div className="flex items-center justify-between gap-2 px-3 py-2.5 text-[13px]" style={{ background: 'var(--surface2)' }}>
+          <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
+          <span className="tnum"><span className="num text-[14px]">{Math.abs(left.kcal)}</span> kcal · <span style={{ color: 'var(--pro-ink)' }}>P{Math.max(0, left.protein)}</span> <span style={{ color: 'var(--carb-ink)' }}>C{Math.max(0, left.carbs)}</span> <span style={{ color: 'var(--fat-ink)' }}>F{Math.max(0, left.fat)}</span></span>
+        </div>}
+      </div>
+      <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        {back}{aiNote}
+        {mode === 'food' && <FoodTab db={db} update={update} mealName={meal.name} onPick={i => onAdd(mealId, i)} onPickMore={addKeep} onLogMeal={items => onAddMeal(mealId, items)}
+          onAskAI={() => setMode('describe')} onAlcohol={() => setMode('drink')} onQuick={() => setMode('quick')} onScan={() => setMode('scan')} day={day} />}
+        {mode === 'quick' && <QuickAddTab onPick={i => onAdd(mealId, i)} day={day} mealName={meal.name} />}
+        {mode === 'describe' && <>
+          <div className="mb-3"><Seg value={aiTab} onChange={setAiTab} options={[{ v: 'describe', l: 'Describe' }, { v: 'label', l: 'Label photo' }, { v: 'menu', l: 'Menu' }]} /></div>
+          {aiTab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onScan={() => setAiTab('label')} />}
+          {aiTab === 'label' && <PhotoTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setAiTab('describe')} day={day} />}
+          {aiTab === 'menu' && <MenuTab db={db} day={day} mealName={meal.name} planned={planned} onPick={i => onAdd(mealId, i)} onAddItems={(its, replaceIds) => onAddItems(mealId, its, replaceIds)} onScan={() => setAiTab('describe')} />}
+        </>}
+        {mode === 'scan' && <PhotoTab db={db} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setMode('describe')} day={day} />}
+        {mode === 'drink' && <>
+          <div className="mb-3"><Seg value={drinkTab} onChange={setDrinkTab} options={[{ v: 'recent', l: 'Your drinks' }, { v: 'manual', l: 'New drink' }, { v: 'photo', l: 'Scan' }]} /></div>
+          {drinkTab === 'recent' && <RecentTab db={db} update={update} isAlc mealName={meal.name} onPick={i => onAdd(mealId, i)} day={day} />}
+          {drinkTab === 'manual' && <AlcoholTab onPick={i => onAdd(mealId, i)} />}
+          {drinkTab === 'photo' && <PhotoTab db={db} asAlcohol onPick={i => onAdd(mealId, i)} onAskAI={() => setMode('describe')} day={day} />}
+        </>}
+      </div>
+      {added.length > 0 && <div className="flex-none flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--hairline)', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] truncate" style={{ fontWeight: 600 }}>Added {added.length} to {(meal.name || 'this meal').toLowerCase()} · <span className="num">{added.reduce((n, x) => n + x.kcal, 0)}</span> kcal</div>
+          <div className="text-[13px] truncate" style={{ color: 'var(--muted)' }}>{added.map(x => x.name).join(', ')}</div>
         </div>
-        <div className="px-3.5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-          {!isPremium && (tab === 'photo' || tab === 'describe' || tab === 'menu') && (() => {
-            const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-            return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-              <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
-              <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
-            </button>;
-          })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onPickMore={i => onAdd(mealId, Object.assign({}, i, { keepOpen: true }))} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
-          {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} day={day} />}
-          {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onScan={() => setTab('photo')} />}
-          {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
-          {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onAskAI={() => setTab('describe')} day={day} />}
-          {tab === 'menu' && <MenuTab db={db} day={day} mealName={(meals.find(m => m.id === mealId) || {}).name} planned={planned} onPick={i => onAdd(mealId, i)} onAddItems={(its, replaceIds) => onAddItems(mealId, its, replaceIds)} onScan={() => setTab('describe')} />}
-        </div>
+        <Btn onClick={onClose}>Done</Btn>
+      </div>}
     </Sheet>
   );
+}
+/* Quick add (35-reset, N6): calories and, if you like, the macros and a name - one serving, logged as it
+   is, no amount step. The per-100 g form that scales with the amount is one tap away underneath. */
+function QuickAddTab({ onPick, day, mealName }) {
+  const [v, setV] = useState({ kcal: '', protein: '', carbs: '', fat: '', name: '' });
+  const [full, setFull] = useState(false);
+  const set = (k, x) => setV(p => Object.assign({}, p, { [k]: x }));
+  if (full) return <ManualTab onPick={onPick} onCancel={() => setFull(false)} day={day} />;
+  const kcal = Math.round(+v.kcal || 0);
+  const macros = { kcal, protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: 0 };
+  const log = () => { if (kcal <= 0) return; onPick({ name: (v.name || '').trim() || 'Quick add', source: 'manual', qtyLabel: '1 serving', macros, unit: 'serv', amount: 1, unitNoun: 'serving' }); };
+  return (<div>
+    <Field label="Calories"><div className="relative"><NumInput autoFocus value={v.kcal} onChange={e => set('kcal', e.target.value)} className={inputCls + ' pr-12'} aria-label="Calories" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>kcal</span></div></Field>
+    <div className="grid grid-cols-3 gap-3">
+      {[['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat']].map(([k, l]) => <Field key={k} label={l}><div className="relative"><NumInput value={v[k]} onChange={e => set(k, e.target.value)} className={inputCls + ' pr-7'} aria-label={l + ' in grams'} /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>)}
+    </div>
+    <Field label="Name (optional)"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder={'Meal deal' + (mealName ? ', ' + mealName.toLowerCase() : '')} /></Field>
+    <SheetBtn onClick={log} disabled={kcal <= 0} style={{ opacity: kcal <= 0 ? 0.5 : 1 }}>{kcal > 0 ? 'Log ' + kcal + ' kcal' : 'Log'}</SheetBtn>
+    <button onClick={() => setFull(true)} className="w-full mt-2 text-[13px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Enter per 100 g instead</button>
+  </div>);
 }
 function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const [q, setQ] = useState('');
@@ -16873,7 +16914,7 @@ function AlcoholTab({ onPick }) {
       </div>
       <Field label="Measure">
         <div className="flex gap-1.5 flex-wrap">{D.servings.map((s, i) => (
-          <button key={i} onClick={() => { setServeIdx(i); setCustomMl(''); }} className={`pixel-box px-2.5 py-2 text-[11px] ${!customMl && serveIdx === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{s[0]}</button>
+          <button key={i} onClick={() => { setServeIdx(i); setCustomMl(''); }} className={`pixel-box px-3 text-[13px] min-h-[44px] ${!customMl && serveIdx === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{s[0]}</button>
         ))}</div>
         <div className="mt-2"><NumInput value={customMl} onChange={e => setCustomMl(e.target.value)} placeholder="or custom ml" /></div>
       </Field>
