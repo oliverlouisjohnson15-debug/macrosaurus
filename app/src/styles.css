@@ -24,7 +24,7 @@
      SECOND sticky bar has to pin directly underneath it and a hard-coded 63 in one file cannot
      know when the other file changes. Not a colour, so it is deliberately outside the theme
      overrides: both themes draw the same bar. */
-  --appbar-h: 63px;
+  --appbar-h: 52px;  /* 35-reset: one 52px bar (avatar · context · gear), was 63px */
   --hero: #2E7D6B;           /* big kcal number */
   --text: #241f2e;
   --text2: #4a4356;
@@ -93,7 +93,8 @@
      ring it - and after dark it becomes neon with a bloom. See `.hero-card`. */
   --hero-ring: #241f2e;
   --nav-off: #ddd7f2;         /* inactive nav on the purple bar: 4.8:1 */
-  --accent-ink: #8A6100;     /* gold as type: 5.5:1 card, 4.3:1 page */
+  --accent-ink: #7a5600;     /* gold as type: 6.5:1 card, 5.2:1 page. #8A6100 was 4.3 on the page,
+                                which stopped being rare once rows sat on the page (35-reset) */
   --on-header-accent: #FFD05E;  /* the same gold going the OTHER way, for type on the purple bar:
                                    darkening it there would hide it, so it lightens to 4.6:1 */
   /* The good / middling / poor trio, as MARKS. Kept far apart in hue as well as value so the chart
@@ -105,7 +106,7 @@
   --danger-ink: #A93826;     /* 6.3:1 card */
   --pro-ink: #A93826;
   --carb-ink: #2F5E9E;
-  --fat-ink: #8A6100;
+  --fat-ink: #7a5600;
   /* The same three hues again, for type on a card's TITLE BAR. The bar is the one dark ground in
      the paper theme, and the ink tokens above are the dark-on-light pass: measured on
      --cardhead-bg, the protein red comes out at 2.0:1 and the carb blue at 2.5:1, which is not dim,
@@ -114,6 +115,11 @@
   --pro-on-head: #F0907A;
   --carb-on-head: #7FB0E8;
   --fat-on-head: #E8B44A;
+  /* 35-reset (design-plans/35-reset/01-direction.md §3-4). Rows sit on the page between hairlines;
+     the one inked frame left on a screen is its hero. */
+  --hairline: rgba(36,31,46,0.18);
+  --hairline-strong: rgba(36,31,46,0.35);
+  --row-h: 52px;
 }
 /* ============ THE SAME LAYOUT, AFTER DARK ============ */
 /* Ported verbatim from the Claude Design import's `[data-theme="dark"]` block and its `T` map.
@@ -201,6 +207,8 @@
   --pro-on-head: #3DFF62;
   --carb-on-head: #35E0E8;
   --fat-on-head: #FF4FD0;
+  --hairline: rgba(232,232,234,0.12);
+  --hairline-strong: rgba(232,232,234,0.3);
 }
 /* The hairline between meter cells is BLACK after dark, not the border colour: on a near-black
    track a #2f2f3a divider disappears, so the import switches it to rgba(0,0,0,0.85). */
@@ -250,7 +258,9 @@ input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 .tnum { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .fade-in { animation: fade .28s cubic-bezier(.2,.7,.2,1); }
-@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Opacity only (35-reset): a transform here would make every `position: fixed` descendant - the
+   sub-screen bar - lay out against this element instead of the screen while the fade runs. */
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 .sheet-up { animation: sheet .32s cubic-bezier(.2,.8,.2,1); }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
 /* THE SHEET, per `Sheets.dc.html`. The design anchors every modal to the bottom edge of the phone
@@ -534,3 +544,19 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 .dino-dot { animation: dinoDots 1.1s infinite; }
 .dino-dot:nth-child(2) { animation-delay: .18s; }
 .dino-dot:nth-child(3) { animation-delay: .36s; }
+
+/* ============ 35 RESET · page grammar ============
+   design-plans/35-reset/01-direction.md, direction A. A screen is: the app bar, ONE hero (the only
+   inked frame), then sections of plain rows on the page. These classes back the primitives of the
+   same names in app.jsx (Hero, Section, Row); nothing else should draw a frame around a group. */
+.ms-hero { background: var(--card); border: 3px solid var(--border); box-shadow: 4px 4px 0 0 var(--shadow); }
+.theme-dark .ms-hero { border-color: var(--hero-ring); box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
+.ms-sec-h { display: flex; align-items: center; gap: 8px; min-height: 32px; border-bottom: 2px solid var(--border); padding-bottom: 4px; }
+.ms-sec-label { flex: 1; min-width: 0; font-family: 'Silkscreen', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-rows > * + * { border-top: 1px solid var(--hairline); }
+.ms-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--row-h); padding: 8px 0; text-align: left; }
+.ms-row-t { display: block; font-weight: 600; font-size: 13.5px; line-height: 1.35; }
+.ms-row-d { display: block; font-size: 12px; line-height: 1.4; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-row-v { flex: none; font-size: 12.5px; color: var(--muted); }
+.ms-chip { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12.5px; font-weight: 600; border: 2px solid var(--border); background: var(--card); color: var(--text); }
+.ms-chip.on { background: var(--accent); color: var(--on-accent); }

@@ -1,0 +1,111 @@
+/* Direction A · Paper, restrained.
+   The Paper Terrarium kept and quietened: one inked hero per screen, everything else rows on paper.
+   Silkscreen = hero numerals, tab labels, buddy name, section labels. Plex Mono = everything else. */
+:root {
+  --bg: #e7e3da; --card: #fffdf7; --inset: #f8f4e8; --track: #ece7dc;
+  --ink: #241f2e; --text: #241f2e; --muted: #6b6459;
+  --rule: rgba(36,31,46,.18); --rule-strong: rgba(36,31,46,.35);
+  --header: #5B4FA6; --header-text: #fffdf7; --nav-off: #ddd7f2; --nav-on: #FFD05E;
+  --accent: #F0B429; --on-accent: #241f2e; --accent-ink: #7a5600; --focus: #3D6FB4;
+  --pro: #C7472F; --carb: #3D6FB4; --fat: #E0A21B; --cal: #2E7D6B; --weight: #5B4FA6;
+  --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe4;
+  --sky: #fdf1e7; --ground: #f3e4d4; --shadow: #241f2e; --scrim: rgba(36,31,46,.5);
+  --face-ui: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --face-px: 'Silkscreen', 'IBM Plex Mono', monospace;
+  --t-tab: 9px; --t-xs: 11px; --t-sm: 12.5px; --t-body: 14px; --t-lg: 16px; --t-xl: 24px; --t-hero: 52px;
+  --appbar-h: 52px; --tabbar-h: 64px; --row-h: 52px; --gap: 22px;
+}
+:root[data-theme="dark"] {
+  --bg: #050507; --card: #0c0c11; --inset: #101017; --track: #1a1a22;
+  --ink: #2f2f3a; --text: #e8e8ea; --muted: #8b8b98;
+  --rule: rgba(232,232,234,.12); --rule-strong: rgba(232,232,234,.3);
+  --header: #000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
+  --accent: #3DFF62; --on-accent: #06120a; --accent-ink: #3DFF62; --focus: #35E0E8;
+  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
+  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
+  --sky: #07070b; --ground: #20202a; --shadow: #2f2f3a; --scrim: rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #050507; --card: #0c0c11; --inset: #101017; --track: #1a1a22;
+  --ink: #2f2f3a; --text: #e8e8ea; --muted: #8b8b98;
+  --rule: rgba(232,232,234,.12); --rule-strong: rgba(232,232,234,.3);
+  --header: #000; --header-text: #3DFF62; --nav-off: #8b8b98; --nav-on: #3DFF62;
+  --accent: #3DFF62; --on-accent: #06120a; --accent-ink: #3DFF62; --focus: #35E0E8;
+  --pro: #3DFF62; --carb: #35E0E8; --fat: #FF4FD0; --cal: #3DFF62; --weight: #9B7BFF;
+  --pro-ink: #3DFF62; --carb-ink: #35E0E8; --fat-ink: #FF4FD0; --good-ink: #3DFF62; --good-bg: #0f2a12;
+  --sky: #07070b; --ground: #20202a; --shadow: #2f2f3a; --scrim: rgba(0,0,0,.7);
+  color-scheme: dark;
+} }
+
+/* chrome */
+.appbar { background: var(--header); color: var(--header-text); border-bottom: 3px solid var(--ink); }
+.ab-ctx { font-family: var(--face-px); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.ab-avatar .buddy { margin-top: 4px; }
+.tabbar { background: var(--header); border-top: 3px solid var(--ink); }
+.tab { color: var(--nav-off); }
+.tab[aria-current] { color: var(--nav-on); }
+.tab span { font-family: var(--face-px); letter-spacing: .08em; text-transform: uppercase; }
+.fab { background: var(--card); color: var(--text); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--shadow); }
+
+/* the one inked surface */
+.hero { background: var(--card); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--shadow); }
+.num { font-family: var(--face-px); font-size: var(--t-hero); line-height: 1; color: var(--cal); letter-spacing: -.02em; }
+.unit, .hero-k { font-family: var(--face-px); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero-title { font-weight: 600; }
+.mac-l { font-family: var(--face-px); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.meter { border: 2px solid var(--ink); padding: 1px; height: 18px; }
+.meter-sm { height: 12px; border-width: 2px; }
+.meter-xs { height: 8px; border-width: 1px; padding: 0; }
+
+/* sections: a pixel label over a hairline, rows on the page */
+.sec-h { border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+.sec-h h2 { font-family: var(--face-px); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.sec-h h2:empty { display: none; }
+.sec-more { color: var(--accent-ink); }
+.row + .row, .rows > * + * { border-top: 1px solid var(--rule); }
+.row-chev { width: 14px; }
+.chip { border: 2px solid var(--ink); background: var(--card); font-weight: 600; }
+.chip-primary, .btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary { border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--shadow); font-family: var(--face-px); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+
+/* buddy line: the sprite stands in a little window of its sky */
+.bud-tile { background: var(--sky); border: 2px solid var(--ink); box-shadow: inset 0 -10px 0 var(--ground); }
+.pxname { font-family: var(--face-px); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+
+/* food */
+.daynav .day { font-family: var(--face-px); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+.seg { border: 2px solid var(--ink); background: var(--card); }
+.seg button { font-family: var(--face-px); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+.sum-k b { font-family: var(--face-px); font-size: 18px; color: var(--cal); }
+.sum-k { font-size: var(--t-sm); color: var(--muted); }
+.meal .sec-h h2 { font-family: var(--face-ui); font-size: var(--t-body); letter-spacing: 0; text-transform: none; color: var(--text); font-weight: 600; }
+
+/* sheet */
+.sheet { background: var(--card); border-top: 3px solid var(--ink); }
+.banner { padding: 0; }
+.banner b { font-family: var(--face-px); color: var(--cal); }
+.search { border: 2px solid var(--ink); background: var(--inset); box-shadow: 0 0 0 3px var(--accent); }
+.scanbtn { border-left: 2px solid var(--ink); }
+.rec-add { color: var(--accent-ink); }
+
+/* train */
+.dcell .d-box { border: 2px solid var(--rule-strong); background: var(--card); }
+.dcell.done .d-box { background: var(--cal); border-color: var(--ink); color: var(--card); }
+.dcell.next .d-box { background: var(--accent); border-color: var(--ink); }
+.dcell.rest .d-box { border-style: dashed; background: transparent; }
+
+/* progress */
+.hero .num { color: var(--good-ink); }
+.badge { font-family: var(--face-px); letter-spacing: .1em; text-transform: uppercase; border: 2px solid var(--ink); }
+.badge.good { background: var(--good-bg); color: var(--good-ink); }
+.seg-sm { align-self: flex-start; }
+.seg-sm button { padding: 0 10px; flex: none; }
+
+/* you */
+.avatar { background: var(--sky); border: 2px solid var(--ink); }
+.tog { border: 2px solid var(--ink); background: var(--track); }
+.tog i { background: var(--card); border: 2px solid var(--ink); top: 1px; left: 1px; }
+.tog.on { background: var(--accent); }
+.tog.on i { left: 19px; }

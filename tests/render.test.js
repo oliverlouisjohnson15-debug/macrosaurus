@@ -553,6 +553,9 @@ function evenWeekAccount(overKcal) {
   };
   db.targets = [{ id: 't1', effective_date: A.shiftISO(today, -30), kcal: 2135, protein_g: 170, carbs_g: 200, fat_g: 65 }];
   db.last_checkin = A.shiftISO(today, -1);
+  // The check-in day is the weekday it last happened on, so the next one is a full week out on any
+  // day the suite runs (it defaults to Monday, which made this fixture's week shorter on most days).
+  db.profile.checkinDay = new Date(db.last_checkin + 'T00:00:00').getDay();
   // One complete day, eaten over: a real balance for the week to even out.
   db.log_entries = [{ id: 'e1', date: A.shiftISO(today, -1), computed_macros: { kcal: 2135 + (overKcal || 186) } }];
   return db;
