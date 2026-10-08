@@ -1,8 +1,9 @@
 # DESIGN.md · Macrosaurus
 
-Status: approved 2026-10-08 (35-reset, full mockup). It moves to the repo root in the foundation PR, where
-Impeccable and every later design pass read it first. The tokens and primitives are in
-`system.css`, and the HTML versions of each primitive are in `tools/kit.py`.
+Status: approved 2026-10-08 (35-reset). Impeccable and every later design pass read this file first.
+In the app the tokens live in `app/src/styles.css` and the primitives in `app/src/app.jsx` (AppBar /
+`MobileHeader`, `BottomNav`, `Hero`, `PipMeter`, `Row`, `Section`, `Dialogue`, `Menu`, `Sheet`, `Seg`,
+`Btn`, `Toggle`). The approved mockup is `design-plans/35-reset/mockups-full/`.
 
 ## World
 
@@ -91,7 +92,7 @@ Rules:
 
 ## Icons
 
-One family, `tools/icons.py`: a 12×12 cell grid drawn at 24px (2px cells) or 48px, with a one-cell
+One family, authored in `tools/pixel-icons.py` (then `node tools/gen-px-icons.mjs`): a 12×12 cell grid drawn at 24px (2px cells) or 48px, with a one-cell
 outline, square joins and solid fill only for small marks. It has 57 marks, covering navigation,
 logging, body and plan, Cook, training, and buddy/Play. The family is drawn for Macrosaurus; its
 outline weight follows pixelarticons (MIT) so either can fill a gap. It is rendered as inline SVG
@@ -109,4 +110,4 @@ outline weight follows pixelarticons (MIT) so either can fill a gap. It is rende
 
 One primary job. One hero. At most 3 secondary sections of at most 4 rows, then "All …". At most one
 buddy prompt. At most one sentence of help at rest. No card inside a card. Every control is 44×44
-or larger. Each number appears once per screen. See `../01-direction.md` §2.
+or larger. Each number appears once per screen. See `design-plans/35-reset/01-direction.md` §2.

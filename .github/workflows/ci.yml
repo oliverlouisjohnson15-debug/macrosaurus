@@ -30,3 +30,8 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
+      # The design detector (Impeccable, design-plans/35-reset). It fails the run on a new finding the
+      # same way a broken test does: sub-11px type, offset shadows, side stripes, bounce easing and the
+      # rest. The one waived rule, and why, is in .impeccable/config.json.
+      - name: Design detector
+        run: npx -y impeccable@4.1.0 detect app/src/styles.css index.html

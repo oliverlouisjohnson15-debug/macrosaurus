@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 /* ============ MACROSAURUS · PAPER TERRARIUM DESIGN SYSTEM ============ */
 /* The warm paper theme is the DEFAULT (`:root`, `.theme-light`). `.theme-dark` keeps the app's
@@ -12,7 +12,7 @@
    #6b6459 and not the import's #7a7264 (3.71 on the page): the import only ever put that colour on
    a card, and the app puts it everywhere. */
 :root, .theme-light {
-  --bg: #e7e3da;             /* paper, the page itself */
+  --bg: #f6efe0;             /* paper, the page itself. 35-reset: light and warm, never grey (was #e7e3da); every text token still clears 5:1 on it */
   --card: #fffdf7;           /* the cream a panel is printed on */
   --surface2: #f8f4e8;       /* inset strip inside a panel (the buddy's speech, card footers) */
   --surface3: #fffdf7;
@@ -119,7 +119,16 @@
      the one inked frame left on a screen is its hero. */
   --hairline: rgba(36,31,46,0.18);
   --hairline-strong: rgba(36,31,46,0.35);
-  --row-h: 52px;
+  --row-h: 56px;
+  /* 35-reset (DESIGN.md). Purple as TEXT (links, row icons, the
+     cursor) is a step darker than the bar, so it clears 7:1 on paper. */
+  --link: #4c4196;
+  --cursor: #5B4FA6;
+  --seg-on: #241f2e;
+  --seg-on-text: #fffdf7;
+  --hp-gap: #fffdf7;          /* the hairline between HP-meter cells */
+  --ring: var(--border);      /* the window ring; .box-* modifiers retint it */
+  --scrim: rgba(36,31,46,0.46);
 }
 /* ============ THE SAME LAYOUT, AFTER DARK ============ */
 /* Ported verbatim from the Claude Design import's `[data-theme="dark"]` block and its `T` map.
@@ -209,17 +218,24 @@
   --fat-on-head: #FF4FD0;
   --hairline: rgba(232,232,234,0.12);
   --hairline-strong: rgba(232,232,234,0.3);
+  --link: #3DFF62;
+  --cursor: #3DFF62;
+  --seg-on: #3DFF62;
+  --seg-on-text: #06120a;
+  --hp-gap: #000000;
+  --scrim: rgba(0,0,0,0.66);
+  --muted: #8b8b98;          /* 35-reset: one step lighter so it clears 5.8:1 on the card */
 }
 /* The hairline between meter cells is BLACK after dark, not the border colour: on a near-black
    track a #2f2f3a divider disappears, so the import switches it to rgba(0,0,0,0.85). */
-.theme-dark .pip-bar { background: #000000; }
+
 /* THE HERO PANEL (the buddy's card). On paper it is an ordinary ink-framed card - the import gives
    it no ring, because a page where one card shouts is a page with a hierarchy, and this design gets
    its hierarchy from position and size instead. After dark the same panel takes a neon frame and a
    soft bloom, which is the one piece of pure decoration in either theme and the thing that makes the
    dark screen look lit rather than merely dark. */
 .hero-card { border-color: var(--hero-ring) !important; }
-.theme-dark .hero-card { box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
+
 
 /* `overflow-x: hidden` belongs to the ROOT and only the root.
    It was on both, and on `body` it is not a clamp, it is a scroll container: a box cannot be
@@ -247,10 +263,10 @@ body {
      down to 9-11.5px just to fit a sentence on a 375px screen. Plex Mono fits at 13.5px, so the
      app can finally read at the size the design drew it. The pixel face is still here - it is just
      demoted to what it is good at: labels, numbers and chrome. See `.pf`. */
-  font-family: 'IBM Plex Mono', ui-monospace, "Courier New", monospace;
-  line-height: 1.55;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.45;
   letter-spacing: 0;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 #root { color: var(--text); }
@@ -269,9 +285,10 @@ input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
    to draw and no offset shadow - both of which the old `pixel-box p-5` version spent, which is why
    every modal in the app read as a crate dropped on the screen. Above `sm` there is no bottom edge
    to lift from, so it becomes an ordinary framed panel and takes its border back. */
-.sheet-panel { background: var(--card); border-top: 3px solid var(--border); }
+.sheet-panel { background: var(--card); box-shadow: 0 -3px 0 0 var(--border); }
+.theme-dark .sheet-panel { box-shadow: 0 -2px 0 0 var(--hero-ring); }
 @media (min-width: 640px) {
-  .sheet-panel { border: 3px solid var(--border); box-shadow: 3px 3px 0 0 var(--shadow); }
+  .sheet-panel { box-shadow: 0 -3px 0 0 var(--border), 0 3px 0 0 var(--border), -3px 0 0 0 var(--border), 3px 0 0 0 var(--border); }
 }
 input, select { color-scheme: light; }
 .theme-dark input, .theme-dark select { color-scheme: dark; }
@@ -282,7 +299,13 @@ input, select { color-scheme: light; }
    Press Start was a display face being asked to do prose. It also takes letter-spacing well, which
    the import leans on hard: every pixel label in that design is tracked out 0.08em-0.16em, and that
    tracking is most of what makes a 9px uppercase label read as a label rather than as noise. */
-.pf { font-family: 'Silkscreen', ui-monospace, monospace; line-height: 1.45; letter-spacing: 0.08em; }
+/* 35-reset: Silkscreen is for the NUMBERS you track and the buddy's name - never a label, button or
+   sentence (DESIGN.md, Type). `.pf` used to mean "the pixel face" and sits on hundreds of labels, so it
+   now means "chrome label": Plex Sans, semibold, sentence case. `.num` (and `.pf.tnum`, a tracked
+   figure) is the pixel numeral. */
+.pf { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; line-height: 1.4; letter-spacing: 0.01em; }
+.pf.uppercase { text-transform: none; }
+.num, .pf.tnum { font-family: 'Silkscreen', ui-monospace, monospace; font-weight: 400; letter-spacing: 0.02em; }
 
 /* Animated buddy sprite sheets: one keyframe drives every strip. translateX(-100%) is the strip's
    own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
@@ -361,14 +384,14 @@ input, select { color-scheme: light; }
 @keyframes fvs { 0% { opacity: 0; transform: scale(2.4); } 35% { opacity: 1; transform: scale(1); } 78% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }
 .fvs { animation: fvs .9s ease forwards; }
 /* catch reveal: the egg wobbles, then the creature settles in, no abrupt pop */
-@keyframes crwobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
-.crwobble { animation: crwobble .5s ease-in-out infinite; }
+@keyframes crtilt { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(2px); } }
+.crwobble { animation: crtilt .5s steps(2) infinite; }
 @keyframes crpop { 0% { opacity: 0; transform: scale(.4) translateY(6px); } 55% { opacity: 1; transform: scale(1.12) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
 .crpop { animation: crpop .5s cubic-bezier(.2,.8,.2,1); }
 
 /* ---- celebration: a bouncing buddy + falling pixel confetti (milestone / goal moment) ---- */
-.celebrate-bounce { animation: celebrate-bounce .9s cubic-bezier(.3,.6,.4,1) infinite; }
-@keyframes celebrate-bounce { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-16px); } 55% { transform: translateY(0); } 70% { transform: translateY(-6px); } }
+.celebrate-bounce { animation: celebrate-hop .8s steps(2) infinite; }
+@keyframes celebrate-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 .confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 96; }
 .confetti i { position: absolute; top: -24px; width: 10px; height: 10px; opacity: .9; animation-name: confetti-fall; animation-timing-function: linear; animation-iteration-count: infinite; }
 @keyframes confetti-fall { 0% { transform: translateY(-24px) rotate(0deg); opacity: 0; } 12% { opacity: .95; } 100% { transform: translateY(102vh) rotate(540deg); opacity: .95; } }
@@ -380,34 +403,35 @@ input, select { color-scheme: light; }
    boxes. At 4px/4px there was no inside voice. `--rule` is that inner weight, for components that
    draw their own dividers. */
 :root { --rule: 2px; }
-.pixel-box { border: 3px solid var(--border) !important; box-shadow: 3px 3px 0 0 var(--shadow); }
+.pixel-box { border: 0 !important; box-shadow: 0 -2px 0 0 var(--ring), 0 2px 0 0 var(--ring), -2px 0 0 0 var(--ring), 2px 0 0 0 var(--ring); }
+/* 35-reset: THE WINDOW. A 2px ring drawn on four axes only, so each corner keeps the Game Boy
+   window's missing pixel - and no diagonal offset shadow anywhere (Impeccable bans it; so does the
+   brief). The ring sits outside the box, so it costs no layout. */
 /* The !important above exists to beat Tailwind's border utilities, but it also silently kills any
    inline borderColor a component sets, which has cost real debugging time: React cannot emit
    !important, so the inline style just does nothing and the box stays grey. Use these modifiers to
    tint a box instead of fighting it. `--box-border` is the escape hatch for a one-off colour. */
-.pixel-box.box-accent { border-color: var(--accent) !important; }
-.pixel-box.box-good   { border-color: var(--good) !important; }
-.pixel-box.box-warn   { border-color: var(--warn) !important; }
-.pixel-box.box-danger { border-color: var(--danger) !important; }
-.pixel-box.box-tint   { border-color: var(--box-border, var(--border)) !important; }
+.box-accent { --ring: var(--accent); }
+.box-good { --ring: var(--good); }
+.box-warn { --ring: var(--warn); }
+.box-danger { --ring: var(--danger); }
+.box-tint { --ring: var(--box-border, var(--border)); }
 /* The same escape hatch for buttons. `.pixel-btn` carries its own `!important` border, so a tinted
    button needs its own rule rather than inheriting the box one (the nav's + is the caller). */
-.pixel-btn.box-tint   { border-color: var(--box-border, var(--border)) !important; }
 /* The field, per the import: inset surface, 2px frame, hard shadow, accent focus ring. Applied via
    `inputCls` in app.jsx, so every input, select and textarea in the app picks it up at once. */
-.field-focus { background: var(--surface2); border: 2px solid var(--border); box-shadow: 3px 3px 0 var(--shadow); }
-.field-focus:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field-focus { background: var(--card); border: 0; box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
+.field-focus:focus { outline: none; box-shadow: 0 -3px 0 0 var(--cursor), 0 3px 0 0 var(--cursor), -3px 0 0 0 var(--cursor), 3px 0 0 0 var(--cursor); }
 /* `.box-double` (the doubled Game Boy textbox frame) lived here and had exactly one caller, the
    buddy's dialogue. It is gone with it: a doubled frame inside the card's own frame put four dark
    rules between the page and the sentence where every other panel spends one, which is the whole
    reason that card read as belonging to a different app. The dialogue now hangs off a single rule of
    the card's own border weight. See design-plans/15-buddy-box-one-frame.md. */
-.pixel-btn { border: 3px solid var(--border) !important; box-shadow: 3px 3px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
-.pixel-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--shadow); }
+.pixel-btn { border: 0 !important; box-shadow: 0 -2px 0 0 var(--ring), 0 2px 0 0 var(--ring), -2px 0 0 0 var(--ring), 2px 0 0 0 var(--ring); transition: filter .15s ease-out; }
+.pixel-btn:active { filter: brightness(0.92); }
 /* chunky macro/xp progress bar */
-.pixel-bar { border: 3px solid var(--border); height: 18px; background: var(--track); overflow: hidden; }
-.pixel-bar > i { display: block; height: 100%; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25); }
-.theme-dark .pixel-bar > i { box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35); filter: brightness(1.05); }
+.pixel-bar { box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); height: 14px; background: var(--track); overflow: hidden; }
+.pixel-bar > i { display: block; height: 100%; box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.35); }
 
 /* ---- segmented meters (the house bar) ----------------------------------------
    Every tracked quantity in the app is drawn as discrete cells rather than a smooth
@@ -425,33 +449,23 @@ input, select { color-scheme: light; }
    edge to edge inside the frame and are divided by a 1px INK hairline, so the whole
    control reads as one ruled strip rather than a row of loose tiles. That also buys
    back 5px of width per bar, which is what lets 20 cells fit where 12 did. */
-.pip-bar { display: flex; gap: 1px; border: 3px solid var(--border); background: var(--border); padding: 0; }
-.pip-bar > i { flex: 1 1 0; height: 13px; background: var(--track); transition: background .35s steps(4); }
-.pip-bar.pip-sm > i { height: 9px; }
-.theme-dark .pip-bar > i { box-shadow: inset -1px -1px 0 rgba(0,0,0,0.35); }
+/* 35-reset: the HP meter. Ink ring on four axes, real cells with a 2px gap, two-tone fill (a lighter
+   top row on every lit cell, set by PipMeter's inline background). */
+.pip-bar { display: flex; gap: 2px; background: var(--hp-gap); padding: 0; box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
+.pip-bar > i { flex: 1 1 0; height: 14px; background: var(--track); transition: background .25s ease-out; }
+.pip-bar > i[style] { box-shadow: inset 0 3px 0 0 rgba(255,255,255,0.35); }
+.pip-bar.pip-sm > i { height: 8px; }
+.pip-bar.pip-sm > i[style] { box-shadow: inset 0 2px 0 0 rgba(255,255,255,0.35); }
 /* the target notch: a gap in the frame itself, so the goal is part of the meter
    rather than a line drawn on top of the data */
 .pip-bar { position: relative; }
-.pip-bar > .pip-goal { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--text); opacity: 0.55; pointer-events: none; }
+.pip-bar > .pip-goal { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); pointer-events: none; }
 /* vertical variant, for the week */
 .pip-col { display: flex; flex-direction: column-reverse; gap: 1px; justify-content: flex-start; }
 .pip-col > i { flex: 1 1 0; background: var(--track); min-height: 3px; }
 /* blinking retro cursor */
 .blink { animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-
-/* ---- CRT scanline overlay ---- */
-/* sits below every modal/sheet layer (z-50+) so sheets aren't dimmed by the CRT effect */
-.scanline { pointer-events: none; position: fixed; inset: 0; background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%); background-size: 100% 4px; z-index: 45; }
-/* Paper is the default now, and a CRT scanline over printed paper is a category error, so the
-   overlay is off unless the app is actually after dark. */
-.scanline { display: none; }
-.theme-dark .scanline { display: block; }
-/* The glow, at night only. Retuned off the neon set onto the night palette - these are the same
-   three macro hues the night block declares, at the same 0.5 alpha. */
-.theme-dark .neon-pro { text-shadow: 0 0 8px rgba(255,122,99,0.5); }
-.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(111,165,232,0.5); }
-.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(240,180,41,0.5); }
 
 /* ---- rings/charts track ---- */
 .ring-track { stroke: var(--border); }
@@ -492,19 +506,18 @@ input, select { color-scheme: light; }
 /* Silkscreen is narrower than Press Start 2P at the same nominal size, so every step below moves
    UP rather than down. The import's own hero number is 34px and its section headings are 10px
    tracked 0.12em; this ladder is built to land on those. */
-.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold,
-.text-xl.font-semibold, .text-2xl, .text-3xl, .text-4xl, .text-5xl {
-  font-family: 'Silkscreen', ui-monospace, monospace !important; letter-spacing: 0.04em;
+.text-3xl, .text-4xl, .text-5xl, .text-2xl.tnum, .text-2xl.font-bold.tnum {
+  font-family: 'Silkscreen', ui-monospace, monospace !important; letter-spacing: 0.02em; font-weight: 400 !important;
 }
-.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold { font-size: 14px !important; line-height: 1.5 !important; }
-.text-xl.font-semibold { font-size: 16px !important; line-height: 1.45 !important; }
+/* 35-reset: headings are Plex Sans; only the big tracked numerals stay in the pixel face. */
+.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold { font-size: 20px !important; line-height: 1.25 !important; font-weight: 700 !important; }
+.text-xl.font-semibold { font-size: 20px !important; line-height: 1.3 !important; }
 .text-2xl { font-size: 20px !important; line-height: 1.3 !important; }
 .text-3xl { font-size: 25px !important; line-height: 1.25 !important; }
 .text-4xl { font-size: 29px !important; line-height: 1.2 !important; }
 .text-5xl { font-size: 34px !important; line-height: 1.15 !important; }
 .text-xl.pf { font-size: 20px !important; }
 /* selection segments/pills: crisp pixel edge, no soft shadow layering */
-.pixel-box.flex-1, .inline-flex.pixel-box { box-shadow: 3px 3px 0 0 var(--shadow); }
 
 /* ---- body text, now that the body face is a normal-width mono ---- */
 /* This whole block existed to shrink prose until Press Start 2P would fit. IBM Plex Mono does not
@@ -512,8 +525,8 @@ input, select { color-scheme: light; }
    first place, and lands on the import's 13.5px body / 1.55 leading. This is the single biggest
    legibility change in the overhaul - a 10px sentence became a 12.5px one. break-word still keeps
    long words inside cards on 375px. */
-.text-sm { font-size: 12.5px !important; line-height: 1.55 !important; }
-.text-base { font-size: 13.5px !important; line-height: 1.55 !important; }
+.text-sm { font-size: 13px !important; line-height: 1.45 !important; }
+.text-base { font-size: 15px !important; line-height: 1.45 !important; }
 /* NOTE: this remap carries line-height as well as size, and both are !important. That means
    `leading-none` (and every other line-height utility) is silently a NO-OP on any size below, so a
    glyph cannot be tightened from the markup: size its BOX instead (see the buddy message's dismiss,
@@ -521,8 +534,8 @@ input, select { color-scheme: light; }
 .text-\[13px\] { font-size: 13px !important; line-height: 1.55 !important; }
 .text-\[12px\] { font-size: 12px !important; line-height: 1.55 !important; }
 .text-\[11px\] { font-size: 11px !important; line-height: 1.5 !important; }
-.text-\[10px\] { font-size: 10px !important; line-height: 1.5 !important; }
-.text-sm, .text-base, .text-\[13px\], .text-\[12px\], .text-\[11px\], .text-\[10px\] { overflow-wrap: break-word; }
+
+.text-sm, .text-base, .text-\[13px\], .text-\[12px\], .text-\[11px\] { overflow-wrap: break-word; }
 p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 
 /* ---- minimum ~44px touch target: expands the tappable area without growing the visual ---- */
@@ -536,10 +549,10 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 .hit::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100%, 44px); height: max(100%, 44px); }
 
 /* ---- dino loading animation (AI is thinking, not crashed) ---- */
-@keyframes dinoBounce { 0%,100% { transform: translateY(0) } 30% { transform: translateY(-9px) } 55% { transform: translateY(0) } }
-@keyframes dinoShadow { 0%,100% { transform: scaleX(1); opacity: .35 } 30% { transform: scaleX(.7); opacity: .18 } 55% { transform: scaleX(1); opacity: .35 } }
-.dino-hop { display: inline-block; animation: dinoBounce .7s cubic-bezier(.3,.6,.4,1) infinite; }
-.dino-shadow { height: 4px; border-radius: 50%; background: var(--muted); animation: dinoShadow .7s cubic-bezier(.3,.6,.4,1) infinite; }
+@keyframes dinoHop { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
+@keyframes dinoShadow { 0%,100% { transform: scaleX(1); opacity: .35 } 50% { transform: scaleX(.7); opacity: .18 } }
+.dino-hop { display: inline-block; animation: dinoHop .7s steps(2) infinite; }
+.dino-shadow { height: 4px; background: var(--muted); animation: dinoShadow .7s steps(2) infinite; }
 @keyframes dinoDots { 0% { opacity: .2 } 20% { opacity: 1 } 100% { opacity: .2 } }
 .dino-dot { animation: dinoDots 1.1s infinite; }
 .dino-dot:nth-child(2) { animation-delay: .18s; }
@@ -549,14 +562,49 @@ p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
    design-plans/35-reset/01-direction.md, direction A. A screen is: the app bar, ONE hero (the only
    inked frame), then sections of plain rows on the page. These classes back the primitives of the
    same names in app.jsx (Hero, Section, Row); nothing else should draw a frame around a group. */
-.ms-hero { background: var(--card); border: 3px solid var(--border); box-shadow: 4px 4px 0 0 var(--shadow); }
-.theme-dark .ms-hero { border-color: var(--hero-ring); box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
-.ms-sec-h { display: flex; align-items: center; gap: 8px; min-height: 32px; border-bottom: 2px solid var(--border); padding-bottom: 4px; }
-.ms-sec-label { flex: 1; min-width: 0; font-family: 'Silkscreen', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-hero { background: var(--card); margin: 3px; box-shadow: 0 -3px 0 0 var(--hero-ring), 0 3px 0 0 var(--hero-ring), -3px 0 0 0 var(--hero-ring), 3px 0 0 0 var(--hero-ring), inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--hairline-strong); }
+.theme-dark .ms-hero { box-shadow: 0 -2px 0 0 var(--hero-ring), 0 2px 0 0 var(--hero-ring), -2px 0 0 0 var(--hero-ring), 2px 0 0 0 var(--hero-ring); }
+.ms-sec-h { display: flex; align-items: center; gap: 8px; min-height: 32px; border-bottom: 2px solid var(--border); padding-bottom: 6px; }
+.theme-dark .ms-sec-h { border-bottom-color: var(--hairline-strong); }
+.ms-sec-label { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ms-rows > * + * { border-top: 1px solid var(--hairline); }
 .ms-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--row-h); padding: 8px 0; text-align: left; }
-.ms-row-t { display: block; font-weight: 600; font-size: 13.5px; line-height: 1.35; }
-.ms-row-d { display: block; font-size: 12px; line-height: 1.4; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-row-v { flex: none; font-size: 12.5px; color: var(--muted); }
-.ms-chip { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12.5px; font-weight: 600; border: 2px solid var(--border); background: var(--card); color: var(--text); }
-.ms-chip.on { background: var(--accent); color: var(--on-accent); }
+.ms-row-icon { color: var(--link); }
+.ms-row-t { display: block; font-weight: 600; font-size: 15px; line-height: 1.3; }
+.ms-row-d { display: block; font-size: 13px; line-height: 1.35; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-row-v { flex: none; font-size: 13px; color: var(--muted); }
+.ms-chip { min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; font-weight: 600; background: var(--card); color: var(--text); margin: 2px;
+  box-shadow: 0 -2px 0 0 var(--hairline-strong), 0 2px 0 0 var(--hairline-strong), -2px 0 0 0 var(--hairline-strong), 2px 0 0 0 var(--hairline-strong); }
+.ms-chip.on { box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
+
+/* ============ 35 RESET · Handheld chrome (DESIGN.md) ============ */
+/* The + : the gold A button, raised out of the tab bar. */
+.ms-fab { width: 60px; height: 60px; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 -3px 0 0 var(--border), 0 3px 0 0 var(--border), -3px 0 0 0 var(--border), 3px 0 0 0 var(--border); }
+.theme-dark .ms-fab { box-shadow: 0 -2px 0 0 #06120a, 0 2px 0 0 #06120a, -2px 0 0 0 #06120a, 2px 0 0 0 #06120a; }
+/* The buddy walks the empty lane of the app bar: the strip steps through its frames (SpriteSheet),
+   this paces it across and turns it at each end. Stops under reduced motion (the rule above). */
+.ms-lane { container-type: inline-size; }
+.ms-walker { position: absolute; left: 0; top: -2px; width: 48px; height: 48px; animation: ms-pace 9s linear infinite; }
+.ms-walker.slow { animation-duration: 16s; }
+@keyframes ms-pace { 0% { transform: translateX(0) scaleX(1); } 48% { transform: translateX(calc(100cqw - 48px)) scaleX(1); }
+  50% { transform: translateX(calc(100cqw - 48px)) scaleX(-1); } 98% { transform: translateX(0) scaleX(-1); } 100% { transform: translateX(0) scaleX(1); } }
+/* THE DIALOGUE (DESIGN.md): a scene, then one wide window with a stepped tail pointing at the speaker. */
+.ms-scene { position: relative; height: 80px; overflow: hidden; color: var(--terra-ink); }
+.ms-dune { position: absolute; bottom: 12px; width: 64px; height: 12px; color: var(--terra-pale); }
+.ms-cactus { position: absolute; bottom: 12px; width: 12px; height: 22px; }
+.ms-ground { position: absolute; left: 0; bottom: 10px; width: 100%; height: 2px; }
+.ms-speaker { position: absolute; left: 10px; bottom: 4px; display: flex; align-items: flex-end; min-width: 44px; min-height: 44px; }
+.ms-emote { position: absolute; left: 82px; bottom: 54px; width: 22px; height: 24px; display: grid; place-items: center; background: var(--card);
+  font: 400 15px/1 'Silkscreen', monospace; color: var(--text); box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border);
+  animation: ms-bob 1.2s steps(2) infinite; }
+@keyframes ms-bob { 50% { transform: translateY(-3px); } }
+.ms-dbox { position: relative; margin: 12px 2px 2px; padding: 14px 16px; background: var(--card);
+  box-shadow: 0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border); }
+.theme-dark .ms-dbox { box-shadow: 0 -2px 0 0 #3a3a48, 0 2px 0 0 #3a3a48, -2px 0 0 0 #3a3a48, 2px 0 0 0 #3a3a48; }
+.ms-tail { position: absolute; top: -14px; left: 34px; width: 24px; height: 14px; shape-rendering: crispEdges; }
+.ms-tail .o { fill: var(--border); } .theme-dark .ms-tail .o { fill: #3a3a48; } .ms-tail .i { fill: var(--card); }
+.ms-adv { position: absolute; right: 14px; bottom: 8px; width: 10px; height: 6px; fill: var(--text); shape-rendering: crispEdges; }
+.ms-menu { margin-top: 10px; padding-top: 4px; border-top: 1px solid var(--hairline); }
+.ms-menu-i { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; font-size: 15px; font-weight: 600; text-align: left; }
+.ms-menu-i + .ms-menu-i { border-top: 1px solid var(--hairline); }

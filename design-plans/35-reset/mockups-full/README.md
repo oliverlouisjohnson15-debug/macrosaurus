@@ -7,7 +7,7 @@ sitemap at the top, and live 390×844 frames grouped by tab.
 
 | File | What |
 |---|---|
-| `DESIGN.md` | the visual spec: tokens, type, window, HP meter, dialogue, icons |
+| `/DESIGN.md` (repo root) | the visual spec: tokens, type, window, HP meter, dialogue, icons |
 | `../01-direction.md` | sitemap (current and new), content budget, logging counts, decisions |
 | `metrics.md` | every check, before → after, and every screen's numbers |
 | `system.css` | the one stylesheet (tokens + primitives) |

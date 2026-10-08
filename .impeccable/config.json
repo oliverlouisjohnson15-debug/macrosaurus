@@ -1,0 +1,6 @@
+{
+  "detector": {
+    "ignoreRules": ["cream-palette"],
+    "_why": "cream-palette: the brief keeps the warm paper page and cream windows (DESIGN.md, Colour). It is the one Impeccable taste rule the product brief overrides."
+  }
+}

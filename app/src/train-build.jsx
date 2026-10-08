@@ -15,13 +15,13 @@ function MesoGrid({ weeks, sessions }) {
     <div className="flex gap-1.5">
       <div className="flex flex-col gap-1 pt-[13px] shrink-0">
         {weeks.map(w => (
-          <span key={w.week} className="pf text-[7.5px] w-4" style={{ height: 22, lineHeight: '22px', letterSpacing: '0.06em', color: w.deload ? 'var(--warn-ink)' : w.week === 1 ? 'var(--muted)' : 'var(--accent-ink)' }}>W{w.week}</span>
+          <span key={w.week} className="pf text-[11px] w-4" style={{ height: 22, lineHeight: '22px', letterSpacing: '0.06em', color: w.deload ? 'var(--warn-ink)' : w.week === 1 ? 'var(--muted)' : 'var(--accent-ink)' }}>W{w.week}</span>
         ))}
       </div>
       <div className="flex-1 min-w-0">
         <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(' + sessions.length + ',1fr)' }}>
           {sessions.map((s, i) => (
-            <span key={i} className="pf text-[9px] text-center truncate" style={{ letterSpacing: '0.04em', color: 'var(--muted2)' }}>{s.name.length > 6 ? s.name.slice(0, 5) : s.name}</span>
+            <span key={i} className="pf text-[11px] text-center truncate" style={{ letterSpacing: '0.04em', color: 'var(--muted2)' }}>{s.name.length > 6 ? s.name.slice(0, 5) : s.name}</span>
           ))}
         </div>
         <div className="flex flex-col gap-1 mt-1">
@@ -29,7 +29,7 @@ function MesoGrid({ weeks, sessions }) {
             <div key={w.week} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(' + sessions.length + ',1fr)' }}>
               {w.sessions.map((s, i) => (
                 <div key={i} title={s.name + ', week ' + w.week + ': ' + s.sets + ' sets'}
-                  className="flex items-center justify-center text-[9.5px] tnum"
+                  className="flex items-center justify-center text-[11px] tnum"
                   style={{
                     height: 22, boxSizing: 'border-box', border: '2px solid var(--border)', transition: 'background .25s ease',
                     background: w.deload ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) ' + Math.min(100, Math.max(18, Math.round(s.sets / peak * 100))) + '%, var(--track))',
@@ -112,8 +112,8 @@ function BlockPreview({ preview, changeLine, brought, sourceCount }) {
         style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
       <Card className="p-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2.5" style={{ background: 'var(--cardhead-bg)' }}>
-          <span className="pf text-[9px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
-          <span className="pf text-[9px] uppercase tnum shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{weekSets} sets / wk</span>
+          <span className="pf text-[11px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
+          <span className="pf text-[11px] uppercase tnum shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{weekSets} sets / wk</span>
         </div>
         <div className="p-3">
           <MesoGrid weeks={weeks} sessions={sessions} />
@@ -133,22 +133,22 @@ function BlockPreview({ preview, changeLine, brought, sourceCount }) {
 
           {/* Every answer writes a one-line consequence. Without it the panel redraws and you are
               left to spot the difference yourself, which nobody does. */}
-          <div key={changeLine} className="mt-2.5 px-2.5 py-2 text-[10.5px] leading-snug"
+          <div key={changeLine} className="mt-2.5 px-2.5 py-2 text-[11px] leading-snug"
             style={{ borderLeft: '3px solid ' + (changeLine ? 'var(--accent)' : 'var(--track)'), background: 'var(--surface2)', color: changeLine ? 'var(--text2)' : 'var(--muted2)', animation: changeLine ? 'fade .3s ease both' : 'none' }}>
             {changeLine || 'Change any answer and the block redraws above.'}
           </div>
 
           <div className="flex items-center gap-2 mt-2.5">
-            <span className="pf text-[7.5px] uppercase shrink-0 px-1.5 py-1" style={{ letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--accent-dim)', color: 'var(--accent-ink)' }}>
+            <span className="pf text-[11px] uppercase shrink-0 px-1.5 py-1" style={{ letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--accent-dim)', color: 'var(--accent-ink)' }}>
               {brought ? 'Yours + builder' : 'Builder'}
             </span>
-            <span className="text-[10.5px] leading-snug" style={{ color: 'var(--muted)' }}>
+            <span className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>
               {brought
                 ? 'Your ' + sourceCount + ' ' + (sourceCount === 1 ? 'day' : 'days') + ' set the movements. The builder sets the volume and how the ' + weeks.length + ' weeks run.'
                 : 'No source, so the builder writes all ' + weeks.length + ' weeks from your answers below.'}
             </span>
           </div>
-          <div className="text-[10.5px] mt-2" style={{ color: 'var(--muted2)' }}>About {minutesEach} min a session.</div>
+          <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>About {minutesEach} min a session.</div>
         </div>
       </Card>
     </div>
@@ -162,11 +162,11 @@ function TrainField({ label, effect, hint, children }) {
   return (
     <div className="mb-4">
       <div className="flex items-baseline justify-between gap-2 mb-2">
-        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{label}</span>
-        {effect ? <span className="text-[10.5px] shrink-0 tnum" style={{ color: 'var(--accent-ink)' }}>{effect}</span> : null}
+        <span className="pf text-[11px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{label}</span>
+        {effect ? <span className="text-[11px] shrink-0 tnum" style={{ color: 'var(--accent-ink)' }}>{effect}</span> : null}
       </div>
       {children}
-      {hint && <div className="text-[10.5px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
+      {hint && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
     </div>
   );
 }
@@ -621,8 +621,8 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   return (
     <div className="fade-in">
       <div className="flex items-baseline justify-between gap-2">
-        <button onClick={onBack} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-        {preview && <span className="text-[10.5px]" style={{ color: 'var(--muted2)' }}>about {preview.minutesEach} min a session</span>}
+        <button onClick={onBack} className="pf text-[11px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+        {preview && <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>about {preview.minutesEach} min a session</span>}
       </div>
       <h1 className="pf text-lg mt-2 mb-1">Build a block</h1>
 
@@ -636,8 +636,8 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         ))}
       </div>
       <div className="flex items-baseline justify-between gap-2 mb-4">
-        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Step {wizStep} of 4 · {STEP_TITLE[wizStep]}</span>
-        {wizStep > 1 && <span className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Style ✓ {Training.STYLES[style].label}</span>}
+        <span className="pf text-[11px] uppercase" style={{ color: 'var(--muted)' }}>Step {wizStep} of 4 · {STEP_TITLE[wizStep]}</span>
+        {wizStep > 1 && <span className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Style ✓ {Training.STYLES[style].label}</span>}
       </div>
 
       {/* The block, drawn, while you are still answering. */}
@@ -645,7 +645,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
       {wizStep > 1 && (
         <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
-          <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>So far</span>
+          <span className="pf text-[11px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>So far</span>
           {soFar}. Redraws as you answer.
         </div>
       )}
@@ -703,7 +703,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           settings applied to it afterwards. Whatever comes in here is INSPIRATION, not a photocopy:
           the engine still owns the numbers, at the shape and intensity chosen further on. */}
       <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
           A PDF, a spreadsheet, a coach's message, a reel, or just the text. I read it at the day count set above - which is also which track I pull from a plan written across several - and if what you bring is plainly a five-day week, the count follows it. What I take is the movements, the rep ranges and what the plan was built around. Skip this entirely and I will write you one from nothing.
         </div>
@@ -751,7 +751,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             of what was found on screen so the answer is an informed one. */}
         {exact && (
           <div className="p-3.5 mt-3" style={{ border: '2px solid var(--accent)', background: 'var(--surface2)' }}>
-            <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>That is a written programme</div>
+            <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>That is a written programme</div>
             <div className="text-[12.5px] leading-relaxed mb-3" style={{ color: 'var(--text2)' }}>
               I can read {exact.file.name} exactly: <b className="tnum">{exact.res.blocks.reduce((a, b) => a + b.weeks, 0)} weeks</b>, {exact.res.blocks[0].daysPerWeek} days a week, every set, rep range and rest as written. Or I can treat it as inspiration and build you one at the day count set above and the intensity you set below.
             </div>
@@ -792,7 +792,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       </Card>
 
       <Card className="p-4 mb-6">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Or tell the coach</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Or tell the coach</div>
         <textarea value={wish} onChange={e => setWish(e.target.value)} rows={2}
           placeholder="4 days a week, full gym, want to bring my shoulders up"
           className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
@@ -813,7 +813,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           stands and where to go to change it, rather than asking twice and letting two controls
           disagree about the same number. */}
       <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
-        <span className="pf text-[9px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
+        <span className="pf text-[11px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
         {days} sessions a week.{' '}
         <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--accent-ink)' }}>Change it</button>
       </div>
@@ -1298,7 +1298,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={leave} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <button onClick={leave} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-4">{isNew ? 'Your new block' : 'Edit block'}</h1>
 
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
@@ -1312,7 +1312,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           one three weeks out. A named range answers both. */}
       <button onClick={() => setWeekPick(!weekPick)} className="w-full pixel-box p-4 mb-2 flex items-center justify-between gap-2" style={{ background: 'var(--card)' }}>
         <span className="min-w-0 text-left">
-          <span className="pf text-[10px] block" style={{ color: 'var(--accent-ink)' }}>
+          <span className="pf text-[11px] block" style={{ color: 'var(--accent-ink)' }}>
             Week {week}{Training.weekSessions(block, week).some(x => x.deload) ? ' · deload' : ''}
           </span>
           <span className="block text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{weekRangeLabel(startISO, week)}</span>
@@ -1329,7 +1329,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               <button key={w} onClick={() => { setWeek(w); setWeekPick(false); }}
                 className="w-full pixel-box p-3 mb-2 flex items-center justify-between gap-2 text-left"
                 style={{ background: week === w ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : 'var(--surface2)' }}>
-                <span className="pf text-[10px]" style={{ color: week === w ? 'var(--accent-ink)' : 'var(--text2)' }}>Week {w}</span>
+                <span className="pf text-[11px]" style={{ color: week === w ? 'var(--accent-ink)' : 'var(--text2)' }}>Week {w}</span>
                 <span className="text-[11px]" style={{ color: deload ? 'var(--warn)' : 'var(--muted)' }}>
                   {deload ? 'deload' : weekRangeLabel(startISO, w)}
                 </span>
@@ -1351,7 +1351,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           still drawn as a POSITION on its own MEV-to-MRV band, never a bar filling up. */}
       <Card className="p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 mb-2">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Week {week} volume</div>
+          <div className="pf text-[11px] uppercase" style={{ color: 'var(--muted)' }}>Week {week} volume</div>
           <div className="text-[11px]" style={{ color: cov.gaps.length || cov.overs.length ? 'var(--warn)' : 'var(--good)' }}>
             {cov.totalSets} sets · {cov.overs.length ? cov.overs.length + ' past recovery' : cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
           </div>
@@ -1377,7 +1377,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                     <button onClick={() => setOpenRegion(open ? null : g.key)} className="w-full flex items-center justify-between gap-2 p-3 text-left">
                       <span className="min-w-0">
                         <span className="block text-[13px] font-semibold">{g.label}</span>
-                        <span className="block text-[10.5px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>
+                        <span className="block text-[11px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>
                           {rows.map(r => r.label.toLowerCase()).join(', ')}
                         </span>
                       </span>
@@ -1417,14 +1417,14 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           programme. */}
       {choices.length > 0 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your call</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your call</div>
           <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
             {choices.length === 1 ? 'One movement in this plan is' : choices.length + ' movements in this plan are'} left up to you. Pick once and it applies to every week.
           </div>
           {choices.map(c => (
             <div key={c.key} className="mb-3">
               <div className="text-[12.5px] font-semibold mb-1">{c.label}</div>
-              <div className="text-[10.5px] mb-2" style={{ color: 'var(--muted2)' }}>{c.sessions.join(', ')}</div>
+              <div className="text-[11px] mb-2" style={{ color: 'var(--muted2)' }}>{c.sessions.join(', ')}</div>
               <div className="flex gap-2 flex-wrap">
                 {c.options.map(id => {
                   const ex = Training.byId(id, t.custom);
@@ -1521,7 +1521,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               ))}
               {wishResult.rejected.map((line, i) => (
                 <div key={'r' + i} className="flex items-start gap-2 mb-2">
-                  <span className="shrink-0 pf text-[9px] flex items-center justify-center mt-0.5"
+                  <span className="shrink-0 pf text-[11px] flex items-center justify-center mt-0.5"
                     style={{ width: 18, height: 18, background: 'var(--warn)', color: '#241f2e' }}>!</span>
                   <span className="text-[12px] leading-snug flex-1 min-w-0" style={{ color: 'var(--muted)' }}>{line}</span>
                 </div>
@@ -1559,7 +1559,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           the bottom of the page says so. */}
       <Card className="p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 mb-2">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Days a week</div>
+          <div className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Days a week</div>
           <div className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
             {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} in week {week}
           </div>
@@ -1601,10 +1601,10 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               <span className="flex items-start justify-between gap-1.5">
                 <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
                 {log && (comp.openBySession[s.id]
-                  ? <span className="shrink-0 pf text-[9px]" style={{ color: 'var(--warn)' }}>OPEN</span>
+                  ? <span className="shrink-0 pf text-[11px]" style={{ color: 'var(--warn)' }}>OPEN</span>
                   : <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>)}
               </span>
-              <span className="block text-[10.5px] mt-1.5" style={{ color: 'var(--muted)' }}>
+              <span className="block text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
                 {WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1)} · {ordered.length} mv · {ordered.reduce((a, e) => a + e.target.sets, 0)} sets
               </span>
             </button>
@@ -1636,21 +1636,21 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                 {ordered.map((it, ei) => (
                   <div key={it.id} className="py-3" style={{ borderTop: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>
                     <div className="flex items-start gap-2">
-                      <span className="pf text-[9px] shrink-0 mt-0.5 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[ei]}</span>
+                      <span className="pf text-[11px] shrink-0 mt-0.5 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[ei]}</span>
                       <button onClick={() => setPicking({ sessionId: s.id, itemId: it.id })}
                         aria-label={'Replace ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement')}
                         className="flex-1 min-w-0 text-left text-[13px] font-semibold leading-tight">
                         <span className="block min-w-0">
                           <ExerciseName id={it.exerciseId} custom={t.custom} />
                           {it.choice && (
-                            <span className="pf text-[9px] uppercase ml-1.5 px-1 py-0.5 align-middle"
+                            <span className="pf text-[11px] uppercase ml-1.5 px-1 py-0.5 align-middle"
                               style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>Your call</span>
                           )}
                           {/* Replaced, and by whose hand. Without this a block you edited three weeks
                               ago reads exactly like one you did not, and the movement the programme
                               actually asked for is nowhere on the screen. */}
                           {it.baseExerciseId && (
-                            <span className="block text-[10.5px] font-normal mt-1" style={{ color: 'var(--muted2)' }}>
+                            <span className="block text-[11px] font-normal mt-1" style={{ color: 'var(--muted2)' }}>
                               instead of <ExerciseName id={it.baseExerciseId} custom={t.custom} />
                             </span>
                           )}
@@ -1671,7 +1671,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                     </div>
                   </div>
                 ))}
-                <div className="text-[10.5px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
+                <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
                   Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
                 </div>
                 <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
@@ -1700,7 +1700,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
             Puts the plan in the library for other members to run. Your sessions, weights and name stay private.
           </span>
         </span>
-        <span className="pf text-[9px] px-3 py-2 shrink-0" style={{ background: share ? 'var(--accent)' : 'var(--surface3)', color: share ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>
+        <span className="pf text-[11px] px-3 py-2 shrink-0" style={{ background: share ? 'var(--accent)' : 'var(--surface3)', color: share ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>
           {share ? 'ON' : 'OFF'}
         </span>
       </button>
@@ -1914,7 +1914,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
     return (
       <>
-        <span className="pf text-[10px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[items.indexOf(it)]}</span>
+        <span className="pf text-[11px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[items.indexOf(it)]}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
           <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
@@ -1946,7 +1946,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     return (
       <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
         <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
-        <span className="pf text-[10px] tnum shrink-0 px-2 py-1" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+        <span className="pf text-[11px] tnum shrink-0 px-2 py-1" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
           {it.target.sets} x {Training.repLabel(it.target)}
         </span>
       </span>
@@ -1955,8 +1955,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
+      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
         {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
       </div>
       <h1 className="text-[19px] font-bold leading-tight mb-1">{live.name}</h1>
@@ -1997,7 +1997,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       </button>
 
       {mainItems.length > 0 && (
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Main lifts</div>
+        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Main lifts</div>
       )}
       {mainItems.map((it, i) => {
         const ex = Training.byId(it.exerciseId, t.custom);
@@ -2014,7 +2014,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
       {accItems.length > 0 && (
         <>
-          <div className="pf text-[9px] uppercase mb-2 mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Accessories · {accItems.length}</div>
+          <div className="pf text-[11px] uppercase mb-2 mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Accessories · {accItems.length}</div>
           <Card className="p-0 mb-3 overflow-hidden">
             {accItems.map((it, i) => (
               editable ? (
@@ -2281,7 +2281,7 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
                   <button key={d} onClick={() => setDows(xs => xs.map((x, j) => (j === i ? d : x)))}
                     aria-label={r.name.split(' - ')[0] + ' on ' + (WEEKDAYS_FULL[d] || '')}
                     aria-pressed={on}
-                    className="pf text-[9px] uppercase"
+                    className="pf text-[11px] uppercase"
                     style={{
                       // 44px, the app's floor for a real control - and this is the only control on
                       // the screen. It was 40, which is under it in both axes on a 375px phone.

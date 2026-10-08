@@ -2,7 +2,7 @@
 
 Written 2026-10-08 against `main` @ `bcf019b`, after walking the live app in `?demo`, `&onboard`,
 `&live` and `&premium`, in both paper and dark. Evidence: `00-research.md`. Visual spec:
-`mockups-full/DESIGN.md`. Mockups: `mockups-full/index.html` (the gallery). Measurements:
+`/DESIGN.md` (repo root). Mockups: `mockups-full/index.html` (the gallery). Measurements:
 `mockups-full/metrics.md`.
 
 This replaces the earlier A / B / C directions (`mockups/`, kept for reference). The changes from
@@ -130,7 +130,7 @@ the paper, so that finding stands by design.
 
 ## 3 · Visual system
 
-See `mockups-full/DESIGN.md`. In short:
+See `/DESIGN.md` (repo root). In short:
 - **Kept**: the palette (paper made lighter and warmer), purple bars, cream windows, ink frames, the
   gold A button, the macro hues as data, the neon-on-black dark theme, and the sprites.
 - **Pixel identity in five places**: notched windows · HP meters · the ▶ cursor · Silkscreen for

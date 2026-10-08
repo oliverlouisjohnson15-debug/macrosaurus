@@ -113,7 +113,7 @@ if (mode === 'mock') {
       for (let i = 0; i < 3; i++) { await click('^(Maybe later|Nice one)$'); await p.waitForTimeout(300); }
       for (const t of taps) { await click(t); await p.waitForTimeout(900); }
       await p.evaluate(() => {   // name the app's chrome and its open sheet the way the mockups do, so the same rules apply
-        const hb = document.querySelector('button[aria-label="Open Play"]'); if (hb && hb.parentElement) hb.parentElement.classList.add('appbar');
+        const hb = document.querySelector('button[aria-label="You and settings"]'); if (hb && hb.parentElement) hb.parentElement.classList.add('appbar');
         const nb = [...document.querySelectorAll('.fixed.bottom-0')].find(x => /TODAY|Today/.test(x.textContent) && /PROGRESS|Progress/.test(x.textContent)); if (nb) nb.classList.add('tabbar');
         const sp = [...document.querySelectorAll('.sheet-panel')].filter(x => x.offsetParent).pop(); if (sp) sp.setAttribute('role', 'dialog');
       });
