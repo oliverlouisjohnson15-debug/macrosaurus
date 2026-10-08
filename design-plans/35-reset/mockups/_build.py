@@ -8,7 +8,7 @@ purpose: the two directions differ in skin only (01-direction.md §3), so the pi
 Elements the audit harness measures carry data-primary (the screen's primary content) and
 data-chrome (app bar, tab bar: excluded from the counts).
 """
-import os
+import os, json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -48,14 +48,28 @@ ICONS = {
            "XXX..XX..XXX", "...X....X...", "..X..XX..X..", ".....XX.....", ".....XX.....", "............"],
  'cup': ["............", "...X.X.X....", "..X.X.X.....", "............", "XXXXXXXXXX..", "X........XX.",
          "X........X.X", "X........XX.", ".X......X...", "..XXXXXX....", "XXXXXXXXXXX.", "............"],
+ 'egg': ["............", "....####....", "...##..##...", "..###..###..", "..########..", ".##..######.",
+         ".##..######.", ".######..##.", ".######..##.", "..########..", "...######...", "............"],
  'menu': ["............", "............", "XXXXXXXXXXXX", "............", "............", "XXXXXXXXXXXX",
           "............", "............", "XXXXXXXXXXXX", "............", "............", "............"],
 }
 
+# The mockups draw the app's own icon set (tools/c-icons.py -> design-exports), undoubled to 12x12.
+_ICON_JSON = os.path.join(HERE, '..', '..', '..', 'design-exports', 'macrosaurus-icons-24.json')
+_APP_NAME = {'gear': 'gear', 'plus': 'plus', 'chev': 'chevron', 'back': 'arrow_left', 'close': 'close', 'barcode': 'barcode',
+             'today': 'dash', 'food': 'food', 'train': 'dumbbell', 'progress': 'goal', 'check': 'check', 'scale': 'scale',
+             'moon': 'moon', 'flash': 'bolt', 'spark': 'sun', 'cup': 'drink', 'menu': 'recipe', 'egg': 'egg'}
+try:
+    _art = json.load(open(_ICON_JSON))['icons']
+    for k, n in _APP_NAME.items():
+        if n in _art: ICONS[k] = [r[::2] for r in _art[n][::2]]
+except FileNotFoundError:
+    pass
+
 def icon(name, size=20, cls='ic'):
     rows = ICONS[name]
     rects = ''.join(f'<rect x="{x}" y="{y}" width="1" height="1"/>'
-                    for y, r in enumerate(rows) for x, c in enumerate(r) if c == 'X')
+                    for y, r in enumerate(rows) for x, c in enumerate(r) if c in 'X#')
     return (f'<svg class="{cls}" width="{size}" height="{size}" viewBox="0 0 12 12" fill="currentColor" '
             f'shape-rendering="crispEdges" aria-hidden="true">{rects}</svg>')
 
@@ -68,9 +82,12 @@ def daynav(label):
             f'<button class="day">{label}</button><button class="ab-btn" aria-label="Next day">{icon("chev", 16)}</button></span>')
 
 def appbar(context, back=None):
+    # The egg is the app's logo and keeps the top-left; the buddy lives in the middle, pottering along
+    # beside the date (direction C, owner's note). On a sub-screen the left slot is the way back.
     left = (f'<button class="ab-btn" aria-label="Back to {back}">{icon("back")}<span class="ab-back">{back}</span></button>'
-            if back else f'<button class="ab-btn ab-avatar" aria-label="Open Play">{buddy(1)}</button>')
-    return (f'<header class="appbar" data-chrome>{left}<div class="ab-ctx">{context}</div>'
+            if back else f'<button class="ab-btn ab-logo" aria-label="Macrosaurus, open Play">{icon("egg", 26, "ic ab-egg")}</button>')
+    walker = '' if back else '<span class="ab-stage" aria-hidden="true"><span class="walker"></span></span>'
+    return (f'<header class="appbar" data-chrome>{left}<div class="ab-ctx">{walker}<span class="ab-label">{context}</span></div>'
             f'<button class="ab-btn" aria-label="You and settings">{icon("gear")}</button></header>')
 
 def tabbar(active):
@@ -247,6 +264,7 @@ HEAD = '''<!doctype html><html lang="en-GB"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="{skin}.css">
+<script>(function(){{function t(){{var h=(location.hash||"").slice(1);if(h==="light"||h==="dark")document.documentElement.setAttribute("data-theme",h);}}t();addEventListener("hashchange",t);}})();</script>
 </head><body class="skin-{skin} screen-{key}">'''
 
 for skin in ('a', 'b', 'c'):

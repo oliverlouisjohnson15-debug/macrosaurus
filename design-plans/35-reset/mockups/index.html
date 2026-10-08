@@ -122,7 +122,7 @@ th { color: var(--muted); font-weight: 500; }
       var f = document.createElement('figure');
       var src = d + '-' + s[0] + '.html';
       f.innerHTML = '<figcaption><span>' + s[1] + '</span><a href="' + src + '" target="_blank" rel="noopener">Open</a></figcaption>' +
-        '<iframe src="' + src + '" title="Direction ' + d + ', ' + s[1] + '" loading="lazy"></iframe>';
+        '<iframe data-src="' + src + '" src="' + src + '" title="Direction ' + d + ', ' + s[1] + '" loading="lazy"></iframe>';
       strip.appendChild(f);
     });
   });
@@ -136,6 +136,9 @@ th { color: var(--muted); font-weight: 500; }
     document.querySelectorAll('iframe').forEach(paint);
   }
   function paint(fr) {
+    // The theme rides on the frame's own link (#light / #dark), which works even where the viewer
+    // keeps each frame on its own origin; reaching into the frame was the fallback that failed.
+    var base = fr.getAttribute('data-src'); if (base && fr.getAttribute('src') !== base + '#' + current) fr.setAttribute('src', base + '#' + current);
     try { var doc = fr.contentDocument; if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', current); } catch (e) {}
   }
   document.querySelectorAll('iframe').forEach(function (fr) { fr.addEventListener('load', function () { paint(fr); }); });

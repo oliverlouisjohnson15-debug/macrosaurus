@@ -109,3 +109,6 @@
 .tog i { background: var(--card); border: 2px solid var(--ink); top: 1px; left: 1px; }
 .tog.on { background: var(--accent); }
 .tog.on i { left: 19px; }
+
+.ab-stage { display: none; }
+.ab-egg { color: var(--cal); }

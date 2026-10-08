@@ -9,13 +9,15 @@
      line of UI text is IBM Plex Sans at 11px or more (Impeccable's floor and its display-font ban).
    - A limited GBC-style palette: 4 warm neutrals, the gold A-button, and the macro hues as data. */
 :root {
-  --bg: #f4efe2; --surface: #fffaf0; --surface-2: #ebe4d3; --track: #e3dccb;
-  --ink: #2a2433; --text: #2a2433; --muted: #5f5768; --line: #d6ccb8; --frame: #2a2433;
+  /* Paper is PAPER: a light warm sheet with cream windows. The ink frame is for the hero alone;
+     every other window is ringed in the line colour, so the page never reads dark. */
+  --bg: #faf6ec; --surface: #fffdf8; --surface-2: #f2ecdf; --track: #ece5d6;
+  --ink: #2a2433; --text: #2a2433; --muted: #5f5768; --line: #e2d9c7; --frame: #2a2433;
   --brand: #5B4FA6; --brand-ink: #4c4196; --accent: #F0B429; --accent-dark: #b8860b; --on-accent: #2a2433;
   --accent-ink: #4c4196; --focus: #5B4FA6;
   --pro: #C7472F; --carb: #3D6FB4; --fat: #E0A21B; --cal: #2E7D6B; --weight: #5B4FA6;
   --pro-ink: #A93826; --carb-ink: #2F5E9E; --fat-ink: #7a5600; --good-ink: #1F6153; --good-bg: #dcebe2;
-  --sky: #fbe9d7; --ground: #ead6bf; --scrim: rgba(42,36,51,.42);
+  --sky: #fdf1e7; --ground: #f1e2cf; --scrim: rgba(42,36,51,.32);
   --header: var(--bg); --header-text: var(--ink); --nav-off: #5f5768; --nav-on: var(--brand-ink);
   --face-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --face-px: 'Silkscreen', 'IBM Plex Mono', monospace;
@@ -73,7 +75,7 @@
 .mac-l { font-size: var(--t-xs); font-weight: 700; }
 
 /* HP-bar meters: stepped cells in a dark pixel frame, a two-tone fill */
-.meter { background: var(--track); box-shadow: var(--ring); margin: 2px; gap: 2px; padding: 2px; height: 16px; }
+.meter { background: var(--track); box-shadow: var(--ring-soft); margin: 2px; gap: 2px; padding: 2px; height: 16px; }
 .meter i { background: transparent; }
 .meter i.on { background: var(--c); box-shadow: inset 0 2px 0 0 rgba(255,255,255,.38); }
 .meter-sm { height: 10px; padding: 1px; gap: 1px; }
@@ -93,24 +95,27 @@
 .chip-primary, .btn-primary { background: var(--accent) linear-gradient(var(--accent) calc(100% - 3px), var(--accent-dark) 0); color: var(--on-accent); box-shadow: var(--ring); }
 .btn-primary { font-size: var(--t-lg); margin: 2px; width: calc(100% - 4px); }
 
-/* the buddy: a sprite window and a GBA dialogue box */
-.bud-tile { background: var(--sky); box-shadow: var(--ring); margin: 2px; background-image: linear-gradient(transparent 76%, var(--ground) 76%); }
-.budline { gap: 14px; align-items: stretch; }
-.bud-main { background: var(--surface); padding: 12px 14px 12px; position: relative; margin: 2px;
-  box-shadow: 0 -2px 0 0 var(--frame), 0 2px 0 0 var(--frame), -2px 0 0 0 var(--frame), 2px 0 0 0 var(--frame), inset 0 0 0 2px var(--surface), inset 0 0 0 3px var(--line); }
-.bud-name { position: absolute; top: -12px; left: 10px; background: var(--surface); padding: 0 6px; }
+/* THE BUDDY: one dialogue window, uniform with every other window on the page (owner's note). The
+   portrait sits inside it on the left, as the GBA dialogue portraits did; the name and mood are the
+   window's first line rather than a plate breaking its border; the ▼ sits in the corner. */
+.budline { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; padding: 12px; gap: 12px; align-items: flex-start; position: relative; }
+.bud-tile { width: 56px; height: 56px; background: var(--sky); background-image: linear-gradient(transparent 76%, var(--ground) 76%); box-shadow: none; margin: 0; }
+.bud-main { background: none; padding: 0; margin: 0; box-shadow: none; position: static; }
+.bud-name { position: static; padding: 0; background: none; }
 .pxname { font-family: var(--face-px); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
-.bud-say { padding-top: 4px; }
-.bud-main::after { content: ''; position: absolute; right: 12px; bottom: 8px; width: 8px; height: 4px; background: var(--brand-ink);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; animation: blink 1s steps(1) infinite; }
+.bud-say { padding-top: 2px; }
+.budline::after { content: ''; position: absolute; right: 12px; bottom: 10px; width: 8px; height: 4px; background: var(--brand-ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 2' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h4v1h-1v1h-2v-1h-1z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .bud-main::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .budline::after { animation: none; } }
 
 /* food */
 .daynav .day { font-size: var(--t-lg); font-weight: 600; }
 .seg { background: var(--surface-2); padding: 3px; box-shadow: var(--ring-soft); margin: 2px; }
 .seg button { font-weight: 600; color: var(--muted); }
-.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--ring); }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--ring-soft); }
 .sum-k b { font-family: var(--face-px); font-size: 20px; color: var(--good-ink); font-weight: 400; }
 .sum-k { font-size: var(--t-sm); color: var(--muted); }
 .meal .sec-h h2 { font-size: var(--t-lg); color: var(--text); }
@@ -121,14 +126,14 @@
 .grab { background: var(--line); }
 .banner { padding: 0; }
 .banner b { font-family: var(--face-px); color: var(--good-ink); font-weight: 400; }
-.search { background: var(--surface); box-shadow: var(--ring); margin: 2px; }
+.search { background: var(--surface); box-shadow: 0 -2px 0 0 var(--brand), 0 2px 0 0 var(--brand), -2px 0 0 0 var(--brand), 2px 0 0 0 var(--brand); margin: 2px; }
 .scanbtn { color: var(--brand-ink); border-left: 2px solid var(--line); }
 .rec-add { color: var(--brand-ink); }
 
 /* train */
 .dcell .d-box { background: var(--surface); box-shadow: var(--ring-soft); margin: 2px; width: 26px; height: 26px; }
-.dcell.done .d-box { background: var(--cal); color: #fff; box-shadow: var(--ring); }
-.dcell.next .d-box { background: var(--accent); box-shadow: var(--ring); }
+.dcell.done .d-box { background: var(--cal); color: #fff; box-shadow: none; }
+.dcell.next .d-box { background: var(--accent); box-shadow: none; }
 .dcell.rest .d-box { background: transparent; }
 
 /* progress */
@@ -147,3 +152,24 @@
 .tog.on { background: var(--cal); }
 
 .d-n { font-size: 11px; }
+
+/* THE TOP BAR (owner's note): the egg is the logo, top-left; the buddy walks along beside the date. It
+   strolls across a short stage, stops, turns and strolls back - the overworld idle of every handheld
+   RPG - and stands still under reduced motion. */
+.ab-logo { justify-self: start; }
+.ab-egg { color: var(--cal); }
+.ab-ctx { display: inline-flex; align-items: flex-end; gap: 6px; position: relative; padding-left: 0; }
+.ab-label { line-height: 1; padding-bottom: 6px; }
+.ab-stage { position: relative; width: 64px; height: 26px; overflow: hidden; }
+.walker { position: absolute; bottom: 0; left: 0; width: 24px; height: 24px; image-rendering: pixelated;
+  background: url(assets/buddy-move.png) 0 0 / 144px 24px no-repeat;
+  animation: walk-frames .6s steps(6) infinite, walk-path 9s steps(36, end) infinite; }
+@keyframes walk-frames { to { background-position-x: -144px; } }
+@keyframes walk-path {
+  0%   { transform: translateX(0) scaleX(1); }
+  40%  { transform: translateX(40px) scaleX(1); }
+  50%  { transform: translateX(40px) scaleX(-1); }
+  90%  { transform: translateX(0) scaleX(-1); }
+  100% { transform: translateX(0) scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .walker { animation: none; background-image: url(assets/buddy-idle.png); background-size: 72px 24px; transform: translateX(40px); } }

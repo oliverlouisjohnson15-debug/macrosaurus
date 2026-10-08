@@ -119,3 +119,6 @@
 .tog.on { background: var(--cal); }
 .sec-h { border-bottom: 1px solid var(--rule); }
 .screen-you .sec-h { border-bottom: 0; }
+
+.ab-stage { display: none; }
+.ab-egg { color: var(--cal); }
