@@ -91,6 +91,17 @@ test('Blocks shows the shipped programmes while a block is running, and names th
   assert.ok(!r.has('Ready-made programmes'), 'the old label opened the community library, not these');
 });
 
+test('a premium user opens Food > Cook on Cook home, with the Diary | Cook switch, not on Discover', () => {
+  // The default tab was left over from when Discover was a tab, so premium accounts landed on a
+  // sub-page with no switch (36-after-reset/03).
+  const db = accountWith();
+  const r = render(A.Recipes, { onSwitch() {}, db, update() {}, showToast() {}, isPremium: true, onLogRecipe() {}, onLogOn() {}, onSaveMeal() {} });
+  assert.ok(r.has('Diary') && r.has('Cook'), 'the Food switch should be there: ' + r.text.slice(0, 200));
+  assert.ok(r.has('Meal plan') && r.has('Shopping list'), 'and Cook home\'s rows: ' + r.text.slice(0, 300));
+  assert.ok(r.html.indexOf('Search your recipes') !== -1, 'with the cookbook search');
+  assert.ok(r.html.indexOf('Search recipes, creators') === -1, 'Discover is a page you go into, not the landing');
+});
+
 // ---- the session runner ------------------------------------------------------------------------
 
 test('a min-max session asks for failure and stops asking for reps in reserve', () => {
