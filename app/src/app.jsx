@@ -2241,16 +2241,16 @@ function IOSInstallSheet({ onClose }) {
     ['3', <span>Tap <b>Add</b>. Macrosaurus lands on your home screen like any app.</span>],
   ];
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-    <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
-      <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon.</div>
+    <div className="w-full sm:max-w-sm sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
+      <div className="text-[12px] text-[var(--muted)] mb-4 leading-relaxed">Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon.</div>
       <div className="space-y-3">
         {steps.map(([n, body]) => (<div key={n} className="flex items-start gap-3">
           <span className="pixel-box w-6 h-6 flex items-center justify-center shrink-0 pf text-[11px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--border)' }}>{n}</span>
           <div className="text-[13px] leading-snug pt-0.5">{body}</div>
         </div>))}
       </div>
-      <button onClick={onClose} className="w-full pixel-btn mt-6 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>GOT IT</button>
+      <button onClick={onClose} className="w-full pixel-btn mt-6 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Got it</button>
     </div>
   </div>);
 }
@@ -2271,10 +2271,10 @@ function InstallCard() {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold">Add Macrosaurus to your home screen</div>
-          <button onClick={dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"><Icon.close width="16" /></button>
+          <button onClick={dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-lg leading-none shrink-0"><Icon.close width="16" /></button>
         </div>
-        <div className="text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug">{isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'}</div>
-        <button onClick={onInstall} className="pixel-btn px-4 py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{isIOS ? 'SHOW ME HOW' : 'INSTALL APP'}</button>
+        <div className="text-[11px] text-[var(--muted)] mt-0.5 mb-3 leading-snug">{isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'}</div>
+        <button onClick={onInstall} className="pixel-btn px-4 py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{isIOS ? 'Show me how' : 'Install app'}</button>
       </div>
     </div>
     {iosOpen && <IOSInstallSheet onClose={() => setIosOpen(false)} />}
@@ -4007,8 +4007,8 @@ function expenditurePrior(db, prof) {
   if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
 }
-function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] rounded-xl px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[#8A8A90] mt-0.5">{label}</div></div>); }
-function Mini({ n, l, c }) { return (<div className="bg-[#1E1E22] rounded-xl px-2 py-2.5 text-center"><div className="text-base font-bold tnum" style={{ color: c }}>{n}</div><div className="text-[11px] text-[#8A8A90] mt-0.5">{l}</div></div>); }
+function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[var(--muted)] mt-0.5">{label}</div></div>); }
+function Mini({ n, l, c }) { return (<div className="bg-[#1E1E22] px-2 py-2.5 text-center"><div className="text-base font-bold tnum" style={{ color: c }}>{n}</div><div className="text-[11px] text-[var(--muted)] mt-0.5">{l}</div></div>); }
 function maintenanceKcal(db) {
   const base = currentTargets(db); const prof = withActivity(db.profile);
   return Math.max(E.kcalFloor(prof), Math.round((base && base.estimatedTDEE) || E.tdeeFromProfile(prof)));
@@ -4220,7 +4220,7 @@ function Btn({ children, onClick, kind = 'primary', className = '', style, ...re
 function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'raised', className = '' }) {
   const bg = tone === 'inset' ? 'bg-[#0F0F12]' : 'bg-[#1E1E22]';
   return (
-    <label className={`flex items-center justify-center gap-2 ${bg} rounded-2xl py-3 text-[13px] border border-[#262629] cursor-pointer active:scale-[.99] transition ${className}`}>
+    <label className={`flex items-center justify-center gap-2 ${bg} py-3 text-[13px] border border-[var(--hairline)] cursor-pointer active:scale-[.99] transition ${className}`}>
       <Icon.cam width="24" height="24" style={{ color: CAL_T }} /> {label}
       <input type="file" accept="image/*" multiple={multiple} className="hidden" onChange={e => { onFiles(e.target.files); e.target.value = ''; }} />
     </label>
@@ -4281,7 +4281,7 @@ function AnchoredMenu({ rect, onClose, className = '', children }) {
     <div ref={ref} onClick={ev => ev.stopPropagation()}
       onPointerDown={ev => ev.stopPropagation()} onPointerUp={ev => ev.stopPropagation()}
       onTouchStart={ev => ev.stopPropagation()} onMouseDown={ev => ev.stopPropagation()}
-      className={`fixed z-[90] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl ${className}`}
+      className={`fixed z-[90] bg-[#1E1E22] border border-[var(--hairline)] py-1 text-sm shadow-xl ${className}`}
       style={{ top: pos ? pos.top : rect.bottom + 6, left: pos ? pos.left : rect.left, visibility: pos ? 'visible' : 'hidden' }}>
       {children}
     </div>, document.body);
@@ -4483,7 +4483,7 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
   return (<div className="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in" onClick={e => e.stopPropagation()}>
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
-      {body && <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">{body}</div>}
+      {body && <div className="text-[12px] text-[var(--muted)] mb-4 leading-relaxed">{body}</div>}
       <div className="flex gap-2">
         <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
         <Btn kind={confirmKind} className="flex-1" onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Btn>
@@ -4519,8 +4519,8 @@ function Dropdown({ value, options, onChange, compact, big }) {
       <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0"><Icon.caret_down width={big ? '24' : '16'} /></span></button>
     {open && <div role="menu" className="ms-menu-pop absolute z-40 mt-1 min-w-[12rem] py-1 max-h-64 overflow-y-auto">{options.map(o => <button key={o.v} role="menuitem" onClick={() => { onChange(o.v); setOpen(false); }} className="ms-menu-i px-3" style={{ color: 'var(--text)', fontWeight: o.v === value ? 700 : 500 }}><span className="w-2.5 flex" style={{ color: 'var(--cursor)' }}>{o.v === value && <Cursor />}</span>{o.l}</button>)}</div>}
   </div>);
-  return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2"><Icon.caret_down width="16" /></span></button>
-    {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
+  return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[var(--muted)] ml-2"><Icon.caret_down width="16" /></span></button>
+    {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[var(--hairline)] py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[var(--link)]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
 }
 // Every text-only control in the app looks like this, and nothing that is not a control looks like
 // it. Flat design took away the 3D cue people used to read as "you can press this", and the fix is
@@ -4530,7 +4530,7 @@ function Dropdown({ value, options, onChange, compact, big }) {
 // `tone` covers the three jobs: accent for ordinary actions, danger for destructive ones, and quiet
 // for a control that must not compete with the primary button beside it.
 function TextBtn({ children, onClick, tone = 'accent', className = '', ...rest }) {
-  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--accent-ink)';
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--link)';
   return (<button type="button" onClick={onClick} className={'inline-flex items-center gap-1.5 text-[12px] ' + className}
     style={{ color, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 3, minHeight: 32 }} {...rest}>{children}</button>);
 }
@@ -4570,7 +4570,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
     {open && <div className="mt-3 fade-in">{children}</div>}
   </div>);
 }
-function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelEgg size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
+function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelEgg size={18} color="var(--good)" /><span>Macro<span className="text-[var(--link)]">saurus</span></span></div>); }
 // The colour is set on TYPE, so it is the ink, never the fill: the fat fill as 12px text measured 1.75:1.
 function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
@@ -4612,7 +4612,7 @@ function PageBar({ context, actions = [] }) {
   </div>);
 }
 function Loading({ text }) {
-  return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[#8A8A90]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelEgg size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
+  return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[var(--muted)]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelEgg size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
 }
 
 /* ---------- back-button layer stack ---------- */
@@ -4848,7 +4848,7 @@ function QualityBar({ nd, onExplain }) {
       <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'quality' }); } catch (_) {} }}
         className="w-full text-left mb-2.5 active:scale-[.99] transition">
         <div className="flex justify-between items-baseline mb-1">
-          <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>DENSITY</span>
+          <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>Density</span>
           <span className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
         </div>
         <PipMeter value={0} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine />
@@ -4863,7 +4863,7 @@ function QualityBar({ nd, onExplain }) {
   return (
     <div className="mb-2.5">
       <div className="flex justify-between items-baseline mb-1">
-        <button onClick={onExplain} className="hit pf text-[11px] active:opacity-70" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></button>
+        <button onClick={onExplain} className="hit pf text-[11px] active:opacity-70" style={{ color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></button>
         <span className="tnum text-[12px]" style={{ color: has ? (nd.hit ? 'var(--good-ink)' : 'var(--text2)') : 'var(--muted)' }}>
           {has ? band.label : 'not scored yet'}
         </span>
@@ -5025,7 +5025,7 @@ function MiniSpark({ points, color }) {
   return <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10"><polyline points={d} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" /></svg>;
 }
 function HabitGrid({ days, color }) {
-  return (<div className="grid grid-cols-10 gap-1">{days.map((on, i) => <div key={i} className="aspect-square rounded-[3px]" style={{ background: on ? color : 'var(--border)' }} />)}</div>);
+  return (<div className="grid grid-cols-10 gap-1">{days.map((on, i) => <div key={i} className="aspect-square " style={{ background: on ? color : 'var(--border)' }} />)}</div>);
 }
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
@@ -5042,7 +5042,7 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal, plan, proj
   const barsH = (weekly && weekly.length) ? 74 : 0;
   const H = 150 + barsH, W = 320, padL = 36, padR = 8, padT = 14, padB = 18 + barsH, plotW = W - padL - padR;
   const pts = (points || []).filter(p => p.value != null);
-  if (pts.length < 2) return <div className="h-[150px] flex items-center justify-center text-center text-[12px] text-[#8A8A90] px-6">Weigh in on another day and your weight line will appear here.</div>;
+  if (pts.length < 2) return <div className="h-[150px] flex items-center justify-center text-center text-[12px] text-[var(--muted)] px-6">Weigh in on another day and your weight line will appear here.</div>;
   const trendPts = (trend || []).filter(p => p.value != null);
   const allVals = pts.map(p => p.value).concat(trendPts.map(p => p.value));
   let min = Math.min(...allVals), max = Math.max(...allVals);
@@ -5245,7 +5245,7 @@ function WeekdayRhythmNote({ db }) {
   if (!r.on) return null;
   const when = r.date === today ? 'This morning you' : 'On ' + fmtShortDay(r.date) + ' you';
   return (
-    <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+    <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
       {when} read <b style={{ color: 'var(--text)' }}>{fmtWeight(r.aboveKg, unit)}</b> above your trend,
       {' '}{r.daysAfter === 1 ? 'the morning after' : 'two mornings after'} {DOW_FULL[r.weekday]}’s big day.
       {' '}Carbs are stored with water, so that’s mostly what the scale is weighing. Your trend line and
@@ -5301,7 +5301,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
         <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-bold">Body-fat from a photo</div>
-            <div className="text-[11px] text-[#8A8A90] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
+            <div className="text-[11px] text-[var(--muted)] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
           </div>
           <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
         </button>
@@ -5310,14 +5310,14 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
         <div className="text-center py-8 px-4">
           <div className="flex justify-center mb-3 opacity-40"><PixelEgg size={40} color="var(--weight)" /></div>
           <div className="text-[13px] font-semibold mb-1">{tab === 'weight' ? 'No weigh-ins yet' : tab === 'bodyfat' ? 'No body-fat readings yet' : 'No lean-mass data yet'}</div>
-          <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Log today’s weight with the button above, or when your buddy asks on Today, and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
+          <div className="text-[11px] text-[var(--muted)] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Log today’s weight with the button above, or when your buddy asks on Today, and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
         </div>
       ) : <>
       {/* The headline figure lived here AND on the button above AND as a "last reading" suffix, three
           statements of the same weight inside 130px. It is stated once now, on the verdict card, so
           this line only has to carry what the chart adds: how much it moved over the range shown. */}
       <div className="flex items-baseline justify-between gap-3 mb-1 px-0.5">
-        {header || <span className="pf text-[11px] uppercase text-[#8A8A90]">{tab === 'weight' ? 'Trend weight' : tab === 'bodyfat' ? 'Body fat' : 'Lean mass'}</span>}
+        {header || <span className="pf text-[11px] uppercase text-[var(--muted)]">{tab === 'weight' ? 'Trend weight' : tab === 'bodyfat' ? 'Body fat' : 'Lean mass'}</span>}
         {/* The range belongs on the footer next to the control that changes it, not in both places. */}
         {delta != null && <span className="text-[13px] font-semibold tnum shrink-0" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</span>}
       </div>
@@ -5338,7 +5338,7 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
           goal={tab === 'weight' && db.profile.goalWeightKg > 0 ? toDisp(db.profile.goalWeightKg) : null}
           plan={plan} project={project} marks={marks} weekly={weekly.filter(w => w.start >= cut)} />;
       })()}
-      <div className="text-[11px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
+      <div className="text-[11px] text-[var(--muted)] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[var(--muted)]">tap a point</span></div>
       {tab === 'weight' && <WeekdayRhythmNote db={db} />}
       </>}
   </>);
@@ -5376,17 +5376,17 @@ function ResetPassword({ onDone }) {
       </div>
       <div className="flex-1 flex flex-col justify-center px-6 py-10">
         <div className="w-full max-w-sm mx-auto fade-in">
-          <h1 className="pf text-lg text-center mb-4" style={{ color: 'var(--header)' }}>SET A NEW PASSWORD</h1>
+          <h1 className="pf text-lg text-center mb-4" style={{ color: 'var(--header)' }}>Set a new password</h1>
           {done
             ? <div className="pixel-box bg-[#161618] p-5 text-center" style={{ borderTopColor: 'var(--header)', borderTopWidth: '7px' }}>
                 <div className="text-[13px] mb-4">Your password has been updated. You're signed in.</div>
-                <button onClick={onDone} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>CONTINUE TO APP</button>
+                <button onClick={onDone} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>Continue to app</button>
               </div>
             : <div className="pixel-box bg-[#161618] p-5" style={{ borderTopColor: 'var(--header)', borderTopWidth: '7px' }}>
-                <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Choose a new password for your account.</div>
+                <div className="text-[11px] text-[var(--muted)] mb-3 leading-relaxed">Choose a new password for your account.</div>
                 <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
                 <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} placeholder="type it again" /></Field>
-                <button onClick={save} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'SAVING…' : 'SAVE PASSWORD'}</button>
+                <button onClick={save} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'Saving…' : 'Save password'}</button>
                 {msg && <div className="text-[11px] mt-3 text-center" style={{ color: 'var(--danger-ink)' }}>{msg}</div>}
               </div>}
         </div>
@@ -5539,15 +5539,15 @@ function Auth() {
           <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
-          {mode === 'forgot' && <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
+          {mode === 'forgot' && <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           {/* Purple, not gold. This is the one screen where the brand is the whole point, and the
               design spends the chrome colour on the button that gets you in. */}
           <Btn kind="accent" className="w-full mt-1" onClick={submit}>{busy ? 'Please wait…' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send reset link' : 'Log in'))}</Btn>
-          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--accent-ink)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
+          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--link)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
           {msg && <div className="text-[12px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[12px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
-        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
+        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--link)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
         <div className="text-[12px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
           {mode === 'signup' ? 'By creating an account you agree to our ' : 'By using Macrosaurus you agree to our '}
           <button onClick={() => setLegal('terms')} className="underline" style={{ color: 'var(--header)' }}>Terms</button> and <button onClick={() => setLegal('privacy')} className="underline" style={{ color: 'var(--header)' }}>Privacy Policy</button>, and understand it is <button onClick={() => setLegal('health')} className="underline" style={{ color: 'var(--header)' }}>not medical advice</button>. Your data stays private to your account.
@@ -5588,29 +5588,29 @@ function BodyFatPicker({ sex, prevBf, onPick, onClose }) {
     <Sheet title="Estimate body fat" onClose={onClose} wide z={70}>
       <div>
         {mode === 'bands' ? (<>
-          <div className="text-[12px] text-[#8A8A90] mb-4">Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos.</div>
-          <button onClick={() => setMode('photos')} className="w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition">
-            <div style={{ color: 'var(--accent-ink)' }}><Icon.photo width="24" /></div><div className="text-left"><div className="font-semibold text-sm">Estimate from photos (AI)</div><div className="text-[11px] text-[#8A8A90]">Front, back and side for a no-BS read. Your photos are never saved.</div></div>
+          <div className="text-[12px] text-[var(--muted)] mb-4">Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos.</div>
+          <button onClick={() => setMode('photos')} className="w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 p-3.5 mb-4 active:scale-[.99] transition">
+            <div style={{ color: 'var(--accent-ink)' }}><Icon.photo width="24" /></div><div className="text-left"><div className="font-semibold text-sm">Estimate from photos (AI)</div><div className="text-[11px] text-[var(--muted)]">Front, back and side for a no-BS read. Your photos are never saved.</div></div>
           </button>
           <div className="space-y-2">{bands.map((b, i) => (
-            <button key={i} onClick={() => { onPick(b.v); onClose(); }} className="w-full text-left bg-[#1E1E22] border border-[#262629] rounded-2xl p-3.5 active:scale-[.99] transition flex items-center gap-3">
+            <button key={i} onClick={() => { onPick(b.v); onClose(); }} className="w-full text-left bg-[#1E1E22] border border-[var(--hairline)] p-3.5 active:scale-[.99] transition flex items-center gap-3">
               <div style={{ color: 'var(--muted)' }}><Icon.figure width="24" /></div>
-              <div><div className="font-semibold text-sm">{b.r}</div><div className="text-[11px] text-[#8A8A90]">{b.d}</div></div>
+              <div><div className="font-semibold text-sm">{b.r}</div><div className="text-[11px] text-[var(--muted)]">{b.d}</div></div>
             </button>))}</div>
         </>) : result ? (
           <div className="fade-in text-center">
-            <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">AI estimate</div>
+            <div className="text-[11px] uppercase text-[var(--muted)] mb-2">AI estimate</div>
             <div className="text-5xl font-bold tnum">{result.pct}%</div>
-            <div className="text-[12px] text-[#8A8A90] mt-1 mb-3">{result.confidence} confidence{prevBf != null ? ` · was ${prevBf}%` : ''}</div>
-            {result.note && <div className="text-[13px] bg-[#1E1E22] border border-[#262629] rounded-2xl px-3 py-2.5 mb-4">{result.note}</div>}
+            <div className="text-[12px] text-[var(--muted)] mt-1 mb-3">{result.confidence} confidence{prevBf != null ? ` · was ${prevBf}%` : ''}</div>
+            {result.note && <div className="text-[13px] bg-[#1E1E22] border border-[var(--hairline)] px-3 py-2.5 mb-4">{result.note}</div>}
             <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onPick(result.pct); onClose(); }}>Use {result.pct}%</Btn><Btn kind="ghost" onClick={() => { setResult(null); }}>Retake</Btn></div>
           </div>
         ) : busy ? (<DinoLoader label="Reading your photos" />) : (<>
-          <button onClick={() => setMode('bands')} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-          <div className="text-[12px] text-[#8A8A90] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
+          <button onClick={() => setMode('bands')} className="hit text-[13px] text-[var(--muted)] mb-3"><Icon.arrow_left width="16" /> Back</button>
+          <div className="text-[12px] text-[var(--muted)] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
           <div className="grid grid-cols-3 gap-2 mb-4">{SLOTS.map(([s, l]) => (
-            <label key={s} className="aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-              {imgs[s] ? <img src={imgs[s].url} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="24" height="24" style={{ color: CAL_T }} /><div className="text-[11px] text-[#8A8A90] mt-1">{l}</div></>}
+            <label key={s} className="aspect-square bg-[#1E1E22] border border-[var(--hairline)] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
+              {imgs[s] ? <img src={imgs[s].url} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="24" height="24" style={{ color: CAL_T }} /><div className="text-[11px] text-[var(--muted)] mt-1">{l}</div></>}
               <input type="file" accept="image/*" className="hidden" onChange={e => { setSlot(s, e.target.files[0]); e.target.value = ''; }} />
             </label>))}</div>
           <Btn kind="accent" className="w-full" onClick={estimate}>{busy ? 'Reading your photos…' : 'Estimate with AI'}</Btn>
@@ -5685,19 +5685,19 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
         </div>
         <Field label="Height">
           <div className="mb-2"><Seg value={f.height_unit} onChange={v => set('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></div>
-          {f.height_unit === 'cm' ? <NumInput value={f.heightCm} onChange={e => set('heightCm', e.target.value)} /> : <div className="flex gap-2 items-center"><NumInput value={ft} onChange={e => setFt(e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={inch} onChange={e => setInch(e.target.value)} /><span className="text-[#8A8A90]">in</span></div>}
+          {f.height_unit === 'cm' ? <NumInput value={f.heightCm} onChange={e => set('heightCm', e.target.value)} /> : <div className="flex gap-2 items-center"><NumInput value={ft} onChange={e => setFt(e.target.value)} /><span className="text-[var(--muted)]">ft</span><NumInput value={inch} onChange={e => setInch(e.target.value)} /><span className="text-[var(--muted)]">in</span></div>}
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Units"><Seg value={f.weight_unit} onChange={v => set('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
           <Field label="Weight">
-            {f.weight_unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={f.weightKg} onChange={e => set('weightKg', e.target.value)} />}
+            {f.weight_unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} /><span className="text-[var(--muted)]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} /><span className="text-[var(--muted)]">lb</span></div> : <NumInput value={f.weightKg} onChange={e => set('weightKg', e.target.value)} />}
           </Field>
         </div>
       </>) },
     { t: 'How active are you?', line: 'Day to day, not just the gym. I use this for your calories.', body: (
       <div className="space-y-2.5">{ACTIVITY.map(a => (
         <button key={a.v} aria-pressed={f.activityLevel === a.v} onClick={() => set('activityLevel', a.v)} className={`w-full text-left pixel-box p-4 ${f.activityLevel === a.v ? 'bg-white text-black' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: undefined }}>
-          <div className="font-semibold">{a.l}</div><div className={`text-[12px] ${f.activityLevel === a.v ? 'text-black/60' : 'text-[#8A8A90]'}`}>{a.d}</div>
+          <div className="font-semibold">{a.l}</div><div className={`text-[12px] ${f.activityLevel === a.v ? 'text-black/60' : 'text-[var(--muted)]'}`}>{a.d}</div>
         </button>))}</div>) },
     { t: 'What are we aiming for?', line: 'Pick a direction. We can always change course together later.', body: (
       <>
@@ -5709,18 +5709,18 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
         </Field>}
         {f.goalType !== 'maintain' && <Field label="Goal weight (optional)" hint="Gives the plan a finish line. Leave it blank if you would rather not pick one yet.">
           {f.weight_unit === 'st_lb'
-            ? <div className="flex gap-2 items-center"><NumInput value={gst} onChange={e => setGst(e.target.value)} placeholder="st" aria-label="Goal weight, stones" /><span className="text-[#8A8A90]">st</span><NumInput value={glb} onChange={e => setGlb(e.target.value)} placeholder="lb" aria-label="Goal weight, pounds" /><span className="text-[#8A8A90]">lb</span></div>
-            : <div className="flex gap-2 items-center"><NumInput value={gw} onChange={e => setGw(e.target.value)} placeholder="kg" aria-label="Goal weight in kilograms" /><span className="text-[#8A8A90]">kg</span></div>}
+            ? <div className="flex gap-2 items-center"><NumInput value={gst} onChange={e => setGst(e.target.value)} placeholder="st" aria-label="Goal weight, stones" /><span className="text-[var(--muted)]">st</span><NumInput value={glb} onChange={e => setGlb(e.target.value)} placeholder="lb" aria-label="Goal weight, pounds" /><span className="text-[var(--muted)]">lb</span></div>
+            : <div className="flex gap-2 items-center"><NumInput value={gw} onChange={e => setGw(e.target.value)} placeholder="kg" aria-label="Goal weight in kilograms" /><span className="text-[var(--muted)]">kg</span></div>}
         </Field>}
       </>) },
     { t: 'Your starting plan', line: "Here's where we start. I retune it from your check-ins as we go.", body: preview ? (
       <Card className="p-6">
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-3">Daily targets</div>
-        <div className="flex items-end gap-1 mb-4"><div className="text-5xl font-bold tnum">{preview.kcal}</div><div className="text-[#8A8A90] mb-1.5">kcal</div></div>
+        <div className="text-[11px] uppercase text-[var(--muted)] mb-3">Daily targets</div>
+        <div className="flex items-end gap-1 mb-4"><div className="text-5xl font-bold tnum">{preview.kcal}</div><div className="text-[var(--muted)] mb-1.5">kcal</div></div>
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div><div className="text-xl font-semibold tnum" style={{ color: PRO_T }}>{preview.protein_g}g</div><div className="text-[11px] text-[#8A8A90]">Protein</div></div>
-          <div><div className="text-xl font-semibold tnum" style={{ color: FAT_T }}>{preview.fat_g}g</div><div className="text-[11px] text-[#8A8A90]">Fat</div></div>
-          <div><div className="text-xl font-semibold tnum" style={{ color: CARB_T }}>{preview.carbs_g}g</div><div className="text-[11px] text-[#8A8A90]">Carbs</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: PRO_T }}>{preview.protein_g}g</div><div className="text-[11px] text-[var(--muted)]">Protein</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: FAT_T }}>{preview.fat_g}g</div><div className="text-[11px] text-[var(--muted)]">Fat</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: CARB_T }}>{preview.carbs_g}g</div><div className="text-[11px] text-[var(--muted)]">Carbs</div></div>
         </div>
         {(() => {
           const typed = f.weight_unit === 'st_lb' ? !(gst === '' && glb === '') : gw !== '';
@@ -5732,8 +5732,8 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
           const when = new Date(Date.now() + weeks * 7 * 864e5).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
           return <div className="text-[12.5px] mt-4 leading-snug">At {r} kg a week you would reach <b>{fmtWeight(g, f.weight_unit)}</b> in about <b className="tnum">{weeks}</b> week{weeks === 1 ? '' : 's'}, around <b>{when}</b>. Your check-ins keep that honest.</div>;
         })()}
-        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left" style={{ color: 'var(--accent-ink)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
-        {showMaths && <div className="text-[12px] text-[#8A8A90] mt-2 space-y-1.5">
+        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[var(--hairline)] w-full text-left" style={{ color: 'var(--link)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
+        {showMaths && <div className="text-[12px] text-[var(--muted)] mt-2 space-y-1.5">
           <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin-St Jeor BMR plus your steps and training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal a day`}.</div>
           <div><b className="text-[var(--text2)]">Protein:</b> {preview.protein_g} g, sized to hold onto muscle (Helms 2014). I can sharpen this once you tell me your body fat.</div>
           <div><b className="text-[var(--text2)]">Fat and carbs:</b> {f.dietStyle === 'lower_carb' ? 'a lower-carb split, with more of the energy from fat' : f.dietStyle === 'higher_carb' ? 'a higher-carb split, with less from fat' : 'a balanced split to start'}, carbs fill the rest. Adjustable any time.</div>
@@ -5872,7 +5872,7 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
           <span className="pf text-[12px] tnum" style={{ color: delta > 0 ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{fmtWeightDelta(delta, unit)}</span>
         </div>
         <PipMeter value={curKg} target={trendKg} color={'var(--weight)'} cells={20} scale={1.15} overIsFine small />
-        <span className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+        <span className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>
           Trend {fmtWeight(trendKg, unit)}.{prev ? ` Last weighed ${prev.date === shiftISO(today, -1) ? 'yesterday' : 'on ' + new Date(prev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at ${fmtWeight(prev.scale_weight, unit)}.` : ''} {resume
             ? "Pop it in as it reads and I'll pick your plan back up from here."
             : 'One heavy morning does not move the trend much, so log it as it reads.'}
@@ -6115,7 +6115,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
 
   // Offered from step two onwards: on step one "Nothing special" already is the way out.
   const bail = onSkip && step !== 'any'
-    ? <button onClick={onSkip} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
+    ? <button onClick={onSkip} className="w-full text-[12px] text-[var(--muted)] mt-1 py-2">Skip for now</button>
     : null;
 
   // 1. The question most weeks answer with one tap.
@@ -6141,12 +6141,12 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       <TextInput value={free} onChange={e => { setFree(e.target.value); setAiErr(''); }}
         placeholder="I'm in Ireland Mon to Fri, walking loads, eating out most nights"
         onKeyDown={e => { if (e.key === 'Enter') parseFree(); }} />
-      {aiErr && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--fat-ink)' }}>{aiErr}</div>}
+      {aiErr && <div className="text-[12px] mt-1.5 leading-snug" style={{ color: 'var(--fat-ink)' }}>{aiErr}</div>}
       <Btn kind="accent" className="w-full text-sm mt-2" disabled={!free.trim() || aiBusy}
         style={{ opacity: (free.trim() && !aiBusy) ? 1 : 0.5 }} onClick={parseFree}>
         {aiBusy ? 'Reading that…' : 'Sort it for me'}
       </Btn>
-      {!isPremium && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">Premium reads a sentence like that and fills the whole thing in. You can always tap it out yourself above.</div>}
+      {!isPremium && <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">Premium reads a sentence like that and fills the whole thing in. You can always tap it out yourself above.</div>}
     </Collapsible>
   </div>);
 
@@ -6156,7 +6156,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
     <Choices options={WEEK_PRESETS.filter(x => x.top).map(x => ({ v: x.id, l: x.label }))}
       onPick={(v) => { setKind(v); setStep('when'); }} />
     {!showRest
-      ? <button onClick={() => setShowRest(true)} className="w-full text-[12px] text-[#8A8A90] py-2">Something else</button>
+      ? <button onClick={() => setShowRest(true)} className="w-full text-[12px] text-[var(--muted)] py-2">Something else</button>
       : <div className="fade-in"><Choices options={WEEK_PRESETS.filter(x => !x.top).map(x => ({ v: x.id, l: x.label }))}
           onPick={(v) => { setKind(v); setStep('when'); }} /></div>}
     {bail}
@@ -6232,7 +6232,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
         ? <div className="grid grid-cols-4 gap-1.5">{spanDays.map(d => {
             const hi = high.includes(d);
             return <div key={d} className="text-center">
-              <div className="text-[11px] text-[#8A8A90]">{new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+              <div className="text-[11px] text-[var(--muted)]">{new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</div>
               <div className="text-[12px] tnum font-semibold" style={{ color: hi ? 'var(--accent-ink)' : 'var(--text)' }}>{dayKcal(d)}</div>
             </div>;
           })}</div>
@@ -6298,7 +6298,7 @@ function WeekPlanBanner({ db, update, showToast, onOpen }) {
       <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
       <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
       {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
-      <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
+      <div className="text-[11px] text-[var(--muted)] mt-0.5 leading-snug">{ctx.active
         ? (planRate === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + planRate + ' kg a week while this runs, as agreed.')
         : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.'
         : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')}</div>
@@ -6938,19 +6938,19 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     onClose();
   }
   const weighInputs = unit === 'st_lb'
-    ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
+    ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[var(--muted)]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[var(--muted)]">lb</span></div>
     : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
   return (
     <Sheet title={isNew ? 'Add weigh-in' : 'Edit weigh-in'} onClose={onClose} wide z={80}>
       <div>
         {isNew
           ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
-          : <div className="pf text-[11px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
+          : <div className="pf text-[11px] uppercase text-[var(--muted)] mb-3">{fmtWeighDay(date)}</div>}
         <Field label="Weight">{weighInputs}{wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{wErr}</div>}</Field>
         <Field label="Body fat %" hint="Optional. Sets your protein target and lean-mass trend.">
-          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
+          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[var(--muted)]">%</span></div>
           {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
-          <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos <Icon.arrow_right width="16" /></button>
+          <button onClick={() => setBfPick(true)} className="text-[12px] text-[var(--link)] mt-1.5">Not sure? Estimate it from photos <Icon.arrow_right width="16" /></button>
         </Field>
         <SheetBtn onClick={save}>Save</SheetBtn>
       </div>
@@ -6971,27 +6971,27 @@ function WeighInLog({ db, update, bare }) {
   return (
     <Panel bare={bare}>
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="min-w-0">{!bare && <div className="font-semibold mb-0.5">Weigh-in log</div>}<div className="text-[11px] text-[#8A8A90] leading-snug">Tap an entry to edit, or add a day you missed.</div></div>
+        <div className="min-w-0">{!bare && <div className="font-semibold mb-0.5">Weigh-in log</div>}<div className="text-[11px] text-[var(--muted)] leading-snug">Tap an entry to edit, or add a day you missed.</div></div>
         <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>+ Add</button>
       </div>
       {!entries.length
-        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Use “Log today’s weight” above (your buddy asks you each morning too), or back-date one with “+ Add”.</div>
+        ? <div className="text-[12px] text-[var(--muted)] py-2">No weigh-ins yet. Use “Log today’s weight” above (your buddy asks you each morning too), or back-date one with “+ Add”.</div>
         : <div>{shown.map(e => {
           const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
           return (
-            <div key={e.id || e.date} className="flex items-center border-t border-[#262629] first:border-0">
+            <div key={e.id || e.date} className="flex items-center border-t border-[var(--hairline)] first:border-0">
               <button onClick={() => setEditing(e)} className="flex-1 text-left py-2.5 min-w-0">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-[13px] text-[#C9C9CF]">{fmtWeighDay(e.date)}</span>
                   <span className="text-[13px] tnum font-semibold">{fmtWeight(e.scale_weight, unit)}</span>
                 </div>
-                {e.bodyfat != null && <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">{e.bodyfat}% bf · {BF_SOURCE_LABEL[e.bf_source || 'manual']} · lean {fmtWeight(lean, unit)}</div>}
+                {e.bodyfat != null && <div className="text-[11px] text-[var(--muted)] tnum mt-0.5">{e.bodyfat}% bf · {BF_SOURCE_LABEL[e.bf_source || 'manual']} · lean {fmtWeight(lean, unit)}</div>}
               </button>
-              <button onClick={() => setConfirmDel(e)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0" aria-label="Delete"><Icon.close width="16" /></button>
+              <button onClick={() => setConfirmDel(e)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-xl leading-none shrink-0" aria-label="Delete"><Icon.close width="16" /></button>
             </div>
           );
         })}
-          {entries.length > CAP && <button onClick={() => setShowAll(s => !s)} className="text-[12px] text-[#8A8A90] pt-2.5 border-t border-[#262629] w-full text-left">{showAll ? 'Show less' : `See all ${entries.length} weigh-ins`}</button>}
+          {entries.length > CAP && <button onClick={() => setShowAll(s => !s)} className="text-[12px] text-[var(--muted)] pt-2.5 border-t border-[var(--hairline)] w-full text-left">{showAll ? 'Show less' : `See all ${entries.length} weigh-ins`}</button>}
         </div>}
       {editing && <WeighInEditModal db={db} update={update} entry={editing.new ? null : editing} onClose={() => setEditing(null)} />}
       {confirmDel && <ConfirmDialog title="Delete weigh-in?" body={`Remove your ${fmtWeight(confirmDel.scale_weight, unit)} weigh-in from ${fmtWeighDay(confirmDel.date)}? Your weight trend will recompute.`} confirmLabel="Delete" onConfirm={() => del(confirmDel)} onClose={() => setConfirmDel(null)} />}
@@ -7030,12 +7030,12 @@ function DensityWeekCard({ db, inline }) {
   const body = (<>
       {help && <DensityExplainer onClose={() => setHelp(false)} />}
       <div className="flex items-center justify-between mb-1">
-        <div className={inline ? 'pf text-[11px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
-        <button onClick={() => setHelp(true)} className="hit text-[11px] text-[#8A8A90] active:opacity-70">Density Score ⓘ</button>
+        <div className={inline ? 'pf text-[11px] uppercase text-[var(--muted)]' : 'text-lg font-bold'}>Food quality</div>
+        <button onClick={() => setHelp(true)} className="hit text-[11px] text-[var(--muted)] active:opacity-70">Density Score ⓘ</button>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
         <span className={(inline ? 'text-[19px]' : 'text-4xl') + ' tnum font-bold'} style={{ color: densityColor(trend.average) }}>{trend.average}</span>
-        <span className="text-[12px] text-[#8A8A90]">average this week · aim for {trend.target}</span>
+        <span className="text-[12px] text-[var(--muted)]">average this week · aim for {trend.target}</span>
       </div>
       {/* The week is the same meter stood on its end: ten blocks per day, so a day here and the day
           on Today are the same picture rotated, and the count of lit blocks is comparable across
@@ -7060,7 +7060,7 @@ function DensityWeekCard({ db, inline }) {
           );
         })}
       </div>
-      <div className="text-[12px] text-[#8A8A90] leading-snug">
+      <div className="text-[12px] text-[var(--muted)] leading-snug">
         {trend.daysHit === trend.daysScored
           ? `Every day you logged this week cleared ${trend.target}. That is a genuinely good run of eating.`
           : trend.daysHit === 0
@@ -7226,10 +7226,10 @@ function behaviourStats(db, days, endISO) {
 function StatTile({ label, value, unit, sub, tone, trend }) {
   const color = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : 'var(--text)';
   return (<div className="min-w-0">
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1">{label}</div>
-    <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[11px] text-[#8A8A90]"> {unit}</span>}
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">{label}</div>
+    <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[11px] text-[var(--muted)]"> {unit}</span>}
       {trend && <span className="text-[11px] ml-1" style={{ color: trend.t === 'up' ? 'var(--good-ink)' : 'var(--fat-ink)' }} title={'vs the previous period'}><PixelGlyph kind={trend.l} size={24} /></span>}</div>
-    {sub && <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{sub}</div>}
+    {sub && <div className="text-[11px] text-[var(--muted)] mt-1 leading-snug">{sub}</div>}
   </div>);
 }
 function BehaviourCard({ db }) {
@@ -7288,7 +7288,7 @@ function CoachTimeline({ db }) {
     return t ? t.rationale : null;
   };
   return (<Card className="p-4 mb-4">
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-3">Your plan over time</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-3">Your plan over time</div>
     <div className="space-y-3.5">
       {shown.map((c, i) => {
         const d = new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -7302,8 +7302,8 @@ function CoachTimeline({ db }) {
               {delta ? (delta > 0 ? '+' : '−') + Math.abs(delta) + ' kcal' : 'no change'}
             </span>
           </div>
-          {moved && <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">weight {moved}{c.logged != null ? ' · ' + c.logged + '/' + c.logWindow + ' days logged' : ''}{c.weighed != null ? ' · ' + c.weighed + '/' + c.weighWindow + ' weighed' : ''}</div>}
-          {why && <div className="text-[11px] text-[#8A8A90] leading-snug mt-1.5">{why}</div>}
+          {moved && <div className="text-[11px] text-[var(--muted)] tnum mt-0.5">weight {moved}{c.logged != null ? ' · ' + c.logged + '/' + c.logWindow + ' days logged' : ''}{c.weighed != null ? ' · ' + c.weighed + '/' + c.weighWindow + ' weighed' : ''}</div>}
+          {why && <div className="text-[11px] text-[var(--muted)] leading-snug mt-1.5">{why}</div>}
         </div>);
       })}
     </div>
@@ -7649,7 +7649,7 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
             </div>
             <div className="px-3.5 py-2.5">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <span className="pf text-[11px] uppercase text-[#8A8A90]">To your first read</span>
+                <span className="pf text-[11px] uppercase text-[var(--muted)]">To your first read</span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{doneCells} of {cells} days</span>
                   <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7723,7 +7723,7 @@ function CycleStrip({ db, onOpen, onCheckIn, onWeigh }) {
           </div>
           <div className="px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-2 mb-1.5">
-              <span className="pf text-[11px] uppercase text-[#8A8A90]">To your goal</span>
+              <span className="pf text-[11px] uppercase text-[var(--muted)]">To your goal</span>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{lad ? fmtWeightDelta(v.done, unit).replace(/^[+−]/, '') + ' of ' + fmtWeightDelta(v.total, unit).replace(/^[+−]/, '') : 'Progress'}</span>
                 <Icon.chevron width="16" height="16" style={{ color: 'var(--accent-ink)' }} />
@@ -7824,7 +7824,7 @@ function burnEstimate(db) {
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   return est;
 }
-function ExpenditureCard({ db, plan }) {
+function ExpenditureCard({ db, plan, title = 'Energy' }) {
   const [showMath, setShowMath] = useState(false);
   // The lens: the same bars, measured from a different line. Against the burn it is your real
   // deficit; against the target it is an audit of how closely you followed the plan.
@@ -7856,9 +7856,9 @@ function ExpenditureCard({ db, plan }) {
     const left = reqs.reduce((m, r) => Math.max(m, r.want - r.got), 0);
     return (
       <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Energy" right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
+        <CardHead title={title} right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
         <div className="p-4">
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
+        <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
         {/* Capped at what is being asked for: a counter reading 6/4 is a sum nobody wants, and the
             question here is whether a requirement is MET, not by how far it was passed. */}
         <div className="grid grid-cols-3 gap-2">
@@ -7878,15 +7878,15 @@ function ExpenditureCard({ db, plan }) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return (
       <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Energy" right="Still settling" rightTone="muted" />
+        <CardHead title={title} right="Still settling" rightTone="muted" />
         <div className="p-5">
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
+        <div className="text-[12px] text-[var(--muted)] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
         {typeof plan === 'function' ? plan(null) : plan}
         </div>
       </Card>
     );
   }
-  const confLabel = est.confidence === 'high' ? 'DIALLED IN' : est.confidence === 'medium' ? 'GETTING THERE' : 'STILL LEARNING';
+  const confLabel = est.confidence === 'high' ? 'Dialled in' : est.confidence === 'medium' ? 'Getting there' : 'Still learning';
   const bal = isPremium ? energyBalance(db, est.tdee, 28) : null;
   const fcColor = est.forecast.dir === 'hold' ? 'var(--good)' : est.forecast.dir === 'unknown' ? 'var(--muted)' : 'var(--fat)';
   return (
@@ -7894,27 +7894,27 @@ function ExpenditureCard({ db, plan }) {
        you ate and what you burn. The confidence badge stands in until there is a balance to show.
        A bordered pill floating inside the card was a second frame drawn to say one word. */
     <Card className="p-0 mb-4 overflow-hidden">
-      <CardHead title="Energy" right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
+      <CardHead title={title} right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
       <div className="p-4">
         {/* THE BALANCE, leading, because it is the only thing on this page that joins what you ate
             to what you weigh - and because the burn below it is the line it is measured against. */}
         {bal ? <>
           <div className="flex items-center justify-between gap-3 mb-3">
             <Pill value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} />
-            <span className="pf text-[11px] uppercase text-[#8A8A90] shrink-0">28 days</span>
+            <span className="pf text-[11px] uppercase text-[var(--muted)] shrink-0">28 days</span>
           </div>
           <BalanceBars days={bal.days} lens={lens} />
           <div className="grid grid-cols-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
             <div className="pr-2.5">
-              <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1">Ate</div>
+              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Ate</div>
               <div className="text-2xl font-bold tnum" style={{ color: 'var(--hero)' }}>{bal.avgAte != null ? bal.avgAte.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="px-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1">Target</div>
+              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Target</div>
               <div className="text-2xl font-bold tnum">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '\u2013'}</div>
             </div>
             <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1">Burn</div>
+              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Burn</div>
               <div className="text-2xl font-bold tnum">{est.tdee.toLocaleString()}</div>
             </div>
           </div>
@@ -7929,7 +7929,7 @@ function ExpenditureCard({ db, plan }) {
               ? (perWeek > wanted * 1.2 ? ' That is more than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
                 : perWeek < wanted * 0.8 ? ' That is less than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
                 : ' Which is the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.') : '';
-            return <div className="text-[12px] text-[#8A8A90] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+            return <div className="text-[12px] text-[var(--muted)] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
               You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
             </div>;
           })()}
@@ -7948,9 +7948,9 @@ function ExpenditureCard({ db, plan }) {
                   <span style={{ color: 'var(--good-ink)' }}>How your burn was worked out</span>
                   <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
                 </button>
-                <span className="tnum text-[11px] text-[#8A8A90] shrink-0">{est.low.toLocaleString()}–{est.high.toLocaleString()}</span>
+                <span className="tnum text-[11px] text-[var(--muted)] shrink-0">{est.low.toLocaleString()}–{est.high.toLocaleString()}</span>
               </div>
-              {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
+              {showMath && <div className="fade-in text-[11px] text-[var(--muted)] leading-relaxed mt-2 space-y-1.5">
                 <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
                 {est.direction === 'flat'
                   ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
@@ -7970,7 +7970,7 @@ function ExpenditureCard({ db, plan }) {
             const pts = hist.concat([est.tdee]).slice(-12);
             if (pts.length < 2) return null;
             return <div className="flex items-center gap-3 mt-2.5">
-              <span className="pf text-[11px] uppercase text-[#8A8A90] shrink-0" style={{ width: 76 }}>Burn over time</span>
+              <span className="pf text-[11px] uppercase text-[var(--muted)] shrink-0" style={{ width: 76 }}>Burn over time</span>
               <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--hero)" /></div>
             </div>;
           })()}
@@ -8049,9 +8049,9 @@ function DietBreakCard({ db, update }) {
       <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
         <div className="flex items-center justify-between mb-1">
           <div className="text-lg font-bold">Diet break</div>
-          <span className="text-[11px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>MAINTENANCE</span>
+          <span className="text-[11px] px-2 py-1" style={{ color: 'var(--hero)', border: '2px solid var(--hero)' }}>Maintenance</span>
         </div>
-        <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Eating at maintenance (~{mk} kcal) to recharge. <span className="text-[var(--text)]">{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>, then you return to your {goalLabel(brk.returnGoal)} automatically. Keep logging and weighing in.</div>
+        <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">Eating at maintenance (~{mk} kcal) to recharge. <span className="text-[var(--text)]">{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>, then you return to your {goalLabel(brk.returnGoal)} automatically. Keep logging and weighing in.</div>
         <Btn kind="ghost" className="w-full" onClick={() => setEndAsk(true)}>End break now</Btn>
         {endAsk && <ConfirmDialog title="End your diet break?" body="You'll go back to your goal from today and your macros switch back straight away." confirmLabel="End break" confirmKind="accent" onConfirm={() => update(d => { d.last_break_end = today; d.diet_break = null; })} onClose={() => setEndAsk(false)} />}
       </Card>
@@ -8065,16 +8065,16 @@ function DietBreakCard({ db, update }) {
   return (
     <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
       <div className="text-lg font-bold mb-1">Time for a diet break?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">You've been cutting steadily for {status.weeks} weeks. Taking a week or two at maintenance (~{mk} kcal) now can ease the metabolic slowdown that long cuts cause, so fat loss picks back up when you return. Your cut resumes automatically after, nothing to remember. <span className="text-[#6A6A70]">Backed by the MATADOR trial (Byrne 2018).</span></div>
+      <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">You've been cutting steadily for {status.weeks} weeks. Taking a week or two at maintenance (~{mk} kcal) now can ease the metabolic slowdown that long cuts cause, so fat loss picks back up when you return. Your cut resumes automatically after, nothing to remember. <span className="text-[#6A6A70]">Backed by the MATADOR trial (Byrne 2018).</span></div>
       {!ask
         ? <div className="grid grid-cols-2 gap-2">
           <Btn kind="accent" onClick={() => setAsk(true)}>Yes please</Btn>
           <Btn kind="ghost" onClick={notNow}>Not now</Btn>
         </div>
         : <div className="fade-in">
-          <div className="text-[11px] text-[#8A8A90] mb-2">How long?</div>
+          <div className="text-[11px] text-[var(--muted)] mb-2">How long?</div>
           <div className="grid grid-cols-2 gap-2">{[7, 14].map(n => <Btn key={n} kind="accent" onClick={() => start(n)}>{n} days</Btn>)}</div>
-          <button className="hit text-[11px] text-[#8A8A90] w-full text-center mt-2" onClick={() => setAsk(false)}>Back</button>
+          <button className="hit text-[11px] text-[var(--muted)] w-full text-center mt-2" onClick={() => setAsk(false)}>Back</button>
         </div>}
     </Card>
   );
@@ -8962,15 +8962,15 @@ function WeighInline({ unit, seedKg, onSave }) {
         {unit === 'st_lb'
           ? <div className="flex gap-1.5 items-center flex-1 min-w-0">
               <NumInput value={st} onChange={e => { setSt(e.target.value); setErr(''); }} aria-label="Stone" />
-              <span className="text-[11px] text-[#8A8A90]">st</span>
+              <span className="text-[11px] text-[var(--muted)]">st</span>
               <NumInput value={lb} onChange={e => { setLb(e.target.value); setErr(''); }} aria-label="Pounds" />
-              <span className="text-[11px] text-[#8A8A90]">lb</span>
+              <span className="text-[11px] text-[var(--muted)]">lb</span>
             </div>
           : <div className="flex gap-1.5 items-center flex-1 min-w-0">
               <NumInput value={kg} onChange={e => { setKg(e.target.value); setErr(''); }} aria-label="Weight in kilograms" />
-              <span className="text-[11px] text-[#8A8A90]">kg</span>
+              <span className="text-[11px] text-[var(--muted)]">kg</span>
             </div>}
-        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[11px]">SAVE</span></button>
+        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[11px]">Save</span></button>
       </div>
       {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </div>
@@ -9420,9 +9420,9 @@ function DinoLoader({ label, buddy, buddyName }) {
           <div className="dino-hop"><Sprite art={cr.art} colors={cr.colors} px={7} /></div>
           <div className="dino-shadow mt-1.5" style={{ width: 36 }} />
         </React.Fragment>}
-      <div className="text-[12px] text-[#8A8A90] mt-4">{text}<span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div>
-      {offer && !play && <button onClick={() => setPlay(true)} className="hit text-[12px] mt-3 fade-in" style={{ color: 'var(--accent-ink)' }}>Play while you wait</button>}
-      {slow && <div className="text-[11px] text-[#8A8A90] mt-3 text-center px-8 leading-relaxed fade-in">Taking longer than usual. Check your connection, or go back and try again.</div>}
+      <div className="text-[12px] text-[var(--muted)] mt-4">{text}<span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div>
+      {offer && !play && <button onClick={() => setPlay(true)} className="hit text-[12px] mt-3 fade-in" style={{ color: 'var(--link)' }}>Play while you wait</button>}
+      {slow && <div className="text-[11px] text-[var(--muted)] mt-3 text-center px-8 leading-relaxed fade-in">Taking longer than usual. Check your connection, or go back and try again.</div>}
     </div>
   );
 }
@@ -10140,32 +10140,32 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
   }
   if (c.kind === 'food') return (
     <Wrap>
-      <div className="text-[11.5px] font-bold leading-snug">{c.grams}g {c.name}</div>
+      <div className="text-[12px] font-bold leading-snug">{c.grams}g {c.name}</div>
       <div className="text-[11px] tnum mb-2" style={{ color: 'var(--muted)' }}>{Math.round(c.macros.kcal)} kcal · P{Math.round(c.macros.protein)} C{Math.round(c.macros.carbs)} F{Math.round(c.macros.fat)} · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAdd && onAdd(c.mealId, { name: c.name, source: 'buddy', qtyLabel: c.grams + ' g', amount: c.grams, unit: 'g', unitNoun: 'g', macros: c.macros }); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Log it</button>
         <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
   if (c.kind === 'meal') return (
     <Wrap>
-      <div className="text-[11.5px] font-bold leading-snug">{c.name}</div>
+      <div className="text-[12px] font-bold leading-snug">{c.name}</div>
       <div className="text-[11px] tnum mb-2" style={{ color: 'var(--muted)' }}>{c.items.length} item{c.items.length === 1 ? '' : 's'} · {Math.round(c.macros.kcal)} kcal · {mealName(c.mealId)}</div>
       <div className="flex gap-2">
         <button onClick={() => { onAddMeal && onAddMeal(c.mealId, c.items); onDone('Logged to ' + mealName(c.mealId)); }}
-          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Log it</button>
         <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
   );
   if (c.kind === 'weight') return (
     <Wrap>
-      <div className="text-[11.5px] font-bold leading-snug mb-2">{fmtWeight(c.kg, db.profile.weight_unit)} today</div>
+      <div className="text-[12px] font-bold leading-snug mb-2">{fmtWeight(c.kg, db.profile.weight_unit)} today</div>
       <div className="flex gap-2">
         <button onClick={() => { onSaveWeight && onSaveWeight(c.kg); onDone('Weigh-in saved'); }}
-          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
+          className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Save it</button>
         <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[11px] pf" style={{ background: 'var(--surface2)' }}>No</button>
       </div>
     </Wrap>
@@ -10314,7 +10314,7 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           <div className="pf text-[11px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
           {!turns.length && (
             <div className="text-center py-2">
-              <div className="text-[11.5px] leading-snug mb-3 max-w-[17rem] mx-auto" style={{ color: 'var(--muted)' }}>I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
+              <div className="text-[12px] leading-snug mb-3 max-w-[17rem] mx-auto" style={{ color: 'var(--muted)' }}>I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
             </div>
           )}
           {turns.map((t, i) => t.role === 'card' ? (
@@ -10529,51 +10529,50 @@ function TrophyCabinet({ db, streak, onBack }) {
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[11px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
       <PipLine className="my-1.5" pct={t.progress * 100} height={8} />
-      <div className="text-[11px] text-[#8A8A90] tnum">{count} so far{t.next != null ? ` · next tier at ${t.next}` : ' · maxed out'} · {hint}</div>
+      <div className="text-[11px] text-[var(--muted)] tnum">{count} so far{t.next != null ? ` · next tier at ${t.next}` : ' · maxed out'} · {hint}</div>
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={24} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Streak records</div>
+    <button onClick={onBack} className="flex items-center gap-1 text-[13px] mb-3" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.arrow_left width="16" /> Play</button>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
-      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[11px] text-[#8A8A90]">current streak</div></div>
-      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[11px] text-[#8A8A90]">longest ever</div></div>
+      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[11px] text-[var(--muted)]">current streak</div></div>
+      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[11px] text-[var(--muted)]">longest ever</div></div>
     </div>
     {/* The same object as the streak records above, so the same presentation: centred, with the
         cabinet's own --fat-ink numeral. See design-plans/11-bests-tiles-match-record-tiles.md. */}
     {bests && (<>
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Your bests</div>
+      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Your bests</div>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {Game.BEST_KEYS.map(k => (
           <div key={k} className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-            <div className="text-xl font-bold tnum" style={{ color: bests[k].value > 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>{bests[k].value}<span className="text-[11px] text-[#8A8A90]">/7</span></div>
-            <div className="text-[11px] text-[#8A8A90] leading-snug">{BEST_LABEL[k].label}</div>
+            <div className="text-xl font-bold tnum" style={{ color: bests[k].value > 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>{bests[k].value}<span className="text-[11px] text-[var(--muted)]">/7</span></div>
+            <div className="text-[11px] text-[var(--muted)] leading-snug">{BEST_LABEL[k].label}</div>
           </div>
         ))}
       </div>
     </>)}
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Badges</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
     <Track label="In-range check-ins" count={badges.inRange || 0} hint="trend within 0.1 kg/wk of target" />
     {(() => {
       const ga = db.game_awards || {};
       const earnedCount = TROPHIES.filter(t => ga['trophy:' + t.id]).length + trophyIds.length;
-      return <div className="pf text-[11px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
+      return <div className="pf text-[11px] uppercase text-[var(--muted)] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
     })()}
     <div className="space-y-2 mb-4">
       {/* Achievement trophies: earned ones shine gold, locked ones show as a greyed goal. */}
       {TROPHIES.map(t => { const got = !!(db.game_awards && db.game_awards['trophy:' + t.id]);
         return <div key={t.id} className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none', opacity: got ? 1 : 0.55 }}>
           <PixelGlyph kind="trophy" color={got ? 'var(--fat)' : 'var(--muted)'} size={24} />
-          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{t.name}{got ? '' : ' · locked'}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{t.desc}</div></div>
+          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{t.name}{got ? '' : ' · locked'}</div><div className="text-[11px] text-[var(--muted)] leading-snug">{t.desc}</div></div>
           {got && <Tick size={12} />}
         </div>; })}
       {/* Fight trophies from the item system (Champion Belt, weekly-boss Amber). */}
       {trophyIds.map(id => { const it = ITEMS[id];
         return <div key={id} className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
           <PixelGlyph kind="trophy" color="var(--fat)" size={24} />
-          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{items[id]}</span></div><div className="text-[11px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
+          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[var(--muted)]">×{items[id]}</span></div><div className="text-[11px] text-[var(--muted)] leading-snug">{it.desc}</div></div>
         </div>; })}
     </div>
   </div>;
@@ -10670,14 +10669,14 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
       <div className="pixel-box p-2.5 flex items-center gap-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: isWorn ? 'var(--accent)' : 'var(--border)' }}>
         <div className="pixel-box shrink-0 inline-flex items-center justify-center overflow-hidden" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{previewFor(c)}</div>
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="text-[11.5px] font-bold truncate">{c.name}</div>
+          <div className="text-[12px] font-bold truncate">{c.name}</div>
           <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>{c.desc}</div>
           {!open && <div className="pf text-[11px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
         </div>
         {isOwned
           ? (isWorn
-            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
-            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
+            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Worn</button>
+            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>Wear</button>)
           : ownedLabel
             ? <span className="pf text-[11px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
             : <button onClick={onBuy || (() => buy(c.id))} disabled={!afford || !open}
@@ -10710,7 +10709,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
 
   return (
     <div className="fade-in">
-      {onBack && <div className="mb-3"><button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button></div>}
+      {onBack && <div className="mb-3"><button onClick={onBack} className="hit text-[11px] text-[var(--muted)]"><Icon.arrow_left width="16" /> Back</button></div>}
       {/* No explainer under the heading. It listed three of the four ways Amber is earned and the
           buddy's own nudge listed a different three; both were partial and they disagreed. Every
           reward is already priced where it is earned, on Battle, which is where a reward is legible. */}
@@ -10807,7 +10806,7 @@ function BuddyColourModal({ db, update, onClose }) {
   return (
     <Sheet title="Change colour" onClose={onClose} z={80}>
       <div>
-        <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Pick a new colourway for {b.name || 'your buddy'}. Costs {COLOUR_COST} Amber (you have {amber}).</div>
+        <div className="text-[11px] text-[var(--muted)] mb-4 leading-snug">Pick a new colourway for {b.name || 'your buddy'}. Costs {COLOUR_COST} Amber (you have {amber}).</div>
         <div className="flex gap-3 justify-center mb-4">
           {options.map(pal => (
             <button key={pal} onClick={() => setPick(pal)} className="pixel-box p-2 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', border: '3px solid ' + (pick === pal ? 'var(--accent)' : 'transparent'), width: 96, height: 96 }}>
@@ -10816,7 +10815,7 @@ function BuddyColourModal({ db, update, onClose }) {
           ))}
         </div>
         <button onClick={save} disabled={changed && !canAfford} className="pixel-btn w-full py-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (!changed || canAfford) ? 1 : 0.5 }}>
-          <span className="pf text-[11px]">{!changed ? 'KEEP CURRENT' : canAfford ? 'RECOLOUR · ' + COLOUR_COST + ' AMBER' : 'NOT ENOUGH AMBER'}</span>
+          <span className="pf text-[11px]">{!changed ? 'Keep current' : canAfford ? 'RECOLOUR · ' + COLOUR_COST + ' AMBER' : 'Not enough amber'}</span>
         </button>
       </div>
     </Sheet>
@@ -10921,7 +10920,7 @@ function StatRow({ value, label, filled, total, color, note, first }) {
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <span className="pf text-[11px] uppercase" style={{ letterSpacing: '0.12em' }}>{label}</span>
         <PipLine pct={Math.max(0, Math.min(100, (filled / (total || 1)) * 100))} color={color} height={12} cells={14} />
-        <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{note}</span>
+        <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{note}</span>
       </div>
     </div>
   );
@@ -11283,7 +11282,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
       </div>}
     </div>
   );
-  const StatLine = ({ s }) => <div className="text-[11px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
+  const StatLine = ({ s }) => <div className="text-[11px] text-[var(--muted)] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
   // A fight card is a CARD, and every card in this app opens with the same filled ink title bar:
@@ -11304,7 +11303,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             <div className="text-[13px] font-bold truncate">{enemy.name}</div>
             <StatLine s={enemy.stats} />
             {enemy.ability && enemy.ability !== 'none' && <div className="text-[11px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
-            <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
+            <div className="text-[11px] text-[var(--muted)] mt-1 leading-snug">{reward}</div>
           </div>
         </div>
         {action}
@@ -11408,7 +11407,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                 {loggedToday
                   ? <Btn kind="accent" className="w-full" onClick={() => start(daily, 'daily')}>Hunt · {dailyAmber} Amber</Btn>
                   : <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{daily.name} is waiting. Streak stays at {fight.dailyStreak || 0} either way.</div>}
-              </> : <div className="text-[11.5px]" style={{ color: 'var(--text2)' }}>
+              </> : <div className="text-[12px]" style={{ color: 'var(--text2)' }}>
                 {daily.name} saw us off. Day {fight.dailyStreak || 1}, and day {(fight.dailyStreak || 1) + 1} pays {Game.AMBER_REWARDS.dailyStreakBonus} more.
               </div>}
             </div>
@@ -11419,11 +11418,11 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
             <div className="p-3 flex flex-col gap-2.5">
               <PipLine pct={((fight.rank || 0) / FIGHT_LADDER.length) * 100} color="var(--accent)" height={12} cells={FIGHT_LADDER.length} />
               {ladderCleared ? <>
-                <div className="text-[11.5px]" style={{ color: 'var(--text2)' }}>Belt held. Prestige {(fight.prestige || 0) + 1} resets the ladder, makes every rung harder, and opens Molten Core, Volcanic Shelf and The Colosseum in the shop.</div>
+                <div className="text-[12px]" style={{ color: 'var(--text2)' }}>Belt held. Prestige {(fight.prestige || 0) + 1} resets the ladder, makes every rung harder, and opens Molten Core, Volcanic Shelf and The Colosseum in the shop.</div>
                 <Btn kind="accent" className="w-full" onClick={prestige}>Enter prestige {(fight.prestige || 0) + 1}</Btn>
               </> : <>
                 <div className="flex justify-between items-baseline gap-2">
-                  <span className="text-[11.5px]" style={{ color: 'var(--text2)' }}>
+                  <span className="text-[12px]" style={{ color: 'var(--text2)' }}>
                     {gate.can ? 'One climb per logged day. ' + rival.name + ' holds rung ' + ((fight.rank || 0) + 1) + '.'
                       : gate.reason === 'used' ? 'Today\u2019s climb is done. Rung ' + ((fight.rank || 0) + 1) + ' keeps.'
                       : 'Nothing is lost by waiting. Rung ' + ((fight.rank || 0) + 1) + ' keeps.'}
@@ -11515,7 +11514,7 @@ function HomeWeightSpark({ db, onOpen }) {
   if (!last) return null;
   return (
     <button onClick={onOpen} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
-      <div className="flex justify-between items-center mb-2"><span className="pf text-[11px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[11px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
+      <div className="flex justify-between items-center mb-2"><span className="pf text-[11px] uppercase text-[var(--muted)]">Weight trend</span><span className="pf text-[11px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
       <div className="flex items-end gap-3">
         <div className="shrink-0 leading-none"><span className="text-2xl font-bold tnum">{fmtWeight(last.scale_weight, unit)}</span></div>
         <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--weight)" /></div>
@@ -11750,7 +11749,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
           <div className="shrink-0 pixel-box p-1.5" style={{ background: 'var(--card)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
           <div className="min-w-0 flex flex-col gap-2">
             {recap.items.map(it => (
-              <span key={it.key} className="block text-[11.5px] leading-snug pl-2.5" style={{ borderLeft: '3px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</span>
+              <span key={it.key} className="block text-[12px] leading-snug pl-2.5" style={{ borderLeft: '3px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</span>
             ))}
           </div>
         </SheetBox>
@@ -11758,7 +11757,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
         {/* Premium AI deeper dive: ties the day's numbers into one personalised focus. Free users get a
             gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
         {dive
-          ? <SheetBox className="p-3 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)' }}><div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.14em' }}>{who}'s deeper dive</div>{dive}</SheetBox>
+          ? <SheetBox className="p-3 text-[12px] leading-snug" style={{ background: 'var(--accent-dim)' }}><div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.14em' }}>{who}'s deeper dive</div>{dive}</SheetBox>
           : <SheetBtn tone="ghost" onClick={runDive} disabled={diving} style={diving ? { opacity: 0.6 } : null}>{diving ? 'Thinking…' : isPremium ? 'Ask ' + who + ' for a deeper dive' : 'Deeper dive · premium'}</SheetBtn>}
         {diveErr && <div className="text-[11px] leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
         <div className="text-center text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>It's all guidance, not gospel, so do what suits your day.</div>
@@ -11810,7 +11809,7 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
             stacked as four label/value rows each carrying its own coloured edge. */}
         <SheetBox className="p-4 flex flex-col items-center text-center gap-2">
           <BuddyAvatar buddy={buddy} px={2.6} />
-          <span className="text-[11.5px] leading-relaxed" style={{ color: 'var(--text)' }}>
+          <span className="text-[12px] leading-relaxed" style={{ color: 'var(--text)' }}>
             <span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span>
           </span>
         </SheetBox>
@@ -11902,9 +11901,9 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       <Card className="p-4 mb-4" style={{ background: 'var(--accent-dim)' }}>
         <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--sleep)' }}>Recovery</div>
         <div className="text-[13px] font-bold mb-1">Train hard, rest harder</div>
-        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. {ghConfigured() ? 'Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.' : 'Steps, sleep and readiness will land here once health sync arrives, and your buddy will read them back to you each morning.'}</div>
+        <div className="text-[11px] text-[var(--muted)] leading-snug mb-3">Recovery is a pillar alongside food and training. {ghConfigured() ? 'Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.' : 'Steps, sleep and readiness will land here once health sync arrives, and your buddy will read them back to you each morning.'}</div>
         {ghConfigured()
-          ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[11px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
+          ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[11px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Connect Google Health</button>
           : <div className="pf text-[11px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
       </Card>
     );
@@ -11947,7 +11946,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         {synced
           ? <span className="pf text-[11px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="hit pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
+            ? <button onClick={ghConnectGated} className="hit pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>Connect Health ›</button>
             : <span className="pf text-[11px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
@@ -12349,26 +12348,26 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
               <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
             </div>
             <div className="text-xl font-bold mb-2">Your buddy just leveled up</div>
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs">You've been with Macrosaurus since the early days, and your feedback shaped what it's become. As a thank-you, your companion has had a huge upgrade, and now it's yours to choose.</div>
+            <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-5 max-w-xs">You've been with Macrosaurus since the early days, and your feedback shaped what it's become. As a thank-you, your companion has had a huge upgrade, and now it's yours to choose.</div>
             <div className="w-full space-y-2 mb-6 text-left">
               {BUDDY_UPGRADE_HIGHLIGHTS.map(([icon, title, body]) => (
                 <div key={title} className="pixel-box p-3 flex items-start gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
                   <span className="shrink-0 mt-0.5"><PixelGlyph kind={icon} color="var(--accent)" size={24} /></span>
-                  <div><div className="text-[12px] font-bold">{title}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{body}</div></div>
+                  <div><div className="text-[12px] font-bold">{title}</div><div className="text-[11px] text-[var(--muted)] leading-snug">{body}</div></div>
                 </div>
               ))}
             </div>
             <Btn onClick={() => setStep('egg')} className="w-full">Choose my egg</Btn>
-            {onLater && <button onClick={onLater} className="hit mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Maybe later</button>}
+            {onLater && <button onClick={onLater} className="hit mt-3 text-[11px] text-[var(--muted)] active:opacity-60">Maybe later</button>}
           </>
         ) : (
           <>
-            <div className="pf text-[11px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
+            <div className="pf text-[11px] uppercase text-[var(--muted)] mb-3 mt-2">Your buddy</div>
             <div className="pixel-box p-5 mb-4 flex items-center justify-center buddy-scene" style={{ minWidth: 150, minHeight: 150 }}>
               <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
             </div>
             <div className="text-lg font-bold mb-1">Choose your egg</div>
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Pick the one that speaks to you. Everything you've earned stays put, it just hatches anew.</div>
+            <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-4 max-w-xs">Pick the one that speaks to you. Everything you've earned stays put, it just hatches anew.</div>
             <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
               {SPRITE_SPECIES.map(s => (
                 // `.pixel-box` sets its border with !important, so the inline accent border this used was
@@ -12507,7 +12506,7 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
   return (
     <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center">
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-6">{step === 'reveal' ? 'Name your buddy' : "It's hatching!"}</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-6">{step === 'reveal' ? 'Name your buddy' : "It's hatching!"}</div>
         <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 180, minHeight: 180 }}>
           {step === 'wobble' && <div className="crwobble"><SpriteSheet palette={palette} species={species} group="egg" anim="move" px={7} fps={5} /></div>}
           {step === 'crack' && <SpriteSheet palette={palette} species={species} group="egg" anim="crack" px={7} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
@@ -12518,11 +12517,11 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
           <>
             <div className="text-lg font-bold mb-1">It hatched!</div>
             {firstWords && <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{firstWords}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>}
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Give it a name, or keep the one we picked.</div>
+            <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-4 max-w-xs">Give it a name, or keep the one we picked.</div>
             <input value={name} onChange={e => setName(e.target.value)} maxLength={16} className={inputCls + ' text-center mb-3'} />
             <Btn onClick={() => onDone(name.trim() || suggestedName || 'Buddy')} className="w-full max-w-xs">{name.trim() ? 'Hello ' + name.trim() : 'Say hello'}</Btn>
           </>
-        ) : <div className="text-[12px] text-[#8A8A90]">Something's cracking open…</div>}
+        ) : <div className="text-[12px] text-[var(--muted)]">Something's cracking open…</div>}
       </div>
     </div>
   );
@@ -12569,11 +12568,11 @@ function RecipeMini({ r, onOpen, tag }) {
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
         <RecipeImg src={img} iconSize={24} />
-        {tag && <div className="absolute top-1.5 left-1.5 pf text-[11px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
+        {tag && <div className="absolute top-1.5 left-1.5 pf text-[11px] uppercase px-1.5 py-0.5 " style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
       </div>
       <div className="p-2">
         <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
-        <div className="text-[11px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL_T }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO_T }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
+        <div className="text-[11px] text-[var(--muted)] mt-1 tnum"><span className="font-bold" style={{ color: CAL_T }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO_T }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
       </div>
     </div>
   </button>);
@@ -12640,11 +12639,11 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
   if (compact) return <PromptRow title={headline} sub="Premium · 7 days free" action="Try free" tone="quiet" onAction={open} onDismiss={dismiss} />;
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-      <div className="pf text-[11px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
       <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
+      <div className="text-[11px] text-[var(--muted)] leading-snug mb-2.5">{blurb}</div>
       <div className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
-      <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="16" /></button>
+      <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[var(--muted)] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="16" /></button>
     </div>
   );
 }
@@ -12863,7 +12862,7 @@ function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, re
         <MacroRow label="Protein" value={tot.protein} target={et.eff.protein_g} color={PRO} />
         <MacroRow label="Carbs" value={tot.carbs} target={et.eff.carbs_g} color={CARB} />
         <MacroRow label="Fat" value={tot.fat} target={et.eff.fat_g} color={FAT} />
-        {drinks.length > 0 && <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {dk} kcal of drinks, split across carbs and fat.</div>}
+        {drinks.length > 0 && <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {dk} kcal of drinks, split across carbs and fat.</div>}
       </div>
       <div className="flex flex-col gap-1.5"><FibreCell tot={tot} et={et} mode={mode} /></div>
       {isPremium && <div className="flex flex-col gap-1.5"><DensityCell entries={entriesOn(db, today)} onExplain={onExplainDensity} /></div>}
@@ -13408,7 +13407,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
           return <div className="px-4 min-h-[44px] flex items-center justify-between text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
             <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-            {canOpen && <button onClick={() => setShowCarry(true)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Why ›</button>}
+            {canOpen && <button onClick={() => setShowCarry(true)} className="hit text-[12px]" style={{ color: 'var(--link)', fontWeight: 600 }}>Why ›</button>}
           </div>;
         })();
         /* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
@@ -13431,7 +13430,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           };
           return <div className="px-4 min-h-[44px] flex items-center justify-between gap-3 text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
             <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span></> : 'Finished eating today?'}</span>
-            <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+            <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
           </div>;
         })();
         const msgControls = !!(msg && !eggIncubating && (msg.weigh || (msg.choices || []).length || (msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)));
@@ -13499,24 +13498,24 @@ function CarryoverSheet({ et, onClose }) {
   const maxAbs = (cd && cd.days.length) ? Math.max(1, ...cd.days.map(d => Math.abs(d.delta))) : 1;
   const Row = ({ label, val, color, bold }) => (
     <div className="flex justify-between tnum text-[11px] py-1">
-      <span className={bold ? 'font-bold' : 'text-[#8A8A90]'} style={bold ? { color: 'var(--text)' } : null}>{label}</span>
+      <span className={bold ? 'font-bold' : 'text-[var(--muted)]'} style={bold ? { color: 'var(--text)' } : null}>{label}</span>
       <span className="font-bold" style={color ? { color } : (bold ? { color: 'var(--text)' } : null)}>{val}</span>
     </div>
   );
   return (
     <Sheet title="Today's target" onClose={onClose} wide z={80}>
       <div>
-        <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
+        <div className="text-[11px] text-[var(--muted)] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
 
         <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
           <Row label="Base target" val={et.base.kcal} />
           {et.cyc !== 0 && <Row label={cycLabel(et)} val={sgn(et.cyc)} color={et.cyc > 0 ? 'var(--good)' : 'var(--fat)'} />}
           {et.carry !== 0 && <Row label={et.carry > 0 ? 'Carried over' : 'Carried back'} val={sgn(et.carry)} color={et.carry > 0 ? 'var(--good)' : 'var(--fat)'} />}
-          <div className="border-t border-[#262629] mt-1 pt-1"><Row label="Today you get" val={et.eff.kcal + ' kcal'} bold /></div>
+          <div className="border-t border-[var(--hairline)] mt-1 pt-1"><Row label="Today you get" val={et.eff.kcal + ' kcal'} bold /></div>
         </div>
 
         {cd && cd.days.length > 0 && <>
-          <div className="pf text-[11px] uppercase text-[#8A8A90] mb-3">This week · since {dd(cd.cycleStart)}</div>
+          <div className="pf text-[11px] uppercase text-[var(--muted)] mb-3">This week · since {dd(cd.cycleStart)}</div>
           <div className="flex items-end gap-1.5 mb-2" style={{ height: '64px' }}>
             {cd.days.map((d, i) => {
               const h = Math.round(5 + (Math.abs(d.delta) / maxAbs) * 40);
@@ -13528,9 +13527,9 @@ function CarryoverSheet({ et, onClose }) {
             })}
           </div>
           <div className="flex gap-1.5 mb-3">
-            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[11px] text-[#8A8A90]">{dShort(d.date)}</div>)}
+            {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[11px] text-[var(--muted)]">{dShort(d.date)}</div>)}
           </div>
-          <div className="flex justify-between text-[11px] text-[#8A8A90] mb-4">
+          <div className="flex justify-between text-[11px] text-[var(--muted)] mb-4">
             <span><Icon.square width="16" style={{ color: 'var(--good-ink)' }} /> under target</span>
             <span><Icon.square width="16" style={{ color: 'var(--fat-ink)' }} /> over target</span>
           </div>
@@ -13540,7 +13539,7 @@ function CarryoverSheet({ et, onClose }) {
             <span className="font-bold" style={{ color: cd.balance > 0 ? 'var(--good-ink)' : cd.balance < 0 ? 'var(--fat-ink)' : 'var(--text)' }}>{sgn(cd.balance)} kcal</span>
           </div>
 
-          <div className="text-[11px] text-[#8A8A90] leading-relaxed">{cd.mode === 'dispersed'
+          <div className="text-[11px] text-[var(--muted)] leading-relaxed">{cd.mode === 'dispersed'
             ? `Evened out across the week: this ${sgn(cd.balance)} balance spreads over the ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left, so ${sgn(cd.applied)} lands on today.`
             : `Onto the next day: the whole ${sgn(cd.balance)} balance lands on today (${sgn(cd.applied)}), capped at ±${cd.cap} kcal a day.`}</div>
         </>}
@@ -13976,25 +13975,25 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         </button>
         <button onClick={() => setDate(shiftISO(date, 1))} aria-label="Next day" className="h-11 flex items-center justify-center" style={{ color: 'var(--link)' }} aria-label="Next day"><Icon.chevron width="16" /></button>
         <div className="relative flex items-center">
-          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center text-[#8A8A90]" aria-label="Day options"><Icon.more width="16" /></button>
-          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center text-[var(--muted)]" aria-label="Day options"><Icon.more width="16" /></button>
+          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[var(--hairline)] py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
             <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
             {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
             {/* The reciprocal pointer. Settings explains that per-day edits don't touch the default;
                 until now the Food log never said the default existed. */}
-            <div className="text-[11px] text-[#8A8A90] px-4 py-2 leading-snug" style={{ borderTop: '1px solid #262629' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
+            <div className="text-[11px] text-[var(--muted)] px-4 py-2 leading-snug" style={{ borderTop: '1px solid #262629' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
           </div>}
         </div>
       </div>
       {showCal && <Card className="p-4 mb-4 fade-in">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
           <div className="text-sm font-semibold">{monthName}</div>
-          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" /></button>
+          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square rounded-lg text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[#8A8A90]' : 'text-[#C9C9CF]'}`}>
+          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[var(--muted)]' : 'text-[#C9C9CF]'}`}>
             {new Date(c + 'T00:00:00').getDate()}
           </button>) : <div key={i} />)}</div>
       </Card>}
@@ -14025,7 +14024,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
       <div className="min-w-0">
       {false && <Card className="p-4 mb-3 fade-in">
         <div className="text-[13px] font-semibold mb-1">Log your first item</div>
-        <div className="text-[11px] text-[#8A8A90] leading-relaxed">Tap <span className="text-[#4A9EEB] font-medium">+ Add food</span> on any meal below, or the big <Icon.plus width="24" /> button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.</div>
+        <div className="text-[11px] text-[var(--muted)] leading-relaxed">Tap <span className="text-[var(--link)] font-medium">+ Add food</span> on any meal below, or the big <Icon.plus width="24" /> button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.</div>
       </Card>}
       {meals.map((m, mi) => {
         const me = day.filter(e => e.meal_id === m.id); const ms = sumMacros(me);
@@ -14097,9 +14096,9 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         return (<Card className="p-4 mb-3" style={{ borderColor: 'var(--muted)' }}>
           <div className="flex justify-between items-center">
             <div className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>Unsorted</div>
-            <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(sumMacros(orphans).kcal)} kcal</div>
+            <div className="text-[11px] text-[var(--muted)] tnum">{Math.round(sumMacros(orphans).kcal)} kcal</div>
           </div>
-          <div className="text-[11px] text-[#8A8A90] mt-1 mb-1">These were logged under a meal that isn't on this day. Drag each into a meal above.</div>
+          <div className="text-[11px] text-[var(--muted)] mt-1 mb-1">These were logged under a meal that isn't on this day. Drag each into a meal above.</div>
           {orphans.map(e => renderEntry(e, um, 'var(--muted)'))}
         </Card>);
       })()}
@@ -14129,7 +14128,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             <div className="min-w-0 flex-1">
               <div className="text-sm truncate">{drag.name}</div>
               <div className="flex items-center gap-1 text-[11px] tnum mt-0.5" style={{ color: 'var(--text2)' }}><PixelGlyph kind="scale" color="var(--muted)" size={24} />{drag.qty || '1 portion'}</div>
-              <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: drag.mc }}>{drag.kcal}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO_T }}>{drag.p}P</span> <span style={{ color: CARB_T }}>{drag.c}C</span> <span style={{ color: FAT_T }}>{drag.f}F</span></div>
+              <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: drag.mc }}>{drag.kcal}</span><span className="text-[var(--muted)]"> kc</span> <span style={{ color: PRO_T }}>{drag.p}P</span> <span style={{ color: CARB_T }}>{drag.c}C</span> <span style={{ color: FAT_T }}>{drag.f}F</span></div>
             </div>
             <span className="shrink-0 pr-1" style={{ color: drag.mc }}><PixelGrip /></span>
           </div>
@@ -14329,7 +14328,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
         <SheetLabel className="block mb-2">Split these calories</SheetLabel>
         <Field label={`${carbPct}% carbs · ${100 - carbPct}% fat`}>
           <input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setSplit(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-          <div className="text-sm text-[#8A8A90] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
+          <div className="text-sm text-[var(--muted)] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
         </Field>
       </div>}
       {/* Sits with "Numbers look off?" because it answers the same question, and above it because a
@@ -14403,17 +14402,17 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
         <SheetLabel className="block mb-[7px]">Into which meal</SheetLabel>
         <Seg value={selMeal} onChange={setSelMeal} options={meals.map(m => ({ v: m.id, l: meals.length >= 4 ? mealShort(m.name) : m.name }))} />
       </div>}
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1.5">Quick copy to</div>
-      <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1.5">Or pick a day</div>
+      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Quick copy to</div>
+      <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
+      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Or pick a day</div>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <div className="text-sm font-semibold">{monthName}</div>
-        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" /></button>
+        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-        <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
+        <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
       ) : <div key={i} />)}</div>
       <div className="flex items-center gap-1.5 mt-2 text-[11px] text-[#5A5A62]"><span className="inline-block w-1 h-1" style={{ background: 'var(--accent)' }} /> has food logged</div>
       </div>
@@ -14851,15 +14850,15 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const CAP = 25; const recents = q ? allRecents : allRecents.slice(0, CAP); const moreCount = q ? 0 : allRecents.length - recents.length;
   const star = (food) => update(d => { const x = d.foods.find(y => y.id === food.id); if (x) x.is_favorite = !x.is_favorite; });
   const pick = (f) => onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty });
-  const Row = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
-    <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
+  const Row = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] px-3 py-2.5">
+    <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[var(--muted)]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[var(--muted)] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
     <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
   return (<div>
     <TextInput placeholder="Search your foods…" value={q} onChange={e => setQ(e.target.value)} />
-    <div className="text-[11px] text-[#8A8A90] mt-2 mb-3">Tap any {isAlc ? 'drink' : 'food'} to add it again with the amount you had last time, or tap the underlined amount to change it first.</div>
-    {!foods.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
-    {favs.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Favourites</div><div className="space-y-2 mb-4">{favs.map(Row)}</div></>}
-    {recents.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Recent</div><div className="space-y-2">{recents.map(Row)}</div>{moreCount > 0 && <div className="text-[11px] text-[#8A8A90] mt-3 text-center">+ {moreCount} more, type above to search all your foods.</div>}</>}
+    <div className="text-[11px] text-[var(--muted)] mt-2 mb-3">Tap any {isAlc ? 'drink' : 'food'} to add it again with the amount you had last time, or tap the underlined amount to change it first.</div>
+    {!foods.length && <div className="text-center text-[var(--muted)] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
+    {favs.length > 0 && <><div className="text-[11px] uppercase text-[var(--muted)] mb-2">Favourites</div><div className="space-y-2 mb-4">{favs.map(Row)}</div></>}
+    {recents.length > 0 && <><div className="text-[11px] uppercase text-[var(--muted)] mb-2">Recent</div><div className="space-y-2">{recents.map(Row)}</div>{moreCount > 0 && <div className="text-[11px] text-[var(--muted)] mt-3 text-center">+ {moreCount} more, type above to search all your foods.</div>}</>}
     {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
@@ -14878,9 +14877,9 @@ function ManualTab({ onPick, onCancel, day }) {
   }
   if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} dayRest={day && day.rest} dayTarget={day && day.target} />;
   return (<div>
-    {onCancel && <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>}
+    {onCancel && <button onClick={onCancel} className="hit text-[13px] text-[var(--muted)] mb-3"><Icon.arrow_left width="16" /> Back</button>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Baked beans" /></Field>
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">These numbers are per</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">These numbers are per</div>
     <div className="mb-3"><Seg value={v.basis} onChange={x => set('basis', x)} options={[{ v: '100g', l: '100 g' }, { v: 'serving', l: 'A serving' }]} /></div>
     {v.basis === 'serving' && <div className="grid grid-cols-2 gap-2.5">
       <Field label="Serving weight (g)" hint="Optional, lets you also log by grams"><NumInput value={v.servG} onChange={e => set('servG', e.target.value)} placeholder="e.g. 125" /></Field>
@@ -14914,7 +14913,7 @@ function portionPhrase(count, servingLabel) {
 const PORTION_FRACTIONS = [['1/4', 0.25], ['1/3', 0.333], ['1/2', 0.5], ['2/3', 0.667], ['3/4', 0.75], ['1', 1], ['2', 2]];
 function FractionChips({ value, onPick }) {
   return (<div className="flex gap-1.5 mb-3 flex-wrap">{PORTION_FRACTIONS.map(([l, val]) =>
-    <button key={l} type="button" onClick={() => onPick(val)} className={`pixel-box px-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[12px] ${Math.abs((+value || 0) - val) < 0.01 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{l}</button>)}</div>);
+    <button key={l} type="button" onClick={() => onPick(val)} className={`pixel-box px-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[12px] ${Math.abs((+value || 0) - val) < 0.01 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ boxShadow: 'none' }}>{l}</button>)}</div>);
 }
 // The nutrients beyond the headline macros that the nutrient-density score needs. Open Food Facts
 // keys them per 100 g and often leaves them blank, so anything missing stays 0 and simply earns the
@@ -15011,15 +15010,15 @@ function DensityChip({ nq, className = '', showNumber = true }) {
 // you divide its salt by its many calories).
 function DensityBadge({ nq, estimating, onExplain }) {
   if (window.MISPREMIUM !== true) return null;
-  if (estimating) return <div className="text-[11px] text-[#8A8A90] mt-1.5">Working out how nutritious this is…</div>;
+  if (estimating) return <div className="text-[11px] text-[var(--muted)] mt-1.5">Working out how nutritious this is…</div>;
   const ns = nq ? E.nsFromNq(nq) : null;
   if (!ns) return null;
   const color = densityColor(ns.score);
   const reasons = E.dsReasons(nq).slice(0, 2);
   return (
-    <button onClick={onExplain} className="w-full text-left mt-2.5 pt-2.5 border-t border-[#262629] active:opacity-80">
+    <button onClick={onExplain} className="w-full text-left mt-2.5 pt-2.5 border-t border-[var(--hairline)] active:opacity-80">
       <div className="flex justify-between items-baseline mb-1">
-        <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></span>
+        <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></span>
         <span className="tnum text-[12px]" style={{ color: ns.score >= E.ND_TARGET ? 'var(--good-ink)' : 'var(--text2)' }}>
           {ns.band.label}{nq.est ? ' · estimated' : ''}
         </span>
@@ -15047,14 +15046,14 @@ function DensityExplainer({ onClose }) {
   const Row = ({ h, children }) => (
     <div className="mb-4">
       <div className="text-[13px] font-bold mb-1">{h}</div>
-      <div className="text-[12px] text-[#8A8A90] leading-relaxed">{children}</div>
+      <div className="text-[12px] text-[var(--muted)] leading-relaxed">{children}</div>
     </div>
   );
   return (
     <Sheet title="Density Score" onClose={onClose} wide z={95}>
         <div>
           <h2 className="text-xl font-bold mb-1">How well you ate, not just how much</h2>
-          <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">
+          <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-4">
             Calories and macros tell you the quantity of your food. The Density Score tells you the quality of it, out of 100, where higher is better.
           </div>
           <Row h="What a good number looks like">
@@ -15241,15 +15240,15 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
     <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="16" /> Back</TextBtn>
     {estimated
-      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[11px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
+      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[11px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>Estimate</span>{note}</div>
       : saved
-        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[11px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
-        : <div className="text-[12px] text-[#8A8A90] mb-3">{note}</div>}
+        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[11px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[var(--muted)]">{note}</span></div>
+        : <div className="text-[12px] text-[var(--muted)] mb-3">{note}</div>}
     {dodgy && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{_missing ? "Some values are missing for this one." : "The calories don't add up from the macros."} Get the real numbers a better way:</div>
+      <div className="text-[11px] text-[var(--muted)] leading-snug mb-2.5">{_missing ? "Some values are missing for this one." : "The calories don't add up from the macros."} Get the real numbers a better way:</div>
       {onRescan && <Btn kind="accent" className="w-full" onClick={onRescan}>Scan the nutrition label</Btn>}
-      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
+      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--link)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
     </div>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
@@ -15264,7 +15263,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
         eye already looks for it on every other screen. */}
     <Collapsible variant="inline" label="Numbers look off?" sub="Edit" defaultOpen={!!estimated || dodgy} className="mb-2">
     <div className="mb-2">
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
+      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
       <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => setMacro('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => setMacro('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => setMacro('fat', e.target.value)} /></Field></div>
       <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={v.fiber} onChange={e => setMacro('fiber', e.target.value)} /></Field><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field></div>
       {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <TextBtn onClick={applyAtwater} className="mt-1.5">Calculate calories from the macros ({atwaterK} kcal)</TextBtn>}
@@ -15272,7 +15271,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     </Collapsible>
     {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs, fat and fibre only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
+      <div className="text-[11px] text-[var(--muted)] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs, fat and fibre only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
       <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
     </div>}
     {/* The commit sits ABOVE "Not the right food?". Below it, the gold button was under the fold behind
@@ -15285,11 +15284,11 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       </>;
     })()}
     {(onRescan || onAskAI) && !dodgy && <div className="mt-4 mb-1">
-      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[11px] uppercase tracking-widest text-[#8A8A90]">Not the right food?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
+      <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[11px] uppercase text-[var(--muted)]">Not the right food?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
       {onRescan && <button onClick={onRescan} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
-        <div className="w-9 h-9 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="24" height="24" style={{ color: CAL_T }} /></div>
-        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[#8A8A90]">Wrong product, or the numbers look off</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
+        <div className="w-9 h-9 bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="24" height="24" style={{ color: CAL_T }} /></div>
+        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[var(--muted)]">Wrong product, or the numbers look off</div></div>
+        <span className="text-[var(--muted)] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
       {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Estimate it instead" sub="Not packaged, or nothing to scan" />}
     </div>}
@@ -15430,22 +15429,22 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
   const qtyLabel = p === 1 ? '' : (fmtCount(p) + ' portion');
   return (<div className="fade-in">
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center"><Icon.arrow_left width="16" /> Start over</button>
+    <button onClick={onCancel} className="text-[13px] text-[var(--muted)] min-h-[44px] -ml-1 px-1 flex items-center"><Icon.arrow_left width="16" /> Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
-      <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then {verb ? verb.toLowerCase() + ' it' : 'log it'}.</div>
+      <div className="text-[12px] text-[var(--muted)] leading-snug">Check it over, then {verb ? verb.toLowerCase() + ' it' : 'log it'}.</div>
       {conf !== 'high' && <span className="text-[11px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
     </div>
     {/* The plate you are being asked to judge. Without it this screen asks "is 350 g right?" about
         a meal you can no longer see, which is not a question anyone can answer. */}
     {(photos || []).length > 0 && <div className="flex gap-2 flex-wrap mb-3">{photos.map(p => (
-      <img key={p.id} src={p.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" />))}</div>}
+      <img key={p.id} src={p.url} alt="" className="w-16 h-16 object-cover border border-[var(--hairline)]" />))}</div>}
     <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">How much did you have?</div>
     {single ? <div className="flex items-center gap-2">
       <button onClick={() => setGrams(0, String(Math.max(0, (+only.grams || 0) - gStep(+only.grams || 0))))} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
       <div className="flex-1"><NumInput value={only.grams} onChange={e => setGrams(0, e.target.value)} className={inputCls + ' text-center'} /></div>
       <button onClick={() => setGrams(0, String((+only.grams || 0) + gStep(+only.grams || 0)))} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">grams</div>
+      <div className="text-[12px] text-[var(--muted)] shrink-0 w-16 text-center">grams</div>
     </div> : <div>
       {/* "0.75 x meal" is arithmetic, not an answer to "how much did you have". The fractions are
           the way people actually describe it, and one tap beats three presses of a stepper. The
@@ -15455,12 +15454,12 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
         <button onClick={() => stepP(-0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
         <div className="flex-1"><NumInput value={portion} onChange={e => setPortion(e.target.value)} className={inputCls + ' text-center'} /></div>
         <button onClick={() => stepP(0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-        <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">× meal</div>
+        <div className="text-[12px] text-[var(--muted)] shrink-0 w-16 text-center">× meal</div>
       </div>
     </div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {portionLabel}</div>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
+      <div className="text-[11px] text-[var(--muted)] mb-0.5">Logging {portionLabel}</div>
+      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[var(--muted)]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
       {/* What this replaces, in the SAME box as what replaces it, because two numbers 443px apart
           are not a comparison. Divider borrowed from the edit sheet's density row, which splits a
           surface3 block the same way. The delta is deliberately NOT coloured good/bad: more
@@ -15478,23 +15477,23 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
     </div>
     {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Could be {low}–{high} kcal</div>}
-    {src.assumptions && <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">{src.assumptions}</div>}
+    {src.assumptions && <div className="text-[11px] text-[var(--muted)] mb-2 leading-relaxed">{src.assumptions}</div>}
     {/* One targeted question beats a generic "add more detail" nudge, and it lands AFTER a real
         estimate rather than blocking one. Answering re-runs the refine call with the chosen wording,
         so it costs the user a single tap and reuses the correction path that already exists. */}
     {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
       <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
       <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
-        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'answered', confidence: conf }); } catch (_) {} onRefine(o, 'question'); }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
-        <button type="button" onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'skipped', confidence: conf }); } catch (_) {} }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ color: 'var(--muted)' }}>Skip</button>
+        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'answered', confidence: conf }); } catch (_) {} onRefine(o, 'question'); }} className="px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
+        <button type="button" onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'skipped', confidence: conf }); } catch (_) {} }} className="px-3 min-h-[44px] flex items-center text-[12px]" style={{ color: 'var(--muted)' }}>Skip</button>
       </div>
     </div>}
     {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? 'One item looks off' : checks.length + ' items look off'}</div>
       <div className="space-y-1.5">{checks.map(c => (
         <div key={c.i} className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 text-[11px] text-[#8A8A90] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}</div>
-          <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
+          <div className="min-w-0 flex-1 text-[11px] text-[var(--muted)] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}</div>
+          <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
     {/* A collapsed section has to say enough for someone to decide whether to open it. "Edit items"
@@ -15502,34 +15501,34 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
         only visible to people who opened the drawer. Naming the items in the closed state surfaces
         a misidentification instantly; the grams, notes and remove buttons stay behind the tap,
         because those are for correcting rather than checking. */}
-    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[#8A8A90] min-h-[44px] flex items-start text-left w-full leading-snug py-1.5">
+    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[var(--muted)] min-h-[44px] flex items-start text-left w-full leading-snug py-1.5">
       <span className="shrink-0 mr-1"><PixelGlyph kind={edit ? 'caret_up' : 'caret_down'} size={16} /></span>
       <span className="min-w-0">{edit ? 'Hide items' : items.map(it => it.name).join(' · ')}</span>
     </button>}
     {hadItems && !single && edit && <div className="fade-in space-y-2 mb-3">
-      <div className="text-[11px] text-[#8A8A90] leading-snug">Amounts for the full meal.</div>
+      <div className="text-[11px] text-[var(--muted)] leading-snug">Amounts for the full meal.</div>
       {items.map((it, i) => (
-        <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
+        <div key={i} className="bg-[#1E1E22] p-3 border border-[var(--hairline)]">
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[11px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
-            <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[11px] text-[#8A8A90]">g</span>
-            <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="16" /></button>
+            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[11px] px-1 py-0.5 " style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>You said</span>}</div><div className="text-[11px] text-[var(--muted)] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
+            <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] border border-[var(--hairline)] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[11px] text-[var(--muted)]">g</span>
+            <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[var(--muted)] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="16" /></button>
           </div>
-          {it.assumption && <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug"><Icon.corner_arrow width="16" /> {it.assumption}</div>}
+          {it.assumption && <div className="text-[11px] text-[var(--muted)] mt-1 leading-snug"><Icon.corner_arrow width="16" /> {it.assumption}</div>}
         </div>))}
-      {items.length === 0 && <div className="text-[11px] text-[#8A8A90] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
+      {items.length === 0 && <div className="text-[11px] text-[var(--muted)] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
     </div>}
-    {onRefine && <div className="rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
-      <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Something off? Tell the AI</div>
+    {onRefine && <div className="p-3 mb-3 border border-[var(--hairline)]" style={{ background: 'var(--surface3)' }}>
+      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Something off? Tell the AI</div>
       <textarea value={fix} onChange={e => setFix(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="e.g. it was a large, extra cheese, no chips" />
       <Btn kind="ghost" className="w-full mt-2" disabled={busy || !fix.trim()} style={{ opacity: (busy || !fix.trim()) ? 0.5 : 1 }} onClick={() => onRefine(fix.trim())}>{busy ? 'Re-estimating…' : 'Re-estimate with this'}</Btn>
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
+      <div className="text-[11px] text-[var(--muted)] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
-    {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
+    {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[var(--muted)] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
@@ -15596,24 +15595,24 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
   return (<div>
-    {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center"><Icon.arrow_left width="16" /> Back</button>}
-    <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
+    {onBack && <button onClick={onBack} className="hit text-[13px] text-[var(--muted)] mb-2 flex items-center"><Icon.arrow_left width="16" /> Back</button>}
+    <div className="text-[12px] text-[var(--muted)] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover border border-[var(--hairline)]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-black/80 border border-[var(--hairline)] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
     <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
-    {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
-    {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">A photo can't judge portion size or cooking oil on its own. Add a word or two:</div>
-      <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
+    {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
+    {imgs.length > 0 && !text.trim() && <div className="p-3 mt-3" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
+      <div className="text-[11px] text-[var(--muted)] leading-snug mb-2.5">A photo can't judge portion size or cooking oil on its own. Add a word or two:</div>
+      <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
     </div>}
     <div className="flex items-stretch gap-2 mt-3">
       {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)' }}><Icon.mic width="24" height="24" /></button>}
       <Btn kind="accent" className="flex-1" onClick={run}>Estimate with AI</Btn>
     </div>
     {err && <div className="text-[12px] mt-2.5 fade-in" role="alert" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
-    {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mt-4 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
-      <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
+    {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4 border border-[var(--hairline)]" style={{ background: 'var(--surface3)' }}>
+      <div className="text-[11px] text-[var(--muted)] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
+      <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}>Scan instead</button>
     </div>}
   </div>);
 }
@@ -15929,7 +15928,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
           anything. Stated once, plainly, above the dishes it applies to. */}
       {!res.menuRead && <div className="flex items-start gap-2 p-2.5 mb-3" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
         <span className="shrink-0 mt-0.5" style={{ color: 'var(--muted)' }}><Icon.info width="16" /></span>
-        <span className="text-[11.5px] leading-snug" style={{ color: 'var(--text2)' }}>
+        <span className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
           These come from what I know of {res.place ? res.place : 'this place'} rather than from their menu, so check the dish is actually on it. Photograph the menu and I will price the real thing.
         </span>
       </div>}
@@ -15950,7 +15949,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                   on, and it is the difference between a tool and a guess with a nice font. */}
               <span className="pf text-[11px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
             </div>
-            {s.description && <div className="text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
+            {s.description && <div className="text-[12px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
             <div className="tnum text-[12.5px] mt-1.5">
               <span className="font-bold" style={{ color: 'var(--text)' }}>{s.kcal}</span> <span style={{ color: 'var(--muted)' }}>kcal</span>
               {' · '}<span style={{ color: PRO_T }}>{Math.round(s.protein_g)}g P</span>
@@ -15965,12 +15964,12 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                 : im.proteinMet ? ('Leaves ' + im.leftKcal + ' kcal, and covers your protein')
                   : ('Leaves ' + im.leftKcal + ' kcal and ' + im.leftProtein + ' g protein')}
             </div>}
-            {s.why && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--text2)' }}>{s.why}</div>}
+            {s.why && <div className="text-[12px] mt-1.5 leading-snug" style={{ color: 'var(--text2)' }}>{s.why}</div>}
             {s.tweak && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--accent-ink)' }}><Icon.corner_arrow width="16" /> {s.tweak}</div>}
           </button>);
         })}
       </div>
-      {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--accent-ink)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
+      {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--link)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
 
       {/* THE REST OF THE MENU. Six dishes off a forty-dish menu, with the other thirty-four
           invisible, is a shortlist presented as though it were the menu - and the moment someone
@@ -16000,7 +15999,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
               {types.map(t => {
                 const on = ftype === t.id;
                 return (<button key={t.id} onClick={() => setFtype(on ? '' : t.id)}
-                  className="hit text-[11.5px] px-2.5 py-1"
+                  className="hit text-[12px] px-2.5 py-1"
                   style={{ border: '2px solid var(--border)', background: on ? 'var(--accent)' : 'var(--card)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>
                   {t.label} <span className="tnum" style={{ opacity: 0.6 }}>{t.count}</span>
                 </button>);
@@ -16024,7 +16023,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
               style={{ borderTop: '2px solid var(--border)', borderLeft: '2px solid var(--border)', borderRight: '2px solid var(--border)', borderBottom: ii === matches.length - 1 ? '2px solid var(--border)' : 'none', background: 'var(--card)' }}>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[12.5px] leading-snug min-w-0" style={{ color: 'var(--text)' }}>{it.name}</span>
-                {it.price && <span className="tnum text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
+                {it.price && <span className="tnum text-[12px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
               </div>
               {it.description && <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{it.description}</div>}
               {it.section && <div className="pf text-[11px] uppercase mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{it.section}</div>}
@@ -16048,7 +16047,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                     {/* Their price, exactly as they printed it. It is not a macro and we do nothing
                         arithmetic with it - it is how someone recognises the thing they were about
                         to order. */}
-                    {it.price && <span className="tnum text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
+                    {it.price && <span className="tnum text-[12px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
                   </div>
                   {it.description && <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{it.description}</div>}
                 </button>
@@ -16125,7 +16124,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       </div>))}</div>}
     {/* Deferred, per progressive disclosure: a photo covers most of it, and the two paste routes are
         one box because you can tell a link from a menu by looking at it. */}
-    {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--accent-ink)' }}>or paste the menu, or a link to the place</button>}
+    {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--link)' }}>or paste the menu, or a link to the place</button>}
     {pasteOpen && <div className="mt-2 fade-in">
       <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={pasteIsLink ? 2 : 4} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the menu, or a link to the place" />
       {pasteIsLink && linkNote}
@@ -16139,7 +16138,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       {placeIsLink && linkNote}
     </div>
 
-    {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--accent-ink)' }}>+ Add a note</button>}
+    {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--link)' }}>+ Add a note</button>}
     {noteOpen && <div className="mb-4 fade-in">
       <Field label="Anything else?" hint="Allergies, what you fancy, whether a pudding is happening.">
         <TextInput value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. no dairy, and I want a starter too" />
@@ -16149,7 +16148,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>Read the menu</Btn>
     {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Already eaten it? A photo is more accurate.</div>
-      <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--accent-ink)' }}>Estimate it</button>
+      <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--link)' }}>Estimate it</button>
     </div>}
     {err && <div className="text-[12px] mt-3 fade-in" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
@@ -16248,16 +16247,16 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
           {/* Before there is an estimate, what you are about to change IS the content of the screen:
               it is the only thing that says which numbers this sheet is aimed at. */}
           <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-            <div className="text-[11px] text-[#8A8A90] mb-0.5">Currently logged{entry.qty_label ? ' · ' + entry.qty_label : ''}</div>
+            <div className="text-[11px] text-[var(--muted)] mb-0.5">Currently logged{entry.qty_label ? ' · ' + entry.qty_label : ''}</div>
             <div className="tnum text-[13px]"><span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(+before.kcal || 0)} kcal</span> · <span style={{ color: PRO_T }}>{Math.round(+before.protein || 0)}g P</span> · <span style={{ color: CARB_T }}>{Math.round(+before.carbs || 0)}g C</span> · <span style={{ color: FAT_T }}>{Math.round(+before.fat || 0)}g F</span></div>
           </div>
-          <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">You logged this before you ate it. Snap the real thing and the AI re-does the estimate, replacing this entry rather than adding another.</div>
+          <div className="text-[12px] text-[var(--muted)] mb-3 leading-snug">You logged this before you ate it. Snap the real thing and the AI re-does the estimate, replacing this entry rather than adding another.</div>
           {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-          {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none" aria-label="Remove photo"><Icon.close width="16" /></button></div>))}</div>}
+          {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover border border-[var(--hairline)]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-black/80 border border-[var(--hairline)] text-white text-xs leading-none" aria-label="Remove photo"><Icon.close width="16" /></button></div>))}</div>}
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="Anything different from the plan? e.g. bigger than I expected, came with chips" />
           {/* This is a full AI estimate and it is billed like one. Saying so before the tap, rather
               than letting the paywall say it after, is the difference between a price and a shock. */}
-          {window.MISPREMIUM !== true && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">Re-estimating uses one of your free AI logs.</div>}
+          {window.MISPREMIUM !== true && <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">Re-estimating uses one of your free AI logs.</div>}
           {/* Live rather than disabled, matching the Estimate tab it is a sibling of: that one takes
               the tap and says what is missing. A greyed slab with no explanation beside it is the
               one thing on this screen that cannot tell you why it will not work. */}
@@ -16349,16 +16348,16 @@ function LiveScanner({ onFound, onClose }) {
   }
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><span className="font-semibold">Scan barcode</span><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-[#ffffff]" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><span className="font-semibold">Scan barcode</span><button onClick={onClose} aria-label="Close" className="w-9 h-9 flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-contain" />
         {!err && <div className="absolute" style={{ width: '78%', maxWidth: '340px', height: '150px', border: '3px solid rgba(255,255,255,0.75)' }} />}
         {err && <div className="absolute inset-x-6 text-center text-[#F5C542] text-sm">{err}</div>}
       </div>
       <div className="px-4 pt-3 flex flex-col items-center gap-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}>
-        {!err && <button onClick={captureAndDecode} disabled={busy} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-50" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Scan now" />}
+        {!err && <button onClick={captureAndDecode} disabled={busy} className="w-16 h-16 bg-white active:scale-95 disabled:opacity-50" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Scan now" />}
         <div className="text-white/70 text-[12px] text-center leading-snug">{err ? '' : (msg || "Line up the barcode. It scans on its own, or tap the button to grab it.")}</div>
-        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
+        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 " style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
     </div>
   );
@@ -16410,13 +16409,13 @@ function useCaptureCamera(videoRef) {
 // A round torch (flash) button for the capture cameras, shown only where the device exposes it.
 function TorchButton({ hasTorch, torch, toggleTorch }) {
   if (!hasTorch) return null;
-  return <button onClick={toggleTorch} aria-label={torch ? 'Turn flash off' : 'Turn flash on'} aria-pressed={torch} className="w-9 h-9 rounded-full flex items-center justify-center text-lg leading-none" style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.18)', color: torch ? '#111' : '#fff' }}><PixelGlyph kind={torch ? 'flashlight' : 'bolt'} size={16} /></button>;
+  return <button onClick={toggleTorch} aria-label={torch ? 'Turn flash off' : 'Turn flash on'} aria-pressed={torch} className="w-9 h-9 flex items-center justify-center text-lg leading-none" style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.18)', color: torch ? '#111' : '#fff' }}><PixelGlyph kind={torch ? 'flashlight' : 'bolt'} size={16} /></button>;
 }
 // Soft "looks blurry" prompt shown after a capture whose sharpness is below the floor. Never blocks -
 // the user can always use the shot anyway; it just saves a wasted AI call on an unreadable photo.
 function BlurPrompt({ what, onRetake, onUse }) {
   return (<div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center px-8 text-center">
-    <div className="text-white font-semibold text-[15px] mb-1">That photo looks blurry</div>
+    <div className="text-[#ffffff] font-semibold text-[15px] mb-1">That photo looks blurry</div>
     <div className="text-white/70 text-[13px] leading-snug mb-5">A sharp, well-lit shot reads the {what} far more accurately. Hold steady (or turn on the flash) and try again.</div>
     <button onClick={onRetake} className="w-full max-w-xs pixel-btn py-3 text-[13px] font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Retake</button>
     <button onClick={onUse} className="hit text-white/80 text-[13px] underline">Use this photo anyway</button>
@@ -16440,18 +16439,18 @@ function LabelScanner({ onCapture, onClose }) {
   const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-[#ffffff]" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
-        {ready && !err && <div className="absolute inset-x-8 h-56 border-2 border-white/70 rounded-xl" />}
+        {ready && !err && <div className="absolute inset-x-8 h-56 border-2 border-white/70 " />}
         {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">Camera unavailable here, upload a photo of the label instead.</div>}
         {blur && <BlurPrompt what="label" onRetake={() => setBlur(null)} onUse={() => { const f = blur.file; setBlur(null); onCapture(f); }} />}
       </div>
       <div className="p-5 flex flex-col items-center gap-3">
-        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
+        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
         {!err && <div className="text-white/60 text-[12px]">{capturing ? 'Focusing…' : 'Line up the nutrition label, then tap to capture. It reads the exact figures.'}</div>}
         <label className="text-white/80 text-[13px] underline cursor-pointer">Upload a photo instead<input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) onCapture(e.target.files[0]); }} /></label>
-        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
+        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 " style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
     </div>
   );
@@ -16474,18 +16473,18 @@ function MealCamera({ onFiles, onClose, title = 'Photograph your meal', subtitle
   const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-[#ffffff]" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
-        {ready && !err && <div className="absolute rounded-2xl" style={{ inset: '1.75rem', border: '2px solid rgba(255,255,255,0.5)' }} />}
+        {ready && !err && <div className="absolute " style={{ inset: '1.75rem', border: '2px solid rgba(255,255,255,0.5)' }} />}
         {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">{unavailable}</div>}
         {blur && <BlurPrompt what="photo" onRetake={() => setBlur(null)} onUse={() => { const f = blur.file; setBlur(null); onFiles([f]); }} />}
       </div>
       <div className="p-5 flex flex-col items-center gap-3">
-        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
+        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
         {!err && <div className="text-white/60 text-[12px]">{capturing ? 'Focusing…' : frameHint}</div>}
         <label className="text-white/80 text-[13px] underline cursor-pointer">Upload a photo instead<input type="file" accept="image/*" multiple className="hidden" onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) onFiles(fs); }} /></label>
-        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
+        <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 " style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
     </div>
   );
@@ -16567,7 +16566,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-4">The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-4">The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead.</div>
     {notFound && <div className="pixel-box p-3.5 mb-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] mb-2.5" style={{ color: 'var(--text)' }}>That barcode isn't recognised. Scan the nutrition label instead and it will read the numbers for you.</div>
       <div className="flex gap-2">
@@ -16575,17 +16574,17 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
         <Btn kind="ghost" onClick={() => { setNotFound(false); setMode('scan'); }}>Try again</Btn>
       </div>
     </div>}
-    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }}><Icon.barcode width="24" height="24" /></div>
+    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+      <div className="w-11 h-11 flex items-center justify-center shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }}><Icon.barcode width="24" height="24" /></div>
       <div className="min-w-0"><div className="text-sm font-bold">Scan a barcode</div><div className="text-[11px]" style={{ opacity: 0.85 }}>The quickest, most accurate way to log packaged food.</div></div>
     </button>
-    <button onClick={() => setMode('label')} className="w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition mt-2.5">
-      <div className="w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="24" height="24" style={{ color: CAL_T }} /></div>
-      <div className="min-w-0"><div className="text-sm font-medium">No barcode? Scan the label</div><div className="text-[11px] text-[#8A8A90]">Point your camera at the nutrition label and it reads the exact numbers.</div></div>
+    <button onClick={() => setMode('label')} className="w-full flex items-center gap-3 bg-[#1E1E22] p-4 text-left border border-[var(--hairline)] active:scale-[.99] transition mt-2.5">
+      <div className="w-11 h-11 bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="24" height="24" style={{ color: CAL_T }} /></div>
+      <div className="min-w-0"><div className="text-sm font-medium">No barcode? Scan the label</div><div className="text-[11px] text-[var(--muted)]">Point your camera at the nutrition label and it reads the exact numbers.</div></div>
     </button>
-    {onAskAI && <div className="flex items-center gap-3 my-3"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[11px] uppercase tracking-widest text-[#8A8A90]">or</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>}
+    {onAskAI && <div className="flex items-center gap-3 my-3"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[11px] uppercase text-[var(--muted)]">or</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>}
     {onAskAI && <RouteRow onClick={onAskAI} icon={<PixelGlyph kind="sun" color="var(--fat-ink)" size={24} />} title="Nothing to scan? Estimate it instead" sub="Type, say, or photograph a meal and the AI estimates it." />}
-    {busy && <div className="text-[12px] text-[#4A9EEB] mt-3 fade-in">{busy}</div>}{err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}</div>);
+    {busy && <div className="text-[12px] text-[var(--link)] mt-3 fade-in">{busy}</div>}{err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}</div>);
 }
 // UK drink standards: [label, default ABV %, residual carbs g/100ml]. Calories = alcohol (7 kcal/g,
 // ethanol 0.789 g/ml) + the drink's residual carbs, so a stated ABV and measure give an accurate figure.
@@ -16641,7 +16640,7 @@ function AlcoholTab({ onPick }) {
     onPick({ name: drinkName, source: 'alcohol', is_alcohol: true, qtyLabel: qtyLabel, alcohol_split: manual ? null : { carb_pct: carbPct, fat_pct: 100 - carbPct }, macros: macros, amount: n, unitNoun: 'drink' });
   }
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Tell me the drink and measure and I'll work the calories from its strength. They split across carbs and fat so your day still balances.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-3">Tell me the drink and measure and I'll work the calories from its strength. They split across carbs and fat so your day still balances.</div>
     <div className="mb-3"><Seg value={cat} onChange={chooseCat} options={[{ v: 'beer', l: 'Beer' }, { v: 'wine', l: 'Wine' }, { v: 'spirit', l: 'Spirits' }, { v: 'other', l: 'Other' }]} /></div>
     {cat === 'other' ? (<>
       <Field label="Name"><TextInput value={otherName} onChange={e => setOtherName(e.target.value)} /></Field>
@@ -16653,24 +16652,24 @@ function AlcoholTab({ onPick }) {
       </div>
       <Field label="Measure">
         <div className="flex gap-1.5 flex-wrap">{D.servings.map((s, i) => (
-          <button key={i} onClick={() => { setServeIdx(i); setCustomMl(''); }} className={`pixel-box px-3 text-[13px] min-h-[44px] ${!customMl && serveIdx === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{s[0]}</button>
+          <button key={i} onClick={() => { setServeIdx(i); setCustomMl(''); }} className={`pixel-box px-3 text-[13px] min-h-[44px] ${!customMl && serveIdx === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ boxShadow: 'none' }}>{s[0]}</button>
         ))}</div>
         <div className="mt-2"><NumInput value={customMl} onChange={e => setCustomMl(e.target.value)} placeholder="or custom ml" /></div>
       </Field>
       {cat === 'spirit' && <Field label="Mixer"><Dropdown value={String(mixerIdx)} onChange={v => setMixerIdx(+v)} options={MIXERS.map((m, i) => ({ v: String(i), l: m[0] }))} /></Field>}
     </>)}
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2 mt-1">How many?</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2 mt-1">How many?</div>
     <div className="flex items-center gap-2 mb-3">
       <button onClick={() => setCount(c => Math.max(1, (+c || 1) - 1))} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Fewer">−</button>
       <div className="flex-1"><NumInput value={count} onChange={e => setCount(e.target.value)} className={inputCls + ' text-center'} /></div>
       <button onClick={() => setCount(c => (+c || 1) + 1)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">drink{n > 1 ? 's' : ''}</div>
+      <div className="text-[12px] text-[var(--muted)] shrink-0 w-16 text-center">drink{n > 1 ? 's' : ''}</div>
     </div>
     <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{totalKcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span>{n > 1 && <span className="text-[11px] text-[#8A8A90]"> · {perDrink} each</span>}</div>
+      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{totalKcal}</span> <span className="text-[12px] text-[var(--muted)]">kcal</span>{n > 1 && <span className="text-[11px] text-[var(--muted)]"> · {perDrink} each</span>}</div>
     </div>
     <div className="mb-3"><Seg value={manual ? 'manual' : 'auto'} onChange={v => setManual(v === 'manual')} options={[{ v: 'auto', l: 'Auto split' }, { v: 'manual', l: 'Enter macros' }]} /></div>
-    {!manual ? (<Field label={`Split: ${carbPct}% carbs · ${100 - carbPct}% fat`}><input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setCarbPct(+e.target.value)} className="w-full accent-[#4A9EEB]" /><div className="text-sm text-[#8A8A90] mt-2 tnum">= {autoCarbs.toFixed(1)}g carbs · {autoFat.toFixed(1)}g fat</div></Field>) : (<div className="grid grid-cols-3 gap-3"><Field label="Protein"><NumInput value={mc.protein} onChange={e => setMc(p => Object.assign({}, p, { protein: e.target.value }))} /></Field><Field label="Carbs"><NumInput value={mc.carbs} onChange={e => setMc(p => Object.assign({}, p, { carbs: e.target.value }))} /></Field><Field label="Fat"><NumInput value={mc.fat} onChange={e => setMc(p => Object.assign({}, p, { fat: e.target.value }))} /></Field></div>)}
+    {!manual ? (<Field label={`Split: ${carbPct}% carbs · ${100 - carbPct}% fat`}><input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setCarbPct(+e.target.value)} className="w-full accent-[#4A9EEB]" /><div className="text-sm text-[var(--muted)] mt-2 tnum">= {autoCarbs.toFixed(1)}g carbs · {autoFat.toFixed(1)}g fat</div></Field>) : (<div className="grid grid-cols-3 gap-3"><Field label="Protein"><NumInput value={mc.protein} onChange={e => setMc(p => Object.assign({}, p, { protein: e.target.value }))} /></Field><Field label="Carbs"><NumInput value={mc.carbs} onChange={e => setMc(p => Object.assign({}, p, { carbs: e.target.value }))} /></Field><Field label="Fat"><NumInput value={mc.fat} onChange={e => setMc(p => Object.assign({}, p, { fat: e.target.value }))} /></Field></div>)}
     <Btn kind="accent" className="w-full mt-1" disabled={totalKcal <= 0} style={{ opacity: totalKcal <= 0 ? 0.5 : 1 }} onClick={add}>Add {n > 1 ? n + ' drinks' : 'drink'}</Btn>
   </div>);
 }
@@ -16683,7 +16682,7 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
     <button onClick={onClick} className={`text-left pixel-box p-3 ${active ? 'bg-white text-black' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: active ? '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)' : 'none' }}>
       <div className="mb-1.5"><PixelGlyph kind={glyph} color="currentColor" size={24} /></div>
       <div className="font-semibold text-[13px]">{title}</div>
-      <div className={`text-[11px] mt-0.5 ${active ? 'text-black/60' : 'text-[#8A8A90]'}`}>{sub}</div>
+      <div className={`text-[11px] mt-0.5 ${active ? 'text-black/60' : 'text-[var(--muted)]'}`}>{sub}</div>
     </button>
   );
 }
@@ -16749,19 +16748,19 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
       </Section>
 
       {open === 'energy' && <Sheet title="Energy" onClose={() => setOpen(null)}>
-          <ExpenditureCard db={db} plan={(liveBurn) => {
-            if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
+          <ExpenditureCard db={db} title="What you burn" plan={(liveBurn) => {
+            if (!base) return <div className="mt-3 pt-3 border-t border-[var(--hairline)]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
             // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
             // the burn as it stood when that target was written, so the card said 2,582 and then did its
             // arithmetic against 2,786 and printed a deficit that did not subtract.
             const gap = liveBurn > 0 ? base.kcal - Math.round(liveBurn) : null;
-            return <div className="mt-3 pt-3 border-t border-[#262629]">
-              <div className="pf text-[11px] uppercase text-[#8A8A90] mb-1">So your target is</div>
+            return <div className="mt-3 pt-3 border-t border-[var(--hairline)]">
+              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">So your target is</div>
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                <span className="tnum"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[#8A8A90]"> kcal a day</span></span>
+                <span className="tnum"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[var(--muted)]"> kcal a day</span></span>
                 <span className="tnum text-[12px] shrink-0"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></span>
               </div>
-              <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">
+              <div className="text-[11px] text-[var(--muted)] mt-1.5 leading-snug">
                 {/* The rate and the goal weight are the verdict's story, told at the top of the page.
                     This line only has to explain where the target came from. */}
                 {gap ? <>{gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn'}, {p.goalType === 'maintain' ? 'which is roughly maintenance' : 'which is what ' + p.rateKgPerWeek + ' kg a week costs'}.</> : null}{db.paused ? ' Currently paused.' : ''}
@@ -16919,7 +16918,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
   }
 
   return (<>
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">What you're working towards</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">What you're working towards</div>
     <div className="grid grid-cols-3 gap-2 mb-4">
       <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="trend_down" title="Fat loss" sub="Lose fat" />
       <GoalCard active={g.goalType === 'maintain'} onClick={() => pickGoal('maintain')} glyph="scale" title="Maintain" sub="Hold steady" />
@@ -16946,7 +16945,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
           })()}
         </Field>
         <Field label="Target weight" hint="Optional. Drives your progress bar and the finish-line estimate below.">{unit === 'st_lb'
-          ? <div className="flex gap-2 items-center"><NumInput value={gwSt} onChange={e => setGwSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={gwLb} onChange={e => setGwLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
+          ? <div className="flex gap-2 items-center"><NumInput value={gwSt} onChange={e => setGwSt(e.target.value)} placeholder="st" /><span className="text-[var(--muted)]">st</span><NumInput value={gwLb} onChange={e => setGwLb(e.target.value)} placeholder="lb" /><span className="text-[var(--muted)]">lb</span></div>
           : <NumInput value={gwKg} onChange={e => setGwKg(e.target.value)} placeholder="kg" />}</Field>
       </>}
 
@@ -16956,11 +16955,11 @@ function GoalEditor({ db, update, showToast, onDone }) {
         <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
-          <span className="text-[12px] text-[#8A8A90]">kcal a day</span>
+          <span className="text-[12px] text-[var(--muted)]">kcal a day</span>
           {kcalDelta != null && kcalDelta !== 0 && <span className="text-[11px] tnum ml-auto" style={{ color: kcalDelta > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{kcalDelta > 0 ? '+' : ''}{kcalDelta} vs now</span>}
         </div>
-        <div className="text-[11px] tnum text-[#8A8A90]">{Math.round(preview.protein_g)}g protein · {Math.round(preview.carbs_g)}g carbs · {Math.round(preview.fat_g)}g fat</div>
-        <div className="text-[11.5px] mt-2.5 leading-snug" style={{ color: 'var(--text2)' }}>
+        <div className="text-[11px] tnum text-[var(--muted)]">{Math.round(preview.protein_g)}g protein · {Math.round(preview.carbs_g)}g carbs · {Math.round(preview.fat_g)}g fat</div>
+        <div className="text-[12px] mt-2.5 leading-snug" style={{ color: 'var(--text2)' }}>
           {g.goalType === 'maintain'
             ? 'Holding steady at maintenance. No deficit, no surplus.'
             : eta
@@ -16975,7 +16974,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
         </div>
       </div>}
 
-      <button type="button" onClick={() => setShowAdv(s => !s)} className="text-[11px] text-[#8A8A90] mb-2"><PixelGlyph kind={showAdv ? 'caret_up' : 'caret_down'} size={24} /> {showAdv ? 'Hide advanced' : 'Advanced: protein and diet style'}</button>
+      <button type="button" onClick={() => setShowAdv(s => !s)} className="text-[11px] text-[var(--muted)] mb-2"><PixelGlyph kind={showAdv ? 'caret_up' : 'caret_down'} size={24} /> {showAdv ? 'Hide advanced' : 'Advanced: protein and diet style'}</button>
       {showAdv && <div className="fade-in">
         <Field
           label={`Protein: ${effProteinG} g a day${exactProtein ? '' : ` (${(effProteinG / leanKg(p)).toFixed(2)} g/kg lean mass)`}`}
@@ -17021,9 +17020,9 @@ function GoalEditor({ db, update, showToast, onDone }) {
       {!confirming
         ? <Btn kind="accent" className="w-full" disabled={!changed} style={{ opacity: changed ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
         : <div className="pixel-box bg-[#1E1E22] p-4 mt-1 fade-in" style={{ boxShadow: 'none' }}>
-          <div className="text-[12px] text-[#8A8A90] mb-3">Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).</div>
+          <div className="text-[12px] text-[var(--muted)] mb-3">Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).</div>
           <Field label="Current weight">{unit === 'st_lb'
-            ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
+            ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[var(--muted)]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[var(--muted)]">lb</span></div>
             : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}</Field>
           {wErr && <div className="text-[11px] mb-2" style={{ color: 'var(--danger-ink)' }}>{wErr}</div>}
           <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={apply}>Confirm & update</Btn><Btn kind="ghost" onClick={() => { setConfirming(false); setWErr(''); }}>Cancel</Btn></div>
@@ -17032,8 +17031,8 @@ function GoalEditor({ db, update, showToast, onDone }) {
 
     <Section title="Pause goal">
       {db.paused
-        ? <div className="text-[12px] text-[#8A8A90] pixel-box bg-[#1E1E22] px-4 py-3.5" style={{ boxShadow: 'none' }}>Your goal's paused. Resume from the Dashboard when you're ready: you'll weigh in and pick up from there.</div>
-        : <><div className="text-[12px] text-[#8A8A90] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
+        ? <div className="text-[12px] text-[var(--muted)] pixel-box bg-[#1E1E22] px-4 py-3.5" style={{ boxShadow: 'none' }}>Your goal's paused. Resume from the Dashboard when you're ready: you'll weigh in and pick up from there.</div>
+        : <><div className="text-[12px] text-[var(--muted)] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
     </Section>
     {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={() => { update(d => { d.paused = true; }); showToast && showToast('Goal paused'); }} onClose={() => setPauseOpen(false)} />}
   </>);
@@ -17122,7 +17121,7 @@ function SubScreen({ title, intro, onBack, backLabel, children }) {
 // A heading inside a subscreen. Two features can share a screen when they answer the same question,
 // but they get a real heading between them rather than a hairline rule.
 function SubHead({ children, className = '' }) {
-  return <div className={'pf text-[11px] uppercase text-[#8A8A90] mb-2 ' + className}>{children}</div>;
+  return <div className={'pf text-[11px] uppercase text-[var(--muted)] mb-2 ' + className}>{children}</div>;
 }
 
 const COACH_MODES = [
@@ -17372,10 +17371,10 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">{w.label}</div>
-                <div className="text-[11.5px] text-[#8A8A90] mt-0.5">{fmtRange(w.start, w.end)} &middot; {datesBetween(w.start, w.end).length} days</div>
-                <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent-ink)' }}>{rate === 0 ? 'Holding steady' : 'Aiming at ' + rate + ' kg a week'}</div>
+                <div className="text-[12px] text-[var(--muted)] mt-0.5">{fmtRange(w.start, w.end)} &middot; {datesBetween(w.start, w.end).length} days</div>
+                <div className="text-[12px] mt-1" style={{ color: 'var(--accent-ink)' }}>{rate === 0 ? 'Holding steady' : 'Aiming at ' + rate + ' kg a week'}</div>
               </div>
-              <button onClick={() => setConfirmDel(w)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Cancel">&times;</button>
+              <button onClick={() => setConfirmDel(w)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-lg leading-none shrink-0" title="Cancel">&times;</button>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2.5">
               <Field label="From"><input type="date" className={inputCls} value={w.start} disabled={started}
@@ -17391,20 +17390,20 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
                     options={acceptOptions(p, null).map(o => ({ v: String(o.v), l: o.l }))} />
                 </Field>
               : <>
-                  <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its start and its rate are fixed now: the days you have already eaten keep what they ran under. You can still push the end date back if you're staying longer. If it needs to change more than that, end it here and declare a new one.</div>
+                  <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">This one is running, so its start and its rate are fixed now: the days you have already eaten keep what they ran under. You can still push the end date back if you're staying longer. If it needs to change more than that, end it here and declare a new one.</div>
                   {/* Home early. Cancelling would wipe the days you were genuinely away and mark you
                       down for them; this keeps them and stops the window here. */}
                   <Btn kind="ghost" className="w-full mt-2.5" onClick={() => setConfirmHome(w)}>I'm back</Btn>
                 </>}
           </div>); })}</div>
-          : <div className="text-[12px] text-[#8A8A90] mb-4">Nothing coming up. Your plan runs as normal.</div>}
+          : <div className="text-[12px] text-[var(--muted)] mb-4">Nothing coming up. Your plan runs as normal.</div>}
         <Btn kind="accent" className="w-full" onClick={() => setAdding(true)}>Tell me what's coming up</Btn>
         {past.length > 0 && <div className="mt-6">
-          <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Been and gone</div>
+          <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Been and gone</div>
           <div className="space-y-1.5">{past.map(w => (
             <div key={w.id} className="flex items-baseline justify-between gap-3 text-[12px] py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
-              <span>{w.label} <span className="text-[#8A8A90]">&middot; {fmtRange(w.start, w.end)}</span></span>
-              <span className="text-[#8A8A90] shrink-0">{OUTCOME[w.outcome] || 'not reviewed'}</span>
+              <span>{w.label} <span className="text-[var(--muted)]">&middot; {fmtRange(w.start, w.end)}</span></span>
+              <span className="text-[var(--muted)] shrink-0">{OUTCOME[w.outcome] || 'not reviewed'}</span>
             </div>))}</div>
         </div>}
       </>}
@@ -17439,7 +17438,7 @@ function CoachingScreen({ db, update, onBack }) {
     <Seg value={mode} onChange={v => commit(d => { d.profile.program_mode = v; })} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
     <div className="mt-3 space-y-2">{COACH_MODES.map(m => (
       <div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${mode === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}>
-        <span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span>
+        <span className="font-semibold">{m.l}.</span> <span className="text-[var(--muted)]">{m.d}</span>
       </div>))}</div>
   </SubScreen>);
 }
@@ -17543,14 +17542,14 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         className={`pixel-box py-2.5 px-2 text-[13px] ${pr.id === 'custom' ? 'col-span-2 ' : ''}${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}
         style={off ? { opacity: 0.45, cursor: 'default' } : undefined}>{pr.label}</button>;
     })}</div>
-    <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+    <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
       {activePreset === 'match' && trainShape
         ? 'Following your training block: the days you train are high, your rest days pay for them. Change the block and this follows it.'
         : trainShape
           ? 'Match my training makes the days your block trains high and its rest days low, and keeps following it.'
           : 'Match my training needs a running training block, so it knows which days you train and which you rest.'}
     </div>
-    {stripWindow && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+    {stripWindow && <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
       {windowLive
         ? <>Not in force while you're away: your trip is the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}. This is the rhythm you come back to.</>
         : <>In force until {fmtShortDay(stripWindow.start)}, when your trip takes over as the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}.</>}
@@ -17691,7 +17690,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           + ' until your next check-in. Turn evening out off below and every day is your target.' + openToday;
       })();
       return (<div className="mt-3">
-        <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
+        <div className="text-[11px] text-[var(--muted)] mb-2 leading-snug">
           {windowLive
             ? 'Tap a day to make it a big one. The rest come down to keep the total the same.'
             : 'Tap a day to make it high, low or normal.'}
@@ -17821,13 +17820,13 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         {/* Said once each (design-plans/33): "greyed days are eaten" lives above the strip, so this
             caption only appears when it has something of its own - a trip, or a plan-change spread.
             It used to say "The next seven days" under a strip that also shows the days eaten. */}
-        {(stripWindow || spread) ? <div className="text-[11px] text-[#8A8A90] leading-snug">
+        {(stripWindow || spread) ? <div className="text-[11px] text-[var(--muted)] leading-snug">
           {windowLive
             ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high and low days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
             : stripWindow
               ? 'The days before it run on your normal rhythm; from ' + fmtShortDay(stripWindow.start) + ' the trip is the shape, through to the days that settle it up. A big day in it is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
               : ''}{spread ? `${stripWindow ? ' ' : ''}To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
-          {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
+          {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--link)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div> : null}
       </div>);
     })()}
@@ -17836,20 +17835,20 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
     <SubHead>Evening out an off day</SubHead>
     <RowToggle label="Even out over the week" on={carry.enabled} onClick={() => setCarry({ enabled: !carry.enabled })} />
     {carry.enabled && <>
-      <div className="text-[11px] text-[#8A8A90] mt-2 mb-2">Go over or under, and the difference gets made up. Choose when.</div>
+      <div className="text-[11px] text-[var(--muted)] mt-2 mb-2">Go over or under, and the difference gets made up. Choose when.</div>
       <Field label="How to make it up">
         <Seg value={carry.mode} onChange={v => setCarry({ mode: v })} options={[{ v: 'dispersed', l: 'Across the week' }, { v: 'aggressive', l: 'Onto the next day' }]} />
       </Field>
-      <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5">
+      <div className="px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[var(--hairline)] mb-3.5">
         {carry.mode === 'dispersed'
-          ? <><span className="font-semibold">Across the week</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.</span></>
-          : <><span className="font-semibold">Onto the next day.</span> <span className="text-[#8A8A90]">Your whole running surplus or deficit lands on the next day, capped below. Quicker to clear, bigger day-to-day swings.</span></>}
+          ? <><span className="font-semibold">Across the week</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[var(--muted)]">Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.</span></>
+          : <><span className="font-semibold">Onto the next day.</span> <span className="text-[var(--muted)]">Your whole running surplus or deficit lands on the next day, capped below. Quicker to clear, bigger day-to-day swings.</span></>}
       </div>
       <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick.">
         <input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry({ capKcal: +e.target.value })} className="w-full accent-[#4A9EEB]" />
       </Field>
     </>}
-    <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
+    <div className="text-[11px] text-[var(--muted)] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
   </SubScreen>);
 }
 
@@ -17875,35 +17874,35 @@ function CheckinsScreen({ db, update, onBack }) {
           const cur = x.profile.checkinDay == null ? 1 : x.profile.checkinDay;
           if (cur !== i) x.profile.checkinDayMovedAt = Store.todayISO();
           x.profile.checkinDay = i;
-        })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
+        })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
     </Field>
-    <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629]">
+    <div className="px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[var(--hairline)]">
       {db.paused
-        ? <span className="text-[#8A8A90]">Your plan is paused, so check-ins are on hold until you resume.</span>
+        ? <span className="text-[var(--muted)]">Your plan is paused, so check-ins are on hold until you resume.</span>
         : st.due
-          ? <><span className="font-semibold">Your check-in is due now.</span> <span className="text-[#8A8A90]">Open Progress to run it.</span></>
-          : <><span className="font-semibold">Next check-in {st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days'}</span>{st.nextISO ? <span className="text-[#8A8A90]"> · {DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()]} {fmtShortDay(st.nextISO)}</span> : null}{db.last_checkin ? <span className="text-[#8A8A90]"> · last one {fmtShortDay(db.last_checkin)}</span> : null}</>}
+          ? <><span className="font-semibold">Your check-in is due now.</span> <span className="text-[var(--muted)]">Open Progress to run it.</span></>
+          : <><span className="font-semibold">Next check-in {st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days'}</span>{st.nextISO ? <span className="text-[var(--muted)]"> · {DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()]} {fmtShortDay(st.nextISO)}</span> : null}{db.last_checkin ? <span className="text-[var(--muted)]"> · last one {fmtShortDay(db.last_checkin)}</span> : null}</>}
     </div>
     {/* A moved day changes WHEN the next one falls, so the screen that moved it says so rather than
         leaving you to work out whether a short week counts. */}
     {!db.paused && checkinDayMovePending(db) && (
-      <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+      <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">
         Moved to {DOW_FULL[checkinDay]}s. This one cycle runs {st.due ? 'short' : st.daysUntil === 1 ? 'to tomorrow' : 'to ' + DOW_FULL[checkinDay]} to get you onto it, then it's weekly from there. A cycle under a week still gets read over a full week, so the move can't flatter or punish the numbers.
       </div>
     )}
     <div className="h-px bg-[#262629] my-5" />
     <SubHead>Weigh-ins</SubHead>
     <Seg value={weigh} onChange={v => commit(x => { x.profile.weighCadence = v; if (v === 'single' && x.profile.weighDay == null) x.profile.weighDay = weighDay; })} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />
-    <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3">
+    <div className="px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[var(--hairline)] mt-3">
       {weigh === 'daily'
-        ? <><span className="font-semibold">Most mornings</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your buddy asks first thing each morning and averages out the daily wobble for the most accurate read.</span></>
-        : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Your buddy only asks on the day you pick below. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
+        ? <><span className="font-semibold">Most mornings</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[var(--muted)]">Your buddy asks first thing each morning and averages out the daily wobble for the most accurate read.</span></>
+        : <><span className="font-semibold">Once a week.</span> <span className="text-[var(--muted)]">Your buddy only asks on the day you pick below. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
     </div>
     {weigh === 'single' && (<div className="mt-3">
       <SubHead>Weigh-in day</SubHead>
       <div className="flex gap-1.5">{DOW.map((d, i) => (
-        <button key={d} onClick={() => commit(x => { x.profile.weighDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${weighDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
-      <div className="text-[11px] text-[#8A8A90] mt-2">I'll ask for your weight on {DOW_FULL[weighDay]} morning, and stay quiet the rest of the week.</div>
+        <button key={d} onClick={() => commit(x => { x.profile.weighDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${weighDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
+      <div className="text-[11px] text-[var(--muted)] mt-2">I'll ask for your weight on {DOW_FULL[weighDay]} morning, and stay quiet the rest of the week.</div>
     </div>)}
   </SubScreen>);
 }
@@ -17946,7 +17945,7 @@ function MacrosScreen({ db, update, onBack }) {
         <Field label="Fat (g)"><NumInput value={m.fat_g} onChange={e => mset('fat_g', e.target.value)} /></Field>
       </div>
       {coached && <div className="pixel-box p-3 mb-3.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="text-[12px] text-[#8A8A90] leading-snug mb-2">You're in {p.program_mode === 'coached' ? 'Coached' : 'Approve'} mode, so a check-in can change these again.</div>
+        <div className="text-[12px] text-[var(--muted)] leading-snug mb-2">You're in {p.program_mode === 'coached' ? 'Coached' : 'Approve'} mode, so a check-in can change these again.</div>
         <RowToggle label="Also switch me to Manual, so they stick" on={alsoManual} onClick={() => setAlsoManual(v => !v)} />
       </div>}
       <Btn kind="accent" className="w-full" disabled={!(Math.round(+m.kcal || 0) > 0)} style={{ opacity: (Math.round(+m.kcal || 0) > 0) ? 1 : 0.5 }} onClick={apply}>Apply these numbers</Btn>
@@ -17984,12 +17983,12 @@ function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
     <Field label="Sex"><Seg value={f.sex} onChange={v => fset('sex', v)} options={[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }]} /></Field>
     <Field label="Age"><NumInput value={f.age} onChange={e => fset('age', e.target.value)} /></Field>
     <Field label="Height">{ftIn
-      ? <div className="flex gap-2 items-center"><NumInput value={f.ft} onChange={e => fset('ft', e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={f.inch} onChange={e => fset('inch', e.target.value)} /><span className="text-[#8A8A90]">in</span></div>
-      : <div className="flex gap-2 items-center"><NumInput value={f.heightCm} onChange={e => fset('heightCm', e.target.value)} /><span className="text-[#8A8A90]">cm</span></div>}
+      ? <div className="flex gap-2 items-center"><NumInput value={f.ft} onChange={e => fset('ft', e.target.value)} /><span className="text-[var(--muted)]">ft</span><NumInput value={f.inch} onChange={e => fset('inch', e.target.value)} /><span className="text-[var(--muted)]">in</span></div>
+      : <div className="flex gap-2 items-center"><NumInput value={f.heightCm} onChange={e => fset('heightCm', e.target.value)} /><span className="text-[var(--muted)]">cm</span></div>}
     </Field>
     <Field label="Activity">
       <Dropdown value={f.activityLevel} onChange={v => fset('activityLevel', v)} options={ACTIVITY.map(a => ({ v: a.v, l: a.l }))} />
-      <div className="text-[12px] text-[#8A8A90] mt-1.5 leading-snug">{(ACTIVITY.find(a => a.v === f.activityLevel) || act).d}</div>
+      <div className="text-[12px] text-[var(--muted)] mt-1.5 leading-snug">{(ACTIVITY.find(a => a.v === f.activityLevel) || act).d}</div>
     </Field>
     {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good-ink)' }}>Saved. Targets recalculated.</div>}
     <Btn kind="accent" className="w-full mb-5" disabled={!dirty} style={{ opacity: dirty ? 1 : 0.5 }} onClick={save}>Save &amp; recalculate</Btn>
@@ -18000,7 +17999,7 @@ function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
       <Row2 k="Body fat" v={p.bodyFatPct != null ? p.bodyFatPct + '%' : '–'} />
       <Row2 k="Lean mass" v={fmtWeight(leanKg(p), p.weight_unit)} last />
     </Card>
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">These aren't settings: they only move when you weigh in or check in. Progress has the full history.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-4 leading-snug">These aren't settings: they only move when you weigh in or check in. Progress has the full history.</div>
     <Btn kind="ghost" className="w-full" onClick={onFreshStart}>Full setup &amp; recalculate</Btn>
   </SubScreen>);
 }
@@ -18056,7 +18055,7 @@ function KeepRow({ label, desc, keep, onClick }) {
       <span className="block text-sm">{label}</span>
       <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text2)' }}>{desc}</span>
     </span>
-    <span className="pf text-[11px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'KEEP' : 'DELETE'}</span>
+    <span className="pf text-[11px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'Keep' : 'Delete'}</span>
   </button>);
 }
 
@@ -18164,8 +18163,8 @@ function ResetScreen({ db, onBack, onConfirm, onExport }) {
   return (<SubScreen title="Reset data" onBack={onBack}
     intro="Choose what goes. Everything arrives marked for deletion; tap anything you want to keep. Your login, your subscription and your admin access are never touched.">
     <div className="flex gap-2 mb-3">
-      <button onClick={all} className="pf text-[11px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>DELETE ALL</button>
-      <button onClick={none} className="pf text-[11px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>KEEP ALL</button>
+      <button onClick={all} className="pf text-[11px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>Delete all</button>
+      <button onClick={none} className="pf text-[11px] px-3 py-2 pixel-box flex-1" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>Keep all</button>
     </div>
     {RESET_ROWS.map(r => <KeepRow key={r.key} label={r.label} keep={!!keep[r.key]} onClick={() => toggle(r.key)}
       desc={COUNTS[r.key] ? COUNTS[r.key] + ' \u00b7 ' + r.desc : r.desc} />)}
@@ -18212,7 +18211,7 @@ function CycleScreen({ db, update, onBack }) {
     {m.enabled && <>
       <Field label="Last period start">
         <input type="date" className={inputCls} value={m.lastStart || ''} max={Store.todayISO()} onChange={e => setM({ lastStart: e.target.value || null })} />
-        <button onClick={() => setM({ lastStart: Store.todayISO() })} className="text-[12px] text-[#4A9EEB] mt-1.5">My period started today</button>
+        <button onClick={() => setM({ lastStart: Store.todayISO() })} className="text-[12px] text-[var(--link)] mt-1.5">My period started today</button>
       </Field>
       <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
         <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
@@ -18252,17 +18251,17 @@ function MealsScreen({ db, update, onBack }) {
     {list.map((m, i) => (
       <div key={m.id} className="flex items-center gap-2 mb-2">
         <div className="flex flex-col -my-2 shrink-0">
-          <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="16" /></button>
-          <button onClick={() => moveDef(m.id, 1)} disabled={i === list.length - 1} style={{ opacity: i === list.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="16" /></button>
+          <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[var(--muted)] leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="16" /></button>
+          <button onClick={() => moveDef(m.id, 1)} disabled={i === list.length - 1} style={{ opacity: i === list.length - 1 ? 0.25 : 1 }} className="hit text-[var(--muted)] leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="16" /></button>
         </div>
         <TextInput value={draft && draft.id === m.id ? draft.name : m.name}
           onChange={e => setDraft({ id: m.id, name: e.target.value })}
           onBlur={commitName}
           onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} />
-        <button onClick={() => setConfirmDel(m)} disabled={list.length <= 1} style={{ opacity: list.length <= 1 ? 0.3 : 1 }} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Remove"><Icon.close width="16" /></button>
+        <button onClick={() => setConfirmDel(m)} disabled={list.length <= 1} style={{ opacity: list.length <= 1 ? 0.3 : 1 }} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-lg leading-none shrink-0" title="Remove"><Icon.close width="16" /></button>
       </div>
     ))}
-    <button onClick={addDef} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1">+ Add default meal</button>
+    <button onClick={addDef} className="w-full text-sm text-[var(--muted)] border border-dashed border-[var(--hairline)] py-2.5 mt-1">+ Add default meal</button>
     {confirmDel && <ConfirmDialog title={'Remove ' + confirmDel.name + '?'} body="This removes it from your default meals for new days. Days you've already set up won't change." confirmLabel="Remove" onConfirm={() => removeDef(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
   </SubScreen>);
 }
@@ -18297,11 +18296,11 @@ function RemindersScreen({ db, update, onBack }) {
     {pushSupported()
       ? <>
           <RowToggle label="Push reminders (your buddy nudges you to log)" on={pushOn} onClick={togglePush} />
-          {pushBusy && <div className="text-[12px] text-[#8A8A90] mb-1">Working...</div>}
+          {pushBusy && <div className="text-[12px] text-[var(--muted)] mb-1">Working...</div>}
           {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat-ink)' }}>{pushMsg}</div>}
-          {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[#8A8A90] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
+          {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[var(--muted)] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
         </>
-      : <div className="text-[12px] text-[#8A8A90] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
+      : <div className="text-[12px] text-[var(--muted)] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
     <RowToggle label="Also show an in-app nudge banner when I open the app" on={reminders} onClick={() => commit(d => { d.profile.reminders = !reminders; })} />
     {(pushOn || reminders) && <Field label="Nudge after" hint="Sets both the push reminder (fires around this hour) and the in-app banner (shows when you next open the app).">
       <Dropdown value={nudgeHour} onChange={v => { commit(d => { d.profile.nudgeHour = +v; }); if (pushOn) pushSyncHour(+v); }} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
@@ -18360,9 +18359,9 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
         <div className="text-sm font-semibold">{it.name}</div>
         <span className="pf text-[11px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
       </div>
-      <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-2.5">{it.brings}</div>
+      <div className="text-[12px] text-[var(--muted)] leading-snug mb-2.5">{it.brings}</div>
       {it.note && <div className="text-[11px] mb-2.5 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
-      <Btn kind={on ? 'ghost' : 'accent'} className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => ask(it.id, it.name)}>
+      <Btn kind="ghost" className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => ask(it.id, it.name)}>
         {on ? <><Tick size={12} /> On your list</> : busy === it.id ? 'Adding…' : 'I want this'}
       </Btn>
     </div>);
@@ -18371,7 +18370,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
   return (<SubScreen title="More integrations" onBack={onBack} intro="What we're building next. Tell us which you want and it moves up the list.">
     <div className="space-y-2.5">{top.map(Row)}</div>
     {!showMore
-      ? <button onClick={() => setShowMore(true)} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-2.5">More ({rest.length})</button>
+      ? <button onClick={() => setShowMore(true)} className="w-full text-sm text-[var(--muted)] border border-dashed border-[var(--hairline)] py-2.5 mt-2.5">More ({rest.length})</button>
       : <div className="space-y-2.5 mt-2.5 fade-in">{rest.map(Row)}</div>}
 
     <div className="mt-5">
@@ -18383,7 +18382,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
         {sent ? <><Tick size={12} /> Sent</> : busy === 'other' ? 'Sending…' : 'Send request'}
       </Btn>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">Every one of these is read-only when it arrives: we take the numbers, we never write back to your other apps.</div>
+    <div className="text-[11px] text-[var(--muted)] mt-4 leading-snug">Every one of these is read-only when it arrives: we take the numbers, we never write back to your other apps.</div>
   </SubScreen>);
 }
 // The step goal lives here rather than in a section of its own: it is meaningless without the
@@ -18402,11 +18401,11 @@ function HealthScreen({ db, update, onBack }) {
   return (<SubScreen title="Google Health" onBack={onBack} intro="Auto-sync your daily steps and sleep. Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.">
     <SavedFlash tick={tick} />
     {!ghConfigured()
-      ? <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>
+      ? <div className="text-[12px] text-[var(--muted)]">Auto-sync is coming soon.</div>
       : (gh && gh.connected)
         ? <div>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[13px]"><span style={{ color: 'var(--good-ink)' }}>Connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+              <div className="text-[13px]"><span style={{ color: 'var(--good-ink)' }}>Connected</span>{gh.lastSync ? <span className="text-[var(--muted)]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
               <div className="flex items-center gap-2">
                 <GhResyncButton db={db} update={update} />
                 <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false, disconnectedAt: new Date().toISOString() }; }); }}>Disconnect</Btn>
@@ -18632,7 +18631,7 @@ function FeedbackSheet({ email, onClose }) {
   return (
     <Sheet title="Send feedback" onClose={onClose} wide z={85}>
       <div>
-        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Report a bug, request a feature, or ask a question. We read every message{email ? ' and may reply to ' + email : ''}.</div>
+        <div className="text-[12px] text-[var(--muted)] mb-4 leading-relaxed">Report a bug, request a feature, or ask a question. We read every message{email ? ' and may reply to ' + email : ''}.</div>
         <Field label="Type"><Seg value={kind} options={TICKET_KINDS} onChange={setKind} /></Field>
         <Field label="Message">
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5} maxLength={4000} className={inputCls + ' resize-y leading-relaxed'} placeholder={TICKET_PLACEHOLDER[kind]} />
@@ -18641,15 +18640,15 @@ function FeedbackSheet({ email, onClose }) {
         {msg && <div className="text-[12px] mb-2" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
         <Btn kind="accent" className="w-full" disabled={!text.trim() || busy} style={{ opacity: (!text.trim() || busy) ? 0.5 : 1 }} onClick={submit}>{busy ? 'Sending…' : 'Send'}</Btn>
         <div className="mt-6">
-          <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pb-2 px-0.5">Your requests</div>
+          <div className="text-[11px] uppercase text-[var(--muted)] pb-2 px-0.5">Your requests</div>
           {tickets === null ? <div className="py-4"><DinoLoader label="Loading" /></div>
-            : tickets.length === 0 ? <div className="text-[12px] text-[#8A8A90]">Nothing yet. Anything you send shows up here with its status.</div>
+            : tickets.length === 0 ? <div className="text-[12px] text-[var(--muted)]">Nothing yet. Anything you send shows up here with its status.</div>
               : <div className="space-y-2">{tickets.map(t => {
                 const st = ticketStatusMeta(t.status);
                 return (<div key={t.id} className="pixel-box p-3 bg-[#1E1E22]">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="pf text-[11px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
-                    <span className="text-[11px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
+                    <span className="text-[11px] text-[var(--muted)]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
                   </div>
                   <div className="text-[12px] whitespace-pre-wrap break-words">{t.body}</div>
                   {t.admin_reply && <div className="mt-2 pixel-box p-2.5 bg-[#0F0F12]" style={{ borderColor: 'var(--accent)' }}>
@@ -18760,7 +18759,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
           {delErr && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>{delErr}</div>}
           <div className="flex gap-2 mt-4">
             <Btn kind="ghost" className="flex-1" onClick={() => { setDelOpen(false); setDelErr(''); }}>Cancel</Btn>
-            <Btn kind="danger" className="flex-1" disabled={delText.trim().toUpperCase() !== 'DELETE' || delBusy} style={{ opacity: (delText.trim().toUpperCase() !== 'DELETE' || delBusy) ? 0.5 : 1 }} onClick={doDelete}>{delBusy ? 'Deleting…' : 'Delete forever'}</Btn>
+            <Btn kind="danger" className="flex-1" disabled={delText.trim().toUpperCase() !== 'Delete' || delBusy} style={{ opacity: (delText.trim().toUpperCase() !== 'Delete' || delBusy) ? 0.5 : 1 }} onClick={doDelete}>{delBusy ? 'Deleting…' : 'Delete forever'}</Btn>
           </div>
         </div>
       </div>}
@@ -18785,7 +18784,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     </div>
   );
 }
-function Row2({ k, v, last }) { return (<div className={`flex justify-between items-center py-2.5 ${last ? '' : 'border-b border-[#262629]'}`}><span className="text-[#8A8A90] text-sm">{k}</span><span className="font-medium tnum">{v}</span></div>); }
+function Row2({ k, v, last }) { return (<div className={`flex justify-between items-center py-2.5 ${last ? '' : 'border-b border-[var(--hairline)]'}`}><span className="text-[var(--muted)] text-sm">{k}</span><span className="font-medium tnum">{v}</span></div>); }
 // A clean, tappable settings row: label (+ optional description) on the left, chevron on the right.
 // Since design-plans/34-overhaul/08 these are rows of a SettingsGroup (MenuList below draws the rules
 // between them) rather than a stack of separate boxes. Coloured labels take the INK of their colour:
@@ -18879,11 +18878,11 @@ function AdminSupport() {
   function patch(updated) { setTickets(ts => (ts || []).map(t => t.id === updated.id ? updated : t)); }
   const FILTERS = [['open', 'Open'], ['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved'], ['all', 'All']];
   return (<div className="fade-in">
-    <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="text-[11px] text-[var(--muted)] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!tickets ? <div className="mt-6"><DinoLoader label="Loading tickets" /></div>
-      : !tickets.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
+      : !tickets.length ? <div className="text-[12px] text-[var(--muted)] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
         : <div className="space-y-2">{tickets.map(t => <AdminTicketCard key={t.id} ticket={t} onPatch={patch} />)}</div>}
   </div>);
 }
@@ -18897,11 +18896,11 @@ function AdminTicketCard({ ticket, onPatch }) {
   return (<div className="pixel-box p-3 bg-[#1E1E22]">
     <div className="flex items-center justify-between gap-2 mb-1">
       <span className="pf text-[11px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
-      <span className="text-[11px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
+      <span className="text-[11px] text-[var(--muted)]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-1 break-all">{t.email || 'unknown'}</div>
+    <div className="text-[11px] text-[var(--muted)] mb-1 break-all">{t.email || 'unknown'}</div>
     <div className="text-[13px] whitespace-pre-wrap break-words mb-3">{t.body}</div>
-    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[11px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[11px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} maxLength={4000} className={inputCls + ' resize-y leading-relaxed text-[12px]'} placeholder="Write a reply (the user sees this; sending resolves the ticket)…" />
     <div className="flex justify-between items-center mt-2 gap-2">
       {err ? <span className="text-[11px]" style={{ color: 'var(--danger-ink)' }}>{err}</span> : <span />}
@@ -18926,16 +18925,16 @@ function AdminTiers() {
     try { const c = await adminBilling('set_config', { freeAiMonthly: f, premiumCap: p }); setCfg(c); setFree(String(c.free_ai_monthly)); setPcap(String(c.premium_cap_usd)); setMsg('Saved.'); }
     catch (e) { setErr(e.message); } setBusy(false);
   }
-  if (!cfg) return <Section title="Premium & tiers" className="mt-6"><div className="text-[12px] text-[#8A8A90]">{err || 'Loading…'}</div></Section>;
+  if (!cfg) return <Section title="Premium & tiers" className="mt-6"><div className="text-[12px] text-[var(--muted)]">{err || 'Loading…'}</div></Section>;
   return (
     <Section title="Premium & tiers" className="mt-6">
       <div className="flex items-center justify-between gap-3 pixel-box p-3 bg-[#1E1E22] mb-3">
-        <div className="min-w-0"><div className="text-[13px] font-semibold">Enforce free / premium tiers</div><div className="text-[11px] text-[#8A8A90] leading-snug">On: free users get {cfg.free_ai_monthly} AI logs/month and body-fat is premium-only; premium is unlimited (fair-use ${cfg.premium_cap_usd.toFixed(2)}). Off: legacy cap for all. You are always exempt.</div></div>
+        <div className="min-w-0"><div className="text-[13px] font-semibold">Enforce free / premium tiers</div><div className="text-[11px] text-[var(--muted)] leading-snug">On: free users get {cfg.free_ai_monthly} AI logs/month and body-fat is premium-only; premium is unlimited (fair-use ${cfg.premium_cap_usd.toFixed(2)}). Off: legacy cap for all. You are always exempt.</div></div>
         <button onClick={toggleEnforce} disabled={busy} className="shrink-0 pixel-btn px-4 py-2 text-[11px] pf disabled:opacity-50" style={{ background: cfg.enforce_tiers ? 'var(--good)' : 'var(--surface2)', color: cfg.enforce_tiers ? '#05140a' : 'var(--text)' }}>{cfg.enforce_tiers ? 'ON' : 'OFF'}</button>
       </div>
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <div><div className="text-[11px] text-[#8A8A90] mb-1">Free AI logs / month</div><TextInput value={free} onChange={e => setFree(e.target.value)} placeholder="10" /></div>
-        <div><div className="text-[11px] text-[#8A8A90] mb-1">Premium ceiling ($/mo)</div><TextInput value={pcap} onChange={e => setPcap(e.target.value)} placeholder="3.00" /></div>
+        <div><div className="text-[11px] text-[var(--muted)] mb-1">Free AI logs / month</div><TextInput value={free} onChange={e => setFree(e.target.value)} placeholder="10" /></div>
+        <div><div className="text-[11px] text-[var(--muted)] mb-1">Premium ceiling ($/mo)</div><TextInput value={pcap} onChange={e => setPcap(e.target.value)} placeholder="3.00" /></div>
       </div>
       <Btn kind="accent" disabled={busy} onClick={saveNums}>{busy ? 'Saving…' : 'Save tier limits'}</Btn>
       {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
@@ -18955,7 +18954,7 @@ function AdminUserPremium({ userId }) {
   return (
     <Section title="Subscription">
       <Row2 k="Plan" v={label} last />
-      <div className="text-[12px] text-[#8A8A90] mt-3 mb-2">Grant complimentary Premium (no charge, no Stripe) or revoke it. A paid Stripe subscription is managed by the customer and re-syncs automatically.</div>
+      <div className="text-[12px] text-[var(--muted)] mt-3 mb-2">Grant complimentary Premium (no charge, no Stripe) or revoke it. A paid Stripe subscription is managed by the customer and re-syncs automatically.</div>
       {premium
         ? <Btn kind="ghost" className="w-full" style={{ color: 'var(--danger-ink)' }} disabled={busy} onClick={() => toggle(false)}>{busy ? 'Working…' : 'Revoke Premium'}</Btn>
         : <Btn kind="ghost" className="w-full" style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--border)' }} disabled={busy} onClick={() => toggle(true)}>{busy ? 'Working…' : 'Grant Premium (free)'}</Btn>}
@@ -18965,19 +18964,19 @@ function AdminUserPremium({ userId }) {
   );
 }
 function AdminStat({ label, value, sub }) {
-  return (<div className="pixel-box p-3 bg-[#1E1E22]"><div className="text-[11px] text-[#8A8A90]">{label}</div><div className="text-xl font-bold tnum mt-0.5">{value}</div>{sub && <div className="text-[11px] text-[#8A8A90] mt-0.5">{sub}</div>}</div>);
+  return (<div className="pixel-box p-3 bg-[#1E1E22]"><div className="text-[11px] text-[var(--muted)]">{label}</div><div className="text-xl font-bold tnum mt-0.5">{value}</div>{sub && <div className="text-[11px] text-[var(--muted)] mt-0.5">{sub}</div>}</div>);
 }
 function AdminAudit() {
   const [rows, setRows] = useState(null); const [err, setErr] = useState('');
   useEffect(() => { adminCall('list_audit').then(j => setRows(j.audit || []), e => setErr(e.message)); }, []);
   if (err) return <div className="text-[12px] mt-4" style={{ color: 'var(--danger-ink)' }}>{err}</div>;
   if (!rows) return <div className="mt-6"><DinoLoader label="Loading log" /></div>;
-  if (!rows.length) return <div className="text-[12px] text-[#8A8A90] mt-4">No admin actions logged yet.</div>;
+  if (!rows.length) return <div className="text-[12px] text-[var(--muted)] mt-4">No admin actions logged yet.</div>;
   const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to', set_password: 'set password for', view_ai_logs: 'browsed AI logs', view_ai_log: 'opened an AI log for', clear_ai_logs: 'cleared AI logs' };
   return (<div className="fade-in mt-1 space-y-1.5">
     {rows.map(r => (<div key={r.id} className="pixel-box p-2.5 bg-[#1E1E22]">
-      <div className="text-[12px]"><span className="font-medium">{(r.admin_email || 'admin').split('@')[0]}</span> <span className="text-[#8A8A90]">{L[r.action] || r.action}</span>{r.target_email && <> <span className="font-medium">{r.target_email.split('@')[0]}</span></>}{r.meta && r.meta.cap != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.cap).toFixed(2)}</span>}{r.meta && r.meta.default_cap_usd != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.default_cap_usd).toFixed(2)}</span>}</div>
-      <div className="text-[11px] text-[#8A8A90] mt-0.5">{adminFmtWhen(r.created_at)}</div>
+      <div className="text-[12px]"><span className="font-medium">{(r.admin_email || 'admin').split('@')[0]}</span> <span className="text-[var(--muted)]">{L[r.action] || r.action}</span>{r.target_email && <> <span className="font-medium">{r.target_email.split('@')[0]}</span></>}{r.meta && r.meta.cap != null && <span className="text-[var(--muted)]"> → ${Number(r.meta.cap).toFixed(2)}</span>}{r.meta && r.meta.default_cap_usd != null && <span className="text-[var(--muted)]"> → ${Number(r.meta.default_cap_usd).toFixed(2)}</span>}</div>
+      <div className="text-[11px] text-[var(--muted)] mt-0.5">{adminFmtWhen(r.created_at)}</div>
     </div>))}
   </div>);
 }
@@ -18997,23 +18996,23 @@ function AdminAiLogs() {
   async function clearAll() { setClearing(true); try { await adminCall('clear_ai_logs'); setConfirmClear(false); load(); } catch (e) { setErr(e.message); } setClearing(false); }
   const FILTERS = [['all', 'All'], ['meal', 'Meals'], ['label', 'Labels'], ['coach', 'Coach'], ['other', 'Other']];
   return (<div className="fade-in">
-    <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
-    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <div className="text-[11px] text-[var(--muted)] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!logs ? <div className="mt-6"><DinoLoader label="Loading logs" /></div>
-      : !logs.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
+      : !logs.length ? <div className="text-[12px] text-[var(--muted)] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
         : <div className="space-y-2">
           {logs.map(r => (
             <button key={r.id} onClick={() => open(r.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="pf text-[11px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
-                <span className="text-[11px] text-[#8A8A90]">{adminFmtWhen(r.created_at)}</span>
+                <span className="text-[11px] text-[var(--muted)]">{adminFmtWhen(r.created_at)}</span>
               </div>
               <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[11px] ml-1.5" style={{ color: 'var(--danger-ink)' }}>error</span>}</div>
-              <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">{r.image_count > 0 ? r.image_count + ' img · ' : ''}{modelLabel(r.model)}{r.cost_usd ? ' · $' + (+r.cost_usd).toFixed(4) : ''}</div>
+              <div className="text-[11px] text-[var(--muted)] tnum mt-0.5">{r.image_count > 0 ? r.image_count + ' img · ' : ''}{modelLabel(r.model)}{r.cost_usd ? ' · $' + (+r.cost_usd).toFixed(4) : ''}</div>
             </button>
           ))}
-          <button onClick={() => setConfirmClear(true)} className="text-[11px] text-[#8A8A90] mt-3 w-full text-center py-2">Clear all logs</button>
+          <button onClick={() => setConfirmClear(true)} className="text-[11px] text-[var(--muted)] mt-3 w-full text-center py-2">Clear all logs</button>
         </div>}
     {selLoading && <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center"><DinoLoader label="Opening" /></div>}
     {sel && <AdminAiLogDetail log={sel} onClose={() => setSel(null)} onImage={setLightbox} />}
@@ -19028,21 +19027,21 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
   return (
     <Sheet title={aiFeatureLabel(log.feature)} onClose={onClose} wide z={85}>
       <div>
-        <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
+        <div className="text-[11px] text-[var(--muted)] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
-          <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
+          <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Input images ({log.images.length})</div>
           <div className="grid grid-cols-3 gap-2">{log.images.map((src, i) => <button key={i} onClick={() => onImage(src)} className="pixel-box overflow-hidden p-0" style={{ aspectRatio: '1', boxShadow: 'none' }}><img src={src} className="w-full h-full object-cover" alt={'input ' + (i + 1)} /></button>)}</div>
-          <div className="text-[11px] text-[#8A8A90] mt-1.5">Tap to enlarge.</div>
+          <div className="text-[11px] text-[var(--muted)] mt-1.5">Tap to enlarge.</div>
         </div>}
         <div className="mb-4">
-          <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Result</div>
+          <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Result</div>
           <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3" style={{ boxShadow: 'none' }}>{resultDisplay}</pre>
         </div>
         <details>
-          <summary className="pf text-[11px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
+          <summary className="pf text-[11px] uppercase text-[var(--muted)] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
           <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2" style={{ boxShadow: 'none', color: '#8A8A90' }}>{log.prompt || '(none)'}</pre>
         </details>
-        <div className="text-[11px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
+        <div className="text-[11px] text-[var(--muted)] tnum mt-4 pt-3 border-t border-[var(--hairline)]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
       </div>
     </Sheet>
   );
@@ -19089,9 +19088,9 @@ function AdminPanel({ onBack, adminEmail, update }) {
 
   return (
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="16" /> Back to menu</button>
+      <button onClick={onBack} className="hit text-[12px] text-[var(--muted)] mb-2"><Icon.arrow_left width="16" /> Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
-      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[11px] px-1 rounded" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
+      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 ">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[var(--muted)]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[11px] px-1 " style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
       {loading ? <div className="mt-6"><DinoLoader label="Loading" /></div> : <>
         {tab === 'overview' && <div className="fade-in">
@@ -19107,48 +19106,48 @@ function AdminPanel({ onBack, adminEmail, update }) {
             <Row2 k="· On trial" v={trialCount} />
             <Row2 k="· Complimentary" v={compCount} />
             <Row2 k="Free" v={freeCount} last />
-            <div className="text-[11px] text-[#8A8A90] mt-3">Premium = an active or trialing subscription. Tap into the Users tab and filter by Premium or Free to see exactly who's on each. At/over AI cap this month: {overCap}.</div>
+            <div className="text-[11px] text-[var(--muted)] mt-3">Premium = an active or trialing subscription. Tap into the Users tab and filter by Premium or Free to see exactly who's on each. At/over AI cap this month: {overCap}.</div>
           </Section>
           {modelUsage.length > 0 && <Section title="Spend by model" className="mt-6">
             <div className="space-y-2">{modelUsage.map(m => (
               <div key={m.model} className="flex items-center justify-between text-[12px]">
                 <span>{modelLabel(m.model)}</span>
-                <span className="tnum text-[#8A8A90]">${(+m.spend_usd).toFixed(3)} · {m.calls} call{m.calls === 1 ? '' : 's'}</span>
+                <span className="tnum text-[var(--muted)]">${(+m.spend_usd).toFixed(3)} · {m.calls} call{m.calls === 1 ? '' : 's'}</span>
               </div>))}</div>
-            <div className="text-[11px] text-[#8A8A90] mt-3">Haiku runs the cheap label OCR; Sonnet runs meal estimates and body-fat reads. Tracked from this update, so it can sit below the historical total above.</div>
+            <div className="text-[11px] text-[var(--muted)] mt-3">Haiku runs the cheap label OCR; Sonnet runs meal estimates and body-fat reads. Tracked from this update, so it can sit below the historical total above.</div>
           </Section>}
           <Section title="Cost controls" className="mt-6">
-            <div className="text-[12px] text-[#8A8A90] mb-2">Global default monthly AI cap for any user without a custom limit. Your own account is always exempt.</div>
+            <div className="text-[12px] text-[var(--muted)] mb-2">Global default monthly AI cap for any user without a custom limit. Your own account is always exempt.</div>
             <div className="flex gap-2"><TextInput value={capInput} onChange={e => setCapInput(e.target.value)} placeholder="1.00" className="flex-1" /><Btn kind="accent" disabled={capBusy} onClick={saveDefaultCap}>{capBusy ? 'Saving…' : 'Save default'}</Btn></div>
             {capMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--muted)' }}>{capMsg}</div>}
-            <div className="text-[11px] text-[#8A8A90] mt-3">Current default ${defaultCap.toFixed(2)}/mo · total spend across all users this month ${totalSpend.toFixed(2)}.</div>
+            <div className="text-[11px] text-[var(--muted)] mt-3">Current default ${defaultCap.toFixed(2)}/mo · total spend across all users this month ${totalSpend.toFixed(2)}.</div>
           </Section>
           <AdminTiers />
           <Section title="Dev tools" className="mt-6">
-            <div className="text-[12px] text-[#8A8A90] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
+            <div className="text-[12px] text-[var(--muted)] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
             <Btn kind="accent" onClick={resetBattle}>Reset today's battle</Btn>
             {devMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--good-ink)' }}>{devMsg}</div>}
           </Section>
         </div>}
         {tab === 'users' && <div className="fade-in">
           <TextInput value={q} onChange={e => setQ(e.target.value)} placeholder="Search by email…" />
-          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
+          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
           <div className="mt-4 space-y-2">
             {filtered.map(u => { const pm = userPlanMeta(u); return (
               <button key={u.id} onClick={() => openUser(u.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
                 <div className="flex justify-between items-center gap-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[11px] ml-1.5 px-1 rounded" style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[11px] ml-1.5 px-1 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[11px] ml-1.5 px-1 rounded" style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
-                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[11px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
+                    <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
+                    <div className="text-[11px] text-[var(--muted)] mt-0.5 flex items-center gap-1.5"><span className="pf text-[11px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
-                    <div className="text-[11px] text-[#8A8A90]">{u.calls} call{u.calls === 1 ? '' : 's'} this mo.</div>
+                    <div className="text-[11px] text-[var(--muted)]">{u.calls} call{u.calls === 1 ? '' : 's'} this mo.</div>
                   </div>
                 </div>
               </button>
             ); })}
-            {!filtered.length && <div className="text-[12px] text-[#8A8A90] mt-4">{q || planFilter !== 'all' ? 'No users match this filter.' : 'No users yet.'}</div>}
+            {!filtered.length && <div className="text-[12px] text-[var(--muted)] mt-4">{q || planFilter !== 'all' ? 'No users match this filter.' : 'No users yet.'}</div>}
           </div>
         </div>}
         {tab === 'support' && <AdminSupport />}
@@ -19192,7 +19191,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
   async function doSetPassword() { const p = newPw; if (!p || p.length < 6) { setErr('Password must be at least 6 characters.'); return; } setBusy('pw'); setErr(''); setMsg(''); try { await adminCall('set_password', { userId: u.id, password: p }); setNewPw(''); setConfirmKind(null); flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.'); } catch (e) { setErr(e.message); setConfirmKind(null); } setBusy(''); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="16" /> All users</button>
+      <button onClick={onBack} className="hit text-[12px] text-[var(--muted)] mb-2"><Icon.arrow_left width="16" /> All users</button>
       <PageHeader kicker="Admin · user" title={u.email} />
       {msg && <div className="text-[12px] mb-3" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
@@ -19208,19 +19207,19 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
           <Btn kind="ghost" className="flex-1" disabled={isSelf || busy === 'ban'} style={{ opacity: isSelf ? 0.5 : 1, color: banned ? 'var(--good-ink)' : 'var(--danger-ink)' }} onClick={() => banned ? toggleBan() : setConfirmKind('ban')}>{busy === 'ban' ? 'Working…' : (banned ? 'Reinstate account' : 'Suspend account')}</Btn>
         </div>
         <Btn kind="ghost" className="w-full mt-2" disabled={busy === 'recovery'} onClick={doRecovery}>{busy === 'recovery' ? 'Generating…' : 'Send password-reset link'}</Btn>
-        <div className="text-[12px] text-[#8A8A90] mt-4 mb-1.5">Set a new password directly</div>
+        <div className="text-[12px] text-[var(--muted)] mt-4 mb-1.5">Set a new password directly</div>
         <div className="flex gap-2">
           <TextInput type={showPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="at least 6 characters" autoComplete="new-password" className="flex-1" />
           <Btn kind="ghost" onClick={() => setShowPw(v => !v)}>{showPw ? 'Hide' : 'Show'}</Btn>
         </div>
         <Btn kind="accent" className="w-full mt-2" disabled={busy === 'pw' || newPw.length < 6} onClick={() => setConfirmKind('pw')}>{busy === 'pw' ? 'Saving…' : 'Set password'}</Btn>
-        <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-relaxed">Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.</div>
+        <div className="text-[11px] text-[var(--muted)] mt-1.5 leading-relaxed">Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.</div>
       </Section>
 
       <Section title="AI usage this month">
         <Row2 k="Spent" v={'$' + Number(detail.spend_usd).toFixed(2)} />
         <Row2 k="Calls" v={detail.calls} last />
-        <div className="text-[12px] text-[#8A8A90] mt-3 mb-1.5">Monthly spend cap (USD){isSelf ? '. Note: your own account is exempt from the cap regardless of this value.' : ''}</div>
+        <div className="text-[12px] text-[var(--muted)] mt-3 mb-1.5">Monthly spend cap (USD){isSelf ? '. Note: your own account is exempt from the cap regardless of this value.' : ''}</div>
         <div className="flex gap-2">
           <TextInput value={cap} onChange={e => setCap(e.target.value)} placeholder="1.00" className="flex-1" />
           <Btn kind="accent" disabled={busy === 'cap'} onClick={saveCap}>{busy === 'cap' ? 'Saving…' : 'Save cap'}</Btn>
@@ -19232,7 +19231,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
 
       <Section title="Access">
         <Row2 k="Role" v={adminRole ? 'Admin' : 'User'} last />
-        <div className="text-[12px] text-[#8A8A90] mt-3 mb-2">Admins can see and manage every account. Grant this only to people you trust.</div>
+        <div className="text-[12px] text-[var(--muted)] mt-3 mb-2">Admins can see and manage every account. Grant this only to people you trust.</div>
         {adminRole
           ? <Btn kind="ghost" className="w-full" disabled={isSelf || busy === 'admin'} style={{ opacity: isSelf ? 0.5 : 1 }} onClick={() => setConfirmKind('revoke')}>{isSelf ? "This is your account" : (busy === 'admin' ? 'Working…' : 'Revoke admin access')}</Btn>
           : <Btn kind="ghost" className="w-full" style={{ background: 'var(--pro)', color: '#fff', borderColor: 'var(--border)' }} disabled={busy === 'admin'} onClick={() => setConfirmKind('grant')}>{busy === 'admin' ? 'Working…' : 'Make this user an admin'}</Btn>}
@@ -19243,10 +19242,10 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
           <TextInput value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note (e.g. emailed re: billing)" className="flex-1" />
           <Btn kind="accent" disabled={busy === 'note' || !noteText.trim()} onClick={addNote}>{busy === 'note' ? '…' : 'Add'}</Btn>
         </div>
-        {notes.length === 0 ? <div className="text-[12px] text-[#8A8A90]">No notes yet.</div> : <div className="space-y-1.5">
+        {notes.length === 0 ? <div className="text-[12px] text-[var(--muted)]">No notes yet.</div> : <div className="space-y-1.5">
           {notes.map(n => <div key={n.id} className="pixel-box p-2.5 bg-[#1E1E22]">
             <div className="text-[13px] whitespace-pre-wrap break-words">{n.note}</div>
-            <div className="flex justify-between items-center mt-1"><span className="text-[11px] text-[#8A8A90]">{adminFmtWhen(n.created_at)}</span><button onClick={() => delNote(n.id)} className="text-[11px] text-[#8A8A90] underline">delete</button></div>
+            <div className="flex justify-between items-center mt-1"><span className="text-[11px] text-[var(--muted)]">{adminFmtWhen(n.created_at)}</span><button onClick={() => delNote(n.id)} className="text-[11px] text-[var(--muted)] underline">delete</button></div>
           </div>)}
         </div>}
       </Section>
@@ -19259,7 +19258,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
       </Section>}
 
       <Section title="Raw data">
-        <div className="text-[12px] text-[#8A8A90] mb-2">The user's full stored state. Editing this changes their account, so use it carefully. Updated {adminFmtWhen(detail.updated_at)}.</div>
+        <div className="text-[12px] text-[var(--muted)] mb-2">The user's full stored state. Editing this changes their account, so use it carefully. Updated {adminFmtWhen(detail.updated_at)}.</div>
         {!editData
           ? <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setEditData(true)}>View / edit raw data</Btn><Btn kind="ghost" className="flex-1" onClick={exportData}>Export data (JSON)</Btn></div>
           : <div>
@@ -19272,7 +19271,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
       </Section>
 
       <Section title="Danger zone">
-        <div className="text-[12px] text-[#8A8A90] mb-3">Reset wipes their data but keeps the login. Delete removes the account and all data permanently (for GDPR/erasure requests).</div>
+        <div className="text-[12px] text-[var(--muted)] mb-3">Reset wipes their data but keeps the login. Delete removes the account and all data permanently (for GDPR/erasure requests).</div>
         <Btn kind="ghost" className="w-full mb-2" style={{ background: 'var(--fat)', color: '#fff', borderColor: 'var(--border)' }} disabled={busy === 'reset'} onClick={() => setConfirmKind('reset')}>Reset this user's data</Btn>
         <Btn kind="danger" className="w-full" onClick={() => { setConfirmKind('delete'); setDelText(''); }}>Delete this account</Btn>
         {isSelf && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>Heads up: this is your own account.</div>}
@@ -19287,11 +19286,11 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
       {confirmKind === 'delete' && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setConfirmKind(null)}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
           <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger-ink)' }}>Delete this account?</h2>
-          <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Permanently removes <span className="text-white break-all">{u.email}</span> and every trace of their data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
+          <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">Permanently removes <span className="text-white break-all">{u.email}</span> and every trace of their data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
           <div className="flex gap-2 mt-4">
             <Btn kind="ghost" className="flex-1" onClick={() => setConfirmKind(null)}>Cancel</Btn>
-            <Btn kind="danger" className="flex-1" disabled={delText.trim().toUpperCase() !== 'DELETE' || busy === 'delete'} style={{ opacity: (delText.trim().toUpperCase() !== 'DELETE' || busy === 'delete') ? 0.5 : 1 }} onClick={doDelete}>{busy === 'delete' ? 'Deleting…' : 'Delete forever'}</Btn>
+            <Btn kind="danger" className="flex-1" disabled={delText.trim().toUpperCase() !== 'Delete' || busy === 'delete'} style={{ opacity: (delText.trim().toUpperCase() !== 'Delete' || busy === 'delete') ? 0.5 : 1 }} onClick={doDelete}>{busy === 'delete' ? 'Deleting…' : 'Delete forever'}</Btn>
           </div>
         </div>
       </div>}
@@ -19406,17 +19405,17 @@ function InviteSheet({ rewards, onClose, toast }) {
   }
   async function copy() { try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); } catch (_) {} }
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-    <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
-      <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
+    <div className="w-full sm:max-w-sm sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
+      <div className="text-[12px] text-[var(--muted)] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
       <div className="pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--surface3)' }}>
         <div className="min-w-0 flex-1 text-[12px] tnum truncate">{link}</div>
-        <button onClick={copy} className="pixel-btn px-3 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>COPY</button>
+        <button onClick={copy} className="pixel-btn px-3 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>Copy</button>
       </div>
       <button onClick={doShare} className="w-full pixel-btn py-3 text-[11px] pf inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><ShareIOSIcon size={14} /> SHARE INVITE</button>
       <div className="flex gap-2 mt-4 text-center">
-        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum">{count}</div><div className="text-[11px] text-[#8A8A90]">friends joined</div></div>
-        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent-ink)' }}>{bonus}</div><div className="text-[11px] text-[#8A8A90]">bonus AI logs left</div></div>
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum">{count}</div><div className="text-[11px] text-[var(--muted)]">friends joined</div></div>
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent-ink)' }}>{bonus}</div><div className="text-[11px] text-[var(--muted)]">bonus AI logs left</div></div>
       </div>
     </div>
   </div>);
@@ -19978,9 +19977,9 @@ function Toast({ toast, onClose, lifted }) {
     <div className="fixed left-0 right-0 z-[97] flex justify-center px-4 pointer-events-none" style={toastPlacement(lifted)}>
       <div className="pixel-box px-4 py-3 flex items-center gap-3 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
-        {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0 pointer-events-auto">{toast.action2Label}</button>}
-        {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0 pointer-events-auto">{toast.actionLabel}</button>}
-        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1 pointer-events-auto" aria-label="Dismiss"><Icon.close width="16" /></button>}
+        {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[var(--link)] shrink-0 pointer-events-auto">{toast.action2Label}</button>}
+        {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[var(--link)] shrink-0 pointer-events-auto">{toast.actionLabel}</button>}
+        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-lg leading-none shrink-0 -mr-1 pointer-events-auto" aria-label="Dismiss"><Icon.close width="16" /></button>}
       </div>
     </div>
   );
@@ -20026,14 +20025,14 @@ function ShareKindSheet({ onRecipe, onWorkout, onClose }) {
           <Icon.recipe width="24" height="24" style={{ color: 'var(--accent-ink)' }} />
           <span>
             <span className="block text-[13.5px] font-semibold">Something to cook</span>
-            <span className="block text-[11.5px]" style={{ color: 'var(--muted)' }}>Priced for macros and saved to Cook</span>
+            <span className="block text-[12px]" style={{ color: 'var(--muted)' }}>Priced for macros and saved to Cook</span>
           </span>
         </button>
         <button onClick={onWorkout} className="pixel-box w-full p-3.5 mb-3 text-left flex items-center gap-3" style={{ background: 'var(--surface2)' }}>
           <Icon.dumbbell width="24" height="24" style={{ color: 'var(--accent-ink)' }} />
           <span>
             <span className="block text-[13.5px] font-semibold">A workout</span>
-            <span className="block text-[11.5px]" style={{ color: 'var(--muted)' }}>Read into a session you can add to a block</span>
+            <span className="block text-[12px]" style={{ color: 'var(--muted)' }}>Read into a session you can add to a block</span>
           </span>
         </button>
         <button onClick={onClose} className="w-full py-2.5 text-[12px]" style={{ color: 'var(--muted)' }}>Neither, close this</button>
@@ -20075,14 +20074,14 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return (
-    <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40">
+    <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[var(--hairline)] p-4 z-40">
       <button onClick={onOpenPlay} aria-label="Open Play" className="px-1 py-3 mb-3 text-left"><div className="flex items-center gap-2.5"><PixelEgg size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></button>
       <button onClick={onAdd} className="pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"><Icon.plus width="24" height="24" /> Log food</button>
-      <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${navActive(view, k) ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="24" height="24" /> {l}</button>)}
-        <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
-        <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="16" height="16" /> YOU</button>
+      <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${navActive(view, k) ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`}><Ic width="24" height="24" /> {l}</button>)}
+        <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[var(--muted)]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
+        <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`}><Icon.more width="16" height="16" /> YOU</button>
       </div>
-      <div className="mt-auto pf text-[11px] text-[#8A8A90] px-1">{BRAND}</div>
+      <div className="mt-auto pf text-[11px] text-[var(--muted)] px-1">{BRAND}</div>
     </div>
   );
 }
@@ -20127,7 +20126,7 @@ function WelcomeCarousel({ onDone, reviewing, theme, buddy }) {
   return (<div className={'fixed inset-0 z-[95] ' + (dark ? 'theme-dark' : 'theme-light') + ' flex flex-col'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex justify-between items-center px-5 py-4">
       <span className="pf text-[11px]" style={{ color: brand }}>MACROSAURUS</span>
-      <button onClick={onDone} className="hit text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
+      <button onClick={onDone} className="hit text-[12px] text-[var(--muted)]">{reviewing ? 'Close' : 'Skip'}</button>
     </div>
     <div className="flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto">
       <div className="pixel-box p-6 mb-6 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', borderColor: 'var(--border)' }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={4} fps={bs.fps} /></div>
@@ -20164,15 +20163,15 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
   return (<Card className="p-4 mb-4 fade-in">
     <div className="flex justify-between items-center mb-2">
       <div className="text-sm font-bold">{incubating ? 'Hatch your buddy' : 'Getting started'}</div>
-      <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss"><Icon.close width="16" /></button></div>
+      <div className="flex items-center gap-2"><span className="text-[11px] text-[var(--muted)]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[var(--muted)] text-lg leading-none" aria-label="Dismiss"><Icon.close width="16" /></button></div>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">{incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'}</div>
+    <div className="text-[11px] text-[var(--muted)] mb-2.5 leading-snug">{incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'}</div>
     <div className="space-y-0.5">
       {items.map(it => (
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
-          <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.done ? <Tick size={12} /> : null}</span>
+          <span className="w-5 h-5 flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
-          {!it.done && <span className="pf text-[11px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
+          {!it.done && <span className="pf text-[11px] shrink-0" style={{ color: 'var(--accent-ink)' }}>Do it</span>}
         </button>
       ))}
     </div>
@@ -20190,10 +20189,10 @@ function RecipeMacroStrip({ macros, per }) {
     {MACRO_KEYS.map(([k, l, c]) => (
       <div key={k} className="flex items-baseline gap-1">
         <span className="tnum text-[13px] font-bold" style={{ color: c }}>{Math.round(macros[k] || 0)}{k === 'kcal' ? '' : 'g'}</span>
-        <span className="text-[11px] text-[#8A8A90]">{l}</span>
+        <span className="text-[11px] text-[var(--muted)]">{l}</span>
       </div>
     ))}
-    {per && <span className="text-[11px] text-[#8A8A90] self-center">/ serving</span>}
+    {per && <span className="text-[11px] text-[var(--muted)] self-center">/ serving</span>}
   </div>);
 }
 const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
@@ -20239,7 +20238,7 @@ function RecipeRow({ recipe, onOpen }) {
 function ShareTip({ className = '' }) {
   return (<Card className={'p-3.5 ' + className} style={{ background: 'var(--surface3)' }}>
     <div className="flex items-center gap-2 mb-1.5"><Icon.share width="24" height="24" style={{ color: 'var(--accent-ink)' }} /><div className="text-[13px] font-bold">Best way: share it straight to Macrosaurus</div></div>
-    <div className="text-[12px] text-[#8A8A90] leading-snug">In Instagram, TikTok or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel, video or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
+    <div className="text-[12px] text-[var(--muted)] leading-snug">In Instagram, TikTok or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel, video or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
   </Card>);
 }
 // The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
@@ -20293,7 +20292,7 @@ function RecipeBuilder({ onSave, onCancel }) {
     {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
         a grey back link floating on the page (design-plans/34-overhaul/06). */}
     <SubHeader back={onCancel} backLabel="Cook" title="Build a recipe" />
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Add what goes in, in grams. The macros for a serving work themselves out as you go.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-4 leading-snug">Add what goes in, in grams. The macros for a serving work themselves out as you go.</div>
     <Field label="Name"><TextInput value={title} onChange={e => { setTitle(e.target.value); setErr(''); }} placeholder="e.g. Chicken and chickpea curry" aria-label="Recipe name" /></Field>
     <Field label="Serves"><NumInput value={servings} onChange={e => setServings(e.target.value)} aria-label="Servings" /></Field>
     <Field label="Meal"><Seg value={meal} onChange={setMeal} options={[{ v: 'breakfast', l: 'Breakfast' }, { v: 'lunch', l: 'Lunch' }, { v: 'dinner', l: 'Dinner' }, { v: 'snack', l: 'Snack' }]} /></Field>
@@ -20376,19 +20375,19 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
         a grey back link floating on the page (design-plans/34-overhaul/06). */}
     <SubHeader back={onCancel} backLabel="Cook" title="Import a recipe" />
     <ShareTip className="mb-4" />
-    <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
+    <div className="text-[11px] uppercase pf text-[var(--muted)] mb-2">Or paste a link</div>
     <Field label="Video link">
       <input value={url} onChange={e => setUrl(e.target.value)} className={inputCls} placeholder="https://www.youtube.com/shorts/... or instagram.com/reel/..." inputMode="url" autoCapitalize="off" autoCorrect="off" />
     </Field>
     <Btn kind="accent" className="w-full" onClick={() => url.trim() ? fromLink(url.trim()) : setErr('Paste a YouTube or Instagram link first.')}>Get recipe from link</Btn>
-    <button onClick={() => setShowFallback(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-4 underline">{showFallback ? 'Hide' : 'Link not working? Paste the caption or add a screenshot'}</button>
+    <button onClick={() => setShowFallback(v => !v)} className="w-full text-[12px] text-[var(--muted)] mt-4 underline">{showFallback ? 'Hide' : 'Link not working? Paste the caption or add a screenshot'}</button>
     {showFallback && <div className="mt-3 fade-in">
       <Field label="Paste caption / recipe text" hint="The description or caption under the video usually has the full recipe.">
         <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={5} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the recipe text here" />
       </Field>
       <Btn kind="ghost" className="w-full mb-4" onClick={fromCaption}>Build from pasted text</Btn>
       <div className="mb-1"><PhotoButton label="Add recipe screenshots" multiple onFiles={addImgs} className="w-full" /></div>
-      {imgs.length > 0 && <div className="flex gap-2 flex-wrap my-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
+      {imgs.length > 0 && <div className="flex gap-2 flex-wrap my-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover border border-[var(--hairline)]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-black/80 border border-[var(--hairline)] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
       {imgs.length > 0 && <Btn kind="ghost" className="w-full" onClick={fromImages}>Build from screenshots</Btn>}
     </div>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in leading-snug">{err}</div>}
@@ -20404,27 +20403,27 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
   const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
   const priced = d.macros_per_serving.kcal > 0;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Start over</button>
+    <button onClick={onCancel} className="hit text-[13px] text-[var(--muted)] mb-3"><Icon.arrow_left width="16" /> Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
     {/* Say plainly which parts of the video we actually read. When the importer had to watch or listen
         to the clip, that is worth knowing: those sources are the ones most worth double-checking. */}
-    {(d.import_sources || []).length > 0 && <div className="text-[11px] text-[#8A8A90] mb-3 -mt-1">Read from {listJoin(d.import_sources)}.</div>}
+    {(d.import_sources || []).length > 0 && <div className="text-[11px] text-[var(--muted)] mb-3 -mt-1">Read from {listJoin(d.import_sources)}.</div>}
     {note && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>{note}</div>}
-    {priced && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
+    {priced && <Card className="p-3 mb-3"><div className="text-[11px] text-[var(--muted)] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
     {priced && (() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
     <Field label="Servings"><input type="number" min="1" value={d.servings} onChange={e => set({ servings: Math.max(1, Math.round(+e.target.value) || 1) })} className={inputCls + ' w-28'} /></Field>
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2 mt-1">Ingredients</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2 mt-1">Ingredients</div>
     <div className="space-y-2 mb-2">
       {d.ingredients.map((ing, i) => (
         <div key={ing.id} className="flex items-center gap-2">
           <input value={Rcp.lineOf(ing)} onChange={e => setLine(i, e.target.value)} className={inputCls + ' flex-1 py-2'} placeholder="e.g. 150 g cottage cheese" />
-          <button onClick={() => delIng(i)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove"><Icon.close width="16" /></button>
+          <button onClick={() => delIng(i)} className="text-[var(--muted)] text-lg leading-none px-1" aria-label="Remove"><Icon.close width="16" /></button>
         </div>
       ))}
     </div>
-    <button onClick={addIng} className="hit text-[12px] mb-4" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+    <button onClick={addIng} className="hit text-[12px] mb-4" style={{ color: 'var(--link)' }}>+ Add ingredient</button>
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
@@ -20454,19 +20453,19 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
   function pickProduct(p) { const g = +grams || ingredient.grams || 0; if (!(g > 0)) { setErr('Enter the grams so we can scale the label numbers.'); return; } onResolve(Rcp.macrosFromPer100(p.per100, g), { source: 'off', product: p.name, barcode: p.code }); }
   const tabs = [['ai', 'Estimate'], ['search', 'Search'], ['manual', 'Manual']];
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"><Icon.close width="16" /></button></div>
-      <div className="text-[11px] text-[#8A8A90] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
+    <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-xl leading-none shrink-0"><Icon.close width="16" /></button></div>
+      <div className="text-[11px] text-[var(--muted)] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
       <div className="mb-3"><Pill wide value={tab} onChange={k => { setTab(k); setErr(''); }} options={tabs.map(([k, l]) => ({ v: k, l }))} /></div>
-      {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
+      {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[var(--muted)] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
       {tab === 'search' && <div>
         <div className="flex gap-2 mb-2"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} className={inputCls + ' flex-1'} placeholder="brand or food" /><input value={grams} onChange={e => setGrams(e.target.value)} type="number" inputMode="numeric" className={inputCls + ' w-20 text-right tnum'} placeholder="g" /></div>
         <Btn kind="accent" className="w-full mb-2" onClick={search}>{busy === 'search' ? 'Searching...' : 'Search Open Food Facts'}</Btn>
-        {results && <div className="space-y-1.5">{results.map((p, i) => (<button key={i} onClick={() => pickProduct(p)} className="w-full text-left pixel-box p-3" style={{ background: 'var(--surface3)' }}><div className="text-[13px] font-semibold truncate">{p.name}</div><div className="text-[11px] text-[#8A8A90] truncate">{p.brand ? p.brand + ' · ' : ''}{p.per100.kcal} kcal / 100 g · P{Math.round(p.per100.protein)} C{Math.round(p.per100.carbs)} F{Math.round(p.per100.fat)}</div></button>))}</div>}
+        {results && <div className="space-y-1.5">{results.map((p, i) => (<button key={i} onClick={() => pickProduct(p)} className="w-full text-left pixel-box p-3" style={{ background: 'var(--surface3)' }}><div className="text-[13px] font-semibold truncate">{p.name}</div><div className="text-[11px] text-[var(--muted)] truncate">{p.brand ? p.brand + ' · ' : ''}{p.per100.kcal} kcal / 100 g · P{Math.round(p.per100.protein)} C{Math.round(p.per100.carbs)} F{Math.round(p.per100.fat)}</div></button>))}</div>}
       </div>}
       {tab === 'manual' && <div>
-        <div className="text-[12px] text-[#8A8A90] mb-2">The macros for this whole ingredient (your own food or off a label).</div>
-        <div className="grid grid-cols-5 gap-2 mb-3">{[['kcal', 'kcal'], ['protein', 'P'], ['carbs', 'C'], ['fat', 'F'], ['fiber', 'Fibre']].map(([k, l]) => <label key={k} className="block"><div className="text-[11px] text-[#8A8A90] mb-1">{l}</div><input type="number" inputMode="decimal" value={man[k]} onChange={e => setMan(m => Object.assign({}, m, { [k]: e.target.value }))} className={inputCls + ' px-2 py-2 text-center tnum'} /></label>)}</div>
+        <div className="text-[12px] text-[var(--muted)] mb-2">The macros for this whole ingredient (your own food or off a label).</div>
+        <div className="grid grid-cols-5 gap-2 mb-3">{[['kcal', 'kcal'], ['protein', 'P'], ['carbs', 'C'], ['fat', 'F'], ['fiber', 'Fibre']].map(([k, l]) => <label key={k} className="block"><div className="text-[11px] text-[var(--muted)] mb-1">{l}</div><input type="number" inputMode="decimal" value={man[k]} onChange={e => setMan(m => Object.assign({}, m, { [k]: e.target.value }))} className={inputCls + ' px-2 py-2 text-center tnum'} /></label>)}</div>
         <Btn kind="accent" className="w-full" onClick={() => onResolve({ kcal: +man.kcal || 0, protein: +man.protein || 0, carbs: +man.carbs || 0, fat: +man.fat || 0, fiber: +man.fiber || 0 }, { source: 'manual' })} disabled={!(+man.kcal || +man.protein || +man.carbs || +man.fat)}>Save these numbers</Btn>
       </div>}
       {err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}
@@ -20506,10 +20505,10 @@ function CookMode({ recipe, onClose, onLogDone }) {
   return (<div className="fixed inset-0 z-[95] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
       <button onClick={() => setShowIng(true)} className="pixel-box px-3 py-1.5 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}><Icon.recipe width="24" height="24" /> Ingredients</button>
-      <div className="pf text-[11px] text-[#8A8A90]">STEP {i + 1} / {steps.length}</div>
-      <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button>
+      <div className="pf text-[11px] text-[var(--muted)]">STEP {i + 1} / {steps.length}</div>
+      <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[var(--muted)]" aria-label="Close"><Icon.close width="16" /></button>
     </div>
-    <div className="h-1 mx-5 mb-2 rounded-full" style={{ background: 'var(--surface3)' }}><div className="h-1 rounded-full" style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
+    <div className="h-1 mx-5 mb-2 " style={{ background: 'var(--surface3)' }}><div className="h-1 " style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
     <div className="flex-1 overflow-y-auto px-6 flex flex-col justify-center">
       <div className="max-w-lg mx-auto w-full">
         <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent-ink)' }}>STEP {i + 1}</div>
@@ -20518,7 +20517,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
           {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Start {durMin} min timer</button>
             : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good-ink)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
               <button onClick={() => setTimer(x => x && Object.assign({}, x, { on: !x.on }))} className="pixel-box px-3 py-2 text-[13px]" style={{ background: 'var(--surface3)' }}>{timer.on && timer.left > 0 ? 'Pause' : 'Resume'}</button>
-              <button onClick={() => setTimer(null)} className="text-[13px] text-[#8A8A90] underline">Clear</button></div>}
+              <button onClick={() => setTimer(null)} className="text-[13px] text-[var(--muted)] underline">Clear</button></div>}
         </div>}
       </div>
     </div>
@@ -20528,11 +20527,11 @@ function CookMode({ recipe, onClose, onLogDone }) {
         : <Btn kind="accent" className="flex-1" onClick={() => { setTimer(null); setI(x => Math.min(steps.length - 1, x + 1)); }}>Next step</Btn>}
     </div>
     {showIng && <div className="absolute inset-0 z-10 bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowIng(false)}>
-      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
+      <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)]"><Icon.close width="16" /></button></div>
         <div className="space-y-0.5">{recipe.ingredients.map(ing => (
           <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
+            <span className="w-5 h-5 flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
             <span className="text-[14px]" style={{ color: checked[ing.id] ? 'var(--muted)' : 'var(--text)', textDecoration: checked[ing.id] ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</span>
           </button>))}</div>
       </div>
@@ -20660,7 +20659,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
           {chips.map((c, i) => <span key={'t' + i} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
           {(recipe.collections || []).map(c => <span key={c} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
-          <button onClick={() => setShowColl(true)} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
+          <button onClick={() => setShowColl(true)} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--link)', letterSpacing: '0.1em' }}>+ Collection</button>
         </div>
       </div>
     </Card>
@@ -20681,10 +20680,10 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             </div>
           ))}
         </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
-        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
+        {fit && rem && hasMacros && <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
         {busy ? <div className="text-[12px] flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
           : <SheetBtn tone="ghost" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</SheetBtn>}
-        {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
+        {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--link)' }}>Use the recipe's stated macros instead</button>}
       </div>
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
@@ -20702,16 +20701,16 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
       <div className="p-3.5">
     {editIng ? <>
-      <div className="text-[11px] text-[#8A8A90] mb-2">Edit each line, amount first (e.g. "150 g cottage cheese"), then tap Done.</div>
+      <div className="text-[11px] text-[var(--muted)] mb-2">Edit each line, amount first (e.g. "150 g cottage cheese"), then tap Done.</div>
       <div className="space-y-2 mb-2">
         {recipe.ingredients.map((ing) => (
           <div key={ing.id} className="flex items-center gap-2">
             <input key={Rcp.lineOf(ing)} defaultValue={Rcp.lineOf(ing)} onBlur={e => setLine(ing.id, e.target.value)} placeholder="e.g. 150 g cottage cheese" className={inputCls + ' flex-1 py-2 text-[14px]'} />
-            <button onClick={() => removeIng(ing.id)} className="text-[#8A8A90] text-xl leading-none px-1 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
+            <button onClick={() => removeIng(ing.id)} className="text-[var(--muted)] text-xl leading-none px-1 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
           </div>
         ))}
       </div>
-      <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+      <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--link)' }}>+ Add ingredient</button>
       <Btn kind="ghost" className="w-full mb-4" onClick={() => analyze(false)} disabled={!!busy}>Re-work out the macros</Btn>
     </> : <>
       {/* Each ingredient is ONE ruled line: tick, what it is, what it costs you. The old row stacked
@@ -20745,7 +20744,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </Card>
     {Rcp.batchLeft(recipe) > 0 && <div className="pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'var(--surface3)', borderColor: 'var(--good)' }}>
-      <div className="flex-1 min-w-0"><div className="text-[13px] font-bold">{Rcp.batchLeft(recipe)} serving{Rcp.batchLeft(recipe) === 1 ? '' : 's'} of leftovers</div><div className="text-[11px] text-[#8A8A90]">Batch cooked. Log one when you eat it.</div></div>
+      <div className="flex-1 min-w-0"><div className="text-[13px] font-bold">{Rcp.batchLeft(recipe)} serving{Rcp.batchLeft(recipe) === 1 ? '' : 's'} of leftovers</div><div className="text-[11px] text-[var(--muted)]">Batch cooked. Log one when you eat it.</div></div>
       <Btn kind="accent" className="shrink-0" onClick={() => doLog('single', { leftover: true })} disabled={!hasMacros}>Log one</Btn>
     </div>}
     <SheetBtn onClick={() => doLog('single')} disabled={!hasMacros} style={hasMacros ? null : { opacity: 0.5 }}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</SheetBtn>
@@ -20760,11 +20759,11 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     </SheetBox>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
-      <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="w-full lg:max-w-sm lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="text-base font-bold mb-1">Log {recipe.title}</div>
-        <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((recipe.macros_per_serving.kcal || 0) * portion)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * portion)}{pickMeal.mode === 'items' ? ' · itemised' : ''}</div>
+        <div className="text-[12px] text-[var(--muted)] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((recipe.macros_per_serving.kcal || 0) * portion)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * portion)}{pickMeal.mode === 'items' ? ' · itemised' : ''}</div>
         {pickMeal.batch && <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>Logs this serving now; the other {Math.max(0, (recipe.servings || 1) - portion)} become leftovers you can log on later days.</div>}
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">How much</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">How much</div>
         {(() => { const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem); return fp ? (
           <button onClick={() => setPortion(fp)} className="w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between" style={{ background: portion === fp ? 'var(--accent)' : 'var(--surface3)', color: portion === fp ? '#111' : 'var(--text)' }}>
             <span className="font-bold">Fit my day · {fp}×</span>
@@ -20774,7 +20773,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
           {[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}
           <input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" />
         </div>
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">To which meal</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">To which meal</div>
         <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logToMeal(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
       </div>
     </div>}
@@ -20789,12 +20788,12 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     </Sheet>}
     {showColl && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowColl(false)}>
       <BackClose onClose={() => setShowColl(false)} />
-      <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
-        <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
+      <div className="w-full lg:max-w-sm lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)]"><Icon.close width="16" /></button></div>
+        <div className="text-[12px] text-[var(--muted)] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
         <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
           <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{on ? <Tick size={12} /> : null}</span>{c}
+            <span className="w-5 h-5 flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{on ? <Tick size={12} /> : null}</span>{c}
           </button>); })}</div>
         <div className="flex gap-2"><input value={newColl} onChange={e => setNewColl(e.target.value)} className={inputCls + ' flex-1'} placeholder="New collection" /><Btn kind="accent" onClick={() => { const n = newColl.trim(); if (n) { toggleColl(n); setNewColl(''); } }}>Add</Btn></div>
       </div>
@@ -20852,16 +20851,16 @@ function ShoppingListView({ db, update, showToast, onBack }) {
 
   const row = (it) => (
     <div key={it.id} className="flex items-center gap-2.5 py-2">
-      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.checked ? <Tick size={12} /> : null}</button>
+      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.checked ? <Tick size={12} /> : null}</button>
       <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left">
         <div className="text-[14px] truncate" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</div>
-        {!it.checked && attrOf(it) && <div className="text-[11px] text-[#8A8A90] truncate">{attrOf(it)}</div>}
+        {!it.checked && attrOf(it) && <div className="text-[11px] text-[var(--muted)] truncate">{attrOf(it)}</div>}
       </button>
       {editId === it.id
         ? <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => saveEdit(it.id)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(it.id); }} className="w-16 text-[12px] text-right bg-transparent shrink-0" style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)' }} />
-        : <button onClick={() => { setEditId(it.id); setEditVal(it.qty_label || ''); }} className="text-[12px] text-[#8A8A90] tnum shrink-0 min-w-[24px] text-right">{it.qty_label || '+'}</button>}
-      {!it.checked && <button onClick={() => alwaysHave(it)} title="Always have (stop adding this to lists)" aria-label="Always have" className="pf text-[6.5px] uppercase text-[#8A8A90] shrink-0 leading-none" style={{ letterSpacing: '.5px' }}>Have</button>}
-      <button onClick={() => removeItem(it.id)} aria-label="Remove" className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"><Icon.close width="16" /></button>
+        : <button onClick={() => { setEditId(it.id); setEditVal(it.qty_label || ''); }} className="text-[12px] text-[var(--muted)] tnum shrink-0 min-w-[24px] text-right">{it.qty_label || '+'}</button>}
+      {!it.checked && <button onClick={() => alwaysHave(it)} title="Always have (stop adding this to lists)" aria-label="Always have" className="pf text-[6.5px] uppercase text-[var(--muted)] shrink-0 leading-none" style={{ letterSpacing: '.5px' }}>Have</button>}
+      <button onClick={() => removeItem(it.id)} aria-label="Remove" className="text-[var(--muted)] text-lg leading-none px-0.5 shrink-0"><Icon.close width="16" /></button>
     </div>
   );
 
@@ -20878,24 +20877,24 @@ function ShoppingListView({ db, update, showToast, onBack }) {
     </form>
 
     {!listAll.length
-      ? <Card className="p-6 text-center"><div className="text-[13px] font-semibold mb-1">Nothing to buy yet</div><div className="text-[12px] text-[#8A8A90]">Add an item above, or open a recipe and add its missing ingredients. Items combine and sort themselves into aisles.</div></Card>
+      ? <Card className="p-6 text-center"><div className="text-[13px] font-semibold mb-1">Nothing to buy yet</div><div className="text-[12px] text-[var(--muted)]">Add an item above, or open a recipe and add its missing ingredients. Items combine and sort themselves into aisles.</div></Card>
       : <>
         {cats.map(c => (
           <div key={c} className="mb-4">
-            <div className="pf text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
+            <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">{c}</div>
             <div className="space-y-0.5">{groups[c].map(row)}</div>
           </div>
         ))}
         {checked.length > 0 && <div className="mb-4 pt-2" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
+          <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Ticked ({checked.length})</div>
           <div className="space-y-0.5">{checked.map(row)}</div>
         </div>}
       </>}
 
     {pantry.length > 0 && <div className="mt-2">
-      <button onClick={() => setShowPantry(v => !v)} className="hit text-[11px] text-[#8A8A90]">{showPantry ? 'Hide' : 'Show'} pantry ({pantry.length}) {showPantry ? '' : '›'}</button>
+      <button onClick={() => setShowPantry(v => !v)} className="hit text-[11px] text-[var(--muted)]">{showPantry ? 'Hide' : 'Show'} pantry ({pantry.length}) {showPantry ? '' : '›'}</button>
       {showPantry && <Card className="p-3 mt-2">
-        <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
+        <div className="text-[11px] text-[var(--muted)] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
         <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
           <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[11px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
         ))}</div>
@@ -21004,18 +21003,18 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     return (<div className="fade-in">
       <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
         <div className="p-4">
-          <div className="pf text-[11px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
           <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
-          <div className="text-[12px] text-[#8A8A90] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
-          <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>TRY PREMIUM FREE</button>
-          <div className="text-[11px] text-center text-[#8A8A90] mt-2">7 days free, then cancel anytime</div>
+          <div className="text-[12px] text-[var(--muted)] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
+          <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Try Premium free</button>
+          <div className="text-[11px] text-center text-[var(--muted)] mt-2">7 days free, then cancel anytime</div>
         </div>
       </div>
       {teaser.length > 0 && <div className="relative mb-4" onClick={openPaywall}>
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
         <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.lock width="16" /> Unlock the library</span></div>
       </div>}
-      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent-ink)' }}>Your cookbook ›</span></button>
+      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[var(--muted)] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--link)' }}>Your cookbook ›</span></button>
     </div>);
   }
 
@@ -21038,21 +21037,21 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
       : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--accent-ink)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[var(--muted)] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--link)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
-      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={48} /></div>
-        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
+        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)] shrink-0"><Icon.close width="16" /></button></div>
         {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(preview)}</div> : null}
-        <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
+        <Card className="p-3 mb-3"><div className="text-[11px] text-[var(--muted)] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
         <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
         {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[11px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
         {(preview.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="24" height="24" /> Start cooking</Btn>}
         <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
-        <div className="text-[11px] text-center text-[#8A8A90] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
-        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+        <div className="text-[11px] text-center text-[var(--muted)] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
+        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[var(--muted)]">Watch the original</a>}
       </div>
     </div>}
   </div>);
@@ -21115,26 +21114,26 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
               <div key={p.id} className="flex items-center gap-2">
                 <button onClick={() => onOpenRecipe(r.id)} className="flex-1 min-w-0 text-left flex items-center gap-2">
                   <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
-                  <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
+                  <span className="text-[11px] text-[var(--muted)] tnum shrink-0">{mk} kcal</span>
                 </button>
-                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[11px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
-                <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[11px] uppercase px-2 py-1 shrink-0" style={{ color: 'var(--link)', border: '1px solid var(--accent)' }}>Log</button>}
+                <button onClick={() => removeFromPlan(p.id)} className="text-[var(--muted)] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
               </div>); })}
           </div>}
-          <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
+          <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--link)' }}>+ Add a recipe</button>
         </Card>);
       })}
     </div>
     {pick && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPick(null)}>
       <BackClose onClose={() => setPick(null)} />
-      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
+      <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)]"><Icon.close width="16" /></button></div>
         {priced.length ? <div className="space-y-1.5">{priced.map(r => (
           <button key={r.id} onClick={() => addToPlan(pick, r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--surface3)' }}>
             <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
-            <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>
+            <span className="text-[11px] text-[var(--muted)] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>
           </button>))}</div>
-          : <div className="text-[13px] text-[#8A8A90] text-center py-6">No priced recipes yet. Import a recipe and work out its macros first.</div>}
+          : <div className="text-[13px] text-[var(--muted)] text-center py-6">No priced recipes yet. Import a recipe and work out its macros first.</div>}
       </div>
     </div>}
   </div>);
@@ -21145,7 +21144,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
   const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
-    <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">{label}</div>
+    <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">{label}</div>
     <div className="flex flex-wrap gap-2">
       {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
     </div>
@@ -21153,10 +21152,10 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   const sorts = [['recent', 'Recent'], ['protein', 'Most protein'], ['kcal', 'Fewest calories'], ['quick', 'Quickest']];
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
-    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button></div>
+    <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)]" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="mb-4">
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Show</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
           {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
@@ -21168,11 +21167,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <Group label="Main ingredient" k="main" values={present('main')} />
       <Group label="Effort" k="effort" values={present('effort')} />
       {diets.length > 0 && <div className="mb-4">
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Diet</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Diet</div>
         <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
       </div>}
       <div className="mb-5">
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">Sort by</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Sort by</div>
         <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--accent)' : 'var(--surface3)', color: sort === k ? 'var(--on-accent)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
       </div>
       <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={onClear}>Clear all</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Show recipes</Btn></div>
@@ -21191,7 +21190,7 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
           <div className="font-bold text-[14px] leading-tight flex-1" style={clamp2}>{r.title}</div>
           {m.source === 'discover' && <span className="pf text-[11px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--muted)]">
           {kcal > 0 && <span className="tnum">{Math.round(kcal)} kcal</span>}
           {kcal > 0 && <span>·</span>}
           {m.makeable
@@ -21199,10 +21198,10 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
             : <span style={{ color: '#F5C542' }}>{m.missingCount} to grab</span>}
           <span>·</span><span>uses {m.haveCount} you have</span>
         </div>
-        {!m.makeable && <div className="text-[11px] mt-1.5 leading-snug"><span className="text-[#8A8A90]">Missing: </span><span className="text-[var(--text)]">{m.missing.map(x => x.name).join(', ')}</span></div>}
+        {!m.makeable && <div className="text-[11px] mt-1.5 leading-snug"><span className="text-[var(--muted)]">Missing: </span><span className="text-[var(--text)]">{m.missing.map(x => x.name).join(', ')}</span></div>}
       </div>
     </button>
-    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}><Icon.cart width="24" height="24" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
+    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}><Icon.cart width="24" height="24" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
   </div>);
 }
 // Log a serving of a recipe you cooked without saving it (e.g. straight from Discover). Same portion +
@@ -21213,16 +21212,16 @@ function TransientCookLog({ recipe, meals, onLog, onClose }) {
   const m = recipe.macros_per_serving || {};
   return (<div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
-    <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+    <div className="w-full lg:max-w-sm lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="text-base font-bold mb-1">Nice one. Log {recipe.title}?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((m.kcal || 0) * portion)} kcal · P{Math.round((m.protein || 0) * portion)}</div>
+      <div className="text-[12px] text-[var(--muted)] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((m.kcal || 0) * portion)} kcal · P{Math.round((m.protein || 0) * portion)}</div>
       {m.kcal > 0 ? <>
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">How much</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">How much</div>
         <div className="flex items-center gap-2 mb-4 flex-wrap">{[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}<input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" /></div>
-        <div className="pf text-[11px] uppercase text-[#8A8A90] mb-2">To which meal</div>
+        <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">To which meal</div>
         <div className="space-y-2">{meals.map(mm => <button key={mm.id} onClick={() => onLog(mm.id, portion)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{mm.name}</button>)}</div>
-      </> : <div className="text-[12px] text-[#8A8A90] leading-snug">No macros on this one yet. Add it to your cookbook to work them out and log it.</div>}
-      <button onClick={onClose} className="hit w-full text-center text-[12px] text-[#8A8A90] mt-4">Not now</button>
+      </> : <div className="text-[12px] text-[var(--muted)] leading-snug">No macros on this one yet. Add it to your cookbook to work them out and log it.</div>}
+      <button onClick={onClose} className="hit w-full text-center text-[12px] text-[var(--muted)] mt-4">Not now</button>
     </div>
   </div>);
 }
@@ -21295,36 +21294,36 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
     {/* Every screen you go into from Cook takes the purple sub-screen bar, as Recipe already did, not
         a grey back link floating on the page (design-plans/34-overhaul/06). */}
     <SubHeader back={onBack} backLabel="Cook" title="From your fridge" />
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
+    <div className="text-[12px] text-[var(--muted)] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
     {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover border border-[var(--hairline)]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-black/80 border border-[var(--hairline)] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
     {imgs.length > 0 && items === null && <Btn kind="accent" className="w-full" onClick={scan}>Spot my ingredients</Btn>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 leading-snug">{err}</div>}
     {items !== null && <div className="mt-4 fade-in">
       <div className="text-[13px] font-bold mb-1">We spotted these</div>
-      <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">Tap × to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed.</div>
+      <div className="text-[11px] text-[var(--muted)] mb-2 leading-snug">Tap × to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed.</div>
       <div className="flex flex-wrap gap-2 mb-3">
-        {(items || []).map((it, i) => <span key={i} className="pixel-box pl-2.5 pr-1.5 py-1 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}>{it}<button onClick={() => removeItem(i)} className="text-[#8A8A90] text-sm leading-none" aria-label="Remove"><Icon.close width="16" /></button></span>)}
-        {!(items || []).length && <span className="text-[12px] text-[#8A8A90]">Nothing yet - add what you have below.</span>}
+        {(items || []).map((it, i) => <span key={i} className="pixel-box pl-2.5 pr-1.5 py-1 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}>{it}<button onClick={() => removeItem(i)} className="text-[var(--muted)] text-sm leading-none" aria-label="Remove"><Icon.close width="16" /></button></span>)}
+        {!(items || []).length && <span className="text-[12px] text-[var(--muted)]">Nothing yet - add what you have below.</span>}
       </div>
       <div className="flex gap-2 mb-5"><input value={add} onChange={e => setAdd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} className={inputCls + ' flex-1'} placeholder="Add an ingredient…" /><Btn kind="ghost" onClick={addItem}>Add</Btn></div>
       {results.length > 0 && <>
         {ready.length > 0 && <div className="mb-5">
-          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Ready to cook</div><span className="text-[11px] text-[#8A8A90]">you have everything</span></div>
+          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Ready to cook</div><span className="text-[11px] text-[var(--muted)]">you have everything</span></div>
           <div className="space-y-2.5">{ready.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
         </div>}
         {almost.length > 0 && <div className="mb-4">
-          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Almost there</div><span className="text-[11px] text-[#8A8A90]">a couple of bits short</span></div>
+          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Almost there</div><span className="text-[11px] text-[var(--muted)]">a couple of bits short</span></div>
           <div className="space-y-2.5">{almost.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
         </div>}
       </>}
       {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> Checking the Discover library…</div>}
       {!results.length && !commLoading && <Card className="p-5 text-center">
         {!recipes.length && !isPremium
-          ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
-          : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
+          ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
+          : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
       </Card>}
-      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[#8A8A90] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--accent-ink)' }}>Discover library</span> to what's in your fridge ›</button>}
+      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[var(--muted)] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--link)' }}>Discover library</span> to what's in your fridge ›</button>}
     </div>}
     {pubSheet && <FridgePublicSheet m={pubSheet} onClose={() => setPubSheet(null)}
       onCook={(pub) => { setPubSheet(null); onCookPublic(pub); }}
@@ -21340,20 +21339,20 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
   const r = m.recipe, pub = r._pub, mm = r.macros_per_serving || {};
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
-    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+    <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[11px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
-      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
+      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)] shrink-0"><Icon.close width="16" /></button></div>
       {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
       <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
-      {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
-      {!m.makeable && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)' }}><span className="text-[#8A8A90]">Missing: </span>{m.missing.map(x => x.name).join(', ')}</div>}
+      {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[var(--muted)] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
+      {!m.makeable && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)' }}><span className="text-[var(--muted)]">Missing: </span>{m.missing.map(x => x.name).join(', ')}</div>}
       <div className="text-[13px] font-bold mb-1">Ingredients</div>
       <ul className="space-y-1 mb-3 text-[13px]">{(r.ingredients || []).map((ing, i) => <li key={i}>{Rcp.lineOf(ing)}</li>)}</ul>
       {(r.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{r.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[11px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
       {!m.makeable && <Btn kind="ghost" className="w-full mb-2" onClick={() => onAddMissing(m)}>Add {m.missingCount} missing to shopping list</Btn>}
       {(r.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => onCook(pub)}><Icon.recipe width="24" height="24" /> Start cooking</Btn>}
       <Btn kind={(r.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => onSave(pub)}>Save to cookbook</Btn>
-      {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+      {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[var(--muted)]">Watch the original</a>}
     </div>
   </div>);
 }
@@ -21616,8 +21615,8 @@ function Paywall({ reason, onCheckout, onClose }) {
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"><Icon.close width="16" /></button>
+            <div className="text-[11px] uppercase pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-2xl leading-none"><Icon.close width="16" /></button>
           </div>
           <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
           <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
@@ -22518,9 +22517,9 @@ function App() {
           dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
-        <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"><Icon.close width="16" /></button></div>
-          <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
+        <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-xl leading-none"><Icon.close width="16" /></button></div>
+          <div className="text-[12px] text-[var(--muted)] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
@@ -22559,12 +22558,12 @@ class AppErrorBoundary extends React.Component {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6" style={{ background: 'var(--bg, #fff)', color: 'var(--text, #111)' }}>
         <div className="text-lg font-bold">Something went wrong.</div>
-        <div className="text-[13px] text-[#8A8A90] max-w-sm text-center">Your data is safe. Reloading usually fixes this. If it keeps happening, send this text over.</div>
-        <pre className="text-[11px] w-full max-w-md overflow-auto p-3 rounded-xl whitespace-pre-wrap" style={{ maxHeight: '40vh', background: 'var(--surface3, #eee)' }}>{detail}</pre>
+        <div className="text-[13px] text-[var(--muted)] max-w-sm text-center">Your data is safe. Reloading usually fixes this. If it keeps happening, send this text over.</div>
+        <pre className="text-[11px] w-full max-w-md overflow-auto p-3 whitespace-pre-wrap" style={{ maxHeight: '40vh', background: 'var(--surface3, #eee)' }}>{detail}</pre>
         <div className="flex gap-2">
-          <button className="pf px-4 py-3 rounded-xl font-bold" style={{ background: 'var(--surface3, #eee)', color: 'var(--text, #111)' }}
+          <button className="pf px-4 py-3 font-bold" style={{ background: 'var(--surface3, #eee)', color: 'var(--text, #111)' }}
             onClick={() => { try { navigator.clipboard.writeText(detail); } catch (_) {} }}>Copy</button>
-          <button className="pf px-5 py-3 rounded-xl font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} onClick={() => window.location.reload()}>Reload</button>
+          <button className="pf px-5 py-3 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} onClick={() => window.location.reload()}>Reload</button>
         </div>
       </div>
     );

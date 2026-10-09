@@ -321,7 +321,7 @@ function CoverageRow({ row, compact }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11.5px] truncate" style={{ color: 'var(--text2)' }}>{row.label}</span>
+        <span className="text-[12px] truncate" style={{ color: 'var(--text2)' }}>{row.label}</span>
         <span className="text-[11px] tnum shrink-0 font-bold"
           style={{ color: status === 'in' ? 'var(--good-ink)' : status === 'short' ? 'var(--muted)' : 'var(--warn-ink)' }}>
           {row.sets} / {row.mev}-{row.mrv}

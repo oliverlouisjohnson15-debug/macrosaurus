@@ -620,11 +620,8 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
   return (
     <div className="fade-in">
-      <div className="flex items-baseline justify-between gap-2">
-        <button onClick={onBack} className="pf text-[11px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-        {preview && <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>about {preview.minutesEach} min a session</span>}
-      </div>
-      <h1 className="pf text-lg mt-2 mb-1">Build a block</h1>
+      <SubHeader back={onBack} backLabel="Train" title="Build a block" />
+      {preview && <div className="text-[13px] mb-1" style={{ color: 'var(--muted)' }}>About {preview.minutesEach} min a session</div>}
 
       {/* Four steps rather than one endless scroll of every question a block could ask. Step 1 is
           the one nothing can go ahead of, because it decides what every later answer MEANS: four
@@ -786,7 +783,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {draftDays > 0 && (
           <div className="text-[12px] mt-3 pt-3 leading-snug border-t" style={{ borderColor: 'var(--border)', color: 'var(--text2)' }}>
             {draftDays} {draftDays === 1 ? 'day' : 'days'} in your draft so far.{' '}
-            <button onClick={onShots} className="underline" style={{ color: 'var(--accent-ink)' }}>Review it</button>
+            <button onClick={onShots} className="underline" style={{ color: 'var(--link)' }}>Review it</button>
           </div>
         )}
       </Card>
@@ -815,7 +812,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
         <span className="pf text-[11px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
         {days} sessions a week.{' '}
-        <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--accent-ink)' }}>Change it</button>
+        <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--link)' }}>Change it</button>
       </div>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
         hint={draftDays > 0 && !asBrought
@@ -1298,8 +1295,8 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={leave} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-4">{isNew ? 'Your new block' : 'Edit block'}</h1>
+      <SubHeader back={leave} backLabel="Back" title={isNew ? 'Your new block' : 'Edit block'} />
+      
 
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
       <Field label="Starts" hint="Week 1 runs from this date.">
@@ -1381,7 +1378,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                           {rows.map(r => r.label.toLowerCase()).join(', ')}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[11.5px] tnum flex items-center gap-2"
+                      <span className="shrink-0 text-[12px] tnum flex items-center gap-2"
                         style={{ color: over ? 'var(--warn-ink)' : short ? 'var(--muted)' : 'var(--good-ink)' }}>
                         {regionSets} sets
                         <span style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="16" height="16" /></span>
@@ -1538,7 +1535,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               screen somebody might be nervous about editing, and knowing the original is one tap away
               is what makes editing it feel allowed at all. */}
           {fromProgramme && (
-            <button onClick={() => setConfirmReset(true)} className="w-full text-[11.5px] mt-3 py-2 text-left" style={{ color: 'var(--accent-ink)' }}>
+            <button onClick={() => setConfirmReset(true)} className="w-full text-[12px] mt-3 py-2 text-left" style={{ color: 'var(--link)' }}>
               Start again from {fromProgramme.name} as written
             </button>
           )}
@@ -1576,7 +1573,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         {daysResult && (
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{daysResult.text}</div>
-            <button onClick={undoDays} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>
+            <button onClick={undoDays} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>
               Put it back to {daysResult.was} days
             </button>
           </div>
@@ -1601,7 +1598,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               <span className="flex items-start justify-between gap-1.5">
                 <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
                 {log && (comp.openBySession[s.id]
-                  ? <span className="shrink-0 pf text-[11px]" style={{ color: 'var(--warn)' }}>OPEN</span>
+                  ? <span className="shrink-0 pf text-[11px]" style={{ color: 'var(--warn)' }}>Open</span>
                   : <span className="shrink-0 w-5 h-5 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={10} /></span>)}
               </span>
               <span className="block text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
@@ -1674,7 +1671,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                 <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
                   Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
                 </div>
-                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
+                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
                 {/* A session with a log against it used to lose this button altogether, which meant
                     the one screen that could put you back into a session you had walked out of was
                     the one screen that hid the way in. Started-and-not-finished carries on; finished
@@ -1696,7 +1693,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       <button onClick={() => setShare(!share)} className="w-full flex items-center justify-between gap-3 pixel-box p-4 mb-4 text-left" style={{ background: 'var(--card)' }}>
         <span className="min-w-0">
           <span className="block text-[13px] font-semibold">Share this block</span>
-          <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
+          <span className="block text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
             Puts the plan in the library for other members to run. Your sessions, weights and name stay private.
           </span>
         </span>
@@ -1955,11 +1952,10 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
+      <SubHeader back={onBack} backLabel="Train" title={live.name} />
+      <div className="text-[13px] mb-1" style={{ color: 'var(--muted)', fontWeight: 600 }}>
         {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
       </div>
-      <h1 className="text-[19px] font-bold leading-tight mb-1">{live.name}</h1>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min
         {live.deload ? ' · deload week' : ''}
@@ -1970,9 +1966,9 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           shut, Wednesday moved, legs went to Thursday. Moving it changes THIS week only, because
           every week carries its own copy. */}
       {editable && (
-        <div className="text-[11.5px] mb-4" style={{ color: 'var(--muted)' }}>
+        <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
           {WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'} · this week only ·{' '}
-          <button onClick={() => setDayPick(true)} className="hit" style={{ color: 'var(--accent-ink)' }}>move ›</button>
+          <button onClick={() => setDayPick(true)} className="hit" style={{ color: 'var(--link)' }}>move ›</button>
         </div>
       )}
 
@@ -2174,7 +2170,7 @@ function TargetSheet({ row, name, onChange, onClose }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Sets and reps" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box fade-in max-h-[80vh] overflow-y-auto p-4" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <div className="pf text-[11px] mb-1">SETS AND REPS</div>
+        <div className="pf text-[11px] mb-1">Sets and reps</div>
         <div className="text-[12px] mb-3" style={{ color: 'var(--muted)' }}>{name || 'This movement'}</div>
         <Stepper label="Sets" value={t.sets}
           atMin={t.sets <= Training.SETS_MIN} atMax={t.sets >= Training.SETS_MAX}
@@ -2314,7 +2310,7 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
           {ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'}
         </button>
       )}
-      <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
+      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
         {/* Stated, not just applied: a default nobody can see is a decision the app made on your
             behalf and never mentioned. And a block that prescribes its OWN week gets a different
             sentence, because "we suggest" and "this plan is built around" are not the same claim -

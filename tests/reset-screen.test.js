@@ -30,13 +30,13 @@ test('every group the reset can clear is offered as its own row', () => {
   // rendered markup because RESET_ROWS is a const in the app's single shared scope, which is not
   // reachable from the harness the way a function declaration is.
   const r = render(A.ResetScreen, { db: livedIn(), onBack: noop, onConfirm: noop });
-  assert.strictEqual(r.html.split('>DELETE<').length - 1, A.Store.RESET_GROUPS.length);
+  assert.strictEqual(r.html.split('>Delete<').length - 1, A.Store.RESET_GROUPS.length);
 });
 
 test('it arrives with everything marked for deletion, and says so', () => {
   const r = render(A.ResetScreen, { db: livedIn(), onBack: noop, onConfirm: noop });
-  assert.strictEqual(r.html.split('>DELETE<').length - 1, A.Store.RESET_GROUPS.length, 'every row starts on DELETE');
-  assert.ok(!r.has('>KEEP<'), 'and none of them starts on KEEP');
+  assert.strictEqual(r.html.split('>Delete<').length - 1, A.Store.RESET_GROUPS.length, 'every row starts on Delete');
+  assert.ok(!r.has('>Keep<'), 'and none of them starts on Keep');
   assert.ok(r.has('Reset everything'), 'the button names the all-in case');
 });
 

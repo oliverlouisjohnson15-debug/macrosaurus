@@ -252,8 +252,8 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Coverage</h1>
+      <SubHeader back={onBack} backLabel="Back" title={'Muscle coverage'} />
+      
       <Collapsible label="Hard sets per muscle, per week" sub="How this is counted" variant="inline" className="mb-4">
         <div className="text-[12px] leading-snug mt-2" style={{ color: 'var(--muted)' }}>
           A movement gives a full set to what it mainly works and half a set to what it assists, which is how a coach counts it. The band beside each muscle is the range that grows it: below the first number you are only maintaining, above the second you are past what you can recover from.
@@ -392,7 +392,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   const units = t.prefs.units;
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
-  if (!block) return <div className="fade-in"><button onClick={onBack} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button><div className="mt-6 text-[13px]">That block is gone.</div></div>;
+  if (!block) return <div className="fade-in"><SubHeader back={onBack} backLabel="Back" title="How it went" /><div className="text-[13px]">That block is gone.</div></div>;
   const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
 
   async function writeUp() {
@@ -404,8 +404,8 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   }
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">How it went</h1>
+      <SubHeader back={onBack} backLabel="Back" title={'How it went'} />
+      
       <div className="text-[12px] mb-6" style={{ color: 'var(--muted)' }}>{block.name}</div>
 
       <div className="grid grid-cols-3 gap-2 mb-6">
@@ -439,7 +439,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
             </div>
             <div className="text-[13px] leading-snug mb-2">{d.advice}</div>
             {(d.reasons.length > 0 || review.adherence < 60) && (
-              <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {d.reasons.map(r => r.text).join(' ')}
                 {/* deloadAdvice already names the percentage when it is low enough to score, so this
                     adds the reframe without repeating the number. */}
@@ -447,7 +447,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
               </div>
             )}
             {!d.needed && !d.borderline && (
-              <div className="text-[11.5px] leading-snug mt-1" style={{ color: 'var(--muted2)' }}>
+              <div className="text-[12px] leading-snug mt-1" style={{ color: 'var(--muted2)' }}>
                 A lighter week you have not earned costs you a productive one, so we only ask for it when something says you need it.
               </div>
             )}
@@ -649,8 +649,8 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   if (!block || !plan || !rot) {
     return (
       <div className="fade-in">
-        <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-        <Card className="p-4"><div className="text-[13px]">That block is not here any more.</div></Card>
+        <SubHeader back={onBack} backLabel="Back" title="Block" />
+        <div className="text-[13px]">That block is not here any more.</div>
       </div>
     );
   }
@@ -706,8 +706,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   const LABEL = { sets: 'More work', add: 'Missing' };
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
-      <h1 className="pf text-lg mb-1">Run it again</h1>
+      <SubHeader back={onBack} backLabel="How it went" title="Run it again" />
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{rot.headline}</div>
 
       {/* The block you are about to run, drawn, before the list of individual changes. The screen
@@ -940,7 +939,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold leading-tight truncate">{(l.name || 'Session').split(' - ')[0]}</span>
-                  <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+                  <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
                     {done} {done === 1 ? 'set' : 'sets'} · {fmtTonnage(Training.tonnage(l), units)} moved
                     {live && <span style={{ color: 'var(--warn-ink)' }}> · still open</span>}
                   </span>
@@ -1010,8 +1009,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; History</button>
-      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Movement</div>
+      <SubHeader back={onBack} backLabel="History" title="Movement" />
       <div className="flex items-start justify-between gap-2 mb-2">
         <h1 className="text-[19px] font-bold leading-tight">{ex ? ex.name : exerciseId}</h1>
         {/* The PR moment the block review celebrates gets a home outside the session too. */}
@@ -1125,8 +1123,8 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-4">Training settings</h1>
+      <SubHeader back={onBack} backLabel="Back" title={'Training settings'} />
+      
 
       {/* Three groups by WHEN a setting matters - you, in a session, the model - rather than by when
           it happened to be added. A seventeen-row bands table and a kg/lb toggle used to sit in one
@@ -1693,8 +1691,8 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Block library</h1>
+      <SubHeader back={onBack} backLabel="Back" title={'Ready-made programmes'} />
+      
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Blocks other members are running. Whatever you pick gets rebuilt around your kit and the volume you recover from.
       </div>
@@ -1787,8 +1785,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Library</button>
-      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Shared block</div>
+      <SubHeader back={onBack} backLabel="Programmes" title="Shared block" />
       <h1 className="text-[19px] font-bold leading-tight mb-2">{pub.title}</h1>
       <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
         {pub.days_per_week} days a week · {SPLIT_LABEL[pub.split] || 'Custom split'}
@@ -1918,8 +1915,8 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
   if (!draft || !draft.days.length) {
     return (
       <div className="fade-in">
-        <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-        <h1 className="pf text-lg mb-2">Draft block</h1>
+        <SubHeader back={onBack} backLabel="Back" title={'Draft block'} />
+        
         <Card className="p-4 text-center">
           {/* Every other empty state in the app has the buddy in it. */}
           <div className="flex justify-center mb-4">
@@ -1936,7 +1933,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           <button onClick={onImport} className="pixel-btn w-full h-12 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Import a session</button>
           {/* The escape hatch. Nothing to import yet is not the same as nothing to build, and the old
               dead end offered only the import path. */}
-          <button onClick={onImport} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>
+          <button onClick={onImport} className="text-[12px]" style={{ color: 'var(--link)' }}>
             or build straight away ›
           </button>
         </Card>
@@ -1960,10 +1957,10 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
        tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
        button, and the last thing on this screen is how you throw the draft away. */
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <SubHeader back={onBack} backLabel="Back" title={'What I read'} />
       {/* "Draft block" named the object; "What I read" names what you are here to do, which is check
           the app's reading of somebody else's plan before four weeks get built on top of it. */}
-      <h1 className="pf text-lg mb-1">What I read</h1>
+      
       <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
         {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan.{' '}
         {/* What the button at the bottom is going to do with them, said where they are being checked
@@ -1987,7 +1984,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>
             {flagged ? String(flagged) : <Tick size={12} />}
           </span>
-          <span className="flex-1 text-[11.5px] leading-snug" style={{ color: 'var(--text2)' }}>
+          <span className="flex-1 text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
             {flagged
               ? flagged + (flagged === 1 ? ' line needs a look' : ' lines need a look') + '. Everything else matched.'
               : 'Everything is placed. Nothing was dropped.'}
@@ -2443,8 +2440,8 @@ function HowItWorks({ onBack }) {
   ];
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Training</button>
-      <h1 className="pf text-lg mb-2">How your plan is built</h1>
+      <SubHeader back={onBack} backLabel="Back" title={'How your plan is built'} />
+      
       <div className="text-[12px] mb-6 leading-snug" style={{ color: 'var(--muted)' }}>
         None of this is guesswork or an AI making it up as it goes. These rules are written into the app, tested, and every number you see comes out of them.
       </div>
@@ -2522,10 +2519,10 @@ function PRFlash({ pr, db, units, onClose }) {
         <div className="flex justify-center mb-2">
           <BuddyAvatar buddy={buddy} px={4} />
         </div>
-        <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>NEW BEST</div>
+        <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>New best</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
         <div className="pf text-[16px] tnum mb-2">{toDisplayWeight(pr.weightKg, units)}{unitLabel(units)} × {pr.reps}</div>
-        <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
+        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
     </div>
   );
@@ -2606,7 +2603,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
             "1 PR" is a badge and "Incline dumbbell press, heaviest ever" is the thing you tell
             somebody about. Capped at three: past that it is a list, not a moment. */}
         {(facts.prList || []).map((p, i) => (
-          <div key={i} className="pixel-box p-3 mb-2 text-[11.5px] leading-snug"
+          <div key={i} className="pixel-box p-3 mb-2 text-[12px] leading-snug"
             style={{ borderColor: 'var(--good)', background: 'var(--card)', color: 'var(--good-ink)' }}>
             <span className="font-bold">{p.name}</span> · {p.label}
           </div>
@@ -2706,7 +2703,7 @@ function StatSheet({ db, onBack }) {
               px={4} w={150} h={112} floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
           </div>
           <div className="pf text-[30px] mb-2" style={{ color: 'var(--accent-ink)' }}>{stats.overall}</div>
-          <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>Worked out from what you have actually lifted, against your bodyweight. It moves slowly and it does not lie.</div>
+          <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>Worked out from what you have actually lifted, against your bodyweight. It moves slowly and it does not lie.</div>
         </div>
       </Card>
 
@@ -2734,7 +2731,7 @@ function StatSheet({ db, onBack }) {
                   <span key={j} className="flex-1" style={{ height: 11, background: j * 5 < stats[k] ? 'var(--accent)' : 'var(--track)' }} />
                 ))}
               </div>
-              <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>{why}</div>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{why}</div>
             </div>
           ))}
         </Card>
@@ -2899,7 +2896,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
         style={i ? { borderTop: '2px solid var(--track)' } : null}>
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
-          <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+          <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
             {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
           {r.state === 'stuck' && (
