@@ -593,7 +593,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   reachable only by moving one session inside the builder, one week at a time, which
                   is a different act - that is "the gym was shut on Thursday", this is "I do not
                   train Thursdays". */}
-              <button onClick={() => go('schedule', { blockId: block.id })} className="hit shrink-0 flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}>
+              <button onClick={() => go('schedule', { blockId: block.id })} className="hit shrink-0 flex items-center gap-1" style={{ color: 'var(--link)' }}>
                 Change days <Icon.chevron width="14" height="14" />
               </button>
             </div>
@@ -697,7 +697,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           <div className="flex gap-2 mb-2">
             <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Browse blocks</button>
           </div>
-          <button onClick={() => setWhyEmpty(true)} className="w-full py-2 text-[12px]" style={{ color: 'var(--accent-ink)' }}>
+          <button onClick={() => setWhyEmpty(true)} className="w-full py-2 text-[12px]" style={{ color: 'var(--link)' }}>
             Or start an empty session and log what you did
           </button>
         </Card>

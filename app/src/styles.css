@@ -305,6 +305,12 @@ input, select { color-scheme: light; }
    figure) is the pixel numeral. */
 .pf { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; line-height: 1.4; letter-spacing: 0.01em; }
 .pf.uppercase { text-transform: none; }
+/* Tracking was what made a 9px capitals label read as a label. In sentence case it only spaces the
+   letters out, so the inline letterSpacing those labels still carry is neutralised here, and the
+   capitals-label size (11px) is lifted to the 12px every other label uses. */
+.pixel-box > .ms-cardhead { padding-left: 12px; padding-right: 12px; }
+.pf:not(.tnum) { letter-spacing: 0.01em !important; }
+.pf.uppercase.text-\[11px\] { font-size: 12px !important; }
 .num, .pf.tnum { font-family: 'Silkscreen', ui-monospace, monospace; font-weight: 400; letter-spacing: 0.02em; }
 
 /* Animated buddy sprite sheets: one keyframe drives every strip. translateX(-100%) is the strip's

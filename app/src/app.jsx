@@ -4530,7 +4530,7 @@ function Dropdown({ value, options, onChange, compact, big }) {
 // `tone` covers the three jobs: accent for ordinary actions, danger for destructive ones, and quiet
 // for a control that must not compete with the primary button beside it.
 function TextBtn({ children, onClick, tone = 'accent', className = '', ...rest }) {
-  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--accent-ink)';
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--link)';
   return (<button type="button" onClick={onClick} className={'inline-flex items-center gap-1.5 text-[12px] ' + className}
     style={{ color, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 3, minHeight: 32 }} {...rest}>{children}</button>);
 }
@@ -5543,11 +5543,11 @@ function Auth() {
           {/* Purple, not gold. This is the one screen where the brand is the whole point, and the
               design spends the chrome colour on the button that gets you in. */}
           <Btn kind="accent" className="w-full mt-1" onClick={submit}>{busy ? 'Please wait…' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send reset link' : 'Log in'))}</Btn>
-          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--accent-ink)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
+          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--link)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
           {msg && <div className="text-[12px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[12px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
-        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
+        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--link)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
         <div className="text-[12px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
           {mode === 'signup' ? 'By creating an account you agree to our ' : 'By using Macrosaurus you agree to our '}
           <button onClick={() => setLegal('terms')} className="underline" style={{ color: 'var(--header)' }}>Terms</button> and <button onClick={() => setLegal('privacy')} className="underline" style={{ color: 'var(--header)' }}>Privacy Policy</button>, and understand it is <button onClick={() => setLegal('health')} className="underline" style={{ color: 'var(--header)' }}>not medical advice</button>. Your data stays private to your account.
@@ -5732,7 +5732,7 @@ function Wizard({ initial, onDone, onCancel, buddy }) {
           const when = new Date(Date.now() + weeks * 7 * 864e5).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
           return <div className="text-[12.5px] mt-4 leading-snug">At {r} kg a week you would reach <b>{fmtWeight(g, f.weight_unit)}</b> in about <b className="tnum">{weeks}</b> week{weeks === 1 ? '' : 's'}, around <b>{when}</b>. Your check-ins keep that honest.</div>;
         })()}
-        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[var(--hairline)] w-full text-left" style={{ color: 'var(--accent-ink)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
+        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[var(--hairline)] w-full text-left" style={{ color: 'var(--link)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
         {showMaths && <div className="text-[12px] text-[var(--muted)] mt-2 space-y-1.5">
           <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin-St Jeor BMR plus your steps and training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal a day`}.</div>
           <div><b className="text-[var(--text2)]">Protein:</b> {preview.protein_g} g, sized to hold onto muscle (Helms 2014). I can sharpen this once you tell me your body fat.</div>
@@ -7824,7 +7824,7 @@ function burnEstimate(db) {
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   return est;
 }
-function ExpenditureCard({ db, plan }) {
+function ExpenditureCard({ db, plan, title = 'Energy' }) {
   const [showMath, setShowMath] = useState(false);
   // The lens: the same bars, measured from a different line. Against the burn it is your real
   // deficit; against the target it is an audit of how closely you followed the plan.
@@ -7856,7 +7856,7 @@ function ExpenditureCard({ db, plan }) {
     const left = reqs.reduce((m, r) => Math.max(m, r.want - r.got), 0);
     return (
       <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Energy" right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
+        <CardHead title={title} right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
         <div className="p-4">
         <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
         {/* Capped at what is being asked for: a counter reading 6/4 is a sum nobody wants, and the
@@ -7878,7 +7878,7 @@ function ExpenditureCard({ db, plan }) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return (
       <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Energy" right="Still settling" rightTone="muted" />
+        <CardHead title={title} right="Still settling" rightTone="muted" />
         <div className="p-5">
         <div className="text-[12px] text-[var(--muted)] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
         {typeof plan === 'function' ? plan(null) : plan}
@@ -7894,7 +7894,7 @@ function ExpenditureCard({ db, plan }) {
        you ate and what you burn. The confidence badge stands in until there is a balance to show.
        A bordered pill floating inside the card was a second frame drawn to say one word. */
     <Card className="p-0 mb-4 overflow-hidden">
-      <CardHead title="Energy" right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
+      <CardHead title={title} right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
       <div className="p-4">
         {/* THE BALANCE, leading, because it is the only thing on this page that joins what you ate
             to what you weigh - and because the burn below it is the line it is measured against. */}
@@ -9421,7 +9421,7 @@ function DinoLoader({ label, buddy, buddyName }) {
           <div className="dino-shadow mt-1.5" style={{ width: 36 }} />
         </React.Fragment>}
       <div className="text-[12px] text-[var(--muted)] mt-4">{text}<span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div>
-      {offer && !play && <button onClick={() => setPlay(true)} className="hit text-[12px] mt-3 fade-in" style={{ color: 'var(--accent-ink)' }}>Play while you wait</button>}
+      {offer && !play && <button onClick={() => setPlay(true)} className="hit text-[12px] mt-3 fade-in" style={{ color: 'var(--link)' }}>Play while you wait</button>}
       {slow && <div className="text-[11px] text-[var(--muted)] mt-3 text-center px-8 leading-relaxed fade-in">Taking longer than usual. Check your connection, or go back and try again.</div>}
     </div>
   );
@@ -10533,8 +10533,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="hit text-[11px] text-[var(--muted)] mb-3"><Icon.arrow_left width="16" /> Back</button>
-    <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={24} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
+    <button onClick={onBack} className="flex items-center gap-1 text-[13px] mb-3" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.arrow_left width="16" /> Play</button>
     <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[11px] text-[var(--muted)]">current streak</div></div>
@@ -11947,7 +11946,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         {synced
           ? <span className="pf text-[11px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={12} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="hit pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
+            ? <button onClick={ghConnectGated} className="hit pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>Connect Health ›</button>
             : <span className="pf text-[11px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
@@ -13408,7 +13407,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
           return <div className="px-4 min-h-[44px] flex items-center justify-between text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
             <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
-            {canOpen && <button onClick={() => setShowCarry(true)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Why ›</button>}
+            {canOpen && <button onClick={() => setShowCarry(true)} className="hit text-[12px]" style={{ color: 'var(--link)', fontWeight: 600 }}>Why ›</button>}
           </div>;
         })();
         /* DONE FOR TODAY. The week only counts a day once it is over, because the app cannot tell a
@@ -13431,7 +13430,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           };
           return <div className="px-4 min-h-[44px] flex items-center justify-between gap-3 text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
             <span className="leading-snug">{closed ? <>Done for today · <span className="tnum" style={{ color: rem >= 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{amount}</span></> : 'Finished eating today?'}</span>
-            <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
+            <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
           </div>;
         })();
         const msgControls = !!(msg && !eggIncubating && (msg.weigh || (msg.choices || []).length || (msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)));
@@ -15249,7 +15248,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
       <div className="text-[11px] text-[var(--muted)] leading-snug mb-2.5">{_missing ? "Some values are missing for this one." : "The calories don't add up from the macros."} Get the real numbers a better way:</div>
       {onRescan && <Btn kind="accent" className="w-full" onClick={onRescan}>Scan the nutrition label</Btn>}
-      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
+      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--link)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
     </div>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
@@ -15494,7 +15493,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="space-y-1.5">{checks.map(c => (
         <div key={c.i} className="flex items-center gap-2">
           <div className="min-w-0 flex-1 text-[11px] text-[var(--muted)] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}</div>
-          <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
+          <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
     {/* A collapsed section has to say enough for someone to decide whether to open it. "Edit items"
@@ -15613,7 +15612,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     {err && <div className="text-[12px] mt-2.5 fade-in" role="alert" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
     {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4 border border-[var(--hairline)]" style={{ background: 'var(--surface3)' }}>
       <div className="text-[11px] text-[var(--muted)] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
-      <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
+      <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}>Scan instead</button>
     </div>}
   </div>);
 }
@@ -15970,7 +15969,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
           </button>);
         })}
       </div>
-      {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--accent-ink)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
+      {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--link)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
 
       {/* THE REST OF THE MENU. Six dishes off a forty-dish menu, with the other thirty-four
           invisible, is a shortlist presented as though it were the menu - and the moment someone
@@ -16125,7 +16124,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       </div>))}</div>}
     {/* Deferred, per progressive disclosure: a photo covers most of it, and the two paste routes are
         one box because you can tell a link from a menu by looking at it. */}
-    {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--accent-ink)' }}>or paste the menu, or a link to the place</button>}
+    {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--link)' }}>or paste the menu, or a link to the place</button>}
     {pasteOpen && <div className="mt-2 fade-in">
       <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={pasteIsLink ? 2 : 4} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the menu, or a link to the place" />
       {pasteIsLink && linkNote}
@@ -16139,7 +16138,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       {placeIsLink && linkNote}
     </div>
 
-    {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--accent-ink)' }}>+ Add a note</button>}
+    {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--link)' }}>+ Add a note</button>}
     {noteOpen && <div className="mb-4 fade-in">
       <Field label="Anything else?" hint="Allergies, what you fancy, whether a pudding is happening.">
         <TextInput value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. no dairy, and I want a starter too" />
@@ -16149,7 +16148,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>Read the menu</Btn>
     {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Already eaten it? A photo is more accurate.</div>
-      <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--accent-ink)' }}>Estimate it</button>
+      <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--link)' }}>Estimate it</button>
     </div>}
     {err && <div className="text-[12px] mt-3 fade-in" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
@@ -16749,7 +16748,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
       </Section>
 
       {open === 'energy' && <Sheet title="Energy" onClose={() => setOpen(null)}>
-          <ExpenditureCard db={db} plan={(liveBurn) => {
+          <ExpenditureCard db={db} title="What you burn" plan={(liveBurn) => {
             if (!base) return <div className="mt-3 pt-3 border-t border-[var(--hairline)]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
             // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
             // the burn as it stood when that target was written, so the card said 2,582 and then did its
@@ -17827,7 +17826,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             : stripWindow
               ? 'The days before it run on your normal rhythm; from ' + fmtShortDay(stripWindow.start) + ' the trip is the shape, through to the days that settle it up. A big day in it is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
               : ''}{spread ? `${stripWindow ? ' ' : ''}To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
-          {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
+          {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--link)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div> : null}
       </div>);
     })()}
@@ -18362,7 +18361,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
       </div>
       <div className="text-[12px] text-[var(--muted)] leading-snug mb-2.5">{it.brings}</div>
       {it.note && <div className="text-[11px] mb-2.5 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
-      <Btn kind={on ? 'ghost' : 'accent'} className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => ask(it.id, it.name)}>
+      <Btn kind="ghost" className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => ask(it.id, it.name)}>
         {on ? <><Tick size={12} /> On your list</> : busy === it.id ? 'Adding…' : 'I want this'}
       </Btn>
     </div>);
@@ -20424,7 +20423,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
         </div>
       ))}
     </div>
-    <button onClick={addIng} className="hit text-[12px] mb-4" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+    <button onClick={addIng} className="hit text-[12px] mb-4" style={{ color: 'var(--link)' }}>+ Add ingredient</button>
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
@@ -20660,7 +20659,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
           {chips.map((c, i) => <span key={'t' + i} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
           {(recipe.collections || []).map(c => <span key={c} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
-          <button onClick={() => setShowColl(true)} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
+          <button onClick={() => setShowColl(true)} className="pf text-[11px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--link)', letterSpacing: '0.1em' }}>+ Collection</button>
         </div>
       </div>
     </Card>
@@ -20684,7 +20683,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         {fit && rem && hasMacros && <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
         {busy ? <div className="text-[12px] flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
           : <SheetBtn tone="ghost" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</SheetBtn>}
-        {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
+        {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--link)' }}>Use the recipe's stated macros instead</button>}
       </div>
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
@@ -20711,7 +20710,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
           </div>
         ))}
       </div>
-      <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+      <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--link)' }}>+ Add ingredient</button>
       <Btn kind="ghost" className="w-full mb-4" onClick={() => analyze(false)} disabled={!!busy}>Re-work out the macros</Btn>
     </> : <>
       {/* Each ingredient is ONE ruled line: tick, what it is, what it costs you. The old row stacked
@@ -21015,7 +21014,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
         <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.lock width="16" /> Unlock the library</span></div>
       </div>}
-      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[var(--muted)] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent-ink)' }}>Your cookbook ›</span></button>
+      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[var(--muted)] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--link)' }}>Your cookbook ›</span></button>
     </div>);
   }
 
@@ -21038,7 +21037,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
       : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[var(--muted)] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--accent-ink)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[var(--muted)] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--link)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -21117,11 +21116,11 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                   <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
                   <span className="text-[11px] text-[var(--muted)] tnum shrink-0">{mk} kcal</span>
                 </button>
-                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[11px] uppercase px-2 py-1 shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[11px] uppercase px-2 py-1 shrink-0" style={{ color: 'var(--link)', border: '1px solid var(--accent)' }}>Log</button>}
                 <button onClick={() => removeFromPlan(p.id)} className="text-[var(--muted)] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
               </div>); })}
           </div>}
-          <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
+          <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--link)' }}>+ Add a recipe</button>
         </Card>);
       })}
     </div>
@@ -21202,7 +21201,7 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
         {!m.makeable && <div className="text-[11px] mt-1.5 leading-snug"><span className="text-[var(--muted)]">Missing: </span><span className="text-[var(--text)]">{m.missing.map(x => x.name).join(', ')}</span></div>}
       </div>
     </button>
-    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}><Icon.cart width="24" height="24" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
+    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}><Icon.cart width="24" height="24" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
   </div>);
 }
 // Log a serving of a recipe you cooked without saving it (e.g. straight from Discover). Same portion +
@@ -21324,7 +21323,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
           ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
           : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
       </Card>}
-      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[var(--muted)] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--accent-ink)' }}>Discover library</span> to what's in your fridge ›</button>}
+      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[var(--muted)] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--link)' }}>Discover library</span> to what's in your fridge ›</button>}
     </div>}
     {pubSheet && <FridgePublicSheet m={pubSheet} onClose={() => setPubSheet(null)}
       onCook={(pub) => { setPubSheet(null); onCookPublic(pub); }}

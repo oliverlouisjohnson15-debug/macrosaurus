@@ -1995,9 +1995,9 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
   return (
     <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)' }}>
       <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
-        <button onClick={onClose} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Close</button>
+        <button onClick={onClose} className="pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>Close</button>
         <div className="pf text-[11px] flex-1 text-center">{title || 'Add exercise'}</div>
-        <button onClick={() => setCreating(true)} className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>New</button>
+        <button onClick={() => setCreating(true)} className="pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>New</button>
       </div>
       <div className="p-3">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search movements" autoFocus

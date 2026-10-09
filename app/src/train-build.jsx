@@ -620,11 +620,8 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
   return (
     <div className="fade-in">
-      <div className="flex items-baseline justify-between gap-2">
-        <button onClick={onBack} className="pf text-[11px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-        {preview && <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>about {preview.minutesEach} min a session</span>}
-      </div>
-      <h1 className="pf text-lg mt-2 mb-1">Build a block</h1>
+      <SubHeader back={onBack} backLabel="Train" title="Build a block" />
+      {preview && <div className="text-[13px] mb-1" style={{ color: 'var(--muted)' }}>About {preview.minutesEach} min a session</div>}
 
       {/* Four steps rather than one endless scroll of every question a block could ask. Step 1 is
           the one nothing can go ahead of, because it decides what every later answer MEANS: four
@@ -786,7 +783,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {draftDays > 0 && (
           <div className="text-[12px] mt-3 pt-3 leading-snug border-t" style={{ borderColor: 'var(--border)', color: 'var(--text2)' }}>
             {draftDays} {draftDays === 1 ? 'day' : 'days'} in your draft so far.{' '}
-            <button onClick={onShots} className="underline" style={{ color: 'var(--accent-ink)' }}>Review it</button>
+            <button onClick={onShots} className="underline" style={{ color: 'var(--link)' }}>Review it</button>
           </div>
         )}
       </Card>
@@ -815,7 +812,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <div className="text-[12px] mb-4 px-3 py-2.5" style={{ background: 'var(--surface2)', borderLeft: '3px solid var(--accent)' }}>
         <span className="pf text-[11px] uppercase block mb-1" style={{ color: 'var(--accent-ink)' }}>Days a week</span>
         {days} sessions a week.{' '}
-        <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--accent-ink)' }}>Change it</button>
+        <button onClick={() => setWizStep(1)} className="underline" style={{ color: 'var(--link)' }}>Change it</button>
       </div>
       <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
         hint={draftDays > 0 && !asBrought
@@ -1298,8 +1295,8 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={leave} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-4">{isNew ? 'Your new block' : 'Edit block'}</h1>
+      <SubHeader back={leave} backLabel="Back" title={isNew ? 'Your new block' : 'Edit block'} />
+      
 
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
       <Field label="Starts" hint="Week 1 runs from this date.">
@@ -1538,7 +1535,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
               screen somebody might be nervous about editing, and knowing the original is one tap away
               is what makes editing it feel allowed at all. */}
           {fromProgramme && (
-            <button onClick={() => setConfirmReset(true)} className="w-full text-[12px] mt-3 py-2 text-left" style={{ color: 'var(--accent-ink)' }}>
+            <button onClick={() => setConfirmReset(true)} className="w-full text-[12px] mt-3 py-2 text-left" style={{ color: 'var(--link)' }}>
               Start again from {fromProgramme.name} as written
             </button>
           )}
@@ -1955,11 +1952,10 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
   return (
     <div className="fade-in pb-2">
-      <button onClick={onBack} className="pf text-[11px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
+      <SubHeader back={onBack} backLabel="Train" title={live.name} />
+      <div className="text-[13px] mb-1" style={{ color: 'var(--muted)', fontWeight: 600 }}>
         {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
       </div>
-      <h1 className="text-[19px] font-bold leading-tight mb-1">{live.name}</h1>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min
         {live.deload ? ' · deload week' : ''}
@@ -1972,7 +1968,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       {editable && (
         <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
           {WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'} · this week only ·{' '}
-          <button onClick={() => setDayPick(true)} className="hit" style={{ color: 'var(--accent-ink)' }}>move ›</button>
+          <button onClick={() => setDayPick(true)} className="hit" style={{ color: 'var(--link)' }}>move ›</button>
         </div>
       )}
 
