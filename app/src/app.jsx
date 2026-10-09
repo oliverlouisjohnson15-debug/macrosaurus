@@ -13975,28 +13975,30 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         </button>
         <button onClick={() => setDate(shiftISO(date, 1))} aria-label="Next day" className="h-11 flex items-center justify-center" style={{ color: 'var(--link)' }} aria-label="Next day"><Icon.chevron width="16" /></button>
         <div className="relative flex items-center">
-          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center text-[var(--muted)]" aria-label="Day options"><Icon.more width="16" /></button>
-          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[var(--hairline)] py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
-            <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
-            {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center" aria-label="Day options" style={{ color: 'var(--link)' }}><Icon.more width="24" /></button>
+          {dayMenu && <Sheet title={date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} onClose={() => setDayMenu(false)}>
+            <div className="flex flex-col">
+              <Row icon={<Icon.plus width="24" />} title="Add a meal" onClick={() => { addDayMeal(); setDayMenu(false); }} />
+              {day.length > 0 && <Row icon={<Icon.copy width="24" />} title="Copy this day to…" onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} />}
+            </div>
             {/* The reciprocal pointer. Settings explains that per-day edits don't touch the default;
                 until now the Food log never said the default existed. */}
-            <div className="text-[11px] text-[var(--muted)] px-4 py-2 leading-snug" style={{ borderTop: '1px solid #262629' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
-          </div>}
+            <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
+          </Sheet>}
         </div>
       </div>
-      {showCal && <Card className="p-4 mb-4 fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
-          <div className="text-sm font-semibold">{monthName}</div>
-          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
+      {showCal && <div className="mb-4 fade-in">
+        <div className="flex items-center justify-between mb-1">
+          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} aria-label="Previous month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+          <div className="text-[15px]" style={{ fontWeight: 600 }}>{monthName}</div>
+          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} aria-label="Next month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" /></button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[12px] mb-1" style={{ color: 'var(--muted)' }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[var(--muted)]' : 'text-[#C9C9CF]'}`}>
-            {new Date(c + 'T00:00:00').getDate()}
+          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={'relative min-h-[44px] text-[13px] tnum flex items-center justify-center' + (c === date ? ' ms-chip on' : '')} style={{ color: c > today ? 'var(--muted)' : 'var(--text)', background: c === date ? undefined : 'var(--card)', fontWeight: c === date || c === today ? 700 : 400 }}>
+            {new Date(c + 'T00:00:00').getDate()}{logSet.has(c) && c !== date && <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--link)' }} />}
           </button>) : <div key={i} />)}</div>
-      </Card>}
+      </div>}
 
       {/* Remaining-at-a-glance while you log (36-after-reset/01): kcal and P/C/F LEFT lead, eaten is secondary. The full hero + Balance live on Today. */}
       {et && (() => {
@@ -14066,13 +14068,15 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             <div data-meal-head onPointerDown={(ev) => { if (ev.target.closest && ev.target.closest('[data-no-mealdrag]')) return; startMealDrag(ev, m, me, false); }}
               className="flex justify-between items-center gap-2 pb-1"
               style={{ borderBottom: '2px solid var(--border)', background: mealArming === m.id ? 'var(--surface2)' : 'transparent', transition: 'background .18s linear', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
-              <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label="Meal options"
+              <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label={'Rename or move ' + m.name}
                 className="text-[15px] text-left truncate min-w-0" style={{ fontWeight: 700, minHeight: 44, minWidth: 44 }}>{m.name}</button>
               <div className="flex items-center gap-2 shrink-0">
                 {me.length !== 1 && <div className="flex flex-col items-end leading-tight">
                   <span className="text-[13px] tnum" style={{ color: 'var(--muted)', fontWeight: 600 }}>{me.length ? <><span className="num" style={{ color: 'var(--text)' }}>{Math.round(ms.kcal)}</span> kcal</> : '–'}</span>
                   {me.length > 1 && <MealHeadMacros macros={ms} />}
                 </div>}
+                {/* The way into the meal's actions (copy, save, move, clear) is a real control again; tapping the name still works too. */}
+                <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label="Meal options" className="w-11 h-11 -mr-1 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.more width="24" /></button>
                 <button data-no-mealdrag onClick={() => openLog({ date, mealId: m.id })} aria-label={'Add to ' + m.name} className="w-11 h-11 -mr-2 flex items-center justify-center" style={{ color: 'var(--link)' }}>
                   <span className="flex items-center justify-center" style={{ width: 28, height: 28, boxShadow: '0 -2px 0 0 currentColor, 0 2px 0 0 currentColor, -2px 0 0 0 currentColor, 2px 0 0 0 currentColor' }}><Icon.plus width="16" /></span></button>
               </div>
@@ -14090,6 +14094,15 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         return <Sheet title={m.name} onClose={() => setMealMenu(null)}>
           <div className="flex flex-col">
             <Row icon={<Icon.edit width="24" />} title="Rename" onClick={() => { setMealMenu(null); setEditMeal(m.id); setMealName(m.name); }} />
+            {me.length > 0 && (() => {
+              // The common copy in one tap: another day's meal into today, or today's into tomorrow.
+              const destDate = date === today ? shiftISO(today, 1) : today;
+              const dm = mealsForDay(db, destDate);
+              const same = dm.find(x => (x.name || '').trim().toLowerCase() === (m.name || '').trim().toLowerCase()) || dm[mi] || dm[0];
+              if (!same) return null;
+              return <Row icon={<Icon.copy width="24" />} title={date === today ? 'Copy to tomorrow' : 'Copy to today'} sub={'Into ' + (same.name || '').toLowerCase()}
+                onClick={() => { copyEntriesTo(me, destDate, same.id); setMealMenu(null); }} />;
+            })()}
             {me.length > 0 && <Row icon={<Icon.copy width="24" />} title="Copy to…" sub="Another meal or day" onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} />}
             {me.length > 0 && <Row icon={<Icon.star width="24" />} title="Save as meal" sub="Log it in one tap next time" onClick={() => saveMeal(m, me)} />}
             {mi > 0 && <Row icon={<Icon.arrow_up width="24" />} title="Move up" onClick={() => { moveMeal(m, -1); setMealMenu(null); }} />}
@@ -14408,25 +14421,25 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
        whole point of the feature, met a row of days that did not respond. */
     <Sheet title={title} onClose={onClose} wide z={80}>
       <div>
-      {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
+      {count > 0 && <div className="text-[13px] tnum mb-3" style={{ color: 'var(--muted)' }}>{count}{count === 1 ? ' item' : ' items'} · <span className="num" style={{ color: 'var(--text)' }}>{kcal}</span> kcal</div>}
       {/* The same meal control as Edit entry, not a third hand-rolled row of chips. */}
       {meals && <div className="mb-3">
         <SheetLabel className="block mb-[7px]">Into which meal</SheetLabel>
         <Seg value={selMeal} onChange={setSelMeal} options={meals.map(m => ({ v: m.id, l: meals.length >= 4 ? mealShort(m.name) : m.name }))} />
       </div>}
-      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Quick copy to</div>
-      <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
-      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Or pick a day</div>
+      <SheetLabel className="block mb-[7px]">Quick copy to</SheetLabel>
+      <div className="flex gap-2 mb-4">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} disabled={q.iso === srcDate} className="ms-chip flex-1 justify-center" style={{ opacity: q.iso === srcDate ? 0.5 : 1 }}>{q.label}</button>)}</div>
+      <SheetLabel className="block mb-[7px]">Or pick a day</SheetLabel>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
-        <div className="text-sm font-semibold">{monthName}</div>
-        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
+        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} aria-label="Previous month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+        <div className="text-[15px]" style={{ fontWeight: 600 }}>{monthName}</div>
+        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} aria-label="Next month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" /></button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[12px] mb-1" style={{ color: 'var(--muted)' }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-        <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
+        <button key={i} onClick={() => pick(c)} className={'relative min-h-[44px] text-[13px] tnum flex items-center justify-center' + (c === today ? ' ms-chip on' : '')} style={{ color: c === srcDate && c !== today ? 'var(--muted)' : 'var(--text)', background: c === today ? undefined : 'var(--card)', fontWeight: c === today ? 700 : 400 }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--link)' }} />}</button>
       ) : <div key={i} />)}</div>
-      <div className="flex items-center gap-1.5 mt-2 text-[11px] text-[#5A5A62]"><span className="inline-block w-1 h-1" style={{ background: 'var(--accent)' }} /> has food logged</div>
+      <div className="flex items-center gap-1.5 mt-2 text-[12px]" style={{ color: 'var(--muted)' }}><span className="inline-block w-1 h-1" style={{ background: 'var(--link)' }} /> has food logged</div>
       </div>
     </Sheet>
   );

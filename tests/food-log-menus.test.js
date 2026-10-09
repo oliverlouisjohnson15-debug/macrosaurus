@@ -105,3 +105,33 @@ test('a logged food\'s own sheet copies that one item', () => {
     assert.equal(copied.length, 1, 'one row copied means one entry: ' + JSON.stringify(copied.map(e => e.name)));
   } finally { r.unmount(); }
 });
+
+test('the meal has a visible ⋯ and a one-tap copy to tomorrow', () => {
+  // 36-after-reset/02: the meal's actions were behind a tap on its name, with nothing to show it.
+  const db = account();
+  const r = foodLog(db);
+  try {
+    const dots = Array.from(r.host.querySelectorAll('button')).filter(b => b.getAttribute('aria-label') === 'Meal options');
+    assert.ok(dots.length >= 2, 'every meal should carry its own ⋯');
+    r.openMealMenu(0);
+    r.tap(r.findEl('Copy to tomorrow'));
+    const copied = db.log_entries.filter(e => e.date === tomorrow);
+    assert.deepEqual(copied.map(e => e.name).sort(), ['Banana', 'Porridge']);
+    for (const c of copied) assert.equal(c.meal_id, 'm_1', c.name + ' should land in the same meal');
+  } finally { r.unmount(); }
+});
+
+test('on another day the same row copies the meal into today', () => {
+  const db = account();
+  const yesterday = A.shiftISO(today, -1);
+  db.log_entries.forEach(e => { e.date = yesterday; });
+  const r = foodLog(db);
+  try {
+    r.tap(Array.from(r.host.querySelectorAll('button')).find(b => b.getAttribute('aria-label') === 'Previous day'));
+    r.openMealMenu(0);
+    r.tap(r.findEl('Copy to today'));
+    const copied = db.log_entries.filter(e => e.date === today);
+    assert.equal(copied.length, 2, 'both items should be on today: ' + JSON.stringify(db.log_entries.map(e => e.date + '/' + e.name)));
+    assert.equal(db.log_entries.filter(e => e.date === yesterday).length, 2, 'copied, not moved');
+  } finally { r.unmount(); }
+});
