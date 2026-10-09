@@ -14019,7 +14019,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           <div className="mt-2">
             {macroRows.map(([l, k, tk, fill, ink]) => {
               const left = Math.round(et.eff[tk] - tot[k]); const mOver = left < 0;
-              return <div key={k} className="flex items-center gap-3" style={{ minHeight: 28 }}>
+              return <div key={k} className="flex items-center gap-3" style={{ minHeight: 24 }}>
                 <span className="text-[13px] w-4 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
                 <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={et.eff[tk]} color={mOver ? 'var(--danger)' : fill} cells={10} small /></div>
                 <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : 'var(--text2)', fontWeight: 600 }}>{Math.abs(left)} g {mOver ? 'over' : word}</span>

@@ -122,3 +122,7 @@ sheet: Breakfast
 ## Design documentation
 
 - None. This brings the meal back in line with existing `DESIGN.md` rules.
+
+## Status
+
+**Done, 2026-10-09.** ⋯ is back on every meal heading (the name still opens the sheet). The meal sheet leads with Copy to today (another day) or Copy to tomorrow (today), into the same-named meal. `CopyToModal`, the day menu (now a Sheet) and the diary's own month picker are restyled with no dark tiles. Tests added to `tests/food-log-menus.test.js`.

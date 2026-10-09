@@ -117,3 +117,7 @@ More
 ## Design documentation
 
 - None.
+
+## Status
+
+**Done, 2026-10-09.** `ProgrammeCards` is a Section of four Rows, shown on Blocks always and on Train home when there is no block or the block is finished. The library row/page is "Community blocks". The old card's day-name line was dropped as planned, so the `tests/render.test.js` assertion on it was replaced by one that checks all four programme names. The empty-state card on Train home still uses `pixel-btn`/`pixel-box` (out of scope).

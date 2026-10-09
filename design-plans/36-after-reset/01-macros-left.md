@@ -113,3 +113,7 @@ F  ▮▮▮▮▮▮▮▮▯▯  48 g left
 ## Design documentation
 
 - Step 4 above.
+
+## Status
+
+**Done, 2026-10-09.** Log sheet kcal bug fixed (pinned by `tests/log-sheet-left.test.js`); the sheet's strip is a `--sunk` banner with P/C/F meters, over shown rather than clamped; the Diary summary leads with kcal left and P/C/F left, eaten secondary. `--sunk` was documented in `DESIGN.md` but never defined in CSS, so it is now. Past days read "under" instead of "left". DESIGN.md and 35-reset §2.7 updated for D1.

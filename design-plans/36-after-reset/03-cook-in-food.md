@@ -141,3 +141,7 @@ Community cookbook · Lvl 1   3 shared     ← Section at the foot
 
 - None. Discover joins the existing system. If D3 is reversed, record "Discover filters: ≤ 5
   chips, wrapping" in `DESIGN.md` under `Chip` instead.
+
+## Status
+
+**Done, 2026-10-09.** Cook always opens on Cook home. Discover: five wrapping `.ms-chip` filters, a Field search, captions under the art (no gradient), the preview is a `Sheet`, consent/upsell/contributor level are Sections. Chicken/beef/fish/veggie pills removed (D3); `load()` still handles `m:` picks. Not touched, as planned: `RecipeFilterSheet` and the other Cook sub-screens still use pre-reset chips. Test added to `tests/render.test.js`.
