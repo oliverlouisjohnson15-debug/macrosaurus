@@ -13975,43 +13975,57 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         </button>
         <button onClick={() => setDate(shiftISO(date, 1))} aria-label="Next day" className="h-11 flex items-center justify-center" style={{ color: 'var(--link)' }} aria-label="Next day"><Icon.chevron width="16" /></button>
         <div className="relative flex items-center">
-          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center text-[var(--muted)]" aria-label="Day options"><Icon.more width="16" /></button>
-          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[var(--hairline)] py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
-            <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
-            {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="w-11 h-11 flex items-center justify-center" aria-label="Day options" style={{ color: 'var(--link)' }}><Icon.more width="24" /></button>
+          {dayMenu && <Sheet title={date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} onClose={() => setDayMenu(false)}>
+            <div className="flex flex-col">
+              <Row icon={<Icon.plus width="24" />} title="Add a meal" onClick={() => { addDayMeal(); setDayMenu(false); }} />
+              {day.length > 0 && <Row icon={<Icon.copy width="24" />} title="Copy this day to…" onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} />}
+            </div>
             {/* The reciprocal pointer. Settings explains that per-day edits don't touch the default;
                 until now the Food log never said the default existed. */}
-            <div className="text-[11px] text-[var(--muted)] px-4 py-2 leading-snug" style={{ borderTop: '1px solid #262629' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
-          </div>}
+            <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
+          </Sheet>}
         </div>
       </div>
-      {showCal && <Card className="p-4 mb-4 fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
-          <div className="text-sm font-semibold">{monthName}</div>
-          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
+      {showCal && <div className="mb-4 fade-in">
+        <div className="flex items-center justify-between mb-1">
+          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} aria-label="Previous month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+          <div className="text-[15px]" style={{ fontWeight: 600 }}>{monthName}</div>
+          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} aria-label="Next month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" /></button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[12px] mb-1" style={{ color: 'var(--muted)' }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[var(--muted)]' : 'text-[#C9C9CF]'}`}>
-            {new Date(c + 'T00:00:00').getDate()}
+          <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={'relative min-h-[44px] text-[13px] tnum flex items-center justify-center' + (c === date ? ' ms-chip on' : '')} style={{ color: c > today ? 'var(--muted)' : 'var(--text)', background: c === date ? undefined : 'var(--card)', fontWeight: c === date || c === today ? 700 : 400 }}>
+            {new Date(c + 'T00:00:00').getDate()}{logSet.has(c) && c !== date && <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--link)' }} />}
           </button>) : <div key={i} />)}</div>
-      </Card>}
+      </div>}
 
-      {/* Slim remaining-at-a-glance while you log; the full hero + Balance live on the Today tab. */}
+      {/* Remaining-at-a-glance while you log (36-after-reset/01): kcal and P/C/F LEFT lead, eaten is secondary. The full hero + Balance live on Today. */}
       {et && (() => {
         const rem = et.eff.kcal - tot.kcal;
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
             carrying the target, then one row per instrument. */}
-        // 35-reset: the day as ONE line (Food owns "eaten"; Today owns "left") and one thin meter.
         const dnd = window.MISPREMIUM === true ? E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol }))) : null;
+        const isPast = date < today;
+        const word = isPast ? 'under' : 'left';
+        const macroRows = [['P', 'protein', 'protein_g', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'carbs_g', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'fat_g', 'var(--fat)', 'var(--fat-ink)']];
         return <div className="mb-2">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>of {Math.round(et.eff.kcal).toLocaleString('en-GB')} kcal</span></span>
-            <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(tot.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(tot.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(tot.fat)}</span></span>
+            <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{Math.abs(Math.round(rem)).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)', fontWeight: 600 }}>kcal {over ? 'over' : word}</span></span>
+            <span className="text-[13px] tnum" style={{ color: 'var(--muted)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')} of {Math.round(et.eff.kcal).toLocaleString('en-GB')} eaten</span>
           </div>
           <div className="mt-2"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} small /></div>
+          <div className="mt-2">
+            {macroRows.map(([l, k, tk, fill, ink]) => {
+              const left = Math.round(et.eff[tk] - tot[k]); const mOver = left < 0;
+              return <div key={k} className="flex items-center gap-3" style={{ minHeight: 24 }}>
+                <span className="text-[13px] w-4 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
+                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={et.eff[tk]} color={mOver ? 'var(--danger)' : fill} cells={10} small /></div>
+                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : 'var(--text2)', fontWeight: 600 }}>{Math.abs(left)} g {mOver ? 'over' : word}</span>
+              </div>;
+            })}
+          </div>
           {dnd && <button onClick={() => setDensityHelp(true)} className="w-full flex items-center justify-between text-[13px] mt-1" style={{ minHeight: 44 }}>
             <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Density</span>
             <span className="tnum" style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)'), fontWeight: 600 }}>{dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}</span>
@@ -14054,13 +14068,15 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             <div data-meal-head onPointerDown={(ev) => { if (ev.target.closest && ev.target.closest('[data-no-mealdrag]')) return; startMealDrag(ev, m, me, false); }}
               className="flex justify-between items-center gap-2 pb-1"
               style={{ borderBottom: '2px solid var(--border)', background: mealArming === m.id ? 'var(--surface2)' : 'transparent', transition: 'background .18s linear', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
-              <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label="Meal options"
+              <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label={'Rename or move ' + m.name}
                 className="text-[15px] text-left truncate min-w-0" style={{ fontWeight: 700, minHeight: 44, minWidth: 44 }}>{m.name}</button>
               <div className="flex items-center gap-2 shrink-0">
                 {me.length !== 1 && <div className="flex flex-col items-end leading-tight">
                   <span className="text-[13px] tnum" style={{ color: 'var(--muted)', fontWeight: 600 }}>{me.length ? <><span className="num" style={{ color: 'var(--text)' }}>{Math.round(ms.kcal)}</span> kcal</> : '–'}</span>
                   {me.length > 1 && <MealHeadMacros macros={ms} />}
                 </div>}
+                {/* The way into the meal's actions (copy, save, move, clear) is a real control again; tapping the name still works too. */}
+                <button data-no-mealdrag onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setMealMenu({ id: m.id }); }} aria-label="Meal options" className="w-11 h-11 -mr-1 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.more width="24" /></button>
                 <button data-no-mealdrag onClick={() => openLog({ date, mealId: m.id })} aria-label={'Add to ' + m.name} className="w-11 h-11 -mr-2 flex items-center justify-center" style={{ color: 'var(--link)' }}>
                   <span className="flex items-center justify-center" style={{ width: 28, height: 28, boxShadow: '0 -2px 0 0 currentColor, 0 2px 0 0 currentColor, -2px 0 0 0 currentColor, 2px 0 0 0 currentColor' }}><Icon.plus width="16" /></span></button>
               </div>
@@ -14078,6 +14094,15 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         return <Sheet title={m.name} onClose={() => setMealMenu(null)}>
           <div className="flex flex-col">
             <Row icon={<Icon.edit width="24" />} title="Rename" onClick={() => { setMealMenu(null); setEditMeal(m.id); setMealName(m.name); }} />
+            {me.length > 0 && (() => {
+              // The common copy in one tap: another day's meal into today, or today's into tomorrow.
+              const destDate = date === today ? shiftISO(today, 1) : today;
+              const dm = mealsForDay(db, destDate);
+              const same = dm.find(x => (x.name || '').trim().toLowerCase() === (m.name || '').trim().toLowerCase()) || dm[mi] || dm[0];
+              if (!same) return null;
+              return <Row icon={<Icon.copy width="24" />} title={date === today ? 'Copy to tomorrow' : 'Copy to today'} sub={'Into ' + (same.name || '').toLowerCase()}
+                onClick={() => { copyEntriesTo(me, destDate, same.id); setMealMenu(null); }} />;
+            })()}
             {me.length > 0 && <Row icon={<Icon.copy width="24" />} title="Copy to…" sub="Another meal or day" onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} />}
             {me.length > 0 && <Row icon={<Icon.star width="24" />} title="Save as meal" sub="Log it in one tap next time" onClick={() => saveMeal(m, me)} />}
             {mi > 0 && <Row icon={<Icon.arrow_up width="24" />} title="Move up" onClick={() => { moveMeal(m, -1); setMealMenu(null); }} />}
@@ -14396,25 +14421,25 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
        whole point of the feature, met a row of days that did not respond. */
     <Sheet title={title} onClose={onClose} wide z={80}>
       <div>
-      {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
+      {count > 0 && <div className="text-[13px] tnum mb-3" style={{ color: 'var(--muted)' }}>{count}{count === 1 ? ' item' : ' items'} · <span className="num" style={{ color: 'var(--text)' }}>{kcal}</span> kcal</div>}
       {/* The same meal control as Edit entry, not a third hand-rolled row of chips. */}
       {meals && <div className="mb-3">
         <SheetLabel className="block mb-[7px]">Into which meal</SheetLabel>
         <Seg value={selMeal} onChange={setSelMeal} options={meals.map(m => ({ v: m.id, l: meals.length >= 4 ? mealShort(m.name) : m.name }))} />
       </div>}
-      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Quick copy to</div>
-      <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
-      <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">Or pick a day</div>
+      <SheetLabel className="block mb-[7px]">Quick copy to</SheetLabel>
+      <div className="flex gap-2 mb-4">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} disabled={q.iso === srcDate} className="ms-chip flex-1 justify-center" style={{ opacity: q.iso === srcDate ? 0.5 : 1 }}>{q.label}</button>)}</div>
+      <SheetLabel className="block mb-[7px]">Or pick a day</SheetLabel>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
-        <div className="text-sm font-semibold">{monthName}</div>
-        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[var(--muted)] px-2 py-1"><Icon.chevron width="16" /></button>
+        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} aria-label="Previous month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
+        <div className="text-[15px]" style={{ fontWeight: 600 }}>{monthName}</div>
+        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} aria-label="Next month" className="w-11 h-11 flex items-center justify-center" style={{ color: 'var(--link)' }}><Icon.chevron width="16" /></button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--muted)] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[12px] mb-1" style={{ color: 'var(--muted)' }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-        <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[var(--muted)]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
+        <button key={i} onClick={() => pick(c)} className={'relative min-h-[44px] text-[13px] tnum flex items-center justify-center' + (c === today ? ' ms-chip on' : '')} style={{ color: c === srcDate && c !== today ? 'var(--muted)' : 'var(--text)', background: c === today ? undefined : 'var(--card)', fontWeight: c === today ? 700 : 400 }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--link)' }} />}</button>
       ) : <div key={i} />)}</div>
-      <div className="flex items-center gap-1.5 mt-2 text-[11px] text-[#5A5A62]"><span className="inline-block w-1 h-1" style={{ background: 'var(--accent)' }} /> has food logged</div>
+      <div className="flex items-center gap-1.5 mt-2 text-[12px]" style={{ color: 'var(--muted)' }}><span className="inline-block w-1 h-1" style={{ background: 'var(--link)' }} /> has food logged</div>
       </div>
     </Sheet>
   );
@@ -14758,7 +14783,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
   // A + keeps the sheet open; everything else closes it as it always did.
   const addKeep = (item) => { onAdd(mealId, Object.assign({}, item, { keepOpen: true })); setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0) }])); };
-  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal - added.reduce((n, x) => n + x.kcal, 0)), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
+  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
   const aiNote = !isPremium && (mode === 'scan' || mode === 'describe') && (() => {
     const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
     return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
@@ -14771,9 +14796,20 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   return (
     <Sheet title={title} onClose={onClose} wide z={50} pad={false} bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
       <div className="px-4 pb-3 flex-none">
-        {left && <div className="flex items-center justify-between gap-2 px-3 py-2.5 text-[13px]" style={{ background: 'var(--surface2)' }}>
-          <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
-          <span className="tnum"><span className="num text-[14px]">{Math.abs(left.kcal)}</span> kcal · <span style={{ color: 'var(--pro-ink)' }}>P{Math.max(0, left.protein)}</span> <span style={{ color: 'var(--carb-ink)' }}>C{Math.max(0, left.carbs)}</span> <span style={{ color: 'var(--fat-ink)' }}>F{Math.max(0, left.fat)}</span></span>
+        {left && <div className="px-3 py-2.5" style={{ background: 'var(--sunk)' }}>
+          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+            <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
+            <span className="tnum"><span className="num text-[16px]" style={{ color: left.kcal < 0 ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.abs(left.kcal).toLocaleString('en-GB')}</span> kcal</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mt-2">
+            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)']].map(([l, k, fill, ink]) => {
+              const over = left[k] < 0;
+              return <div key={k} className="min-w-0">
+                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {Math.abs(left[k])} g{over ? ' over' : ''}</div>
+                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small /></div>
+              </div>;
+            })}
+          </div>
         </div>}
       </div>
       <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -20923,19 +20959,18 @@ function ChefCard({ db }) {
        the shared count in accent beside it, and the interior carries the rank, the bar and the one
        sentence of explanation. It used to spend its top-right corner on a big number that duplicated
        what the title bar now says in a quarter of the space. */
-    <Card className="p-0 mb-4 overflow-hidden">
-      <CardHead title={'Community cookbook · Lvl ' + bt.level} right={shared + ' shared'} />
+    <Section title={'Community cookbook · Lvl ' + bt.level} right={shared + ' shared'}>
       {/* One line, then the bar (design-plans/34-overhaul/06). The sentence explaining the system is
           for someone who has not used it yet, so it goes once anything has been shared. */}
-      <div className="px-3 py-2.5 flex flex-col gap-2">
+      <div className="py-3 flex flex-col gap-2">
         <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[13.5px] font-semibold truncate">{name}</span>
-          {bt.next != null && <span className="pf text-[11px] uppercase shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{toGo} to {nextName}</span>}
+          <span className="text-[15px] truncate" style={{ fontWeight: 600 }}>{name}</span>
+          {bt.next != null && <span className="text-[13px] shrink-0" style={{ color: 'var(--muted)' }}>{toGo} to {nextName}</span>}
         </div>
-        {bt.next != null && <PipLine pct={(bt.progress || 0) * 100} color="var(--accent)" height={9} />}
-        {(shared === 0 || bt.next == null) && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>}
+        {bt.next != null && <PipLine pct={(bt.progress || 0) * 100} color="var(--link)" height={9} />}
+        {(shared === 0 || bt.next == null) && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>}
       </div>
-    </Card>
+    </Section>
   );
 }
 // Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
@@ -20948,20 +20983,14 @@ function creditName(pub) {
 // Image-forward, reel-shaped (portrait) card - Instagram covers are portrait, so this frames them
 // naturally. Everything sits on the image: title + protein + creator on a scrim, kcal badge on top.
 function PublicRecipeCard({ pub, onOpen }) {
-  return (<button onClick={onOpen} className="text-left w-full active:opacity-95">
-    <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
-      <div className="relative w-full" style={{ aspectRatio: '3 / 4', background: 'var(--surface3)' }}>
-        <RecipeImg src={pub.thumbnail} iconSize={48} />
-        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[11px] font-bold tnum" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{Math.round(pub.kcal)} kcal</div>
-        <div className="absolute inset-x-0 bottom-0 pt-10 px-2.5 pb-2" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.9))' }}>
-          <div className="font-bold text-[13px] leading-tight mb-1" style={{ ...clamp2, color: '#fff' }}>{pub.title}</div>
-          <div className="flex items-center gap-1.5 text-[11px] min-w-0">
-            <span className="tnum font-bold shrink-0" style={{ color: '#7CFF9B' }}>{Math.round(pub.protein)}g protein</span>
-            {pub.source_author ? <span className="truncate" style={{ color: 'rgba(255,255,255,0.72)' }}>· {creditName(pub)}</span> : null}
-          </div>
-        </div>
-      </div>
+  // The caption sits BELOW the art (36-after-reset/03): no scrim, no gradient, nothing laid over the photo.
+  return (<button onClick={onOpen} className="text-left w-full active:opacity-95 flex flex-col gap-1.5">
+    <div className="relative w-full overflow-hidden" style={{ aspectRatio: '3 / 4', background: 'var(--surface3)' }}>
+      <RecipeImg src={pub.thumbnail} iconSize={48} />
     </div>
+    <div className="text-[15px] leading-tight" style={{ ...clamp2, fontWeight: 600 }}>{pub.title}</div>
+    <div className="text-[13px] tnum" style={{ color: 'var(--muted)' }}><span className="num" style={{ color: 'var(--text)' }}>{Math.round(pub.kcal)}</span> kcal · {Math.round(pub.protein)} g protein</div>
+    {pub.source_author ? <div className="text-[12px] truncate" style={{ color: 'var(--muted)' }}>{creditName(pub)}</div> : null}
   </button>);
 }
 // The global recipe hub: a Mob-style library of every recipe the community has imported, credited to
@@ -21001,59 +21030,60 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
 
   if (!isPremium) {
     return (<div className="fade-in">
-      <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-        <div className="p-4">
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-          <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
-          <div className="text-[12px] text-[var(--muted)] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
-          <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Try Premium free</button>
-          <div className="text-[11px] text-center text-[var(--muted)] mt-2">7 days free, then cancel anytime</div>
+      <Section title="Every recipe, from everyone">
+        <div className="py-3">
+          <p className="text-[15px] mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator.</p>
+          <Btn onClick={openPaywall}>Try Premium free</Btn>
+          <div className="text-[13px] mt-2" style={{ color: 'var(--muted)' }}>7 days free, then cancel anytime</div>
         </div>
-      </div>
+      </Section>
       {teaser.length > 0 && <div className="relative mb-4" onClick={openPaywall}>
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
-        <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.lock width="16" /> Unlock the library</span></div>
+        <div className="absolute inset-0 flex items-center justify-center"><span className="ms-chip on"><Icon.lock width="16" /> Unlock the library</span></div>
       </div>}
-      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[var(--muted)] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--link)' }}>Your cookbook ›</span></button>
+      <button onClick={onGoMine} className="w-full text-center text-[13px] py-2 leading-snug" style={{ color: 'var(--muted)', minHeight: 44 }}>Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--link)', fontWeight: 600 }}>Your cookbook ›</span></button>
     </div>);
   }
 
   // Lead with the axes that actually help you decide what to cook (Mob-style): fit, protein, speed,
   // breakfast (the one distinct meal), then main ingredient. Lunch/dinner are tied together as "everything else".
-  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['quick', 'Quick'], ['breakfast', 'Breakfast'], ['m:chicken', 'Chicken'], ['m:beef', 'Beef'], ['m:fish', 'Fish'], ['m:veg', 'Veggie'], ['all', 'All']];
+  // Five filters at most, so the row WRAPS rather than scrolling off the edge (36-after-reset/03). The
+  // main-ingredient pills (chicken, beef, fish, veggie) went into the search: type them.
+  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['quick', 'Quick'], ['breakfast', 'Breakfast'], ['all', 'All']];
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
-  const chipStyle = on => ({ background: on ? 'var(--seg-on)' : 'var(--surface3)', color: on ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: on ? 700 : 400 });
-  const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
   const filtered = q.trim() || (pick && pick !== 'today' && pick !== 'all');
   return (<div className="fade-in">
-    <TextInput placeholder="Search recipes or creators…" value={q} onChange={e => setQ(e.target.value)} />
-    <div className="flex gap-2 overflow-x-auto pb-1 mt-3 mb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} className={chipCls} style={chipStyle(pick === k)}>{l}</button>)}
+    <div className="flex items-center gap-2 pl-3 pr-1 field-focus" style={{ minHeight: 52, margin: 2 }}>
+      <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+      <input type="search" placeholder="Search recipes, creators or ingredients" value={q} onChange={e => setQ(e.target.value)} aria-label="Search recipes, creators or ingredients" className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
     </div>
-    {consent === undefined && <Card className="p-3 mb-3 mt-1" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[12px] leading-snug mb-2"><span className="font-bold">Recipes you import join the library.</span> Shared with everyone, credited to the original creator, never to you. You can keep any recipe private.</div>
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Great - your imports help everyone'); }}>Sounds good</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep mine private</Btn></div>
-    </Card>}
-    {busy ? <DinoLoader label="Finding recipes" />
-      : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
-      : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[var(--muted)] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--link)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
-    {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
-      <BackClose onClose={() => setPreview(null)} />
-      <div className="w-full lg:max-w-md lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={48} /></div>
-        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[var(--muted)] shrink-0"><Icon.close width="16" /></button></div>
-        {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(preview)}</div> : null}
-        <Card className="p-3 mb-3"><div className="text-[11px] text-[var(--muted)] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
-        <div className="text-[13px] font-bold mb-1">Ingredients</div>
-        <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
-        {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[11px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
-        {(preview.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="24" height="24" /> Start cooking</Btn>}
-        <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
-        <div className="text-[11px] text-center text-[var(--muted)] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
-        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[var(--muted)]">Watch the original</a>}
-      </div>
+    <div className="flex flex-wrap gap-2 mt-3 mb-4">
+      {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} aria-pressed={pick === k} className={'ms-chip' + (pick === k ? ' on' : '')}>{l}</button>)}
+    </div>
+    {consent === undefined && <div className="px-3 py-3 mb-4" style={{ background: 'var(--sunk)' }}>
+      <div className="text-[13px] leading-snug mb-2"><span style={{ fontWeight: 600 }}>Recipes you import join the library.</span> Shared with everyone, credited to the original creator, never to you. You can keep any recipe private.</div>
+      <div className="flex items-center gap-2"><Btn kind="ghost" onClick={() => { onConsent(true); showToast('Great - your imports help everyone'); }}>Share mine</Btn><button onClick={() => onConsent(false)} className="px-3 text-[15px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Keep mine private</button></div>
     </div>}
+    {busy ? <DinoLoader label="Finding recipes" />
+      : err ? <div className="text-center text-[13px] py-8" style={{ color: 'var(--danger-ink)' }}>{err}</div>
+      : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-5">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
+      : <div className="text-center py-8"><div className="text-[15px] mb-1" style={{ fontWeight: 600 }}>{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[13px] leading-relaxed max-w-[18rem] mx-auto" style={{ color: 'var(--muted)' }}>{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--link)', fontWeight: 600 }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></div>}
+    {preview && <Sheet title={preview.title} onClose={() => setPreview(null)} wide z={85}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={48} /></div>
+      {preview.source_author ? <div className="text-[13px]" style={{ color: 'var(--link)' }}>via {creditName(preview)}</div> : null}
+      <div>
+        <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>Per serving · serves {preview.servings}</div>
+        <RecipeMacroStrip macros={pm} per />
+      </div>
+      <Section title="Ingredients" className="!mb-0"><ul className="space-y-1 py-2 text-[15px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul></Section>
+      {(preview.steps || []).length > 0 && <Section title="Method" className="!mb-0"><ol className="space-y-2 py-2 text-[15px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="tnum shrink-0" style={{ color: 'var(--muted)', fontWeight: 600, minWidth: 16 }}>{i + 1}</span><span>{s}</span></li>)}</ol></Section>}
+      <div className="flex flex-col gap-2">
+        {(preview.steps || []).length > 0 && <Btn className="w-full flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="24" height="24" /> Start cooking</Btn>}
+        <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'primary'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
+        <div className="text-[13px] text-center leading-snug" style={{ color: 'var(--muted)' }}>Cook it now, no need to save. Save only the ones you want to keep.</div>
+        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="block text-center text-[13px] underline" style={{ color: 'var(--link)', minHeight: 44, lineHeight: '44px' }}>Watch the original</a>}
+      </div>
+    </Sheet>}
   </div>);
 }
 // Weekly meal planner: drop recipes onto days, see planned macros vs your target, build one shopping
@@ -21364,7 +21394,7 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
   const [facets, setFacets] = useState({}); // { meal, cuisine, main, effort, diet, badge } - taxonomy filters
   const [sort, setSort] = useState('recent'); // recent | protein | kcal | quick
   const [showFilters, setShowFilters] = useState(false);
-  const [hubTab, setHubTab] = useState(isPremium ? 'discover' : 'mine'); // a free user's first sight of Cook was a locked tab // discover (the community hub) | mine (your own recipes)
+  const [hubTab, setHubTab] = useState('mine'); // mine (Cook home) | discover (the community hub, a page you go INTO from Cook). Always opens on Cook home (36-after-reset/03).
   const [cookRec, setCookRec] = useState(null); // a transient (unsaved) recipe being cooked from Discover
   const [showAll, setShowAll] = useState(false);
   const [logRec, setLogRec] = useState(null);   // a transient recipe pending a serving-log after cooking

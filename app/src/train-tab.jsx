@@ -250,41 +250,16 @@ function ProgrammeCards({ db, onPick, className }) {
   const t = tdb(db);
   const list = Training.PROGRAMMES.map(p => Training.programmeSummary(p.key, t.custom));
   if (!list.length) return null;
+  // A Section of Rows, like every other list in the app (36-after-reset/04). Tapping one opens the
+  // builder on it, which is where the choices get made and where it is saved or started, so nothing
+  // here is a second way to save a block that could drift from the first.
   return (
-    <Card className={'p-0 overflow-hidden ' + (className || '')}>
-      <CardHead title="Macrosaurus programmes" right="Written, not generated" />
-      <div className="p-3.5">
-        {/* One sentence. The card is the shortcut for somebody who does not want to be asked seven
-            questions, and three lines of prose above the two things you came to tap is the screen
-            asking anyway. What the block IS gets read off the rows below it. */}
-        {/* One sentence about what they are, and one about the fact they are not fixed. "Written, not
-            generated" reads as "take it or leave it", and until the second line was here nobody had
-            any reason to think a plan the app ships could be argued with - which is exactly the plan
-            people most often cannot run as printed, because of one machine their gym has not got. */}
-        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-          Four weeks, written rather than generated, every last set taken to where the weight stops moving. Open one and you can ask for changes in your own words before you start it.
-        </div>
-        {list.map(p => (
-          <button key={p.key} onClick={() => onPick(p.key)}
-            className="w-full text-left p-3 mb-2 last:mb-0 flex items-center gap-2.5"
-            style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-semibold leading-tight">{p.name}</span>
-              {/* Numbers first, split second - the same order and the same two tiers the blocks
-                  screen uses on a block, because these become one. The split can truncate on a
-                  narrow phone and the line that must not truncate is above it. */}
-              <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-                {p.daysPerWeek} days a week &middot; {p.sets} hard sets
-              </span>
-              <span className="block text-[12px] mt-0.5 truncate" style={{ color: 'var(--muted2)' }}>{p.dayNames.join(' \u00b7 ')}</span>
-            </span>
-            {/* Every other row in this module that opens something carries one. Without it this reads
-                as a panel of facts rather than as two things you can tap. */}
-            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-          </button>
-        ))}
-      </div>
-    </Card>
+    <Section title="Macrosaurus programmes" className={className}>
+      {list.map(p => (
+        <Row key={p.key} icon={<Icon.dumbbell width="24" />} title={p.name}
+          sub={p.daysPerWeek + ' days a week · ' + p.sets + ' hard sets'} onClick={() => onPick(p.key)} />
+      ))}
+    </Section>
   );
 }
 
@@ -695,7 +670,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             Build a {plannedWeeks(t.prefs)}-week block
           </button>
           <div className="flex gap-2 mb-2">
-            <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Browse blocks</button>
+            <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Community blocks</button>
           </div>
           <button onClick={() => setWhyEmpty(true)} className="w-full py-2 text-[12px]" style={{ color: 'var(--link)' }}>
             Or start an empty session and log what you did
@@ -705,7 +680,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {/* Under the build card, not above it: building one against your own kit and days is still the
           better answer, and this is the shortcut for anyone who would rather not be asked. */}
-      {!block && <ProgrammeCards db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />}
+      {(!block || blockDone) && <ProgrammeCards db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />}
 
       {/* ---- the gap used to shout from here, and it has been moved to where it can be acted on ----
               A volume gap is a question about what to BUILD. Once a block is running it is not a
@@ -749,7 +724,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {!block && (
         <div className="grid grid-cols-2 gap-2 mb-4">
           <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
-            Browse<br />blocks
+            Community<br />blocks
           </button>
           <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
             Build<br />a block
@@ -852,11 +827,22 @@ function BlockPlace({ db, block, go }) {
               onClick={() => go('preview', { sessionId: s.id, blockId: block.id })} />))}
         </Section>
       </>}
-      <Section title={block && !done ? 'Block' : 'Start one'}>
-        {block && !done && <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />}
-        {block && <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
+      {block && !done && (
+        <Section title="Block">
+          <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />
+          <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />
+        </Section>
+      )}
+      <Section title="Start one">
+        {block && done && <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
         <Row icon={<Icon.plus width="24" />} title="Start a new block" sub="Answer a few questions and I will build it" onClick={() => go('wizard', { from: 'block' })} />
-        <Row icon={<Icon.book width="24" />} title="Ready-made programmes" onClick={() => go('library')} />
+      </Section>
+      {/* The four written programmes the app ships, always here (36-after-reset/04). They used to show
+          only when there was no block at all, and the row that said "Ready-made programmes" opened the
+          community library instead. */}
+      <ProgrammeCards db={db} onPick={(key) => go('builder', { from: 'block', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />
+      <Section title="More">
+        <Row icon={<Icon.book width="24" />} title="Community blocks" sub="What other members are running" onClick={() => go('library')} />
         <Row icon={<Icon.history width="24" />} title="All blocks" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />
         <Row icon={<Icon.sliders width="24" />} title="Training settings" sub={(t.prefs.units || 'kg') + ' · rest timer · reps in reserve'} onClick={() => go('settings')} />
       </Section>

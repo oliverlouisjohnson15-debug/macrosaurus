@@ -74,7 +74,7 @@ Onboarding        Sign in · Hello · Egg · About you · Active · Goal · Plan
 | Log sheet: 4 tabs + 3 "can't find it" routes + "Scan a barcode" step | Search with a **barcode button in the field**, plus chips **Quick add · Estimate · Drink** | MacroFactor toolbar (P4) |
 | Log sheet: **Menu** tab and **Scan the label** | Inputs inside **Estimate** (describe / photo / menu link) | one AI route |
 | Diary: ≡ menu on each entry | Tap the row → **Edit entry** (copy, move, delete) | its actions were already in the edit sheet |
-| Diary: day-total panel with 4 bars | One summary line with a thin HP meter | Today owns "left", Food owns "eaten" (§2.7) |
+| Diary: day-total panel with 4 bars | A "left" headline, a thin HP meter and P/C/F left | Changed by 36-after-reset/01: Food leads with *left* too (§2.7) |
 | Cook: Discover \| Cookbook switch, contributor card | Cook root, with **Discover** as a row; contributor level at its foot | |
 | Progress plan rows: Goal, Coaching, Check-ins & weigh-ins | **Goal & strategy** page (goal, pace, coaching, diet style, protein, check-in day, weigh-ins); **Fresh start** at its foot | MacroFactor Strategy (P2) |
 | You: Settings \| Account switch | One list; **Account & Premium** is its first row | |
@@ -100,7 +100,7 @@ share-kind sheet, the update banner, toasts, and the buddy-upgrade onboarding fo
 | 2.4 | **≤ 1 buddy prompt** per screen, always in the dialogue pattern | `data-buddy` count ≤ 1 |
 | 2.5 | **No card inside a card** | nested blocks = 0 |
 | 2.6 | **≤ 1 help sentence** at rest (empty states and Progress may use 1) | help count |
-| 2.7 | **Each number once per screen**. Today owns *left*, Food owns *eaten by meal*, Progress owns *weight and trend* | review |
+| 2.7 | **Each number once per screen**. Today and Food both lead with *left* (changed by 36-after-reset/01); Food also owns *eaten by meal*, Progress owns *weight and trend* | review |
 | 2.8 | **Every control ≥ 44×44**, type ≥ 11px, body contrast ≥ 4.5:1, no text in a fill colour | audit |
 | 2.9 | **No footer furniture** (quotes, "rearrange this page", "more" cards) | review |
 
