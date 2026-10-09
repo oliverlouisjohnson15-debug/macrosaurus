@@ -64,22 +64,22 @@ test('the tab offers the programmes the app ships with', () => {
   db.training.blocks = [];
   db.training.prefs = { units: 'kg' };
   const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(r.has('Macrosaurus 4 Day'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
-  assert.ok(r.has('Macrosaurus 5 Day'));
+  assert.ok(r.has('Raptor'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
+  assert.ok(r.has('T-Rex'));
   // With their real shape on the card, not a claim that would need checking against the engine.
-  assert.ok(/5 days a week/.test(r.text) && /hard sets/.test(r.text));
+  assert.ok(/5 days · \d+ hard sets/.test(r.text), 'days and sets on the row: ' + r.text.slice(0, 300));
   // Four rows, one per programme. The split is the builder's to show (36-after-reset/04 dropped the
   // day-name line: a one-line row cut it short on a phone).
-  assert.ok(r.has('Macrosaurus 5 Day Bodybuilding'), 'and the five-day bodybuilding split');
-  assert.ok(r.has('Macrosaurus 5 Day Machine'), 'and the machine one');
-  // Named the same way as each other. "Default" on one and not the other is two schemes for two
-  // things sitting side by side. The house shape is "Macrosaurus <n> Day", with room for a word
-  // after it where two programmes run the same number of days and the name has to say which is
-  // which - it must never be a second scheme, a "Default", or a sentence.
+  assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its row');
+  assert.ok(r.has('Stego') && r.has('Machines'), 'and the machine one');
+  // Four names that are each their own: a dinosaur on its own, never two that differ only by a number
+  // or a suffix, and each with a blurb that says what KIND of plan it is (the name no longer does).
   const names = A.Training.PROGRAMMES.map(p => p.name);
-  for (const n of names) {
-    assert.match(n, /^Macrosaurus \d Day( [A-Z][a-z]+)?$/, n + ' is not named like the others');
-  }
+  for (const n of names) assert.match(n, /^[A-Z][A-Za-z-]+$/, n + ' is not named like the others');
+  assert.equal(new Set(names).size, names.length, 'every programme needs a name of its own');
+  const blurbs = A.Training.PROGRAMMES.map(p => p.blurb);
+  for (const b of blurbs) assert.ok(b && b.length < 20, 'a short blurb on each: ' + b);
+  assert.equal(new Set(blurbs).size, blurbs.length, 'and no two the same');
 });
 
 test('Blocks shows the shipped programmes while a block is running, and names the community row for what it is', () => {
