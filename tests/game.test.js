@@ -904,3 +904,57 @@ test('buddyView: a comeback wakes the buddy the same day instead of after WAKE_D
   // The stage high-water is untouched either way.
   assert.strictEqual(woken.stage, 4);
 });
+
+// ---- barAnim: what the app-bar buddy does, by priority ----
+
+test('barAnim: an egg only wobbles, whatever else is going on', () => {
+  const r = Game.barAnim({ egg: true, away: true, night: true, reaction: 'cheer' });
+  assert.strictEqual(r.mode, 'egg');
+});
+
+test('barAnim: a buddy out foraging leaves footprints and ignores reactions', () => {
+  const r = Game.barAnim({ away: true, reaction: 'cheer', resting: true });
+  assert.strictEqual(r.mode, 'away');
+  assert.strictEqual(r.anim, null);
+  assert.strictEqual(r.prop, 'footprints');
+});
+
+test('barAnim: a goal cheers in place with sparks', () => {
+  const r = Game.barAnim({ reaction: 'cheer', night: true });
+  assert.deepStrictEqual(r, { mode: 'cheer', anim: 'cheer', motion: 'hold', prop: 'sparks' });
+});
+
+test('barAnim: a logged meal (eat or carry) is a delivery run', () => {
+  assert.strictEqual(Game.barAnim({ reaction: 'eat' }).mode, 'delivery');
+  assert.strictEqual(Game.barAnim({ reaction: 'carry' }).motion, 'trot');
+});
+
+test('barAnim: a reaction outranks the rest timer, which resumes after it', () => {
+  assert.strictEqual(Game.barAnim({ resting: true, reaction: 'cheer' }).mode, 'cheer');
+  assert.strictEqual(Game.barAnim({ resting: true }).mode, 'pacer');
+});
+
+test('barAnim: the rest timer outranks bedtime; bedtime outranks the patrol', () => {
+  assert.strictEqual(Game.barAnim({ resting: true, night: true }).mode, 'pacer');
+  const b = Game.barAnim({ night: true });
+  assert.strictEqual(b.mode, 'bedtime');
+  assert.strictEqual(b.motion, 'none');
+  assert.strictEqual(Game.barAnim({}).mode, 'patrol');
+});
+
+test('barAnim: the wave is a reaction, so it queues like the others', () => {
+  assert.deepStrictEqual(Game.barAnim({ reaction: 'wave' }), { mode: 'wave', anim: 'wave', motion: 'hold', prop: null });
+});
+
+test('barBeat: the chase is rare, once a session, and never in the first minute', () => {
+  const late = { sessionMs: Game.BAR_CHASE_AFTER_MS + 1, atLeft: true };
+  assert.strictEqual(Game.barBeat(0.05, late), 'chase');
+  assert.strictEqual(Game.barBeat(0.05, Object.assign({}, late, { chased: true })), null);
+  assert.strictEqual(Game.barBeat(0.05, { sessionMs: 5000, atLeft: true }), null);
+});
+
+test('barBeat: a sniff only happens at the left end', () => {
+  assert.strictEqual(Game.barBeat(0.3, { atLeft: true }), 'sniff');
+  assert.strictEqual(Game.barBeat(0.3, { atLeft: false }), null);
+  assert.strictEqual(Game.barBeat(0.9, { atLeft: true }), null);
+});
