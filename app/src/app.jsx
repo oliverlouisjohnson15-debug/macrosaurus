@@ -18056,7 +18056,7 @@ function KeepRow({ label, desc, keep, onClick }) {
       <span className="block text-sm">{label}</span>
       <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text2)' }}>{desc}</span>
     </span>
-    <span className="pf text-[11px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'KEEP' : 'Delete'}</span>
+    <span className="pf text-[11px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'Keep' : 'Delete'}</span>
   </button>);
 }
 
