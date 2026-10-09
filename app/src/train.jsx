@@ -1691,7 +1691,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Back" title={'Ready-made programmes'} />
+      <SubHeader back={onBack} backLabel="Back" title="Community blocks" />
       
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Blocks other members are running. Whatever you pick gets rebuilt around your kit and the volume you recover from.

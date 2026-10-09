@@ -68,9 +68,10 @@ test('the tab offers the programmes the app ships with', () => {
   assert.ok(r.has('Macrosaurus 5 Day'));
   // With their real shape on the card, not a claim that would need checking against the engine.
   assert.ok(/5 days a week/.test(r.text) && /hard sets/.test(r.text));
-  // And the split, in the same words the session runner will use.
-  assert.ok(r.has('Arms and delts'), 'the day names should be on it: ' + r.text.slice(0, 300));
+  // Four rows, one per programme. The split is the builder's to show (36-after-reset/04 dropped the
+  // day-name line: a one-line row cut it short on a phone).
   assert.ok(r.has('Macrosaurus 5 Day Bodybuilding'), 'and the five-day bodybuilding split');
+  assert.ok(r.has('Macrosaurus 5 Day Machine'), 'and the machine one');
   // Named the same way as each other. "Default" on one and not the other is two schemes for two
   // things sitting side by side. The house shape is "Macrosaurus <n> Day", with room for a word
   // after it where two programmes run the same number of days and the name has to say which is
@@ -79,6 +80,15 @@ test('the tab offers the programmes the app ships with', () => {
   for (const n of names) {
     assert.match(n, /^Macrosaurus \d Day( [A-Z][a-z]+)?$/, n + ' is not named like the others');
   }
+});
+
+test('Blocks shows the shipped programmes while a block is running, and names the community row for what it is', () => {
+  const block = minmax();
+  const db = accountWith(block);
+  const r = render(A.BlockPlace, { db, block, go() {} });
+  for (const n of A.Training.PROGRAMMES.map(p => p.name)) assert.ok(r.has(n), n + ' should be on Blocks: ' + r.text.slice(0, 300));
+  assert.ok(r.has('Community blocks'), 'the library row should say what it opens');
+  assert.ok(!r.has('Ready-made programmes'), 'the old label opened the community library, not these');
 });
 
 // ---- the session runner ------------------------------------------------------------------------
