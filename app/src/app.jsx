@@ -12881,24 +12881,205 @@ function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, re
     </Sheet>
   );
 }
+/* ---------- ONE BUDDY, ONE PLACE (design-plans/37) ----------
+   The buddy is either standing in Today's valley or walking the app bar's lane, never both. This is the
+   little shared fact that decides which: the valley says "my buddy is on screen" (it is mounted, and
+   its feet have not scrolled up under the bar), and the bar reads it. Module-level and subscribed to,
+   like BUDDY_REACT, because the two live in different branches of the tree.
+   Flips are debounced 150ms so a scroll that bounces on the threshold cannot ping-pong; mounting and
+   unmounting are immediate (`now`), because a tab change is not a bounce. `land` counts the hand-backs
+   from the bar, so the valley can play the landing for exactly those. */
+const BUDDY_SPOT = { onPage: false, land: 0, soft: false, subs: [], t: null };
+function setBuddyOnPage(v, now) {
+  clearTimeout(BUDDY_SPOT.t);
+  if (v === BUDDY_SPOT.onPage) return;
+  const apply = () => { BUDDY_SPOT.onPage = v; BUDDY_SPOT.soft = !now; if (v && !now) BUDDY_SPOT.land++; BUDDY_SPOT.subs.slice().forEach(f => f()); };
+  if (now) apply(); else BUDDY_SPOT.t = setTimeout(apply, 150);
+}
+function useBuddySpot() {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const f = () => tick(x => x + 1);
+    BUDDY_SPOT.subs.push(f);
+    f();   // resync: a valley that mounted in the same commit set the flag before this subscribed
+    return () => { const i = BUDDY_SPOT.subs.indexOf(f); if (i >= 0) BUDDY_SPOT.subs.splice(i, 1); };
+  }, []);
+  return BUDDY_SPOT;
+}
+/* The Train rest timer, as the bar sees it. The session owns the clock; it publishes {endsAt, seconds}
+   here and clears it on unmount, so the lane can become the timer (see BarBuddy's pacer). */
+const BAR_REST = { v: null, subs: [] };
+function setBarRest(v) { BAR_REST.v = v; BAR_REST.subs.slice().forEach(f => f(v)); }
+function useBarRest() {
+  const [v, setV] = useState(BAR_REST.v);
+  useEffect(() => {
+    BAR_REST.subs.push(setV); setV(BAR_REST.v);
+    return () => { const i = BAR_REST.subs.indexOf(setV); if (i >= 0) BAR_REST.subs.splice(i, 1); };
+  }, []);
+  return v;
+}
+
+/* ---------- DINO VALLEY ----------
+   Today's scene. One SVG on a 130x46 grid (viewBox widened to 150 so a wider phone shows more sky
+   instead of an edge), every colour a --terra-* token, so the two themes and a bought scene (`skin`,
+   from SCENE_ART) recolour it without a line of art changing. The layers, back to front: sky, two flat
+   horizon bands, sun/moon and stars, clouds, far mesas, the volcano (smoke by day, a running glow at
+   night), dunes, the ground band with its strata and a buried fossil, then the set dressing: saguaro,
+   bone, the nest the buddy hatched from, ground tufts in the macro colours, a lizard, and after dark
+   a campfire and fireflies. `away` draws footprints trailing off the right edge instead of a buddy. */
+function ValleyScene({ nest, away, skin }) {
+  const v = skin ? { '--terra-sky': skin.top, '--terra-haze-1': skin.bottom, '--terra-haze-2': skin.bottom,
+    '--terra-pale': skin.ground, '--terra-ground': skin.ground, '--terra-ink': skin.line, '--terra-strata': skin.line, '--terra-faint': skin.line } : null;
+  const F = (c) => 'var(--terra-' + c + ')';
+  return (
+    <svg className="vl-art" viewBox="-10 0 150 46" preserveAspectRatio="xMidYMax slice" aria-hidden="true" style={Object.assign({ left: '50%', width: 450, marginLeft: -225, right: 'auto' }, v)}>
+      <rect x="-10" width="150" height="46" fill={F('sky')} />
+      <path fill={F('haze-1')} d="M-10 22h150v12h-150z" />
+      <path fill={F('haze-2')} d="M-10 29h150v5h-150z" />
+      <g className="vl-sun"><path fill={F('sun')} d="M114 4h4v1h1v1h1v4h-1v1h-1v1h-4v-1h-1v-1h-1v-4h1v-1h1z" /></g>
+      <g className="vl-skynight">
+        <path fill={F('sun')} d="M114 4h4v1h1v1h1v4h-1v1h-1v1h-4v-1h-1v-1h-1v-4h1v-1h1z" />
+        <path fill={F('sky')} d="M116 4h2v1h1v1h1v4h-1v1h-1v1h-2v-1h1v-1h1v-4h-1v-1h-1z" />
+        <path className="vl-tw" fill={F('sun')} d="M8 4h1v1h-1zM31 9h1v1h-1zM52 3h1v1h-1zM76 7h1v1h-1zM98 2h1v1h-1z" />
+        <path className="vl-tw b" fill={F('sun')} d="M20 12h1v1h-1zM44 6h1v1h-1zM64 12h1v1h-1zM104 10h1v1h-1zM126 6h1v1h-1z" />
+        <path className="vl-tw c" fill={F('faint')} d="M14 8h1v1h-1zM38 2h1v1h-1zM58 8h1v1h-1zM84 4h1v1h-1zM122 14h1v1h-1zM3 15h1v1h-1z" />
+        <g className="vl-shoot"><path fill={F('sun')} d="M60 4h1v1h-1z" /><path fill={F('faint')} d="M61 3h2v1h-2z" /></g>
+      </g>
+      <g className="vl-cloud"><g className="vl-drift">
+        <path fill="var(--card)" d="M17 9h2v-1h2v-1h6v1h2v1h3v2h-15zM63 13h2v-1h2v-1h6v1h2v1h3v2h-15zM89 6h2v-1h4v1h2v1h2v1h-10z" />
+        <path fill={F('faint')} d="M17 11h15v1h-15zM63 15h15v1h-15zM89 8h10v1h-10z" />
+      </g></g>
+      <g className="vl-ptero"><g className="vl-flap"><path fill={F('ink')} opacity=".7" d="M0 0h1v1h-1zM7 0h1v1h-1zM1 1h2v1h-2zM5 1h2v1h-2zM3 2h5v1h-5zM4 3h1v1h-1z" /></g></g>
+      <path fill={F('mesa')} d="M-10 34v-10h14v-1h14v1h2v4h3v6zM108 34v-5h3v-6h14v1h5v-1h10v11z" />
+      <path fill={F('volcano')} d="M78 34h28v-2h-2v-2h-2v-3h-2v-3h-2v-3h-2v-3h-2v-2h-4v2h-2v3h-2v3h-2v3h-2v3h-2v2h-2v2z" />
+      <path className="vl-lava" fill={F('red')} d="M90 16h4v1h-4zM92 17h1v3h-1z" />
+      <g className="vl-night"><path className="vl-lava" fill={F('red')} d="M93 20h1v3h-1zM91 18h1v2h-1z" /><path fill={F('gold')} d="M91 16h2v1h-2z" /></g>
+      <g className="vl-sun"><path className="vl-puff" fill={F('faint')} d="M90 12h2v2h-2z" /><path className="vl-puff b" fill={F('faint')} d="M92 12h3v2h-3z" /><path className="vl-puff c" fill={F('faint')} d="M89 11h2v2h-2z" /></g>
+      <path fill={F('pale')} d="M-10 34v-2h16v-1h8v1h5v2zM40 34v-1h4v-2h10v1h4v2zM96 34v-2h7v-1h6v1h4v2z" />
+      <rect x="-10" y="34" width="150" height="12" fill={F('ground')} />
+      <rect x="-10" y="34" width="150" height="1" fill={F('ink')} />
+      <path fill={F('strata')} d="M-6 38h10v1h-10zM22 38h16v1h-16zM82 38h20v1h-20zM110 38h12v1h-12zM10 42h14v1h-14zM36 42h6v1h-6zM88 42h18v1h-18zM112 42h8v1h-8z" />
+      <path className="vl-fossil" fill={F('fossil')} d="M50 39h5v1h1v2h-3v1h-3zM56 40h14v1h-14zM58 41h1v2h-1zM61 41h1v2h-1zM64 41h1v2h-1zM67 41h1v2h-1zM70 39h3v1h-3zM73 38h2v1h-2z" />
+      <path fill={F('cactus')} d="M13 20h3v14h-3zM10 23h2v5h1v2h-3zM17 21h2v8h-3v-2h1zM119 29h2v5h-2zM117 30h1v2h1v1h-2z" />
+      <path fill={F('cactus-d')} d="M14 21h1v12h-1zM120 30h1v3h-1z" />
+      <path fill={F('bone')} d="M110 31h1v-1h1v1h4v-1h1v1h1v1h-1v1h-1v-1h-4v1h-1v-1h-1z" />
+      {nest && <g>
+        <path fill={F('twig')} d="M70 32h10v1h1v1h-12v-1h1z" />
+        <path fill={F('bone')} d="M72 30h2v2h-2zM76 29h3v1h1v2h-4z" />
+        <path fill={F('cactus')} d="M77 30h1v1h-1zM72 31h1v1h-1z" />
+      </g>}
+      <path fill={F('red')} d="M27 31h1v1h-1zM29 31h1v1h-1zM26 32h5v1h-5zM28 33h1v1h-1z" />
+      <path fill={F('blue')} d="M85 31h1v1h-1zM87 31h1v1h-1zM84 32h5v1h-5zM86 33h1v1h-1z" />
+      <path fill={F('gold')} d="M101 31h1v1h-1zM103 31h1v1h-1zM100 32h5v1h-5zM102 33h1v1h-1z" />
+      <g className="vl-liz"><g transform="translate(90 31)"><path fill={F('liz')} d="M1 0h3v1h2v1h-6v-1h1zM1 2h1v1h-1zM4 2h1v1h-1z" /><path fill={F('ink')} d="M1 0h1v1h-1z" /></g></g>
+      <g className="vl-night">
+        <path fill={F('ember')} d="M54 34h14v1h-14z" />
+        <path fill={F('twig')} d="M58 33h8v1h-8zM59 32h1v1h-1zM64 32h1v1h-1z" />
+        <g className="vl-fa"><path fill={F('red')} d="M61 29h2v4h-2zM60 31h1v2h-1zM63 30h1v3h-1z" /><path fill={F('gold')} d="M61 31h2v2h-2z" /></g>
+        <g className="vl-fb"><path fill={F('red')} d="M62 28h1v5h-1zM61 30h1v3h-1zM60 31h1v2h-1zM63 31h1v2h-1z" /><path fill={F('gold')} d="M61 31h2v2h-2zM62 30h1v1h-1z" /></g>
+        <g className="vl-fly"><path fill="var(--accent)" d="M24 26h1v1h-1z" /></g>
+        <g className="vl-fly b"><path fill="var(--accent)" d="M100 24h1v1h-1z" /></g>
+        <g className="vl-fly"><path fill="var(--accent)" opacity=".7" d="M86 28h1v1h-1z" /></g>
+      </g>
+      {away && <path className="vl-prints" fill={F('ink')} d="M48 36h2v2h-2zM56 38h2v2h-2zM64 36h2v2h-2zM72 38h2v2h-2zM80 36h2v2h-2zM88 38h2v2h-2zM96 36h2v2h-2zM104 38h2v2h-2zM112 36h2v2h-2zM120 38h2v2h-2zM128 36h2v2h-2z" />}
+    </svg>
+  );
+}
+/* The buddy as it stands in the valley. Differs from BuddyAvatar in three ways: it takes part in the
+   one-shot reactions (a meal logged on Today is eaten HERE, where you can see it), it sleeps on the
+   clock like the terrarium's, and it hides while the bar has it and lands when the bar hands it back.
+   Its own `marginBottom` is what plants the feet: 33px up from the band's bottom is the ground line
+   (36) sunk three, less the transparent rows under the sprite. */
+function ValleyBuddy({ buddy, asleep, px = 3 }) {
+  const stage = (buddy && buddy.stage) || 0;
+  const s = buddyStageSprite(stage, buddy);
+  const grown = s.group === 'base';
+  const eq = equippedCosmetics(buddy);
+  const size = px * (grown ? stageScale(stage) : 1);
+  const night = useNight();
+  const spot = useBuddySpot();
+  const { reaction, reactionDone } = useBuddyReaction();
+  const intent = Game.buddyAnim({ asleep, night: night && grown, reaction: grown ? reaction : null });
+  const rest = grown ? resolveSprite(s.palette, s.species, intent.rest) : { palette: s.palette, anim: s.anim };
+  const seen = useRef(spot.land);
+  const [landing, setLanding] = useState(false);
+  useEffect(() => {
+    if (spot.land === seen.current) return;
+    seen.current = spot.land;
+    if (prefersReducedMotion()) return;
+    setLanding(true);
+    const t = setTimeout(() => setLanding(false), 480);
+    return () => clearTimeout(t);
+  }, [spot.land]);
+  const jump = landing && grown ? resolveSprite(s.palette, s.species, 'jump') : null;
+  const anim = jump ? jump.anim : rest.anim;
+  const pal = jump ? jump.palette : rest.palette;
+  const meta = grown ? spriteMeta('base', anim) : null;
+  const fps = anim === 'idle' || !meta ? s.fps : meta.fps;
+  // A one-shot ends on the sprite's animationend, with a timer as the authority (see BuddyScene).
+  useEffect(() => {
+    if (!intent.once) return;
+    const ms = Math.round((spriteFrames('base', rest.anim) / (fps || 8)) * 1000) + 400;
+    const t = setTimeout(() => reactionDone(reaction), ms);
+    return () => clearTimeout(t);
+  }, [intent.once, rest.anim, fps, reaction, reactionDone]);
+  const pad = (SPRITE_FOOT_PAD[s.group] || 3) * size;
+  const dim = intent.still && rest.anim === 'sleep' ? 'saturate(0.75) brightness(0.9)' : null;
+  const filters = [dim, auraFilter(eq)].filter(Boolean).join(' ');
+  return (
+    <div className={landing ? 'vl-land' : undefined} style={{ marginBottom: Math.round(33 - pad), lineHeight: 0, visibility: spot.onPage ? 'visible' : 'hidden', filter: filters || undefined }}>
+      <SpriteSheet key={anim} palette={pal} species={s.species} group={s.group} anim={anim} px={size} fps={fps}
+        loop={!intent.once} onEnd={intent.once ? () => reactionDone(reaction) : undefined} />
+    </div>
+  );
+}
+
 /* THE DIALOGUE (35-reset, DESIGN.md). The buddy's one voice, the same everywhere it speaks: it stands
    in a small scene (a ground line, two dunes, a cactus) with an emote over its head, and a wide window
    below carries a pixel tail pointing at it, its name in the pixel face, one line, and either a ▶ menu
    of answers or a blinking ▼. `sprite` is any node (BuddyAvatar, an egg); tapping it calls onSpeaker. */
-function Dialogue({ name, mood, emote = '!', sprite, onSpeaker, speakerLabel, onDismiss, children, text, className = '' }) {
+function Dialogue({ name, mood, emote = '!', sprite, onSpeaker, speakerLabel, onDismiss, children, text, className = '', scene, away, nest, skin, prop }) {
   const hasControls = React.Children.toArray(children).filter(Boolean).length > 0;
+  const valley = scene === 'valley';
+  const night = useNight();
+  const dinoRef = useRef(null);
+  // The valley owns "the buddy is on this page" (see BUDDY_SPOT): true while it is mounted, false once
+  // its feet scroll up under the app bar, so the bar can take the buddy and hand it back.
+  React.useLayoutEffect(() => {
+    if (!valley) return;
+    setBuddyOnPage(!away, true);
+    return () => setBuddyOnPage(false, true);
+  }, [valley, away]);
+  useEffect(() => {
+    if (!valley || away || !dinoRef.current || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((es) => { const e = es[es.length - 1]; if (e) setBuddyOnPage(e.isIntersecting); },
+      { rootMargin: '-52px 0px 0px 0px' });   // the sticky app bar covers the top 52px
+    io.observe(dinoRef.current);
+    return () => io.disconnect();
+  }, [valley, away]);
+  const speaker = onSpeaker
+    ? <button ref={dinoRef} onClick={onSpeaker} aria-label={speakerLabel || ('Open ' + name)} className={valley ? 'ms-vspeaker' : 'ms-speaker'}>{sprite}</button>
+    : <span ref={dinoRef} className={valley ? 'ms-vspeaker' : 'ms-speaker'}>{sprite}</span>;
   return (
     <section className={'ms-dlg ' + className}>
+      {valley ? (
+        <div className={'ms-valley' + (night ? ' vl-is-night' : '')}>
+          <ValleyScene nest={nest} away={away} skin={skin} />
+          {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: 33, transform: 'translateX(-50%)', opacity: 0.9, lineHeight: 0 }}><Sprite art={prop.art} colors={prop.colors} px={prop.px} /></div>}
+          {!away && <span className="ms-vshadow" aria-hidden="true" />}
+          {!away && speaker}
+          {emote && !away && <span className="ms-emote" aria-hidden="true">{emote}</span>}
+        </div>
+      ) : (
       <div className="ms-scene" aria-hidden={onSpeaker ? undefined : 'true'}>
         <svg className="ms-dune" style={{ left: 150 }} viewBox="0 0 16 3" preserveAspectRatio="none" aria-hidden="true"><path fill="currentColor" d="M5 0h6v1h2v1h3v1H0V2h3V1h2z" /></svg>
         <svg className="ms-dune" style={{ left: 250, width: 90 }} viewBox="0 0 16 3" preserveAspectRatio="none" aria-hidden="true"><path fill="currentColor" d="M5 0h6v1h2v1h3v1H0V2h3V1h2z" /></svg>
         <svg className="ms-cactus" style={{ left: 218 }} viewBox="0 0 6 11" aria-hidden="true"><path fill="currentColor" d="M2 0h2v11H2zM0 3h1v4h1v1H0zM5 2h1v4H4V5h1z" /></svg>
         <svg className="ms-ground" aria-hidden="true"><defs><pattern id="ms-dash" width="12" height="2" patternUnits="userSpaceOnUse"><rect width="8" height="2" fill="currentColor" /></pattern></defs><rect width="100%" height="2" fill="url(#ms-dash)" /></svg>
-        {onSpeaker
-          ? <button onClick={onSpeaker} aria-label={speakerLabel || ('Open ' + name)} className="ms-speaker">{sprite}</button>
-          : <span className="ms-speaker">{sprite}</span>}
+        {speaker}
         {emote && <span className="ms-emote" aria-hidden="true">{emote}</span>}
       </div>
+      )}
       <div className="ms-dbox">
         <svg className="ms-tail" viewBox="0 0 12 7" aria-hidden="true"><path className="o" d="M5 0h2v1h1v1h1v1h1v1h1v1h1v2H0V5h1V4h1V3h1V2h1V1h1z" /><path className="i" d="M5 2h2v1h1v1h1v1h1v2H2V5h1V4h1V3h1z" /></svg>
         <div className="flex items-baseline gap-2 mb-1.5 min-h-[18px]">
@@ -12948,10 +13129,12 @@ function BuddyLine({ db, buddy, bp, onOpenPlay, tasks, msg, away, dueCheckin }) 
         msg.secondary && msg.secondary.onClick ? [{ label: msg.secondary.label, onClick: answered(msg.secondary.onClick, 'shake') }] : []) : [];
   const text = incubating ? (tasks ? '…the egg wobbles. ' + (tDone ? tDone + ' of ' + tasks.length + ' done.' : 'Log your first meal and it will start to hatch.') : '…the egg wobbles.') : msg ? msg.text : null;
   if (text == null) return null;
+  const vEq = equippedCosmetics(db.buddy);
   return (
     <Dialogue className="mb-6" name={who} emote={incubating ? '?' : asleep ? 'z' : '!'}
       mood={incubating ? null : away ? 'foraging' : mood.label.toLowerCase()}
-      sprite={<BuddyAvatar buddy={db.buddy} px={3} asleep={asleep} />} onSpeaker={onOpenPlay} speakerLabel="Open Buddy and Play"
+      scene="valley" away={away} nest={!incubating} skin={vEq.scene ? sceneArt(vEq.scene) : null} prop={vEq.prop ? PROP_ART[vEq.prop] : null}
+      sprite={<ValleyBuddy buddy={db.buddy} px={3} asleep={asleep} />} onSpeaker={onOpenPlay} speakerLabel="Open Buddy and Play"
       onDismiss={msg && msg.dismiss && !incubating ? msg.dismiss : null} text={text}>
       {msg && !incubating && msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
       {msg && !incubating && msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={answered(msg.weigh.onSave, 'nod')} />}
@@ -20121,23 +20304,189 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
     </div>
   );
 }
-/* THE APP BAR (35-reset, DESIGN.md). One 52px purple bar: the green-spotted egg logo on the left, the
-   page's context beside it (the date on Today, the block on Train), the buddy walking the empty lane
-   between them and the gear, and the gear for You. Tapping the buddy opens Play. Before it hatches,
-   the egg wobbles along the lane instead. A sub-screen's SubHeader pins over it at the same height. */
-function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy }) {
+/* THE APP-BAR BUDDY (design-plans/37). Lives in the 44px lane of the bar whenever it is NOT standing
+   in Today's valley (every other tab, or Today once the valley has scrolled away). What it does is
+   decided by Game.barAnim (tested, game.js); this component only carries it out:
+     patrol   walks end to end, turning at each; now and then sniffs the date at the left end, and once
+              a session a beetle runs past and it dashes after it (Game.barBeat)
+     cheer    a goal landed: cheers where it stands, with gold sparks
+     delivery a meal was logged: trots the lane carrying it, eats it at the far end
+     wave     the first time you see it each day, and when a Train rest timer runs out
+     pacer    Train rest timer running: the lane is the timer, the buddy walks it to the flag
+     bedtime  after 22:00: yawns, walks to the gear end and curls up
+     away     out foraging: footprints trailing off the right edge, tap opens Play
+   Position is React state driving a CSS transform + transition, so a script is a list of (pose, wait)
+   steps and every script is cancelled by clearing its timers. Reactions are queued and consumed one at
+   a time, and only while the buddy is actually in the bar (phase 'bar'), so one of them is never
+   played in the bar AND the valley. Reduced motion: it stands still. */
+const BAR_SPEED = 0.02;          // px per ms on patrol: ~7.5s across a 150px lane, as the old CSS walk
+const BAR_WAVE_KEY = 'ms_bar_wave';
+function barWaveDue() {
+  try { const d = new Date().toDateString(); if (localStorage.getItem(BAR_WAVE_KEY) === d) return false; localStorage.setItem(BAR_WAVE_KEY, d); return true; }
+  catch (_) { return false; }
+}
+const BAR_SESSION_START = Date.now();
+// Only these reactions mean anything in the lane; nod, shake, tilt and the rest are the valley's.
+const BAR_REACTS = ['cheer', 'eat', 'carry', 'wave'];
+function BarBuddy({ buddy, phase, away, onOpenPlay }) {
   const s = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
   const egg = s.group === 'egg';
+  const night = useNight();
+  const rest = useBarRest();
+  const name = (buddy && buddy.name) || 'Your buddy';
+  const laneRef = useRef(null), elRef = useRef(null);
+  const laneW = useRef(160);
+  const [, setW] = useState(0);
+  useEffect(() => {
+    const el = laneRef.current; if (!el) return;
+    const read = () => { laneW.current = el.clientWidth; setW(el.clientWidth); };
+    read();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(read); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const inBar = phase === 'bar' && !egg;
+  // Reactions, queued (max 2, no immediate repeats - the same rule BuddyScene's queue keeps).
+  const [queue, setQueue] = useState([]);
+  useEffect(() => {
+    if (!inBar) { setQueue([]); return; }
+    const fn = (a) => { if (BAR_REACTS.indexOf(a) < 0) return; setQueue(q => (q.length >= REACT_QUEUE_MAX || q[q.length - 1] === a ? q : q.concat(a))); };
+    BUDDY_REACT.subs.push(fn);
+    return () => { const i = BUDDY_REACT.subs.indexOf(fn); if (i >= 0) BUDDY_REACT.subs.splice(i, 1); };
+  }, [inBar]);
+  const done = useCallback(() => setQueue(q => q.slice(1)), []);
+  // The first sight of the buddy each day is a wave; the rest timer running out is another.
+  useEffect(() => { if (inBar && !away && barWaveDue()) setQueue(q => (q.length >= REACT_QUEUE_MAX ? q : q.concat('wave'))); }, [inBar, away]);
+  const resting = !!(rest && rest.endsAt > Date.now() - 2000);
+  const decision = Game.barAnim({ egg, away, night, resting, reaction: queue[0] || null });
+  const [pose, setPose] = useState({ anim: 'idle', x: 0, ms: 0, flip: false, fps: 8, loop: true, prop: null, label: null, beetle: null });
+  const timers = useRef([]);
+  const chased = useRef(false);
+  useEffect(() => {
+    if (!inBar || away) return;
+    const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
+    const maxX = () => Math.max(0, laneW.current - 48);
+    const curX = () => {
+      const a = elRef.current, b = laneRef.current;
+      return a && b ? Math.max(0, Math.min(maxX(), a.getBoundingClientRect().left - b.getBoundingClientRect().left)) : 0;
+    };
+    const set = (p) => setPose(Object.assign({ ms: 0, flip: false, fps: 8, loop: true, prop: null, label: null, beetle: null }, p));
+    const hold = (anim, extra) => set(Object.assign({ anim, x: curX() }, extra));
+    const finish = (ms) => later(done, ms);
+    const m = decision.mode;
+    const cleanup = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+    if (prefersReducedMotion() || maxX() < 24) {
+      set({ anim: m === 'bedtime' ? 'sleep' : 'idle', x: m === 'bedtime' ? maxX() : 0, fps: 4, prop: m === 'pacer' ? 'track' : null });
+      if (queue[0]) finish(50);
+      return cleanup;
+    }
+    if (m === 'cheer') { hold('cheer', { prop: 'sparks' }); finish(1100); }
+    else if (m === 'wave') { hold('wave', { fps: 7 }); finish(1500); }
+    else if (m === 'delivery') {
+      const x0 = curX(), ms = Math.max(1200, (maxX() - x0) / 0.05);
+      set({ anim: 'carry', x: maxX(), ms, fps: 6 });
+      later(() => { set({ anim: 'eat', x: maxX() }); finish(1200); }, ms);
+    }
+    else if (m === 'pacer') {
+      const tick = () => {
+        const left = rest ? rest.endsAt - Date.now() : 0, total = rest ? rest.seconds * 1000 : 1;
+        if (left <= 0) { set({ anim: 'wave', x: maxX(), fps: 7, prop: 'track', label: 'GO' }); return; }
+        set({ anim: 'move', x: maxX() * Math.min(1, Math.max(0, 1 - left / total)), ms: 520, prop: 'track', label: fmtClock(Math.ceil(left / 1000)) });
+        later(tick, 500);
+      };
+      tick();
+    }
+    else if (m === 'bedtime') {
+      const x0 = curX(), ms = Math.max(600, (maxX() - x0) / 0.03);
+      hold('yawn', { fps: 5 });
+      later(() => { set({ anim: 'move', x: maxX(), ms }); later(() => set({ anim: 'sleep', x: maxX(), fps: 2, prop: 'z' }), ms); }, 1300);
+    }
+    else { // patrol
+      const leg = () => {
+        const x0 = curX(), right = x0 < maxX() / 2, target = right ? maxX() : 0;
+        const beat = Game.barBeat(Math.random(), { sessionMs: Date.now() - BAR_SESSION_START, chased: chased.current, atLeft: right && x0 < 4 });
+        if (beat === 'chase' && right) {
+          chased.current = true;
+          const ms = 1500;
+          set({ anim: 'dash', x: maxX(), ms, fps: 10, beetle: { x0: x0 + 56, x1: laneW.current + 12, ms } });
+          later(leg, ms + 200);
+          return;
+        }
+        const ms = Math.max(800, Math.abs(target - x0) / BAR_SPEED);
+        set({ anim: 'move', x: target, ms, flip: !right });
+        later(() => {
+          // Arrived at the left end (the date): about one turn in three it stops to sniff it.
+          if (!right && Game.barBeat(Math.random(), { atLeft: true }) === 'sniff') {
+            set({ anim: 'scan', x: 0, flip: false, fps: 5 });
+            later(leg, 1300);
+          } else leg();
+        }, ms);
+      };
+      leg();
+    }
+    return cleanup;
+  }, [inBar, away, decision.mode, queue[0], rest && rest.endsAt, rest && rest.seconds]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const label = egg ? 'Your egg. Open Play' : name + '. Open Play';
+  const sp = egg ? { palette: s.palette, anim: 'move' } : resolveSprite(s.palette, s.species, pose.anim);
+  const jumpSp = egg ? null : resolveSprite(s.palette, s.species, 'jump');
+  return (
+    <div ref={laneRef} className="ms-lane flex-1 relative h-11 overflow-hidden">
+      {egg && phase === 'bar' && <button onClick={onOpenPlay} aria-label={label} className="ms-walker slow">
+        <span className="ms-walker-face"><SpriteSheet palette={s.palette} species={s.species} group="egg" anim="move" px={2} fps={4} /></span>
+      </button>}
+      {!egg && phase === 'toBar' && <div className="ms-rise" aria-hidden="true"><SpriteSheet palette={jumpSp.palette} species={s.species} group="base" anim={jumpSp.anim} px={2} fps={9} /></div>}
+      {!egg && phase === 'toScene' && <div className="ms-drop" aria-hidden="true"><SpriteSheet palette={jumpSp.palette} species={s.species} group="base" anim={jumpSp.anim} px={2} fps={9} /></div>}
+      {inBar && away && <button onClick={onOpenPlay} aria-label={name + ' is out foraging. Open Play'} className="ms-prints-btn">
+        <svg className="vl-prints" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true" style={{ position: 'absolute', left: 10, bottom: 6, width: 'calc(100% - 20px)', height: 18, shapeRendering: 'crispEdges' }}><path fill="var(--header-text)" d="M0 3h2v2h-2zM10 1h2v2h-2zM20 3h2v2h-2zM30 1h2v2h-2zM40 3h2v2h-2zM50 1h2v2h-2z" /></svg>
+      </button>}
+      {inBar && !away && <>
+        {pose.prop === 'track' && <><div className="ms-track" aria-hidden="true" />
+          <svg viewBox="0 0 4 7" width="12" height="21" aria-hidden="true" style={{ position: 'absolute', right: 2, bottom: 6, shapeRendering: 'crispEdges' }}><path fill="var(--header-text)" d="M0 0h1v7h-1z" /><path fill="var(--on-header-accent)" d="M1 0h3v1h-1v1h1v1h-3z" /></svg>
+          {pose.label && <span className="ms-rest-clock" aria-hidden="true">{pose.label}</span>}</>}
+        {pose.beetle && <svg key={pose.beetle.x0} className="ms-beetle" viewBox="0 0 4 3" width="12" height="9" aria-hidden="true"
+          style={{ '--bx0': pose.beetle.x0 + 'px', '--bx1': pose.beetle.x1 + 'px', '--bms': pose.beetle.ms + 'ms', shapeRendering: 'crispEdges' }}><path fill="var(--header-text)" d="M1 0h2v1h1v1h-4v-1h1z" /><path fill="var(--header-text)" d="M0 2h1v1h-1zM3 2h1v1h-1z" /></svg>}
+        <button ref={elRef} onClick={onOpenPlay} aria-label={label} className="ms-bar-buddy"
+          style={{ transform: 'translateX(' + Math.round(pose.x) + 'px)', transition: pose.ms ? 'transform ' + pose.ms + 'ms linear' : 'none' }}>
+          <span className="ms-bar-face" style={{ transform: pose.flip ? 'scaleX(-1)' : undefined }}>
+            <SpriteSheet key={pose.anim} palette={sp.palette} species={s.species} group="base" anim={sp.anim} px={2} fps={pose.fps} loop={pose.loop} />
+          </span>
+          {pose.prop === 'sparks' && <>
+            <svg className="ms-spark" viewBox="0 0 3 3" width="9" height="9" aria-hidden="true" style={{ left: -4, top: 10, shapeRendering: 'crispEdges' }}><path fill="var(--on-header-accent)" d="M1 0h1v1h1v1h-1v1h-1v-1h-1v-1h1z" /></svg>
+            <svg className="ms-spark b" viewBox="0 0 3 3" width="9" height="9" aria-hidden="true" style={{ right: -2, top: 4, shapeRendering: 'crispEdges' }}><path fill="var(--on-header-accent)" d="M1 0h1v1h1v1h-1v1h-1v-1h-1v-1h1z" /></svg>
+            <svg className="ms-spark" viewBox="0 0 3 3" width="6" height="6" aria-hidden="true" style={{ right: 6, top: -2, shapeRendering: 'crispEdges' }}><path fill="var(--header-text)" d="M1 0h1v1h1v1h-1v1h-1v-1h-1v-1h1z" /></svg>
+          </>}
+          {pose.prop === 'z' && <span className="ms-zz" aria-hidden="true">z</span>}
+        </button>
+      </>}
+    </div>
+  );
+}
+/* THE APP BAR (35-reset, DESIGN.md). One 52px purple bar: the green-spotted egg logo on the left, the
+   page's context beside it (the date on Today, the block on Train), the buddy in the lane between them
+   and the gear (BarBuddy, below; it is there only while the buddy is NOT standing in Today's valley),
+   and the gear for You. Tapping the buddy opens Play. Before it hatches, the egg wobbles instead. A sub-screen's SubHeader pins over it at the same height. */
+function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away }) {
+  // Who has the buddy: the valley while it is standing on Today's page, the lane otherwise. The hand-off
+  // between the two is animated only when it was a scroll (BUDDY_SPOT.soft); a tab change just swaps.
+  const spot = useBuddySpot();
+  const onPage = spot.onPage;
+  const [phase, setPhase] = useState(onPage ? 'scene' : 'bar');
+  const prev = useRef(onPage);
+  useEffect(() => {
+    if (prev.current === onPage) return;
+    prev.current = onPage;
+    if (!BUDDY_SPOT.soft || prefersReducedMotion()) { setPhase(onPage ? 'scene' : 'bar'); return; }
+    setPhase(onPage ? 'toScene' : 'toBar');
+    const t = setTimeout(() => setPhase(onPage ? 'scene' : 'bar'), 460);
+    return () => clearTimeout(t);
+  }, [onPage]);
   return (
     <div className="lg:hidden sticky top-0 z-40 flex items-center gap-1 px-1"
       style={{ background: 'var(--header)', height: 'var(--appbar-h)', boxShadow: '0 2px 0 0 var(--border)' }}>
       <button onClick={onHome} aria-label="Macrosaurus, go to Today" className="w-11 h-11 flex items-center justify-center shrink-0"><PixelEgg size={32} /></button>
       <div className="truncate text-[15px] shrink-0" style={{ color: 'var(--header-text)', fontWeight: 600, maxWidth: '50vw' }}>{context}</div>
-      <div className="ms-lane flex-1 relative h-11 overflow-hidden">
-        <button onClick={onOpenPlay} aria-label={egg ? 'Your egg. Open Play' : ((buddy && buddy.name) || 'Your buddy') + '. Open Play'} className={'ms-walker' + (egg ? ' slow' : '')}>
-          <span className="ms-walker-face"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="move" px={2} fps={egg ? 4 : 8} /></span>
-        </button>
-      </div>
+      <BarBuddy buddy={buddy} phase={phase} away={away} onOpenPlay={onOpenPlay} />
       <button onClick={onOpenYou} aria-label="You and settings" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--header-text)' }}>
         <Icon.gear width="24" height="24" />
       </button>
@@ -22493,7 +22842,7 @@ function App() {
           contiguous now: the session bar pins directly under this one at `--appbar-h` with no gap,
           which is the SubHeader relationship the rest of the app already uses for going INTO
           something. */}
-      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} />
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} away={forageFor(db, Store.todayISO()).status === 'away'} />
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>

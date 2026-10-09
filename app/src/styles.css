@@ -79,6 +79,21 @@
   --terra-sun: #F0B429;
   --terra-red: #C7472F;      /* the logo chips, as ground tufts */
   --terra-blue: #3D6FB4;
+  /* DINO VALLEY (37): the Today scene's extra layers. Same rule as above: tokens, never hexes in the art. */
+  --terra-haze-1: #fbe7d6;   /* horizon bands: flat steps, not a gradient */
+  --terra-haze-2: #f8dfca;
+  --terra-mesa: #eadfe6;
+  --terra-volcano: #e0d1dd;
+  --terra-ground: #efe6d2;
+  --terra-strata: #e2d4b8;
+  --terra-fossil: #d6c7a7;
+  --terra-bone: #fffdf7;
+  --terra-twig: #9a6b45;
+  --terra-cactus: #2E7D6B;
+  --terra-cactus-d: #1F6153;
+  --terra-liz: #4f7a3a;
+  --terra-gold: #E0A21B;
+  --terra-ember: #8a5a3a;
   /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
      as a 13px block on a meter can be unreadable as 9px type, because a bar only has to be seen and
      type has to be read. This is where the split earns its keep: the gold that carries the whole
@@ -197,6 +212,20 @@
   --terra-sun: #e8e8ea;      /* the moon */
   --terra-red: #FF5A4D;
   --terra-blue: #35E0E8;
+  --terra-haze-1: #0b0b12;
+  --terra-haze-2: #101019;
+  --terra-mesa: #101017;
+  --terra-volcano: #14141b;
+  --terra-ground: #0c0c11;
+  --terra-strata: #16161f;
+  --terra-fossil: #35E0E8;   /* glows faintly at night, see .vl-fossil */
+  --terra-bone: #8b8b98;
+  --terra-twig: #4a3524;
+  --terra-cactus: #1d4a30;
+  --terra-cactus-d: #153826;
+  --terra-liz: #3a6b3a;
+  --terra-gold: #F0B429;
+  --terra-ember: #3a2414;
   /* INK tokens. On a near-black card every fill above already runs 6:1 to 15:1 as type, so here ink
      and fill are the same colour. The split that paper needs, night does not. */
   --cardhead-bg: #15151c;
@@ -632,3 +661,71 @@ input[type="range"] { min-height: 44px; accent-color: var(--accent); }
 .ms-cardhead { border-bottom: 2px solid var(--border); padding-left: 0; padding-right: 0; }
 .theme-dark .ms-cardhead { border-bottom-color: var(--hairline-strong); }
 .ms-hero .ms-cardhead { padding-left: 16px; padding-right: 16px; border-bottom: 1px solid var(--hairline); }
+
+/* ---- DINO VALLEY (design-plans/37) ----
+   Today's buddy scene: a full-bleed band, drawn as one SVG on a 130x46 grid (3 CSS px a cell) with the
+   --terra-* tokens, so both themes and bought scenery recolour it. The SVG is centred and cropped
+   ("slice"), and the buddy is positioned from the CENTRE, so the two can never drift apart. */
+.ms-valley { position: relative; height: 138px; margin: 0 -20px; overflow: hidden; box-shadow: 0 2px 0 0 var(--border); color: var(--terra-ink); }
+.theme-dark .ms-valley { box-shadow: 0 2px 0 0 #3a3a48; }
+.ms-valley > svg.vl-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; shape-rendering: crispEdges; }
+.ms-vspeaker { position: absolute; left: calc(50% - 63px); bottom: 0; transform: translateX(-50%); display: flex; align-items: flex-end; justify-content: center; min-width: 44px; min-height: 44px; }
+.ms-vshadow { position: absolute; left: calc(50% - 63px); bottom: 30px; width: 40px; height: 6px; transform: translateX(-50%); border-radius: 50%; background: var(--terra-ink); opacity: .35; }
+.ms-valley .ms-emote { left: calc(50% - 63px + 22px); bottom: auto; top: 10px; }
+.ms-valley + .ms-dbox { margin-top: 16px; }
+.ms-valley + .ms-dbox .ms-tail { left: calc(50% - 63px - 12px); }
+/* Which layers show when. Sky items (stars, moon) are the dark theme's; the campfire, fireflies and
+   fossil glow are anyone's after dark (the clock, via .vl-is-night); the sun and the pterodactyl
+   are daytime only. */
+.vl-skynight, .vl-night { display: none; }
+.theme-dark .vl-skynight, .theme-dark .vl-night, .vl-is-night .vl-night { display: inline; }
+.theme-dark .vl-sun, .theme-dark .vl-cloud, .theme-dark .vl-ptero, .vl-is-night .vl-sun, .vl-is-night .vl-ptero { display: none; }
+.vl-drift { animation: vl-drift 26s linear infinite alternate; }
+@keyframes vl-drift { to { transform: translateX(-14px); } }
+.vl-ptero { animation: vl-ptero 18s linear infinite; }
+@keyframes vl-ptero { 0% { transform: translate(-12px, 8px); } 45%, 100% { transform: translate(140px, 3px); } }
+.vl-flap { animation: vl-flap .5s steps(2) infinite; }
+@keyframes vl-flap { 50% { transform: translateY(1px); } }
+.vl-puff { animation: vl-puff 3.6s steps(6) infinite; }
+.vl-puff.b { animation-delay: 1.2s; } .vl-puff.c { animation-delay: 2.4s; }
+@keyframes vl-puff { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-9px); opacity: 0; } }
+.vl-lava { animation: vl-lava 1.4s steps(2) infinite; }
+@keyframes vl-lava { 50% { opacity: .4; } }
+.vl-liz { animation: vl-liz 7s steps(14) infinite; }
+@keyframes vl-liz { 0%, 20% { transform: translateX(0); } 50%, 70% { transform: translateX(12px); } 100% { transform: translateX(0); } }
+.vl-tw { animation: vl-tw 2.4s steps(2) infinite; }
+.vl-tw.b { animation-delay: .8s; } .vl-tw.c { animation-delay: 1.6s; }
+@keyframes vl-tw { 50% { opacity: .25; } }
+.vl-shoot { animation: vl-shoot 11s linear infinite; }
+@keyframes vl-shoot { 0% { transform: translate(0, 0); opacity: 0; } 2% { opacity: 1; } 8% { transform: translate(-30px, 10px); opacity: 0; } 100% { transform: translate(-30px, 10px); opacity: 0; } }
+.vl-fa { animation: vl-fa .5s steps(1) infinite; } .vl-fb { animation: vl-fb .5s steps(1) infinite; }
+@keyframes vl-fa { 0% { opacity: 1; } 50% { opacity: 0; } } @keyframes vl-fb { 0% { opacity: 0; } 50% { opacity: 1; } }
+.vl-fly { animation: vl-fly 5s steps(10) infinite alternate; }
+.vl-fly.b { animation-duration: 6.5s; animation-delay: 1s; }
+@keyframes vl-fly { 0% { transform: translate(0, 0); opacity: 1; } 40% { opacity: .25; } 100% { transform: translate(6px, -4px); opacity: 1; } }
+.theme-dark .vl-fossil, .vl-is-night .vl-fossil { opacity: .45; animation: vl-glow 3s steps(3) infinite; }
+@keyframes vl-glow { 50% { opacity: .25; } }
+.vl-prints { animation: vl-prints 2.4s steps(4) infinite; }
+@keyframes vl-prints { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+/* The buddy lands back in the valley when the bar hands it down. */
+.vl-land { animation: vl-land .45s steps(6) both; }
+@keyframes vl-land { 0% { transform: translateY(-60px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+
+/* ---- THE APP-BAR BUDDY (design-plans/37) ----
+   Its position is driven from React (transform + transition); these are only the pieces. */
+.ms-bar-buddy { position: absolute; left: 0; top: -2px; width: 48px; height: 48px; padding: 0; border: 0; background: none; display: block; }
+.ms-bar-face { display: block; width: 48px; height: 48px; }
+.ms-rise { position: absolute; left: 0; top: -2px; animation: ms-rise .45s steps(6) both; }
+.ms-drop { position: absolute; left: 0; top: -2px; animation: ms-drop .45s steps(6) both; }
+@keyframes ms-rise { 0% { transform: translateY(40px); opacity: 0; } 35% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes ms-drop { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(44px); opacity: 0; } }
+.ms-spark { position: absolute; animation: ms-spark .6s steps(2) infinite; }
+.ms-spark.b { animation-delay: .3s; }
+@keyframes ms-spark { 50% { opacity: 0; } }
+.ms-zz { position: absolute; right: 0; top: 2px; font: 400 11px/1 'Silkscreen', monospace; color: var(--on-header-accent); animation: ms-zz 2s steps(4) infinite; }
+@keyframes ms-zz { 0% { transform: translateY(4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-6px); opacity: 0; } }
+.ms-beetle { position: absolute; left: 0; bottom: 6px; animation: ms-beetle var(--bms, 1.5s) linear both; }
+@keyframes ms-beetle { from { transform: translateX(var(--bx0)); } to { transform: translateX(var(--bx1)); } }
+.ms-track { position: absolute; left: 0; right: 14px; bottom: 6px; height: 2px; background: repeating-linear-gradient(90deg, var(--header-text) 0 4px, transparent 4px 8px); opacity: .7; }
+.ms-rest-clock { position: absolute; right: 22px; top: 2px; font: 400 13px/1 'Silkscreen', monospace; color: var(--header-text); }
+.ms-prints-btn { position: absolute; inset: 0; padding: 0; border: 0; background: none; display: block; width: 100%; }

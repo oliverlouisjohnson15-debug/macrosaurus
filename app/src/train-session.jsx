@@ -313,6 +313,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   useEffect(() => { const h = setInterval(() => setTick(x => x + 1), 1000); return () => clearInterval(h); }, []);
 
   const restLeft = rest ? Math.max(0, Math.ceil((rest.endsAt - Date.now()) / 1000)) : 0;
+  // The app bar's buddy walks the lane as the rest timer (BarBuddy's pacer); it reads this, and the
+  // clock stays here.
+  useEffect(() => {
+    setBarRest(rest ? { endsAt: rest.endsAt, seconds: rest.seconds } : null);
+    return () => setBarRest(null);
+  }, [rest && rest.endsAt, rest && rest.seconds]);
   // Fire once, on the tick the timer runs out. `rest.alerted` is the latch: without it every
   // re-render during the zero second would buzz again.
   useEffect(() => {

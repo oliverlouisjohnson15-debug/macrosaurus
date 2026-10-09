@@ -1256,6 +1256,37 @@
     return out('idle', { flourish: fl, micro: 'blink' });
   }
 
+  /* THE APP-BAR BUDDY. When the buddy is not standing in Today's valley it lives in the 44px lane of
+     the app bar, and what it does there is decided here, in one tested place, like buddyAnim.
+     st: { egg, away, night, resting, reaction }. Returns { mode, anim, motion, prop }:
+       motion is pace | hold | trot | pacer | none, prop is the little extra drawn with it.
+     Priority, highest first: an egg only wobbles, a buddy that is out foraging is not there to do
+     anything (footprints), then the one-shot reactions (cheer, the delivery run for a logged meal, a
+     wave), then the Train rest timer, then bedtime, then the patrol. The morning wave and the
+     rest-over wave arrive as `wave` reactions, so they queue behind a cheer instead of cutting it. */
+  function barAnim(st) {
+    st = st || {};
+    var out = function (mode, anim, motion, prop) { return { mode: mode, anim: anim, motion: motion, prop: prop || null }; };
+    if (st.egg) return out('egg', 'move', 'pace');
+    if (st.away) return out('away', null, 'none', 'footprints');
+    if (st.reaction === 'cheer') return out('cheer', 'cheer', 'hold', 'sparks');
+    if (st.reaction === 'eat' || st.reaction === 'carry') return out('delivery', 'carry', 'trot');
+    if (st.reaction === 'wave') return out('wave', 'wave', 'hold');
+    if (st.resting) return out('pacer', 'move', 'pacer', 'track');
+    if (st.night) return out('bedtime', 'sleep', 'none', 'z');
+    return out('patrol', 'move', 'pace');
+  }
+  /* The random beat the patrol may take on reaching an end of the lane. Pure: the caller supplies the
+     dice (r in [0,1)) and the facts. The beetle chase is a rare treat, at most once a session and never
+     in the first minute; a sniff is about one turn in three, only on the left (date) end. */
+  var BAR_CHASE_AFTER_MS = 60000;
+  function barBeat(r, st) {
+    st = st || {};
+    if (!st.chased && (st.sessionMs || 0) >= BAR_CHASE_AFTER_MS && st.atLeft && r < 0.12) return 'chase';
+    if (st.atLeft && r >= 0.12 && r < 0.46) return 'sniff';
+    return null;
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -1396,6 +1427,9 @@
     isNight: isNight,
     ANIM_FALLBACK: ANIM_FALLBACK,
     buddyAnim: buddyAnim,
+    barAnim: barAnim,
+    barBeat: barBeat,
+    BAR_CHASE_AFTER_MS: BAR_CHASE_AFTER_MS,
     animChain: animChain,
   };
 

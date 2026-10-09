@@ -1,6 +1,11 @@
 # 37 · Dino Valley + one dino in the top bar
 
-Status: design proposed 2026-10-09. Canvas: https://claude.ai/artifact/1wJf84oxaUhMoHYK2Aqeij
+Status: BUILT 2026-10-09 (option A, and the full top-bar repertoire). Design proposed and approved the same day.
+Where it lives: `ValleyScene` / `ValleyBuddy` / `BUDDY_SPOT` (app.jsx, above `Dialogue`), `BarBuddy` + `MobileHeader`,
+`Game.barAnim` / `Game.barBeat` (game.js, tested), `setBarRest` fed by the Train session, styles under
+"DINO VALLEY" and "THE APP-BAR BUDDY" in styles.css. Deviations from the prompt below: the valley is a
+plain SVG on the --terra-* tokens rather than a TerrariumCanvas variant (a static scene needs no repaint on
+theme flip), and the bar's rest-over wave is the pacer's own pose rather than a queued reaction. Canvas: https://claude.ai/artifact/1wJf84oxaUhMoHYK2Aqeij
 (boards: "Now", "A · Dino Valley day/night", "B · Macro garden", "One dino: scroll handoff" (playable),
 "Top-bar repertoire").
 
