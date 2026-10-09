@@ -1313,8 +1313,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                             <button key={st.v} onClick={() => { setField(ii, si, 'type', st.v); setSetMenu(null); }}
                               className="pixel-box px-3 h-11 text-[11px]"
                               style={{
-                                background: type === st.v ? 'var(--accent)' : 'var(--surface2)',
-                                color: type === st.v ? 'var(--on-accent)' : 'var(--text2)',
+                                background: type === st.v ? 'var(--seg-on)' : 'var(--surface2)',
+                                color: type === st.v ? 'var(--seg-on-text)' : 'var(--text2)',
                               }}>
                               {st.full}
                             </button>

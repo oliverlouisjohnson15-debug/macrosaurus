@@ -1436,8 +1436,8 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                         // theme's ink - sitting on the light theme's teal, which measured 3.84:1
                         // and is the same fill-instead-of-ink slip design-plans/20-ui-review.md
                         // found on the macro figures.
-                        background: on ? 'var(--accent)' : 'var(--surface2)',
-                        color: on ? 'var(--on-accent)' : 'var(--text2)',
+                        background: on ? 'var(--seg-on)' : 'var(--surface2)',
+                        color: on ? 'var(--seg-on-text)' : 'var(--text2)',
                       }}>
                       {ex ? ex.name : id}
                     </button>
@@ -2286,8 +2286,8 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
                       // At a 12% tint behind a weaker border it was the quietest thing in the row,
                       // so the one state carrying information looked like the absence of it.
                       border: '2px solid ' + (on || taken ? 'var(--border)' : '#cfc8ba'),
-                      background: on ? 'var(--accent)' : taken ? 'color-mix(in srgb, var(--accent) 26%, var(--surface2))' : 'var(--surface2)',
-                      color: on ? 'var(--on-accent)' : taken ? 'var(--accent-ink)' : 'var(--muted)',
+                      background: on ? 'var(--seg-on)' : taken ? 'color-mix(in srgb, var(--accent) 26%, var(--surface2))' : 'var(--surface2)',
+                      color: on ? 'var(--seg-on-text)' : taken ? 'var(--accent-ink)' : 'var(--muted)',
                     }}>
                     {(WEEKDAYS[d] || '')[0]}
                   </button>

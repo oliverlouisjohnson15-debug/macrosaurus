@@ -6196,7 +6196,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
         const on = high.includes(d);
         return <button key={d} onClick={() => setHigh(h => on ? h.filter(x => x !== d) : h.concat([d]))}
           className="pixel-box py-2.5 px-2 text-[12px]"
-          style={{ background: on ? 'var(--accent)' : 'var(--card)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>
+          style={{ background: on ? 'var(--seg-on)' : 'var(--card)', color: on ? 'var(--seg-on-text)' : 'var(--text)' }}>
           {new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
         </button>;
       })}
@@ -16000,7 +16000,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                 const on = ftype === t.id;
                 return (<button key={t.id} onClick={() => setFtype(on ? '' : t.id)}
                   className="hit text-[12px] px-2.5 py-1"
-                  style={{ border: '2px solid var(--border)', background: on ? 'var(--accent)' : 'var(--card)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>
+                  style={{ border: '2px solid var(--border)', background: on ? 'var(--seg-on)' : 'var(--card)', color: on ? 'var(--seg-on-text)' : 'var(--text)' }}>
                   {t.label} <span className="tnum" style={{ opacity: 0.6 }}>{t.count}</span>
                 </button>);
               })}
@@ -20765,12 +20765,12 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         {pickMeal.batch && <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>Logs this serving now; the other {Math.max(0, (recipe.servings || 1) - portion)} become leftovers you can log on later days.</div>}
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">How much</div>
         {(() => { const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem); return fp ? (
-          <button onClick={() => setPortion(fp)} className="w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between" style={{ background: portion === fp ? 'var(--accent)' : 'var(--surface3)', color: portion === fp ? '#111' : 'var(--text)' }}>
+          <button onClick={() => setPortion(fp)} className="w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between" style={{ background: portion === fp ? 'var(--seg-on)' : 'var(--surface3)', color: portion === fp ? 'var(--seg-on-text)' : 'var(--text)' }}>
             <span className="font-bold">Fit my day · {fp}×</span>
             <span className="tnum">{Math.round((recipe.macros_per_serving.kcal || 0) * fp)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * fp)}</span>
           </button>) : null; })()}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          {[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}
+          {[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--seg-on)' : 'var(--surface3)', color: portion === pp ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}
           <input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" />
         </div>
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">To which meal</div>
@@ -21022,7 +21022,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
   // breakfast (the one distinct meal), then main ingredient. Lunch/dinner are tied together as "everything else".
   const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['quick', 'Quick'], ['breakfast', 'Breakfast'], ['m:chicken', 'Chicken'], ['m:beef', 'Beef'], ['m:fish', 'Fish'], ['m:veg', 'Veggie'], ['all', 'All']];
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
-  const chipStyle = on => ({ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 });
+  const chipStyle = on => ({ background: on ? 'var(--seg-on)' : 'var(--surface3)', color: on ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: on ? 700 : 400 });
   const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
   const filtered = q.trim() || (pick && pick !== 'today' && pick !== 'all');
   return (<div className="fade-in">
@@ -21146,7 +21146,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
     <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">{label}</div>
     <div className="flex flex-wrap gap-2">
-      {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
+      {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--seg-on)' : 'var(--surface3)', color: on ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
     </div>
   </div>) : null;
   const sorts = [['recent', 'Recent'], ['protein', 'Most protein'], ['kcal', 'Fewest calories'], ['quick', 'Quickest']];
@@ -21157,9 +21157,9 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <div className="mb-4">
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
-          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
-          {setFilter && (collections || []).map(c => { const on = filter === c; return <button key={c} onClick={() => setFilter(on ? 'all' : c)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{c}</button>; })}
+          <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--seg-on)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
+          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--seg-on)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
+          {setFilter && (collections || []).map(c => { const on = filter === c; return <button key={c} onClick={() => setFilter(on ? 'all' : c)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--seg-on)' : 'var(--surface3)', color: on ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{c}</button>; })}
         </div>
       </div>
       <Group label="Meal" k="meal" values={present('meal')} />
@@ -21168,11 +21168,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <Group label="Effort" k="effort" values={present('effort')} />
       {diets.length > 0 && <div className="mb-4">
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Diet</div>
-        <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
+        <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--seg-on)' : 'var(--surface3)', color: on ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
       </div>}
       <div className="mb-5">
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">Sort by</div>
-        <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--accent)' : 'var(--surface3)', color: sort === k ? 'var(--on-accent)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
+        <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--seg-on)' : 'var(--surface3)', color: sort === k ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
       </div>
       <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={onClear}>Clear all</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Show recipes</Btn></div>
     </div>
@@ -21217,7 +21217,7 @@ function TransientCookLog({ recipe, meals, onLog, onClose }) {
       <div className="text-[12px] text-[var(--muted)] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((m.kcal || 0) * portion)} kcal · P{Math.round((m.protein || 0) * portion)}</div>
       {m.kcal > 0 ? <>
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">How much</div>
-        <div className="flex items-center gap-2 mb-4 flex-wrap">{[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}<input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" /></div>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">{[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--seg-on)' : 'var(--surface3)', color: portion === pp ? 'var(--seg-on-text)' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}<input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" /></div>
         <div className="pf text-[11px] uppercase text-[var(--muted)] mb-2">To which meal</div>
         <div className="space-y-2">{meals.map(mm => <button key={mm.id} onClick={() => onLog(mm.id, portion)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{mm.name}</button>)}</div>
       </> : <div className="text-[12px] text-[var(--muted)] leading-snug">No macros on this one yet. Add it to your cookbook to work them out and log it.</div>}

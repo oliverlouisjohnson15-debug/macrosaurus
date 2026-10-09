@@ -500,6 +500,10 @@ input, select { color-scheme: light; }
 /* "white" = the active / primary neon; "black" text on it = on-accent */
 .bg-white { background-color: var(--accent) !important; }
 .text-black { color: var(--on-accent) !important; }
+/* A chosen option (the `bg-white text-black` pair) is the same ink window as a chosen Seg segment,
+   not a gold tile: one selected style across the app (DESIGN.md, Seg). Gold stays for the action. */
+.bg-white.text-black { background-color: var(--seg-on) !important; color: var(--seg-on-text) !important; }
+.bg-white.text-black .text-black\/60 { color: var(--seg-on-text) !important; opacity: 0.75; }
 /* `text-white` means "the strongest type on this surface", not literally white. On paper that is
    ink; only after dark is it actually near-white. The scoping is inverted from what it was, because
    the default theme is. */
