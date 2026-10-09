@@ -150,12 +150,12 @@ function tableRows(mints) {
 const [four, five] = process.argv.slice(2);
 if (!four || !five) { console.error('usage: node tools/gen-programmes.mjs <4day.xlsx> <5day.xlsx>'); process.exit(1); }
 const a = templateFrom(four), b = templateFrom(five);
-// Each programme is named for a dinosaur ("Macrosaurus Raptor", "...T-Rex", "...Brachio", "...Stego") so
+// Each programme is named for a dinosaur ("Raptor", "T-Rex", "Brachio", "Stego") so
 // the four are distinct at a glance, and carries a one-phrase `blurb` that says what kind of plan it is.
 // The names are the app's: edit them in app/training.js too, since the other two are written by hand.
 const out = [
-  { key: 'mac4', name: 'Macrosaurus Raptor', blurb: 'Time-efficient', daysPerWeek: a.days, template: compact(a.template) },
-  { key: 'mac5', name: 'Macrosaurus T-Rex', blurb: 'Upper/lower', daysPerWeek: b.days, template: compact(b.template) },
+  { key: 'mac4', name: 'Raptor', blurb: 'Time-efficient', daysPerWeek: a.days, template: compact(a.template) },
+  { key: 'mac5', name: 'T-Rex', blurb: 'Upper/lower', daysPerWeek: b.days, template: compact(b.template) },
 ];
 // One day per line: readable enough to diff when a sheet changes, compact enough not to add a
 // thousand lines to the engine.

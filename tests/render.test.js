@@ -64,18 +64,18 @@ test('the tab offers the programmes the app ships with', () => {
   db.training.blocks = [];
   db.training.prefs = { units: 'kg' };
   const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(r.has('Macrosaurus Raptor'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
-  assert.ok(r.has('Macrosaurus T-Rex'));
+  assert.ok(r.has('Raptor'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
+  assert.ok(r.has('T-Rex'));
   // With their real shape on the card, not a claim that would need checking against the engine.
   assert.ok(/5 days · \d+ hard sets/.test(r.text), 'days and sets on the row: ' + r.text.slice(0, 300));
   // Four rows, one per programme. The split is the builder's to show (36-after-reset/04 dropped the
   // day-name line: a one-line row cut it short on a phone).
-  assert.ok(r.has('Macrosaurus Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its row');
-  assert.ok(r.has('Macrosaurus Stego') && r.has('Machines'), 'and the machine one');
-  // Four names that are each their own: "Macrosaurus <Dinosaur>", never two that differ only by a number
+  assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its row');
+  assert.ok(r.has('Stego') && r.has('Machines'), 'and the machine one');
+  // Four names that are each their own: a dinosaur on its own, never two that differ only by a number
   // or a suffix, and each with a blurb that says what KIND of plan it is (the name no longer does).
   const names = A.Training.PROGRAMMES.map(p => p.name);
-  for (const n of names) assert.match(n, /^Macrosaurus [A-Z][A-Za-z-]+$/, n + ' is not named like the others');
+  for (const n of names) assert.match(n, /^[A-Z][A-Za-z-]+$/, n + ' is not named like the others');
   assert.equal(new Set(names).size, names.length, 'every programme needs a name of its own');
   const blurbs = A.Training.PROGRAMMES.map(p => p.blurb);
   for (const b of blurbs) assert.ok(b && b.length < 20, 'a short blurb on each: ' + b);
