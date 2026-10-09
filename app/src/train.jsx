@@ -439,7 +439,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
             </div>
             <div className="text-[13px] leading-snug mb-2">{d.advice}</div>
             {(d.reasons.length > 0 || review.adherence < 60) && (
-              <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {d.reasons.map(r => r.text).join(' ')}
                 {/* deloadAdvice already names the percentage when it is low enough to score, so this
                     adds the reframe without repeating the number. */}
@@ -447,7 +447,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
               </div>
             )}
             {!d.needed && !d.borderline && (
-              <div className="text-[11.5px] leading-snug mt-1" style={{ color: 'var(--muted2)' }}>
+              <div className="text-[12px] leading-snug mt-1" style={{ color: 'var(--muted2)' }}>
                 A lighter week you have not earned costs you a productive one, so we only ask for it when something says you need it.
               </div>
             )}
@@ -940,7 +940,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold leading-tight truncate">{(l.name || 'Session').split(' - ')[0]}</span>
-                  <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+                  <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
                     {done} {done === 1 ? 'set' : 'sets'} · {fmtTonnage(Training.tonnage(l), units)} moved
                     {live && <span style={{ color: 'var(--warn-ink)' }}> · still open</span>}
                   </span>
@@ -1987,7 +1987,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>
             {flagged ? String(flagged) : <Tick size={12} />}
           </span>
-          <span className="flex-1 text-[11.5px] leading-snug" style={{ color: 'var(--text2)' }}>
+          <span className="flex-1 text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
             {flagged
               ? flagged + (flagged === 1 ? ' line needs a look' : ' lines need a look') + '. Everything else matched.'
               : 'Everything is placed. Nothing was dropped.'}
@@ -2522,10 +2522,10 @@ function PRFlash({ pr, db, units, onClose }) {
         <div className="flex justify-center mb-2">
           <BuddyAvatar buddy={buddy} px={4} />
         </div>
-        <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>NEW BEST</div>
+        <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>New best</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
         <div className="pf text-[16px] tnum mb-2">{toDisplayWeight(pr.weightKg, units)}{unitLabel(units)} × {pr.reps}</div>
-        <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
+        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
     </div>
   );
@@ -2606,7 +2606,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
             "1 PR" is a badge and "Incline dumbbell press, heaviest ever" is the thing you tell
             somebody about. Capped at three: past that it is a list, not a moment. */}
         {(facts.prList || []).map((p, i) => (
-          <div key={i} className="pixel-box p-3 mb-2 text-[11.5px] leading-snug"
+          <div key={i} className="pixel-box p-3 mb-2 text-[12px] leading-snug"
             style={{ borderColor: 'var(--good)', background: 'var(--card)', color: 'var(--good-ink)' }}>
             <span className="font-bold">{p.name}</span> · {p.label}
           </div>
@@ -2706,7 +2706,7 @@ function StatSheet({ db, onBack }) {
               px={4} w={150} h={112} floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
           </div>
           <div className="pf text-[30px] mb-2" style={{ color: 'var(--accent-ink)' }}>{stats.overall}</div>
-          <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>Worked out from what you have actually lifted, against your bodyweight. It moves slowly and it does not lie.</div>
+          <div className="text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>Worked out from what you have actually lifted, against your bodyweight. It moves slowly and it does not lie.</div>
         </div>
       </Card>
 
@@ -2734,7 +2734,7 @@ function StatSheet({ db, onBack }) {
                   <span key={j} className="flex-1" style={{ height: 11, background: j * 5 < stats[k] ? 'var(--accent)' : 'var(--track)' }} />
                 ))}
               </div>
-              <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>{why}</div>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{why}</div>
             </div>
           ))}
         </Card>
@@ -2899,7 +2899,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
         style={i ? { borderTop: '2px solid var(--track)' } : null}>
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
-          <span className="block text-[11.5px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
+          <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
             {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
           {r.state === 'stuck' && (

@@ -1087,13 +1087,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       prescription plus a 36px sprite did not fit a 375px card and it hung over the
                       border. It lives in the header now, where it is on screen for the whole session
                       instead of only for whichever movement happens to be open. */}
-                  <span className="ml-auto shrink-0 text-[11.5px] text-right" style={{ color: 'var(--muted)' }}>
+                  <span className="ml-auto shrink-0 text-[12px] text-right" style={{ color: 'var(--muted)' }}>
                     {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps
                   </span>
                 </div>
 
                 {it.note && (
-                  <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
+                  <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     {it.note}
                     {/* A stall is the one note that asks for a decision rather than reporting one,
                         and it was asking for it with no way to say yes: you read "change the
@@ -1114,7 +1114,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     decoration: "1 second pause at the bottom" and "two drop sets at 25%" are the
                     difference between doing the exercise and doing their exercise. */}
                 {it.technique && (
-                  <div className="text-[11.5px] mb-2 px-2.5 py-2 leading-snug"
+                  <div className="text-[12px] mb-2 px-2.5 py-2 leading-snug"
                     style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--text2)' }}>
                     <b>On the last set:</b> {it.technique}
                   </div>
@@ -1134,7 +1134,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   const lts = it.sets.map(x => x.lastTime).filter(Boolean);
                   if (lts.length) {
                     return (
-                      <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+                      <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
                         <span style={{ color: 'var(--muted2)' }}>Last time: </span>
                         {lts.map(l => (l.weightKg > 0 ? toDisplayWeight(l.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + l.reps).join(', ')}
                       </div>
@@ -1148,7 +1148,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   if (!ref || !ref.borrowed) return null;
                   const from = Training.byId(ref.fromId, t.custom);
                   return (
-                    <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+                    <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
                       New to this one. On {from ? from.name : 'the plain version'} you did {toDisplayWeight(ref.best.weightKg, units)}{unitLabel(units)} × {ref.best.repsAtBest}
                     </div>
                   );
@@ -1168,7 +1168,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     and then produced none, which is the one thing an offer must not do. */}
                 {!t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0)
                   && Training.warmupSets((work[0].lastTime && work[0].lastTime.weightKg) || 60, ex, { count: it.warmups }).length > 0 && (
-                  <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+                  <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
                     Got a weight in mind? Put it in set 1 and a warm-up is worked out for it.
                   </div>
                 )}
@@ -1177,7 +1177,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     you what to warm up with is stale advice taking up a third of the card. */}
                 {warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
                   && Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).length > 0 && (
-                  <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
+                  <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Warm up: </span>
                     {/* A suggestion and nothing more: no rows, no ticks, nothing logged. Where the
                         plan states a count it decides how many rungs are on this line, and says
@@ -1193,7 +1193,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     are about to do, once, and only while it is still ahead of you - a line telling
                     you to lock in, above a set you have already finished, is noise. */}
                 {style.toFailure && !work.some(x => x.done) && tgt && (
-                  <div className="text-[11.5px] mb-3 px-2.5 py-2 leading-snug"
+                  <div className="text-[12px] mb-3 px-2.5 py-2 leading-snug"
                     style={{ borderLeft: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)' }}>
                     {(tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0
                       ? 'Intro week. Leave ' + (tgt.rirLast == null ? tgt.rir : tgt.rirLast) + ' in the tank on the last set: this week is what earns you the next five.'
@@ -2080,7 +2080,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             <div className="flex flex-wrap gap-2">
               {siblings.map(v => (
                 <button key={v.id} onClick={() => onPick(v.id)} disabled={v.id === basedOn}
-                  className="pixel-box px-3 h-11 text-[11.5px]"
+                  className="pixel-box px-3 h-11 text-[12px]"
                   style={{ background: v.id === basedOn ? 'var(--accent)' : 'var(--surface2)',
                     color: v.id === basedOn ? 'var(--on-accent)' : 'var(--text2)', opacity: v.id === basedOn ? 0.7 : 1 }}>
                   {v.variantLabel ? v.variantLabel : 'as written'}
@@ -2112,7 +2112,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
               {ways.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
                   {ways.map(v => (
-                    <button key={v.id} onClick={() => onPick(v.id)} className="pixel-box px-3 h-11 text-[11.5px]"
+                    <button key={v.id} onClick={() => onPick(v.id)} className="pixel-box px-3 h-11 text-[12px]"
                       style={{ background: 'var(--card)', color: 'var(--accent-ink)' }}>
                       {v.variantLabel || v.name}
                     </button>

@@ -748,10 +748,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               to the same place for the case that matters least. ---- */}
       {!block && (
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
+          <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
             Browse<br />blocks
           </button>
-          <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
+          <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
             Build<br />a block
           </button>
         </div>
