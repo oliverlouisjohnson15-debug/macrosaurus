@@ -236,7 +236,7 @@ const day = (name) => bb5().template.filter(d => d.name === name)[0];
 const said = (name) => day(name).exercises.map(e => e.sourceName + ' ' + e.target.sets + 'x' + e.target.repLow + ' @' + e.target.tempo);
 
 test('the five-day bodybuilding split ships as its author wrote it', () => {
-  assert.equal(bb5().name, 'Macrosaurus 5 Day Bodybuilding');
+  assert.equal(bb5().name, 'Macrosaurus Brachio');
   assert.equal(bb5().daysPerWeek, 5);
   assert.deepEqual(bb5().template.map(d => d.name), ['Upper 1', 'Lower 1', 'Arms and delts', 'Upper 2', 'Lower 2']);
   assert.deepEqual(said('Upper 1'), [

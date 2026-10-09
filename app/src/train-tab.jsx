@@ -257,7 +257,7 @@ function ProgrammeCards({ db, onPick, className }) {
     <Section title="Macrosaurus programmes" className={className}>
       {list.map(p => (
         <Row key={p.key} icon={<Icon.dumbbell width="24" />} title={p.name}
-          sub={p.daysPerWeek + ' days a week · ' + p.sets + ' hard sets'} onClick={() => onPick(p.key)} />
+          sub={(p.blurb ? p.blurb + ' · ' : '') + p.daysPerWeek + ' days · ' + p.sets + ' hard sets'} onClick={() => onPick(p.key)} />
       ))}
     </Section>
   );

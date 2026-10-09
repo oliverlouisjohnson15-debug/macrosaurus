@@ -947,7 +947,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 }
 
 /* ---- what to ask for, on THIS block ------------------------------------------------------------
- * The blank box is where an AI feature dies. Somebody who has just tapped "Macrosaurus 5 Day" knows
+ * The blank box is where an AI feature dies. Somebody who has just tapped "Macrosaurus T-Rex" knows
  * roughly what they want changed and has no idea what this thing will accept, so the honest answer to
  * a textarea with a placeholder in it is to close it. The research is consistent on the fix: narrow
  * the possibility space with a small number of concrete suggestions rather than asking an open

@@ -140,7 +140,7 @@ test('a model that falls over does not take the block with it', async () => {
 test('the way back to the programme as written is one tap', () => {
   const ui = programmeUI();
   try {
-    assert.ok(ui.has('Start again from Macrosaurus 5 Day as written'), 'offered: ' + ui.text.slice(0, 700));
+    assert.ok(ui.has('Start again from Macrosaurus T-Rex as written'), 'offered: ' + ui.text.slice(0, 700));
   } finally { ui.unmount(); }
 });
 

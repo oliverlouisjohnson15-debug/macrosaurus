@@ -150,13 +150,12 @@ function tableRows(mints) {
 const [four, five] = process.argv.slice(2);
 if (!four || !five) { console.error('usage: node tools/gen-programmes.mjs <4day.xlsx> <5day.xlsx>'); process.exit(1); }
 const a = templateFrom(four), b = templateFrom(five);
-// The card these sit on already says "Macrosaurus programmes", so a name only has to say which one.
-// They were "Macrosaurus Default 4 Day" and "Macrosaurus 5 Day", which is two naming schemes for two
-// things that sit next to each other - and "Default" says nothing on a block once it is on your
-// shelf, where the name has to work on its own.
+// Each programme is named for a dinosaur ("Macrosaurus Raptor", "...T-Rex", "...Brachio", "...Stego") so
+// the four are distinct at a glance, and carries a one-phrase `blurb` that says what kind of plan it is.
+// The names are the app's: edit them in app/training.js too, since the other two are written by hand.
 const out = [
-  { key: 'mac4', name: 'Macrosaurus 4 Day', daysPerWeek: a.days, template: compact(a.template) },
-  { key: 'mac5', name: 'Macrosaurus 5 Day', daysPerWeek: b.days, template: compact(b.template) },
+  { key: 'mac4', name: 'Macrosaurus Raptor', blurb: 'Time-efficient', daysPerWeek: a.days, template: compact(a.template) },
+  { key: 'mac5', name: 'Macrosaurus T-Rex', blurb: 'Upper/lower', daysPerWeek: b.days, template: compact(b.template) },
 ];
 // One day per line: readable enough to diff when a sheet changes, compact enough not to add a
 // thousand lines to the engine.
