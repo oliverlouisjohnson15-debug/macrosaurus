@@ -13998,20 +13998,32 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           </button>) : <div key={i} />)}</div>
       </Card>}
 
-      {/* Slim remaining-at-a-glance while you log; the full hero + Balance live on the Today tab. */}
+      {/* Remaining-at-a-glance while you log (36-after-reset/01): kcal and P/C/F LEFT lead, eaten is secondary. The full hero + Balance live on Today. */}
       {et && (() => {
         const rem = et.eff.kcal - tot.kcal;
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
             carrying the target, then one row per instrument. */}
-        // 35-reset: the day as ONE line (Food owns "eaten"; Today owns "left") and one thin meter.
         const dnd = window.MISPREMIUM === true ? E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol }))) : null;
+        const isPast = date < today;
+        const word = isPast ? 'under' : 'left';
+        const macroRows = [['P', 'protein', 'protein_g', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'carbs_g', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'fat_g', 'var(--fat)', 'var(--fat-ink)']];
         return <div className="mb-2">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>of {Math.round(et.eff.kcal).toLocaleString('en-GB')} kcal</span></span>
-            <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(tot.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(tot.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(tot.fat)}</span></span>
+            <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{Math.abs(Math.round(rem)).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)', fontWeight: 600 }}>kcal {over ? 'over' : word}</span></span>
+            <span className="text-[13px] tnum" style={{ color: 'var(--muted)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')} of {Math.round(et.eff.kcal).toLocaleString('en-GB')} eaten</span>
           </div>
           <div className="mt-2"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} small /></div>
+          <div className="mt-2">
+            {macroRows.map(([l, k, tk, fill, ink]) => {
+              const left = Math.round(et.eff[tk] - tot[k]); const mOver = left < 0;
+              return <div key={k} className="flex items-center gap-3" style={{ minHeight: 28 }}>
+                <span className="text-[13px] w-4 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
+                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={et.eff[tk]} color={mOver ? 'var(--danger)' : fill} cells={10} small /></div>
+                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : 'var(--text2)', fontWeight: 600 }}>{Math.abs(left)} g {mOver ? 'over' : word}</span>
+              </div>;
+            })}
+          </div>
           {dnd && <button onClick={() => setDensityHelp(true)} className="w-full flex items-center justify-between text-[13px] mt-1" style={{ minHeight: 44 }}>
             <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Density</span>
             <span className="tnum" style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)'), fontWeight: 600 }}>{dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}</span>
@@ -14758,7 +14770,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
   // A + keeps the sheet open; everything else closes it as it always did.
   const addKeep = (item) => { onAdd(mealId, Object.assign({}, item, { keepOpen: true })); setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0) }])); };
-  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal - added.reduce((n, x) => n + x.kcal, 0)), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
+  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
   const aiNote = !isPremium && (mode === 'scan' || mode === 'describe') && (() => {
     const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
     return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
@@ -14771,9 +14783,20 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   return (
     <Sheet title={title} onClose={onClose} wide z={50} pad={false} bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
       <div className="px-4 pb-3 flex-none">
-        {left && <div className="flex items-center justify-between gap-2 px-3 py-2.5 text-[13px]" style={{ background: 'var(--surface2)' }}>
-          <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
-          <span className="tnum"><span className="num text-[14px]">{Math.abs(left.kcal)}</span> kcal · <span style={{ color: 'var(--pro-ink)' }}>P{Math.max(0, left.protein)}</span> <span style={{ color: 'var(--carb-ink)' }}>C{Math.max(0, left.carbs)}</span> <span style={{ color: 'var(--fat-ink)' }}>F{Math.max(0, left.fat)}</span></span>
+        {left && <div className="px-3 py-2.5" style={{ background: 'var(--sunk)' }}>
+          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+            <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
+            <span className="tnum"><span className="num text-[16px]" style={{ color: left.kcal < 0 ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.abs(left.kcal).toLocaleString('en-GB')}</span> kcal</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mt-2">
+            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)']].map(([l, k, fill, ink]) => {
+              const over = left[k] < 0;
+              return <div key={k} className="min-w-0">
+                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {Math.abs(left[k])} g{over ? ' over' : ''}</div>
+                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small /></div>
+              </div>;
+            })}
+          </div>
         </div>}
       </div>
       <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>

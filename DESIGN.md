@@ -110,4 +110,4 @@ outline weight follows pixelarticons (MIT) so either can fill a gap. It is rende
 
 One primary job. One hero. At most 3 secondary sections of at most 4 rows, then "All …". At most one
 buddy prompt. At most one sentence of help at rest. No card inside a card. Every control is 44×44
-or larger. Each number appears once per screen. See `design-plans/35-reset/01-direction.md` §2.
+or larger. Each number appears once per screen. Today and Food both lead with *left*; the Food diary shows eaten as secondary text (36-after-reset/01). See `design-plans/35-reset/01-direction.md` §2.

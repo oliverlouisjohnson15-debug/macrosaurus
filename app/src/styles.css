@@ -14,6 +14,7 @@
 :root, .theme-light {
   --bg: #f6efe0;             /* paper, the page itself. 35-reset: light and warm, never grey (was #e7e3da); every text token still clears 5:1 on it */
   --card: #fffdf7;           /* the cream a panel is printed on */
+  --sunk: #efe6d2;           /* an inset strip: the "left today" banner, the rest timer (DESIGN.md) */
   --surface2: #f8f4e8;       /* inset strip inside a panel (the buddy's speech, card footers) */
   --surface3: #fffdf7;
   --track: #ece7dc;          /* an unfilled meter cell */
@@ -140,6 +141,7 @@
 .theme-dark {
   --bg: #050507;             /* the stage */
   --card: #0c0c11;
+  --sunk: #14141b;
   --surface2: #101017;       /* inset strip inside a panel */
   --surface3: #0c0c11;
   --track: #1a1a22;          /* an unfilled meter cell */
