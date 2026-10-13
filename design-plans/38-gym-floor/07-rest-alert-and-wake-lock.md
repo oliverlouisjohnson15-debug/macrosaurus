@@ -66,3 +66,14 @@ Ship whichever option lands within ±5 s in 9 of 10 runs. If neither does, stop 
    on once push is granted.
 5. Tests: `tests/push-nudge.test.js` style unit tests for the scheduling and cancel rules (pure
    module), plus the `sw.js` suppression rule.
+
+## Status
+
+- **Part A is built.** `useWakeLock` (`app/src/app.jsx`, beside `useBackClose`) is used by Cook and by the
+  session player, which holds it only while a live session is open and `prefs.keepAwake` is not off
+  (Training settings, "Keep the screen on"). `tests/wake-lock.test.js` covers it with a stand-in API.
+- **Part B is not built, and should not be until it is measured on a phone.** What the spike has found
+  so far, from the Macrosaurus project: `pg_cron` is 1.6.4, which accepts sub-minute schedules, and
+  `pg_net` 0.20.3 is installed, so option 2 (a `rest_alerts` table polled every 10 s) is possible. What
+  cannot be found from a desk is the thing the plan's pass mark depends on: how late a web push lands
+  on an iPhone home-screen PWA with the screen locked. That needs ten real runs per option.

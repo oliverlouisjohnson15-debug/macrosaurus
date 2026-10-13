@@ -1273,6 +1273,9 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
           <Field label="Rest timer" hint="Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest.">
             <Seg value={prefs.restTimer ? 'on' : 'off'} onChange={v => set('restTimer', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>
+          <Field label="Keep the screen on" hint="Stops the phone sleeping between sets while a session is open. Nothing is held once you step out of it.">
+            <Seg value={prefs.keepAwake === false ? 'off' : 'on'} onChange={v => set('keepAwake', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
+          </Field>
           <Field label="Sound when rest ends" hint="It buzzes either way. On an iPhone with the screen off the alert can arrive late, which is a limit of installed web apps rather than something we can fix.">
             <Seg value={prefs.restSound === false ? 'off' : 'on'} onChange={v => set('restSound', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>

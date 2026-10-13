@@ -121,6 +121,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   // is still going is on yesterday's date and is emphatically not being edited after the fact, so it
   // is the log being FINISHED that decides this rather than the date on it.
   const past = dateISO !== today && !liveLog(existing, today);
+  // A session you are standing in keeps the phone awake. Editing one from last week does not need to.
+  useWakeLock(!past && t.prefs.keepAwake !== false);
   const [items, setItems] = useState(() => {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
