@@ -843,8 +843,74 @@
     nordic_curl: 'Lower as slowly as you can control, hips extended throughout.',
     close_grip_bench: 'Shoulder-width grip, elbows tucked to about 45 degrees. Narrower hurts wrists without adding triceps.',
     chest_supported_row: 'Let the shoulder blades travel forward at the bottom. That is the stretch you came for.',
+    bb_incline: 'Bench at 30 degrees or so, bar to the upper chest, elbows tucked about 45 degrees from the body. Steeper turns it into a shoulder press.',
+    db_y_raise_incline: 'Chest on a bench set around 30 degrees, thumbs up, arms out in a Y. Light weight and no swinging: the point is the delts, not the traps.',
+    close_grip_lat_pulldown: 'Pull the elbows down and back to the ribs with the chest up, and let the arms straighten fully at the top.',
+    tbar_row_supported: 'Chest stays on the pad. Drive the elbows back rather than curling the handle, and pause with the shoulder blades together.',
+    shrug_machine: 'Straight up and down, no rolling. Hold the top for a second; the traps are the only thing that should move.',
+    machine_press: 'Set the seat so the handles start at mid-chest. Shoulder blades back against the pad, and do not let the shoulders roll forward as you press.',
+    high_cable_lateral_raise: 'Stand side-on to the stack. Lead with the elbow, stop at shoulder height, and let the cable keep tension on the delt at the bottom.',
+    '1_arm_reverse_pec_deck': 'Chest into the pad, arm slightly bent, sweep out and back in an arc. Stop when the elbow reaches the line of the shoulders; further is traps.',
+    leg_extension: 'Set the seat so your knees line up with the pivot. Pause at the top and take your time lowering: the lengthened position is where most of the stimulus is.',
+    machine_hip_thrust: 'Chin tucked, ribs down, finish with the hips level. Do not arch the lower back to get higher.',
+    bayesian_curl: 'Face away from the stack with the arm behind your body, so the biceps starts stretched. The elbow stays back; curl without swinging.',
+    overhead_cable_triceps_extension: 'Elbows forward and close, not flaring. Go all the way down into the stretch and extend until the arm is straight.',
+    zottman_curl_modified: 'Curl with the palms up, turn them down at the top, and lower slowly. The lowering is the harder half.',
+    cable_kickback_tri: 'Elbow pinned at your side and still; only the forearm moves. Squeeze at full extension.',
+    machine_lateral: 'Elbows, not hands, against the pads. Raise until the arms are about parallel to the floor; higher is traps.',
+    pec_deck: 'Set the seat so the handles are at chest height. Elbows slightly bent and fixed, bring the arms together as if hugging, and let the stretch open back out slowly.',
+    kelso_shrug: 'Pull the shoulder blades together, not up toward the ears. The arms stay straight; only the blades move.',
+    ez_bar_preacher_curl: 'Armpits on the top of the pad. Lower until the arms are nearly straight and do not let the bar bounce out of the bottom.',
+    triceps_pressdown: 'Elbows pinned to your sides and still. Press to a full lockout and let the bar come back up only to about elbow height.',
+    dragon_flag: 'A hard progression. Lower with the body straight from the shoulders and stop where the hips start to sag; bend the knees to make it easier.',
+    smith_machine_lunge: 'Feet far enough forward that the front shin stays near vertical at the bottom. Lower the back knee straight down.',
+    smith_machine_incline_press: 'Bench at 30 degrees. Set it so the bar comes down to the upper chest, and use the fixed path to push the last rep properly.',
+    db_decline_fly: 'Soft elbows, fixed. Open until the chest stretches, no deeper, then bring the dumbbells together over the chest.',
+    tbar_row: 'Hinge to about 45 degrees and hold it. Pull the elbows back rather than the hands up, and keep the torso still.',
+    hanging_leg_raise: 'Stop any swing before each rep. Curl the pelvis up at the top rather than only lifting the legs.',
+    pendulum_squat: 'Feet lower and narrower for more quad, higher for more glute. Go as deep as the knees allow and drive through the whole foot.',
+    smith_split_squat: 'Stand far enough forward that the front shin stays near vertical at the bottom. Drop the back knee straight down with the torso upright.',
+    db_ohp: 'Elbows slightly in front of the shoulders, press straight up, and do not arch the lower back to get the weight there.',
+    machine_rear_delt: 'Chest on the pad, lead with the elbows and keep the traps out of it. Let the arms come all the way forward between reps.',
+    hammer_curl: 'Thumbs up throughout, elbows at your sides. No swinging the torso.',
+    overhead_ez: 'Elbows up and close, upper arms still. Lower behind the head into the stretch and extend until straight.',
+    machine_preacher: 'Armpits on the pad, with the seat set so the elbows sit at the pivot. Take the stretch at the bottom and do not bounce out of it.',
+    machine_crunch: 'Curl the ribs toward the hips rather than pulling with the arms, and breathe out as you crunch.',
+    machine_crunch2: 'Curl the ribs toward the hips rather than pulling with the arms, and breathe out as you crunch.',
+    machine_back_extension: 'Move from the hips and finish with the body in a straight line. Going past that is the lower back being squeezed, not worked.',
+    machine_row__wide: 'Chest on the pad, drive the elbows out and back, and squeeze the blades together. Do not shrug up.',
+    cable_fly: 'Soft elbows, fixed. Bring the hands together in an arc and squeeze the chest, then let the cables pull the arms back out slowly.',
+    '45_hyperextension': 'Pad at the hip crease, not the belly. Hinge from the hips and stop with the body in a straight line; do not swing up past it.',
+    machine_fly: 'Elbows slightly bent and fixed, hands meet in front of the chest. Control the way back out into the stretch.',
+    machine_ohp: 'Set the seat so the handles start at about ear height. Press without flaring the ribs and do not lock out hard.',
+    chest_supported_machine_row: 'Chest stays on the pad. Drive the elbows back and pause with the shoulder blades together.',
   };
   function cueFor(ex) { return ex && CUES[ex.id] ? CUES[ex.id] : null; }
+  // The cue for a movement, or failing that for the one it is a variation of, saying whose it is. A
+  // Hoist pec deck needs no cue of its own when the pec deck has one, but the person should be told
+  // the words were written for the plain version.
+  function cueSource(ex, custom) {
+    if (!ex) return null;
+    if (CUES[ex.id]) return { text: CUES[ex.id], from: null };
+    var p = ex.variantOf ? byId(ex.variantOf, custom) : null;
+    for (var guard = 0; p && guard < 3; guard++) {
+      if (CUES[p.id]) return { text: CUES[p.id], from: p.name };
+      p = p.variantOf ? byId(p.variantOf, custom) : null;
+    }
+    return null;
+  }
+  // The note somebody keeps about how THIS machine is set up for them - seat 4, back pad 2, neutral
+  // handles. Per machine at the gym where it lives, then on the movement itself, then for a library
+  // movement with no gym: the same order a machine's units resolve in.
+  function setupFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom), prefs = opts.prefs || {};
+    var g = opts.gym && opts.gym.machines && opts.gym.machines[exerciseId];
+    return String((g && g.setup) || (prefs.machineSetup && prefs.machineSetup[exerciseId]) || (ex && ex.setup) || '').trim();
+  }
+  // Programme movements that deliberately have no cue, because there is no gotcha worth a sentence.
+  // A new programme line has to be in CUES or in here, which is what the test holds it to.
+  var NO_CUE = ['hip_abduction', 'hip_adduction', 'wrist_curl', 'dumbbell_wrist_extension', 'alternating_dumbbell_curl', 'dead_hang', 'cable_reverse_curl'];
   // Why this movement is in your plan, assembled from what we know rather than written by an AI.
   function whyFor(ex) {
     if (!ex || isCardio(ex)) return null;
@@ -7304,7 +7370,7 @@
     SETS_MIN: SETS_MIN, SETS_MAX: SETS_MAX, REPS_MIN: REPS_MIN, REPS_MAX: REPS_MAX, RIR_MAX: RIR_MAX,
     blockFixes: blockFixes, applyBlockFixes: applyBlockFixes,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
-    cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
+    cueFor: cueFor, cueSource: cueSource, setupFor: setupFor, NO_CUE: NO_CUE, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,

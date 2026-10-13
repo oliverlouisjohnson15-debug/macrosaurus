@@ -256,6 +256,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null);  // index of the exercise whose options are open
   const [unitsFor, setUnitsFor] = useState(null);   // index of the movement whose machine units are open
+  const [setupFor, setSetupFor] = useState(null);   // index of the movement whose setup note is open
   const [help, setHelp] = useState(null);          // which "?" explainer is open
   const [pastFor, setPastFor] = useState(null);    // exercise id whose history sheet is open
   const [noteOpen, setNoteOpen] = useState(null);  // exercise id whose note field is open
@@ -466,6 +467,27 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     if (key === 'weightKg' && +value > 0 && !t.prefs.sawWarmupHint) {
       trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { sawWarmupHint: true }); });
     }
+  }
+  const setupOf = (exId) => Training.setupFor(exId, { gym: gym, custom: t.custom, prefs: t.prefs });
+  // A note about how this machine is set up for you, kept with the machine at this gym.
+  function saveSetup(ii, text) {
+    const exId = items[ii].exerciseId;
+    const clean = String(text || '').trim().slice(0, 120);
+    trainUpdate(update, (tr) => {
+      const g = gym && (tr.gyms || []).filter(x => x.id === gym.id)[0];
+      if (g) {
+        g.machines = g.machines || {};
+        g.machines[exId] = Object.assign({}, g.machines[exId], { setup: clean });
+        if (!clean) delete g.machines[exId].setup;
+        return;
+      }
+      const c = (tr.custom || []).filter(x => x.id === exId)[0];
+      if (c) { if (clean) c.setup = clean; else delete c.setup; return; }
+      const m = Object.assign({}, tr.prefs.machineSetup);
+      if (clean) m[exId] = clean; else delete m[exId];
+      tr.prefs = Object.assign({}, tr.prefs, { machineSetup: m });
+    });
+    showToast && showToast(clean ? 'Setup saved.' : 'Setup cleared.');
   }
   // Change what this movement's machine shows. The numbers already typed keep reading the same on
   // screen, so the stored weight is re-expressed rather than left to jump; the choice is remembered
@@ -1182,6 +1204,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     session and the drop-off on the last one and the whole reason to look, came back as
                     "30kg x 9". Still only a reference line and never a number in the box: we ask for
                     an effort, and what that costs in kilos is the lifter's call on the day. */}
+                {/* How the machine is set up for you, until you have started: it is what you need while
+                    you are adjusting the seat and no use once you are under the weight. */}
+                {!work.some(x => x.done) && setupOf(it.exerciseId) && (
+                  <div className="text-[13px] mb-2 leading-snug" style={{ color: 'var(--text2)' }}>
+                    <span style={{ color: 'var(--muted2)' }}>Setup: </span>{setupOf(it.exerciseId)}
+                  </div>
+                )}
                 {(() => {
                   const lts = it.sets.map(x => x.lastTime).filter(Boolean);
                   if (lts.length) {
@@ -1595,6 +1624,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               disabled: !items[menuOpen].target,
               onClick: () => setTargetFor(menuOpen),
             },
+            { label: 'Machine setup', sub: setupOf(items[menuOpen].exerciseId) || 'Seat height, pad position, handles. Shown before your first set.', onClick: () => setSetupFor(menuOpen) },
             { label: 'Machine units', sub: specOf(items[menuOpen].exerciseId).explicit ? Training.specLabel(specOf(items[menuOpen].exerciseId)) : 'Follows your settings (' + unitLabel(units) + '). Tap if this one reads in pounds, pins or plates.', onClick: () => setUnitsFor(menuOpen) },
             { label: 'Log warm-up sets', sub: 'Adds rows above the working sets', disabled: specOf(items[menuOpen].exerciseId).unit === 'pin', onClick: () => addWarmups(menuOpen) },
             items[menuOpen].superset
@@ -1685,6 +1715,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             showToast && showToast(n ? n + ' past ' + (n === 1 ? 'set' : 'sets') + ' relabelled.' : 'Nothing to relabel.');
           }}
           onClose={() => setUnitsFor(null)} />
+      )}
+      {setupFor != null && items[setupFor] && (
+        <MachineSetupSheet
+          name={(Training.byId(items[setupFor].exerciseId, t.custom) || {}).name || 'This machine'}
+          current={setupOf(items[setupFor].exerciseId)} where={gym ? gym.name : null}
+          onSave={(text) => saveSetup(setupFor, text)} onClose={() => setSetupFor(null)} />
       )}
       {pastFor && <PastSets db={db} update={update} showToast={showToast} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
@@ -1848,7 +1884,8 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
     // places in this module, and this was the seventh.
     title = 'Why this movement';
     subject = ex ? ex.name : null;
-    body = [Training.cueFor(ex), Training.whyFor(ex)].filter(Boolean).join('\n\n');
+    const cue = Training.cueSource(ex, t.custom);
+    body = [cue ? (cue.from ? 'From ' + cue.from + ': ' : '') + cue.text : null, Training.whyFor(ex)].filter(Boolean).join('\n\n');
   }
   return (
     <div role="dialog" aria-modal="true" aria-label="Explainer" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
@@ -1864,6 +1901,23 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
         )}
       </div>
     </div>
+  );
+}
+
+// How this machine is set up for you. Seat heights and pad positions differ between makers and are
+// the first thing forgotten, and a session note is the wrong home for them: it is per session, and
+// this is per machine.
+function MachineSetupSheet({ name, current, where, onSave, onClose }) {
+  const [text, setText] = useState(current || '');
+  return (
+    <Sheet title="Machine setup" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{name}</div>
+      <Field label="Your settings" hint="Shown above your first set, then out of the way.">
+        <TextInput value={text} maxLength={120} onChange={e => setText(e.target.value)} placeholder="Seat 4, back pad 2, neutral handles" />
+      </Field>
+      <div className="text-[12px]" style={{ color: 'var(--muted2)' }}>{where ? 'Saved for this machine at ' + where + '.' : 'Saved with this movement.'}</div>
+      <Btn onClick={() => { onSave(text); onClose(); }}>Save</Btn>
+    </Sheet>
   );
 }
 
