@@ -1089,6 +1089,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-bold leading-tight" style={{ color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)' }}>
                   {ex ? ex.name : it.exerciseId}
+                  {/* A line Macrosaurus added to somebody else's programme says so, so it is never
+                      mistaken for the author's. */}
+                  {it.id && session && (session.exercises || []).some(x => x.id === it.id && x.addedBy) && (
+                    <span className="ml-2 text-[11px]" style={{ color: 'var(--muted2)', fontWeight: 600 }}>added</span>
+                  )}
                 </span>
                 {/* The subtitle answers a different question in each of the three states, which is
                     what makes the closed rows worth reading at all. Open: which set you are on.

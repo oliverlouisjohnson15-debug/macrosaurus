@@ -3122,7 +3122,7 @@
             // stops a rep short on anything you could get hurt failing, and the intro week sits a
             // rep or two behind both.
             var pair = (style.toFailure && !asWritten) ? minmaxEffort(exx, sets, isIntro || isDeload) : null;
-            return {
+            return Object.assign({
               id: blockId + '_' + (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
               // Everything on a line that belongs to whoever WROTE it rather than to the week it
@@ -3139,7 +3139,7 @@
               target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
                 { sets: sets, rir: pair ? pair.rir : effort },
                 pair ? { rirLast: pair.rirLast } : {}),
-            };
+            }, item.addedBy ? { addedBy: item.addedBy } : null, item.priority ? { priority: true } : null);
           }),
         });
       });
@@ -4916,11 +4916,87 @@
   { key: "mach5", name: "Stego", blurb: "Machines", daysPerWeek: 5, template: [
     {"name":"Legs 1","kind":"legs","dayOfWeek":0,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic2","sissy_squat"],"warmups":2,"planNote":"Seat back as far as is comfortable and pull yourself down into the seat with the handles.","sourceName":"Leg Extension"},{"exerciseId":"machine_back_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["45_hyperextension","cable_back_extension"],"warmups":1,"planNote":"Controlled on the way down; stop short of hyperextending at the top.","sourceName":"Machine Back Extension"},{"exerciseId":"hack_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["pendulum_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips allow without the pelvis tucking. Drive through the whole foot.","sourceName":"Hack Squat"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Start from the widest position you can control and squeeze the pads together.","sourceName":"Machine Hip Adduction"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
     {"name":"Upper","kind":"upper","dayOfWeek":1,"exercises":[{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["close_grip_lat_pulldown","machine_pulldown"],"warmups":2,"planNote":"Let the lats stretch fully at the top, then drive the elbows down to your sides.","sourceName":"Lat Pulldown"},{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"cable_fly","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["pec_deck","machine_fly"],"warmups":1,"planNote":"Soft elbows, and a deep stretch across the chest at the back of every rep.","sourceName":"Cable Chest Fly"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","db_lateral"],"warmups":1,"planNote":"Lead with the elbows and stop around shoulder height.","sourceName":"Machine Lateral Raise"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","triceps_pressdown"],"warmups":1,"planNote":"Overhead, so the long head is stretched at the bottom.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"}]},
-    {"name":"Legs 2","kind":"legs","dayOfWeek":3,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["hack_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips will let you go. The pendulum path keeps the load on the quads at the bottom.","sourceName":"Pendulum Squat"},{"exerciseId":"45_hyperextension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["machine_back_extension","cable_back_extension"],"warmups":1,"planNote":"Round slightly over the pad and squeeze the glutes to come up.","sourceName":"45° Back Extension"},{"exerciseId":"seated_leg_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_leg_curl","nordic_curl"],"warmups":2,"planNote":"Lean your torso forward to put the hamstrings on a longer stretch.","sourceName":"Seated Leg Curl"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["hip_thrust","smith_hip_thrust"],"warmups":2,"planNote":"Chin tucked, ribs down, and a one-second squeeze at lockout.","sourceName":"Machine Hip Thrust"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
+    {"name":"Legs 2","kind":"legs","dayOfWeek":3,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["hack_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips will let you go. The pendulum path keeps the load on the quads at the bottom.","sourceName":"Pendulum Squat"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic","sissy_squat"],"warmups":1,"planNote":"Lean back a touch and pause at the top. Quads get leg extension on one day only otherwise.","sourceName":"Leg Extension"},{"exerciseId":"45_hyperextension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["machine_back_extension","cable_back_extension"],"warmups":1,"planNote":"Round slightly over the pad and squeeze the glutes to come up.","sourceName":"45° Back Extension"},{"exerciseId":"seated_leg_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_leg_curl","nordic_curl"],"warmups":2,"planNote":"Lean your torso forward to put the hamstrings on a longer stretch.","sourceName":"Seated Leg Curl"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["hip_thrust","smith_hip_thrust"],"warmups":2,"planNote":"Chin tucked, ribs down, and a one-second squeeze at lockout.","sourceName":"Machine Hip Thrust"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
     {"name":"Push","kind":"push","dayOfWeek":4,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"machine_fly","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["pec_deck","cable_fly"],"warmups":1,"planNote":"Pause a second in the stretch with the pecs still loaded.","sourceName":"Machine Chest Fly"},{"exerciseId":"machine_ohp","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["seated_machine_press","db_ohp"],"warmups":2,"planNote":"Handles to about chin height, no bounce out of the bottom.","sourceName":"Machine Shoulder Press"},{"exerciseId":"db_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","machine_lateral"],"warmups":1,"planNote":"Slight lean forward, lead with the elbows, no swinging.","sourceName":"Dumbbell Lateral Raise"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":3,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","single_pushdown"],"warmups":1,"planNote":"One arm at a time on the cable, reaching long behind your head at the bottom.","sourceName":"Single-Arm Overhead Cable Extension"}]},
-    {"name":"Pull","kind":"pull","dayOfWeek":5,"exercises":[{"exerciseId":"chest_supported_machine_row","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","tbar_row_supported"],"warmups":2,"planNote":"Chest stays on the pad. Let the shoulder blades travel forward at the stretch.","sourceName":"Chest-Supported Machine Row"},{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["pulldown_neutral","1_arm_cable_pulldown"],"warmups":2,"planNote":"Lean back slightly and drive the elbows down towards your hips.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"machine_preacher","target":{"sets":3,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"},{"exerciseId":"cable_reverse_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_curl","barbell_reverse_curl"],"warmups":1,"planNote":"Overhand grip, elbows fixed at your sides.","sourceName":"Cable Reverse Curl"}]}
+    {"name":"Pull","kind":"pull","dayOfWeek":5,"exercises":[{"exerciseId":"chest_supported_machine_row","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","tbar_row_supported"],"warmups":2,"planNote":"Chest stays on the pad. Let the shoulder blades travel forward at the stretch.","sourceName":"Chest-Supported Machine Row"},{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["pulldown_neutral","1_arm_cable_pulldown"],"warmups":2,"planNote":"Lean back slightly and drive the elbows down towards your hips.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"cable_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["machine_lateral","db_lateral"],"warmups":1,"planNote":"Cable behind you, not in front, and stop at shoulder height. A second side-delt day is what builds width.","sourceName":"Cable Lateral Raise"},{"exerciseId":"machine_rear_delt","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_rear_fly","lying_reverse_dumbbell_fly"],"warmups":1,"planNote":"Chest on the pad, lead with the elbows and keep the traps out of it. Rear delts are half of how wide the shoulders look from behind.","sourceName":"Machine Rear Delt"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"},{"exerciseId":"cable_reverse_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_curl","barbell_reverse_curl"],"warmups":1,"planNote":"Overhand grip, elbows fixed at your sides.","sourceName":"Cable Reverse Curl"}]}
   ] }
 ];
+
+  /* ---- what the Macrosaurus additions are ---------------------------------------------------------
+   * Three of the four programmes are somebody else's, written out line for line and checked against
+   * the sheets they came from. They are not edited. But a physique is judged on shoulder width and a
+   * balanced chest, and two of them spend more sets on the forearms than on anything else, so there
+   * is an OPT-IN layer on top: a few lines added, a few wrist exercises swapped for delt work. Off by
+   * default, shown as exactly what it is, and every line it touches says so on its face
+   * (`addedBy`), so nobody mistakes our edits for the author's.
+   *
+   * An op is { day, op: 'add' | 'replace', after?, exerciseId?, line }. 'add' puts the line after the
+   * movement named in `after` (or last); 'replace' swaps the movement named in `exerciseId`.
+   */
+  function addLine(exerciseId, sets, repLow, repHigh, rir, rirLast, restSec, alts, warmups, why, sourceName) {
+    return {
+      exerciseId: exerciseId,
+      target: { sets: sets, repLow: repLow, repHigh: repHigh, rir: rir, rirLast: rirLast, restSec: restSec },
+      alts: alts, warmups: warmups, planNote: 'Not in the original programme: ' + why,
+      sourceName: sourceName, addedBy: 'macrosaurus',
+    };
+  }
+  var REAR_DELT = function () {
+    return addLine('machine_rear_delt', 2, 8, 10, 0, 0, 90, ['cable_rear_fly', 'lying_reverse_dumbbell_fly'], 1,
+      'chest on the pad, lead with the elbows. Rear delts are half of how wide the shoulders look from behind.', 'Machine Rear Delt');
+  };
+  var SIDE_DELT = function (sets) {
+    return addLine('db_lateral', sets, 8, 10, 0, 0, 90, ['cable_lateral', 'machine_lateral'], 1,
+      'lead with the elbow and stop at shoulder height. Side delts are the width in a V-taper.', 'Dumbbell Lateral Raise');
+  };
+  var PROGRAMME_ADDITIONS = {
+    mac4: {
+      note: 'A pec deck for the chest, and rear-delt and side-delt work in place of the wrist work.',
+      ops: [
+        { day: 'Upper', op: 'add', after: 'machine_press', line: addLine('pec_deck', 2, 8, 10, 0, 0, 90, ['db_fly', 'cable_fly'], 1, 'the programme has no fly, and the chest is trained four sets a week without one.', 'Pec Deck') },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'wrist_curl', line: REAR_DELT() },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'dumbbell_wrist_extension', line: SIDE_DELT(2) },
+      ],
+    },
+    mac5: {
+      note: 'A second pec deck, and rear-delt and side-delt work in place of the wrist work.',
+      ops: [
+        { day: 'Upper 2', op: 'add', after: 'machine_press', line: addLine('pec_deck', 1, 8, 10, 0, 0, 90, ['db_fly', 'cable_fly'], 1, 'a second chest isolation, on the day that has none.', 'Pec Deck') },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'wrist_curl', line: REAR_DELT() },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'dumbbell_wrist_extension', line: SIDE_DELT(2) },
+      ],
+    },
+    bb5: {
+      note: 'Side delts on both upper days, calves on both lower days, and a hip hinge.',
+      ops: [
+        { day: 'Upper 1', op: 'add', after: 'smith_machine_incline_press', line: addLine('machine_lateral', 2, 10, 12, 0, 0, 90, ['high_cable_lateral_raise', 'db_lateral'], 1, 'side delts were trained once a week, on arms day.', 'Machine Lateral Raise') },
+        { day: 'Upper 2', op: 'add', after: 'smith_machine_incline_press', line: addLine('machine_lateral', 2, 10, 12, 0, 0, 90, ['high_cable_lateral_raise', 'db_lateral'], 1, 'a second side-delt day.', 'Machine Lateral Raise') },
+        { day: 'Lower 1', op: 'add', line: addLine('standing_calf', 2, 8, 10, 0, 0, 90, ['leg_press_calf', 'smith_calf'], 1, 'the programme has no calf work.', 'Standing Calf Raise') },
+        { day: 'Lower 2', op: 'add', after: 'smith_split_squat', line: addLine('rdl', 2, 6, 8, 2, 1, 150, ['dumbbell_rdl', 'seated_cable_deadlift'], 2, 'the hamstrings only get a curl, and nothing trains the hinge.', 'Romanian Deadlift') },
+        { day: 'Lower 2', op: 'add', line: addLine('standing_calf', 2, 8, 10, 0, 0, 90, ['leg_press_calf', 'smith_calf'], 1, 'a second calf day.', 'Standing Calf Raise') },
+      ],
+    },
+  };
+  // The template with an additions layer applied, as a new template. The programme itself is never
+  // mutated: a copy is made first, so turning the layer off again is just not asking for it.
+  function applyAdditions(template, ops) {
+    var out = JSON.parse(JSON.stringify(template));
+    (ops || []).forEach(function (o) {
+      var day = out.filter(function (d) { return d.name === o.day; })[0];
+      if (!day) return;
+      var line = JSON.parse(JSON.stringify(o.line));
+      var list = day.exercises;
+      if (o.op === 'replace') {
+        var at = list.findIndex(function (e) { return e.exerciseId === o.exerciseId; });
+        if (at === -1) return;
+        list[at] = line;
+      } else {
+        var after = o.after ? list.findIndex(function (e) { return e.exerciseId === o.after; }) : -1;
+        list.splice(after === -1 ? list.length : after + 1, 0, line);
+      }
+    });
+    return out;
+  }
 
   function programmeOf(key) {
     var found = PROGRAMMES.filter(function (p) { return p.key === key; });
@@ -4932,13 +5008,14 @@
     opts = opts || {};
     var p = programmeOf(key);
     if (!p) return null;
-    var block = blockFromTemplate(p.template, {
+    var extra = opts.additions && PROGRAMME_ADDITIONS[key] ? PROGRAMME_ADDITIONS[key] : null;
+    var block = blockFromTemplate(extra ? applyAdditions(p.template, extra.ops) : p.template, {
       // as-written, because this IS the plan: no set added per week, no trimming to our own
       // ceilings, and the effort target on every line is the one the programme states.
       weeks: opts.weeks || 4, shape: 'as-written', style: 'minmax',
       daysPerWeek: p.daysPerWeek, intensity: 'high', goal: 'hypertrophy',
       name: opts.name || p.name, custom: opts.custom, startISO: opts.startISO || null,
-      source: 'programme', sourceRef: { kind: 'programme', name: p.key },
+      source: 'programme', sourceRef: extra ? { kind: 'programme', name: p.key, additions: true } : { kind: 'programme', name: p.key },
     });
     block.archived = false;
     block.shared = false;
@@ -4953,12 +5030,59 @@
       return a + d.exercises.reduce(function (b, e) { return b + (e.target.sets || 0); }, 0);
     }, 0);
     var moves = p.template.reduce(function (a, d) { return a + d.exercises.length; }, 0);
+    var extra = PROGRAMME_ADDITIONS[key] || null;
+    var withSets = extra ? applyAdditions(p.template, extra.ops).reduce(function (a, d) {
+      return a + d.exercises.reduce(function (b, e) { return b + (e.target.sets || 0); }, 0);
+    }, 0) : sets;
     return {
       key: p.key, name: p.name, blurb: p.blurb || '', daysPerWeek: p.daysPerWeek, weeks: 4,
       sets: sets, movements: moves,
+      additions: extra ? { note: extra.note, sets: withSets - sets } : null,
       dayNames: p.template.map(function (d) { return d.name; }),
       volume: plannedVolume(p.template, custom),
     };
+  }
+
+  /* ---- a priority muscle -------------------------------------------------------------------------
+   * A bodybuilder picks the weak point for a block and gives it more work, earlier in the session,
+   * while it is fresh. Three things happen, in every session that trains the muscle as a primary
+   * mover: its first such line gains a set; that line moves up to just behind the session's first
+   * compound (never ahead of it, because the heavy opener stays first); and, so the session does not
+   * grow, a set comes off the biggest isolation line that does not train the muscle at all. Where no
+   * such line has a set to spare the session simply grows by one, and the screen can say so.
+   */
+  function applyPriority(block, muscle, opts) {
+    if (!block || MUSCLES.indexOf(muscle) === -1) return null;
+    var custom = opts && opts.custom;
+    var trains = function (e) { var c = setContribution(byId(e.exerciseId, custom)); return c[muscle] >= PRIMARY_WEIGHT; };
+    var touches = function (e) { return !!setContribution(byId(e.exerciseId, custom))[muscle]; };
+    var isCompound = function (e) { var x = byId(e.exerciseId, custom); return !!x && x.pattern !== 'isolation' && x.pattern !== 'core'; };
+    var sessions = 0, added = 0, offset = 0;
+    (block.sessions || []).forEach(function (sess) {
+      var list = (sess.exercises || []).slice().sort(function (a, b) { return a.order - b.order; });
+      var first = list.filter(trains)[0];
+      if (!first) return;
+      first.target.sets += 1;
+      first.priority = true;
+      added++;
+      // The set that pays for it.
+      var donor = list.filter(function (e) {
+        var x = byId(e.exerciseId, custom);
+        return !touches(e) && x && (x.pattern === 'isolation' || x.pattern === 'core') && e.target.sets >= 2;
+      }).sort(function (a, b) { return b.target.sets - a.target.sets; })[0];
+      if (donor) { donor.target.sets -= 1; offset++; }
+      // Up to just behind the first compound.
+      var opener = list.findIndex(isCompound);
+      var at = list.indexOf(first);
+      var to = opener === -1 ? 0 : opener + 1;
+      if (at > to) { list.splice(at, 1); list.splice(to, 0, first); }
+      list.forEach(function (e, i) { e.order = i; });
+      sess.exercises = list;
+      sessions++;
+    });
+    if (!sessions) return null;
+    block.priority = muscle;
+    return { sessions: sessions, added: added, offset: offset };
   }
 
   /* ---- loading a block somebody already owns ----------------------------------------------------
@@ -6967,6 +7091,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    PROGRAMME_ADDITIONS: PROGRAMME_ADDITIONS, applyAdditions: applyAdditions, applyPriority: applyPriority,
     looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,
     splitBrand: splitBrand, BRANDS: BRANDS, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
     loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,

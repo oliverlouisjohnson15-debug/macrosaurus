@@ -1222,13 +1222,44 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const fromProgramme = isNew && block.sourceRef && block.sourceRef.kind === 'programme'
     ? Training.programmeOf(block.sourceRef.name) : null;
   function resetToProgramme() {
-    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name });
+    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name, additions: !!block.sourceRef.additions });
     setConfirmReset(false);
     if (!fresh) return;
     fresh.id = block.id;
     setBlock(fresh);
     setWishResult(null); setWishErr(null);
     showToast && showToast('Back to ' + fromProgramme.name + ' as written.');
+  }
+  /* ---- the Macrosaurus additions, and a priority muscle ------------------------------------------
+     Both are changes to a block that has not been run yet. The additions layer rebuilds the block
+     from the programme, because it adds and swaps lines the author did not write; the priority muscle
+     adds a set and moves a line, and keeps the block as it stood a moment before it (stripped on
+     save) so choosing a different muscle, or none, starts again from there rather than stacking. */
+  const hasAdditions = !!(fromProgramme && Training.PROGRAMME_ADDITIONS[block.sourceRef.name]);
+  const additionsOn = !!(block.sourceRef && block.sourceRef.additions);
+  function toggleAdditions() {
+    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name, additions: !additionsOn });
+    if (!fresh) return;
+    fresh.id = block.id;
+    if (block.priority) Training.applyPriority(fresh, block.priority, { custom: t.custom });
+    setBlock(fresh);
+    setWishResult(null); setWishErr(null);
+    opened.current = JSON.stringify({ b: fresh, n: name, s: startISO, sh: share });
+    showToast && showToast(additionsOn ? 'Back to ' + fromProgramme.name + ' as written.' : 'Macrosaurus additions added.');
+  }
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  // Only muscles this block trains as a main mover can be a priority: anything else has no line to
+  // lift. Read off week 1, which is the shape every week repeats.
+  const priorityChoices = Training.MUSCLES.filter(m => Training.weekSessions(block, 1).some(sess =>
+    (sess.exercises || []).some(e => (Training.setContribution(Training.byId(e.exerciseId, t.custom) || {})[m] || 0) >= 1)));
+  function pickPriority(m) {
+    setBlock(b => {
+      const n = JSON.parse(JSON.stringify(b));
+      if (n._beforePriority) n.sessions = n._beforePriority; else n._beforePriority = JSON.parse(JSON.stringify(n.sessions));
+      delete n.priority;
+      if (m) Training.applyPriority(n, m, { custom: t.custom }); else delete n._beforePriority;
+      return n;
+    });
   }
   // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
   // no question about switching, because nothing is being switched. Building a plan and running a
@@ -1250,6 +1281,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       startISO: later ? null : startISO,
       shared: share,
     });
+    delete out._beforePriority;
     trainUpdate(update, (tr) => {
       const i = tr.blocks.findIndex(b => b.id === out.id);
       if (i >= 0) tr.blocks[i] = out;
@@ -1303,6 +1335,26 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         <input type="date" value={startISO} onChange={e => setStartISO(e.target.value)}
           className="w-full pixel-box px-3 py-3 text-[14px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
       </Field>
+
+      {hasAdditions && isNew && (
+        <div className="mb-3">
+          <RowToggle label="Macrosaurus additions" on={additionsOn} onClick={toggleAdditions} />
+          <div className="text-[12px] -mt-1 px-0.5" style={{ color: 'var(--muted)' }}>
+            {Training.programmeSummary(block.sourceRef.name, t.custom).additions.note} Off, this is {fromProgramme.name} exactly as it was written.
+          </div>
+        </div>
+      )}
+      {priorityChoices.length > 0 && (
+        <div className="mb-3">
+          <Row title="Priority muscle" sub={block.priority ? 'A set more in every session that trains it, and earlier in the session' : 'Optional. Pick a weak point and it gets more work, while you are fresh'}
+            value={block.priority ? Training.MUSCLE_LABEL[block.priority] : 'None'} onClick={() => setPriorityOpen(true)} />
+        </div>
+      )}
+      {priorityOpen && (
+        <ActionSheet kicker="Priority muscle" title="Which one needs more?" onClose={() => setPriorityOpen(false)}
+          actions={[{ label: 'None', sub: block.priority ? 'Back to the block as it was before' : null, onClick: () => pickPriority(null) }].concat(
+            priorityChoices.map(m => ({ label: Training.MUSCLE_LABEL[m], sub: block.priority === m ? 'Current choice' : null, onClick: () => pickPriority(m) })))} />
+      )}
 
       {/* The week you are looking at, and the dates it covers. A row of "W1 W2 W3 W4" tabs told you
           which week but never WHEN, so you could not tell whether you were looking at this week or
