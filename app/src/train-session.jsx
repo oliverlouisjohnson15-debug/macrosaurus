@@ -182,6 +182,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         const prev = (s.type || 'work') === 'warmup' ? null
           : (prevList[workSoFar] || prevList[prevList.length - 1]);
         byKey[key].sets.push(Object.assign({}, s, {
+          // A set logged before sets had ids stays without one. Minting one now would give the same
+          // set two different ids on two devices that both resumed the session, and the merge would
+          // keep both.
+          id: s.id || null,
           lastTime: s.lastTime || (prev ? { weightKg: +prev.weightKg || 0, reps: +prev.reps || 0 } : null),
         }));
       });
@@ -353,6 +357,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           // day programmes the same movement twice. Everything downstream still reads exerciseId, so
           // this is additive: history, tonnage and PRs are untouched.
           exerciseId: it.exerciseId, itemId: it.id || null, setIndex: i, type: s.type || 'work',
+          // What makes this set THIS set when two devices have both added one at the same position.
+          id: s.id || undefined,
           weightKg: +s.weightKg || 0, reps: s.reps == null ? null : +s.reps,
           rir: s.rir == null ? null : +s.rir, done: !!s.done,
         }, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null, +s.bwKg > 0 ? { bwKg: +s.bwKg } : null));
@@ -391,7 +397,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // depended on whether you had touched them yet.
       const next = prev.map(it => ({
         id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note,
-        superset: it.superset, sets: it.sets.map(s => Object.assign({}, s)),
+        superset: it.superset, sets: it.sets.map(s => Object.assign({ id: 's' + trainUid() }, s)),
         alts: it.alts || null, choice: it.choice || null, technique: it.technique || null,
         planNote: it.planNote || null, warmups: it.warmups == null ? null : it.warmups,
         swap: it.swap || null,
@@ -639,7 +645,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     mutate(n => {
       const list = n[ii].sets;
       const last = list.filter(s => (s.type || 'work') === 'work').slice(-1)[0] || list[list.length - 1];
-      list.push(Object.assign({}, last || { type: 'work' }, { done: false, reps: null, type: 'work', setIndex: list.length }));
+      // A copy of the last set in everything but who it is: sharing its id would make the merge think
+      // the two were one set.
+      list.push(Object.assign({}, last || { type: 'work' }, { id: 's' + trainUid(), done: false, reps: null, type: 'work', setIndex: list.length }));
     });
   }
   function removeSet(ii, si) { mutate(n => { n[ii].sets.splice(si, 1); }); }

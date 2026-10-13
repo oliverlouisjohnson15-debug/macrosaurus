@@ -1393,7 +1393,9 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
 function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
   useBackClose(onBack);
   const t = tdb(db);
-  const [prefs, setPrefs] = useState(t.prefs);
+  // Read straight off the account on every render. It used to be copied into local state, which went
+  // stale the moment anything else wrote a preference while this screen was open.
+  const prefs = t.prefs;
   const [gymEdit, setGymEdit] = useState(null);
   const gyms = gymsOf(db);
   const targets = trainTargets(db);
@@ -1408,8 +1410,6 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
     setGymEdit(null);
   }
   function set(k, v) {
-    const next = Object.assign({}, prefs, { [k]: v });
-    setPrefs(next);
     trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { [k]: v }); });
   }
   function resetTargets() {

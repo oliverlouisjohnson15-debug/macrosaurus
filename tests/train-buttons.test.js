@@ -188,3 +188,78 @@ check('the coverage screen', (spy) => {
     props: { db: d, update: (fn) => { spy(); fn(d); }, isPremium: true, onUpgrade: spy, blockId: d.training.blocks[0].id, onBack: spy },
   };
 }, ['Planned', 'W1']);
+
+/* ---- one level down ------------------------------------------------------------------------------
+ *
+ * The sweep above stops at the top of each screen. Most of what the module does is behind a sheet:
+ * the movement menu, the units and setup sheets, the gym editor, the priority picker. A sheet is a
+ * screen, so every control inside one gets the same treatment: open it on a fresh copy, press the
+ * control, and it has to change what is on screen, call back, or write to the store.
+ *
+ * `open(ui)` gets the sheet open; the controls swept are the ones that were not there before. */
+function deadInside(make, open, selected) {
+  const probeLabels = (() => {
+    const p = make(() => {});
+    const ui = mount(p.Component, p.props);
+    try {
+      const had = new Set(ui.host.querySelectorAll('button, [role="button"]'));
+      open(ui);
+      return Array.from(ui.host.querySelectorAll('button, [role="button"]'))
+        .map((el, i) => ({ el, i })).filter(x => !had.has(x.el)).map(x => ({ i: x.i, label: labelOf(x.el) }));
+    } finally { ui.unmount(); }
+  })();
+  assert.ok(probeLabels.length > 0, 'opening the sheet put nothing on the screen, so there is nothing to sweep');
+  const dead = [];
+  probeLabels.forEach(({ i, label }) => {
+    let fired = false;
+    const fresh = make(() => { fired = true; });
+    const ui = mount(fresh.Component, fresh.props);
+    try {
+      open(ui);
+      const el = Array.from(ui.host.querySelectorAll('button, [role="button"]'))[i];
+      if (!el) return;
+      const before = ui.host.innerHTML;
+      ui.clickEl(el);
+      if (!fired && before === ui.host.innerHTML && !OUTSIDE_THE_APP.some(x => label.indexOf(x) !== -1)
+        && (selected || []).indexOf(label) === -1) dead.push(label || '(unlabelled button ' + i + ')');
+    } finally { ui.unmount(); }
+  });
+  return dead;
+}
+function checkInside(name, make, open, selected) {
+  test('every control inside ' + name + ' does something', () => {
+    const dead = deadInside(make, open, selected);
+    assert.deepEqual(dead, [], 'these did nothing when pressed: ' + dead.join(' | '));
+  });
+}
+const lastMore = (ui) => {
+  const mores = Array.from(ui.host.querySelectorAll('button')).filter(b => b.textContent.trim() === 'More');
+  ui.clickEl(mores[mores.length - 1]);
+};
+const runner = (spy) => {
+  const d = db();
+  const block = d.training.blocks[0];
+  return {
+    Component: A.SessionPlayer,
+    props: {
+      db: d, update: (fn) => { spy(); fn(d); }, showToast: spy,
+      sessionId: T.weekSessions(block, 1)[0].id, blockId: block.id,
+      onExit: spy, onFocusMode: spy, gym: d.training.gyms[1],
+    },
+  };
+};
+
+checkInside('the movement menu', runner, lastMore);
+checkInside('the session menu', runner, (ui) => ui.clickEl(Array.from(ui.host.querySelectorAll('button')).filter(b => b.textContent.trim() === 'More')[0]));
+checkInside('the machine units sheet', runner, (ui) => { lastMore(ui); ui.click('Machine units'); }, ['kg']);
+checkInside('the machine setup sheet', runner, (ui) => { lastMore(ui); ui.click('Machine setup'); });
+checkInside('the gym editor', (spy) => {
+  const d = db();
+  d.training.gyms[1].machines = { machine_fly: { use: 'cu_x' } };
+  d.training.custom = [{ id: 'cu_x', name: 'Hoist fly', equipment: 'machine', primary: ['ch'], custom: true }];
+  return { Component: A.TrainSettings, props: { db: d, update: (fn) => { spy(); fn(d); }, showToast: spy, onBack: spy, onHowItWorks: spy } };
+}, (ui) => ui.click('The gym'), ['Commercial gymFull rack, machines and cables']);
+checkInside('the priority picker', (spy) => {
+  const d = db();
+  return { Component: A.BlockBuilder, props: { db: d, update: (fn) => { spy(); fn(d); }, showToast: spy, isPremium: true, blockId: d.training.blocks[0].id, onBack: spy, onStart: spy } };
+}, (ui) => ui.click('Priority muscle'));
