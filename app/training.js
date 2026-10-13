@@ -2535,6 +2535,64 @@
     return { equipment: equipment, prefer: base.prefer || [], excluded: excluded, repBias: base.repBias || 0 };
   }
 
+  // ---- which machine you use here ---------------------------------------------------------------
+  // A plan says "Machine fly". The gym you train in has a Hoist one, and you have said so. That
+  // answer is kept on the GYM (`gym.machines[planId].use`) rather than written into the block, so a
+  // different gym, or none, still gets the plan as its author wrote it, and the volume maths keeps
+  // reading the movement the plan was built on. One hop only: a mapped id is never followed again.
+  function atGym(exerciseId, gym, custom) {
+    var entry = gym && gym.machines && gym.machines[exerciseId];
+    var use = entry && entry.use;
+    if (!use || use === exerciseId || !byId(use, custom)) return exerciseId;
+    return use;
+  }
+  // A session's plan rows with this gym's machines in place. A new list of copies; the block is never
+  // touched. It goes through replaceExercise, so it is exactly a swap made by hand: the plan's
+  // movement stays as the way back and the author's note, which was about THAT movement, waits behind.
+  function applyGym(rows, gym, custom) {
+    return (rows || []).map(function (row) {
+      var to = atGym(row.exerciseId, gym, custom);
+      if (to === row.exerciseId) return row;
+      var copy = Object.assign({}, row);
+      replaceExercise(copy, to);
+      copy.gymMapped = true;
+      return copy;
+    });
+  }
+  // The swaps somebody keeps making. Two sessions in which the same plan movement was done as the
+  // same custom movement is a habit rather than a busy machine, so it is worth offering to remember.
+  // Pairs the gym already has are left out. Most-repeated first.
+  function suggestGymMachines(logs, blocks, custom, gym) {
+    var rowById = {};
+    (blocks || []).forEach(function (b) {
+      (b.sessions || []).forEach(function (s) { (s.exercises || []).forEach(function (e) { if (e.id) rowById[e.id] = e; }); });
+    });
+    var count = {};
+    (logs || []).forEach(function (l) {
+      var seen = {};
+      (l.sets || []).forEach(function (st) {
+        if (!st.itemId || !st.done) return;
+        var row = rowById[st.itemId];
+        if (!row) return;
+        var plan = row.baseExerciseId || row.exerciseId;
+        if (!plan || st.exerciseId === plan) return;
+        var ex = byId(st.exerciseId, custom);
+        if (!ex || !ex.custom) return;
+        var key = plan + '>' + st.exerciseId;
+        if (seen[key]) return;
+        seen[key] = 1;
+        count[key] = (count[key] || 0) + 1;
+      });
+    });
+    return Object.keys(count).filter(function (k) { return count[k] >= 2; }).map(function (k) {
+      var parts = k.split('>');
+      return { from: parts[0], to: parts[1], sessions: count[k] };
+    }).filter(function (p) {
+      var cur = gym && gym.machines && gym.machines[p.from];
+      return !(cur && cur.use);
+    }).sort(function (a, b) { return b.sessions - a.sessions; });
+  }
+
   /* ---- how close to failure, per movement ------------------------------------------------------
    * Min-max does not take literally every set to failure, and the published programmes are precise
    * about it: the LAST set of a movement is the all-out one, and where a movement has two sets the
@@ -6641,6 +6699,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
     loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,
     guessLoadUnit: guessLoadUnit, relabelLoads: relabelLoads, loadUnit: loadUnit, loadStep: loadStep, backOffLoad: backOffLoad,
     blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,

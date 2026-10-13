@@ -226,7 +226,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       });
     }
     if (!session) return [];
-    return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
+    // The gym's own machines go in before anything is worked out from the rows, so the sets are
+    // prefilled from what you did on THAT machine last time, not from the generic one on the plan.
+    return Training.applyGym((session.exercises || []).slice().sort((a, b) => a.order - b.order), gym, t.custom).map(e => {
       const pre = Training.prefillSets(e, t.logs, t.custom, preFor(e.exerciseId));
       return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
         choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
@@ -678,7 +680,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     if (!block || !session || !wasId || wasId === exId) return;
     const itemId = items[ii] && items[ii].id;
     const reach = itemId ? Training.slotReach(block, session.id, itemId, session.week) : 0;
-    if (reach > 1) setSwapScope({ from: wasId, to: exId, week: session.week, reach: reach, itemId: itemId });
+    const offer = gymOffer(gym, wasId, exId, t.custom);
+    if (reach > 1 || offer) setSwapScope({ from: wasId, planId: items[ii].baseExerciseId || wasId, to: exId, week: session.week, reach: reach, itemId: itemId, offer: offer });
   }
   function move(ii, delta) {
     const to = ii + delta;
@@ -1700,7 +1703,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             onClose={() => setSwapScope(null)}
             actions={[
               { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
-              {
+              swapScope.offer && {
+                label: 'Always at ' + gym.name,
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                onClick: () => {
+                  rememberAtGym(update, gym.id, swapScope.planId, swapScope.to);
+                  showToast && showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gym.name + ' now.');
+                },
+              },
+              swapScope.reach > 1 && {
                 label: 'The rest of the block',
                 sub: 'Changes ' + swapScope.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => {
@@ -2086,7 +2097,12 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
   // Every way of doing the movement being swapped: the plain version and each of its grips, stances
   // or handles. Asked from a variation it returns its siblings, which is the case that matters, since
   // "this grip is not working today" is a thought you have while already on a variation.
-  const siblings = basedOn ? Training.variantsOf(basedOn, t.custom) : [];
+  // The machines this gym has been taught come first: at a Hoist-and-Hammer-Strength gym the one you
+  // are about to pick is nearly always one of them.
+  const pickGym = currentGym(db);
+  const hereIds = pickGym && pickGym.machines ? Object.keys(pickGym.machines).map(k => pickGym.machines[k].use).filter(Boolean) : [];
+  const siblings = (basedOn ? Training.variantsOf(basedOn, t.custom) : []).slice()
+    .sort((a, b) => (hereIds.indexOf(b.id) !== -1 ? 1 : 0) - (hereIds.indexOf(a.id) !== -1 ? 1 : 0));
   let list = Training.search(q, t.custom, 200);
   if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
   if (!q) list = list.concat(Training.CARDIO);
@@ -2183,6 +2199,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
                   style={{ background: v.id === basedOn ? 'var(--accent)' : 'var(--surface2)',
                     color: v.id === basedOn ? 'var(--on-accent)' : 'var(--text2)', opacity: v.id === basedOn ? 0.7 : 1 }}>
                   {v.variantLabel ? v.variantLabel : 'as written'}
+                  {hereIds.indexOf(v.id) !== -1 ? ' · at ' + pickGym.name : ''}
                 </button>
               ))}
             </div>

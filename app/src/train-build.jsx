@@ -1814,6 +1814,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
+  // The room you train in. Its machines are shown in place of the plan's, without touching the plan.
+  const gymNow = currentGym(db);
   const [menuFor, setMenuFor] = useState(null);   // item id whose options sheet is open
   const [tuning, setTuning] = useState(null);     // item id whose sets/reps editor is open
   const [picking, setPicking] = useState(null);   // { mode: 'add' } | { mode: 'swap', itemId }
@@ -1902,11 +1904,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   // One body, wherever a movement lives, so a main lift opened as a full card and an accessory read
   // as a single line still say the same things about themselves in the same words.
   function movementBody(it) {
-    const ex = Training.byId(it.exerciseId, t.custom);
+    const useId = Training.atGym(it.exerciseId, gymNow, t.custom);
+    const ex = Training.byId(useId, t.custom);
     // A grip you have never used has no history of its own, and a blank row on the way into a
     // session is worse than useless when the number you want is sitting under the movement it
     // came from. Borrowed numbers say whose they are; the personal best stays per lift.
-    const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
+    const ref = Training.lastReference(t.logs, useId, Store.todayISO(), t.custom);
     const last = ref && ref.best;
     const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
     return (
@@ -1918,6 +1921,11 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             {it.target.sets} x {Training.repLabel(it.target)} &middot; {it.target.rir} RIR
             {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
           </span>
+          {useId !== it.exerciseId && (
+            <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>
+              for {(Training.byId(it.exerciseId, t.custom) || {}).name || 'the plan'}, at {gymNow.name}
+            </span>
+          )}
           {/* What you did last time is the number you actually want before you set off. */}
           {it.baseExerciseId && (
             <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>
@@ -1939,7 +1947,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   // cards read as eight decisions; five accessory ROWS read as a list you skim once and trust, which
   // is closer to how anybody actually treats the last five things on a leg day.
   function accessoryRow(it) {
-    const ex = Training.byId(it.exerciseId, t.custom);
+    const ex = Training.byId(Training.atGym(it.exerciseId, gymNow, t.custom), t.custom);
     return (
       <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
         <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
@@ -2106,7 +2114,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             // this week, a grip that suits you better is the rest of it. Asked once, and only when
             // there is genuinely more than one session it could touch.
             const reach = block ? Training.slotReach(block, live.id, row.id, prog ? prog.week : 1) : 1;
-            if (reach > 1) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId });
+            const offer = gymOffer(gymNow, row.exerciseId, exId, t.custom);
+            if (reach > 1 || offer) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId, offer });
             else doSwap(row.id, row.exerciseId, exId, 'session');
           }}
           onClose={() => setPicking(null)} />
@@ -2122,7 +2131,13 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             actions={[
               { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'session') },
-              { label: 'The rest of the block',
+              sc.offer && { label: 'Always at ' + gymNow.name,
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                onClick: () => {
+                  rememberAtGym(update, gymNow.id, sc.fromId, sc.exId);
+                  if (showToast) showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gymNow.name + ' now.');
+                } },
+              sc.reach > 1 && { label: 'The rest of the block',
                 sub: 'Changes ' + sc.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'block') },
             ]} />

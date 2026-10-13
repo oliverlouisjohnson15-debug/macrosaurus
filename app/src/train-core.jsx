@@ -139,6 +139,22 @@ function machineSuffix(spec, units) {
   }
   return unitLabel(units);
 }
+// Is this a swap worth offering to remember at the gym? Only for kit that is bolted to a floor: a
+// dumbbell or a bar is the same thing wherever you are, a machine is a particular machine.
+function gymOffer(gym, fromId, toId, custom) {
+  if (!gym || !fromId || !toId || fromId === toId) return false;
+  const to = Training.byId(toId, custom);
+  return !!to && ['machine', 'cable', 'smith'].indexOf(to.equipment) !== -1;
+}
+// "At this gym, when the plan says <from>, I use <to>." Kept on the gym, not in the block.
+function rememberAtGym(update, gymId, fromId, toId) {
+  trainUpdate(update, (tr) => {
+    const g = (tr.gyms || []).filter(x => x.id === gymId)[0];
+    if (!g) return;
+    g.machines = g.machines || {};
+    g.machines[fromId] = Object.assign({}, g.machines[fromId], { use: toId });
+  });
+}
 function machineStr(kg, spec, units) {
   return (+kg > 0) ? Training.toMachine(kg, spec) + machineSuffix(spec, units) : 'BW';
 }

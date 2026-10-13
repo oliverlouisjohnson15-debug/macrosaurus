@@ -272,6 +272,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // short on chest - the app disagreeing with a plan it is running, in a bar with no explanation.
   const prog = block ? Training.blockProgress(block, today) : null;
   const thisWeek = block && prog ? weekPlan(block, prog.week, t.logs) : [];
+  // The swaps you keep making, offered once as something the gym can remember. Only when there is a
+  // gym to remember them at and only until you have answered either way.
+  const homeGym = currentGym(db);
+  const seeds = homeGym && !t.prefs.sawGymSeed ? Training.suggestGymMachines(t.logs, t.blocks, t.custom, homeGym) : [];
   /* ---- the week you are LOOKING at, which is not always the week you are IN ----
      `null` means "follow the block", so the card opens on the current week every time and only
      stays somewhere else while you are deliberately reading ahead.
@@ -356,6 +360,24 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           an inch below, and the two together read as the page saying it twice. No "Train" title:
           the tab bar already says where you are (design-plans/34-overhaul/01). */}
       <PageBar context={block && !blockDone ? block.name : 'Your training'} />
+      {seeds.length > 0 && (() => {
+        const nm = (id) => (Training.byId(id, t.custom) || {}).name || id;
+        const first = seeds[0];
+        const dismiss = () => trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { sawGymSeed: true }); });
+        return (
+          <BuddySays db={db}>
+            {'You keep swapping ' + nm(first.from) + ' for ' + nm(first.to) + (seeds.length > 1 ? ' (and ' + (seeds.length - 1) + ' more like it)' : '') + '. Remember ' + (seeds.length > 1 ? 'those' : 'that') + ' for ' + homeGym.name + '?'}
+            <div className="flex gap-2 mt-3">
+              <Btn onClick={() => {
+                seeds.forEach(p => rememberAtGym(update, homeGym.id, p.from, p.to));
+                dismiss();
+                showToast && showToast('Remembered at ' + homeGym.name + '. Change it any time in Training settings.');
+              }}>Yes, remember</Btn>
+              <Btn kind="ghost" onClick={dismiss}>Not now</Btn>
+            </div>
+          </BuddySays>
+        );
+      })()}
 
       {/* A session left open, on the screens where nothing else says so. Same shape as the draft
           card further down - a thing in progress, what state it is in, and the way back into it -
@@ -433,7 +455,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                     if (!items.length) return (next.session.exercises || []).length + ' movements';
                     const style = Training.styleOf(block.style);
                     const lead = items[0];
-                    const leadEx = Training.byId(lead.exerciseId, t.custom);
+                    const leadEx = Training.byId(Training.atGym(lead.exerciseId, homeGym, t.custom), t.custom);
                     const effort = style.toFailure
                       ? ((lead.target.rirLast == null ? lead.target.rir : lead.target.rirLast) > 0
                         ? 'stopping short this week'

@@ -1100,7 +1100,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
       tr.gyms = tr.gyms || [];
       const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
       const i = tr.gyms.findIndex(x => x.id === named.id);
-      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      if (i >= 0) tr.gyms[i] = Object.assign({}, tr.gyms[i], named); else tr.gyms.push(named);
       if (!tr.prefs.currentGymId) tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setGymEdit(null);
@@ -1214,7 +1214,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
       </Card>
 
       {gymEdit && (
-        <GymEditor gym={gymEdit === 'new' ? null : gymEdit} onSave={saveGym} onClose={() => setGymEdit(null)}
+        <GymEditor gym={gymEdit === 'new' ? null : gymEdit} db={db} update={update} onSave={saveGym} onClose={() => setGymEdit(null)}
           onDelete={(id) => {
             trainUpdate(update, (tr) => {
               tr.gyms = (tr.gyms || []).filter(x => x.id !== id);
@@ -2266,7 +2266,7 @@ function uniqueGymName(list, name, selfId) {
 // Create or edit one gym. The two follow-ups for a home setup are not optional detail: a bench
 // unlocks every pressing angle and most rowing, and a bar is the only real vertical pull. Getting
 // them wrong is how an app ends up prescribing incline presses to someone with no bench.
-function GymEditor({ gym, onSave, onDelete, onClose }) {
+function GymEditor({ gym, db, update, onSave, onDelete, onClose }) {
   useBackClose(onClose);
   const [name, setName] = useState((gym && gym.name) || '');
   const [type, setType] = useState((gym && gym.type) || 'commercial');
@@ -2276,8 +2276,27 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
   const EQUIP = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbells'], ['machine', 'Machines'], ['cable', 'Cables'],
     ['bodyweight', 'Bodyweight'], ['band', 'Bands'], ['kettlebell', 'Kettlebells'], ['smith', 'Smith'], ['ez', 'EZ bar'], ['trapbar', 'Trap bar']];
   const asksKit = type === 'home' || type === 'minimal';
+  // The machines this gym has been taught. Read live, because they change under the dialog (stopping
+  // one, or changing its units) while the dialog's own `gym` is the snapshot it opened with.
+  const t = db ? tdb(db) : null;
+  const live = gym && db ? (gymsOf(db).filter(g => g.id === gym.id)[0] || gym) : gym;
+  const machines = (live && live.machines) || {};
+  const usedIds = Object.keys(machines).filter(id => machines[id] && machines[id].use);
+  const loadOnly = Object.keys(machines).filter(id => machines[id] && machines[id].load && !usedIds.some(u => machines[u].use === id));
+  const [mrow, setMrow] = useState(null);       // plan movement id whose options are open
+  const [munits, setMunits] = useState(null);   // id of the movement whose units are being changed
+  const nameOf = (id) => (Training.byId(id, t && t.custom) || {}).name || id;
+  function editMachine(id, fn) {
+    trainUpdate(update, (tr) => {
+      const g = (tr.gyms || []).filter(x => x.id === gym.id)[0];
+      if (!g || !g.machines) return;
+      fn(g.machines);
+      Object.keys(g.machines).forEach(k => { const m = g.machines[k]; if (!m || (!m.use && !m.load)) delete g.machines[k]; });
+    });
+  }
 
   return (
+    <>
     <div role="dialog" aria-modal="true" aria-label="Edit gym" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[12px] mb-4">{gym ? 'Edit gym' : 'Add a gym'}</h2>
@@ -2326,6 +2345,33 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
           </Field>
         )}
 
+        {gym && db && update && (usedIds.length > 0 || loadOnly.length > 0) && (
+          <Field label="Machines here" hint="What this gym has taught the plans. Another gym still gets the plan as written.">
+            <div className="flex flex-col gap-2">
+              {usedIds.map(id => {
+                const use = machines[id].use;
+                const sp = Training.loadSpecFor(use, { gym: live, custom: t.custom, prefs: t.prefs });
+                return (
+                  <button key={id} onClick={() => setMrow(id)} className="pixel-box p-3 text-left" style={{ background: 'var(--surface2)' }}>
+                    <span className="block text-[13px] font-semibold">{nameOf(use)}</span>
+                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                      instead of {nameOf(id)}{sp.explicit ? ' · ' + Training.specLabel(sp) : ''}
+                    </span>
+                  </button>
+                );
+              })}
+              {loadOnly.map(id => (
+                <button key={id} onClick={() => setMunits(id)} className="pixel-box p-3 text-left" style={{ background: 'var(--surface2)' }}>
+                  <span className="block text-[13px] font-semibold">{nameOf(id)}</span>
+                  <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                    {Training.specLabel(Training.loadSpecFor(id, { gym: live, custom: t.custom, prefs: t.prefs }))}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
+
         <div className="flex gap-2 mt-1">
           <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
           <Btn className="flex-1" onClick={() => onSave({
@@ -2340,6 +2386,25 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
         )}
       </div>
     </div>
+    {/* Siblings of the dialog, not children: a tap on a sheet's backdrop would otherwise bubble into
+        the dialog's own close and take the whole editor away with it. */}
+      {mrow && machines[mrow] && (
+        <ActionSheet kicker="Machine here" title={nameOf(machines[mrow].use) + ' instead of ' + nameOf(mrow)} onClose={() => setMrow(null)}
+          actions={[
+            { label: 'Machine units', sub: 'kg, lb, pins or plates, and the smallest jump', onClick: () => setMunits(machines[mrow].use) },
+            { label: 'Stop using it here', sub: nameOf(mrow) + ' goes back to being what the plan says.', danger: true,
+              onClick: () => editMachine(mrow, (m) => { if (m[mrow]) delete m[mrow].use; }) },
+          ]} />
+      )}
+      {munits && (
+        <MachineUnitsSheet name={nameOf(munits)} where={live.name}
+          spec={Training.loadSpecFor(munits, { gym: live, custom: t.custom, prefs: t.prefs })}
+          guess={Training.guessLoadUnit(t.logs, munits, t.custom)}
+          onSave={(spec) => editMachine(munits, (m) => { m[munits] = Object.assign({}, m[munits], { load: { unit: spec.unit, step: spec.step, perSide: !!spec.perSide } }); })}
+          onConvert={(mode) => trainUpdate(update, (tr) => { Training.relabelLoads(tr.logs, munits, mode); })}
+          onClose={() => setMunits(null)} />
+      )}
+    </>
   );
 }
 
@@ -2356,7 +2421,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
       tr.gyms = tr.gyms || [];
       const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
       const i = tr.gyms.findIndex(x => x.id === named.id);
-      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      if (i >= 0) tr.gyms[i] = Object.assign({}, tr.gyms[i], named); else tr.gyms.push(named);
       tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setEditing(null);
@@ -2386,7 +2451,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
         <button onClick={onClose} className="w-full py-3 text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Close</button>
       </div>
       {editing && (
-        <GymEditor gym={editing === 'new' ? null : editing} onSave={save} onClose={() => setEditing(null)}
+        <GymEditor gym={editing === 'new' ? null : editing} db={db} update={update} onSave={save} onClose={() => setEditing(null)}
           onDelete={(id) => {
             trainUpdate(update, (tr) => { tr.gyms = (tr.gyms || []).filter(x => x.id !== id); });
             setEditing(null);
