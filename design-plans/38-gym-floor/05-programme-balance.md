@@ -129,3 +129,10 @@ column.
 - `tests/render.test.js:77–:89` (programme names and blurbs on Blocks) still pass.
 - `?demo`: start Brachio with additions on. Lower 1 ends with Standing calf raise marked "added".
   Start it off: identical to today.
+
+## Update, 13 Oct 2026
+
+Stego's biceps work was put back: Machine preacher curl is written at 3 sets again. Note that a min-max
+block caps every line at 2 sets (`maxSets`, `app/training.js:157`), so the week that actually runs has
+always had biceps at 10 and still does; the 3 only shows in the programme as written. The delt and
+leg-extension additions stay: side delts 7, rear delts 7, quads 8, biceps 10 in a built block.

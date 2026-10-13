@@ -23,11 +23,13 @@ function weekly(key, additions) {
   return T.plannedVolume(T.weekSessions(block, 1), []);
 }
 
-test('Stego: side and rear delts and quads are up, biceps are down a set', () => {
+test('Stego: side and rear delts and quads are up, and biceps are exactly where they were', () => {
   const v = weekly('mach5');
   assert.strictEqual(v.sd, 7);
   assert.strictEqual(v.rd, 7);
   assert.strictEqual(v.qu, 8);
+  // The programme writes the preacher curl at 3 sets, and a min-max block caps every line at 2, so the
+  // week has always run 10. Putting the 3 back changes nothing in what is run, which is the point.
   assert.strictEqual(v.bi, 10);
 });
 
