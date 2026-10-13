@@ -843,8 +843,74 @@
     nordic_curl: 'Lower as slowly as you can control, hips extended throughout.',
     close_grip_bench: 'Shoulder-width grip, elbows tucked to about 45 degrees. Narrower hurts wrists without adding triceps.',
     chest_supported_row: 'Let the shoulder blades travel forward at the bottom. That is the stretch you came for.',
+    bb_incline: 'Bench at 30 degrees or so, bar to the upper chest, elbows tucked about 45 degrees from the body. Steeper turns it into a shoulder press.',
+    db_y_raise_incline: 'Chest on a bench set around 30 degrees, thumbs up, arms out in a Y. Light weight and no swinging: the point is the delts, not the traps.',
+    close_grip_lat_pulldown: 'Pull the elbows down and back to the ribs with the chest up, and let the arms straighten fully at the top.',
+    tbar_row_supported: 'Chest stays on the pad. Drive the elbows back rather than curling the handle, and pause with the shoulder blades together.',
+    shrug_machine: 'Straight up and down, no rolling. Hold the top for a second; the traps are the only thing that should move.',
+    machine_press: 'Set the seat so the handles start at mid-chest. Shoulder blades back against the pad, and do not let the shoulders roll forward as you press.',
+    high_cable_lateral_raise: 'Stand side-on to the stack. Lead with the elbow, stop at shoulder height, and let the cable keep tension on the delt at the bottom.',
+    '1_arm_reverse_pec_deck': 'Chest into the pad, arm slightly bent, sweep out and back in an arc. Stop when the elbow reaches the line of the shoulders; further is traps.',
+    leg_extension: 'Set the seat so your knees line up with the pivot. Pause at the top and take your time lowering: the lengthened position is where most of the stimulus is.',
+    machine_hip_thrust: 'Chin tucked, ribs down, finish with the hips level. Do not arch the lower back to get higher.',
+    bayesian_curl: 'Face away from the stack with the arm behind your body, so the biceps starts stretched. The elbow stays back; curl without swinging.',
+    overhead_cable_triceps_extension: 'Elbows forward and close, not flaring. Go all the way down into the stretch and extend until the arm is straight.',
+    zottman_curl_modified: 'Curl with the palms up, turn them down at the top, and lower slowly. The lowering is the harder half.',
+    cable_kickback_tri: 'Elbow pinned at your side and still; only the forearm moves. Squeeze at full extension.',
+    machine_lateral: 'Elbows, not hands, against the pads. Raise until the arms are about parallel to the floor; higher is traps.',
+    pec_deck: 'Set the seat so the handles are at chest height. Elbows slightly bent and fixed, bring the arms together as if hugging, and let the stretch open back out slowly.',
+    kelso_shrug: 'Pull the shoulder blades together, not up toward the ears. The arms stay straight; only the blades move.',
+    ez_bar_preacher_curl: 'Armpits on the top of the pad. Lower until the arms are nearly straight and do not let the bar bounce out of the bottom.',
+    triceps_pressdown: 'Elbows pinned to your sides and still. Press to a full lockout and let the bar come back up only to about elbow height.',
+    dragon_flag: 'A hard progression. Lower with the body straight from the shoulders and stop where the hips start to sag; bend the knees to make it easier.',
+    smith_machine_lunge: 'Feet far enough forward that the front shin stays near vertical at the bottom. Lower the back knee straight down.',
+    smith_machine_incline_press: 'Bench at 30 degrees. Set it so the bar comes down to the upper chest, and use the fixed path to push the last rep properly.',
+    db_decline_fly: 'Soft elbows, fixed. Open until the chest stretches, no deeper, then bring the dumbbells together over the chest.',
+    tbar_row: 'Hinge to about 45 degrees and hold it. Pull the elbows back rather than the hands up, and keep the torso still.',
+    hanging_leg_raise: 'Stop any swing before each rep. Curl the pelvis up at the top rather than only lifting the legs.',
+    pendulum_squat: 'Feet lower and narrower for more quad, higher for more glute. Go as deep as the knees allow and drive through the whole foot.',
+    smith_split_squat: 'Stand far enough forward that the front shin stays near vertical at the bottom. Drop the back knee straight down with the torso upright.',
+    db_ohp: 'Elbows slightly in front of the shoulders, press straight up, and do not arch the lower back to get the weight there.',
+    machine_rear_delt: 'Chest on the pad, lead with the elbows and keep the traps out of it. Let the arms come all the way forward between reps.',
+    hammer_curl: 'Thumbs up throughout, elbows at your sides. No swinging the torso.',
+    overhead_ez: 'Elbows up and close, upper arms still. Lower behind the head into the stretch and extend until straight.',
+    machine_preacher: 'Armpits on the pad, with the seat set so the elbows sit at the pivot. Take the stretch at the bottom and do not bounce out of it.',
+    machine_crunch: 'Curl the ribs toward the hips rather than pulling with the arms, and breathe out as you crunch.',
+    machine_crunch2: 'Curl the ribs toward the hips rather than pulling with the arms, and breathe out as you crunch.',
+    machine_back_extension: 'Move from the hips and finish with the body in a straight line. Going past that is the lower back being squeezed, not worked.',
+    machine_row__wide: 'Chest on the pad, drive the elbows out and back, and squeeze the blades together. Do not shrug up.',
+    cable_fly: 'Soft elbows, fixed. Bring the hands together in an arc and squeeze the chest, then let the cables pull the arms back out slowly.',
+    '45_hyperextension': 'Pad at the hip crease, not the belly. Hinge from the hips and stop with the body in a straight line; do not swing up past it.',
+    machine_fly: 'Elbows slightly bent and fixed, hands meet in front of the chest. Control the way back out into the stretch.',
+    machine_ohp: 'Set the seat so the handles start at about ear height. Press without flaring the ribs and do not lock out hard.',
+    chest_supported_machine_row: 'Chest stays on the pad. Drive the elbows back and pause with the shoulder blades together.',
   };
   function cueFor(ex) { return ex && CUES[ex.id] ? CUES[ex.id] : null; }
+  // The cue for a movement, or failing that for the one it is a variation of, saying whose it is. A
+  // Hoist pec deck needs no cue of its own when the pec deck has one, but the person should be told
+  // the words were written for the plain version.
+  function cueSource(ex, custom) {
+    if (!ex) return null;
+    if (CUES[ex.id]) return { text: CUES[ex.id], from: null };
+    var p = ex.variantOf ? byId(ex.variantOf, custom) : null;
+    for (var guard = 0; p && guard < 3; guard++) {
+      if (CUES[p.id]) return { text: CUES[p.id], from: p.name };
+      p = p.variantOf ? byId(p.variantOf, custom) : null;
+    }
+    return null;
+  }
+  // The note somebody keeps about how THIS machine is set up for them - seat 4, back pad 2, neutral
+  // handles. Per machine at the gym where it lives, then on the movement itself, then for a library
+  // movement with no gym: the same order a machine's units resolve in.
+  function setupFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom), prefs = opts.prefs || {};
+    var g = opts.gym && opts.gym.machines && opts.gym.machines[exerciseId];
+    return String((g && g.setup) || (prefs.machineSetup && prefs.machineSetup[exerciseId]) || (ex && ex.setup) || '').trim();
+  }
+  // Programme movements that deliberately have no cue, because there is no gotcha worth a sentence.
+  // A new programme line has to be in CUES or in here, which is what the test holds it to.
+  var NO_CUE = ['hip_abduction', 'hip_adduction', 'wrist_curl', 'dumbbell_wrist_extension', 'alternating_dumbbell_curl', 'dead_hang', 'cable_reverse_curl'];
   // Why this movement is in your plan, assembled from what we know rather than written by an AI.
   function whyFor(ex) {
     if (!ex || isCardio(ex)) return null;
@@ -1145,6 +1211,68 @@
       }).join(' ').trim();
   }
 
+  /* ---- brands --------------------------------------------------------------------------------
+   * A machine's maker is a label on the kit, not a different movement. "Hammer Strength Incline
+   * Press" is an incline press done on somebody's machine, and the library has never heard of the
+   * maker, so the maker's name used to drag every match under the bar and the movement resolved to
+   * nothing. Splitting the brand off first lets the rest of the name do the matching.
+   *
+   * Only a brand at the START of a name (or in a trailing bracket) is taken, and only whole words:
+   * "hammer curl" is a movement, "hammer strength" is a maker. Add a maker by adding one row; the
+   * second column is how it is written back to the person. Longest first, so "life fitness" is
+   * found before anything shorter could be.
+   */
+  var BRANDS = [
+    ['hammer strength', 'Hammer Strength'], ['life fitness', 'Life Fitness'], ['booty builder', 'Booty Builder'],
+    ['star trac', 'Star Trac'], ['body solid', 'Body-Solid'], ['pit shark', 'Pit Shark'], ['gym 80', 'Gym80'],
+    ['iso lateral', 'Iso-Lateral'], ['technogym', 'Technogym'], ['freemotion', 'FreeMotion'],
+    ['newtech', 'Newtech'], ['atlantis', 'Atlantis'], ['nautilus', 'Nautilus'], ['arsenal', 'Arsenal'],
+    ['precor', 'Precor'], ['panatta', 'Panatta'], ['primal', 'Primal'], ['legend', 'Legend'],
+    ['matrix', 'Matrix'], ['cybex', 'Cybex'], ['hoist', 'Hoist'], ['prime', 'Prime'], ['gym80', 'Gym80'],
+    ['watson', 'Watson'], ['eleiko', 'Eleiko'], ['rogue', 'Rogue'], ['keiser', 'Keiser'],
+  ].sort(function (a, b) { return b[0].length - a[0].length; });
+  var BRAND_QUALIFIER = { 'Iso-Lateral': 1 };
+  function splitBrand(name) {
+    var t = String(name || '').toLowerCase();
+    // A coach's tag in front ("M1: standing curl") is not part of the name either.
+    t = t.replace(/^\s*[a-z]\d{1,2}\s*[:.)]\s*/, '');
+    var trailing = null;
+    var paren = t.match(/\(([^)]*)\)\s*$/);
+    var plain = function (x) { return x.replace(/[^a-z0-9]+/g, ' ').trim(); };
+    if (paren) {
+      var inner = plain(paren[1]);
+      var hit = BRANDS.filter(function (b) { return b[0] === inner; })[0];
+      if (hit) { trailing = hit[1]; t = t.slice(0, paren.index); }
+    }
+    t = plain(t);
+    var brand = trailing, found = true, guard = 0;
+    while (found && guard++ < 3) {
+      found = false;
+      for (var i = 0; i < BRANDS.length; i++) {
+        var k = BRANDS[i][0];
+        if (t === k || t.indexOf(k + ' ') === 0) {
+          if (!brand || BRAND_QUALIFIER[brand]) brand = BRANDS[i][1];
+          t = t.slice(k.length).trim();
+          found = true;
+          break;
+        }
+      }
+    }
+    // A maker written after the movement ("Incline Hammer Strength Press") is only taken when its
+    // name is more than one word, because a single word in the middle of a name is as likely to be
+    // a movement word as a maker.
+    for (var j = 0; j < BRANDS.length; j++) {
+      var kk = BRANDS[j][0];
+      if (kk.indexOf(' ') === -1) continue;
+      var at = (' ' + t + ' ').indexOf(' ' + kk + ' ');
+      if (at !== -1) {
+        if (!brand || BRAND_QUALIFIER[brand]) brand = BRANDS[j][1];
+        t = (' ' + t + ' ').replace(' ' + kk + ' ', ' ').trim();
+      }
+    }
+    return { brand: brand, rest: t };
+  }
+
   // Resolve a free-text movement name to a library id. Exact, then alias, then a token-overlap
   // score. Returns null rather than guessing wildly, so the import UI can flag it for the user
   // instead of quietly logging bench press as bicep curls.
@@ -1164,6 +1292,20 @@
     var al = aliasFor(q); if (al) return { id: al, how: 'alias', score: 1 };
     var singular = q.replace(/s$/, '');
     al = aliasFor(singular); if (al) return { id: al, how: 'alias', score: 1 };
+    // The maker is not part of the movement. Resolve what is left, and when the maker's kit is the
+    // sort that is bolted to a floor, try it as a machine as well, because "Hammer Strength incline
+    // press" is the machine one and a bare "incline press" is not.
+    var sb = splitBrand(name);
+    if (sb.brand && sb.rest && sb.rest !== q) {
+      var tries = [sb.rest];
+      if (!/\b(machine|cable|barbell|dumbbell|smith|ez|plate|bodyweight|band|kettlebell)\b/.test(sb.rest)) tries.unshift('machine ' + sb.rest);
+      var viaRest = null;
+      tries.forEach(function (c) {
+        var r = resolveDetail(c, custom);
+        if (r && (!viaRest || r.score > viaRest.score)) viaRest = r;
+      });
+      if (viaRest) return viaRest;
+    }
     var qt = q.split(' ').filter(Boolean);
     var best = null, bestScore = 0;
     for (i = 0; i < pool.length; i++) {
@@ -1245,7 +1387,8 @@
     if (!n) return pool.slice(0, limit || 30);
     var starts = [], contains = [];
     for (var i = 0; i < pool.length; i++) {
-      var nm = norm(pool[i].name);
+      // A custom machine's maker is searchable even when the person never typed it into the name.
+      var nm = norm(pool[i].name + (pool[i].brand ? ' ' + pool[i].brand : ''));
       if (nm.indexOf(n) === 0) starts.push(pool[i]);
       else if (nm.indexOf(n) !== -1) contains.push(pool[i]);
     }
@@ -1415,6 +1558,24 @@
     };
   }
 
+  // What was done on each day, for the calendar: working sets, tonnage and sessions. Warm-ups are not
+  // work, and a pin number is not a mass.
+  function dayTotals(logs) {
+    var out = {};
+    (logs || []).forEach(function (l) {
+      var d = out[l.dateISO] || (out[l.dateISO] = { sets: 0, tonnage: 0, sessions: 0 });
+      var n = 0;
+      (l.sets || []).forEach(function (st) {
+        if (!st.done || st.type === 'warmup') return;
+        n++;
+        d.tonnage += setVolume(st);
+      });
+      if (n) { d.sets += n; d.sessions++; }
+    });
+    Object.keys(out).forEach(function (k) { if (!out[k].sets) delete out[k]; else out[k].tonnage = round(out[k].tonnage, 1); });
+    return out;
+  }
+
   // How often each muscle is hit across the week. Twice beats once at matched volume, so a muscle
   // sitting at a good weekly total but crammed into one session is still worth flagging.
   function frequency(sessions, custom) {
@@ -1472,7 +1633,26 @@
     if (r === 1) return round(w, 1);
     return round(w * (1 + r / 30), 1);
   }
-  function setVolume(st) { return (+st.weightKg || 0) * (+st.reps || 0); }
+  // A pin number is not a mass, so a set logged against one adds nothing to tonnage.
+  // What a set actually moved. A bodyweight movement is logged by what you ADDED (or, for an assisted
+  // machine, took off as a negative), and the body weight of the day is snapshotted onto the set as
+  // `bwKg`, so the load of a pull-up is you plus the plate on the belt. Anything without a snapshot
+  // is a loaded movement and its weight is just its weight.
+  function effectiveLoad(st) {
+    var bw = +st.bwKg || 0;
+    return bw > 0 ? bw + (+st.weightKg || 0) : (+st.weightKg || 0);
+  }
+  // The same arithmetic with no ceiling, for trend lines only. Twelve reps is where an estimated 1RM
+  // stops being believable, so records and strength scores still stop there, but a lateral raise taken
+  // for fifteen deserves a chart, and any index that rises with weight and with reps will draw one.
+  function setIndex(st) {
+    var w = effectiveLoad(st), r = +st.reps || 0;
+    if (w <= 0 || r <= 0) return 0;
+    return r === 1 ? round(w, 1) : round(w * (1 + r / 30), 1);
+  }
+  function strengthOf(row) { return (row && (row.e1rm || row.idx)) || 0; }
+  // A pin number is not a mass, so a set logged against one adds nothing to tonnage.
+  function setVolume(st) { return st.unit === 'pin' ? 0 : (+st.weightKg || 0) * (+st.reps || 0); }
   function tonnage(log) {
     return round((log && log.sets || []).reduce(function (a, s) {
       return a + (s.done && (!s.type || s.type === 'work') ? setVolume(s) : 0);
@@ -1482,7 +1662,7 @@
     var best = null, bestE = 0;
     (sets || []).forEach(function (s) {
       if (!s.done) return;
-      var e = e1rm(s.weightKg, s.reps);
+      var e = e1rm(effectiveLoad(s), s.reps);
       if (e > bestE) { bestE = e; best = s; }
     });
     return best ? { set: best, e1rm: bestE } : null;
@@ -1494,7 +1674,7 @@
     (logs || []).forEach(function (log) {
       (log.sets || []).forEach(function (s) {
         if (!s.done || (s.type && s.type !== 'work')) return;
-        var e = e1rm(s.weightKg, s.reps);
+        var e = e1rm(effectiveLoad(s), s.reps);
         if (!e) return;
         var cur = out[s.exerciseId];
         if (!cur || e > cur.e1rm) out[s.exerciseId] = { e1rm: e, weightKg: +s.weightKg || 0, reps: +s.reps || 0, dateISO: log.dateISO };
@@ -1507,18 +1687,60 @@
   // record depends on this being "before", not "including": comparing a set against a list that
   // already contains it means nothing is ever a record.
   function bestBefore(logs, exerciseId, beforeISO, excludeLogId) {
-    var best = { e1rm: 0, weightKg: 0, repsAtBest: 0, dateISO: null };
+    var best = { e1rm: 0, weightKg: 0, repsAtBest: 0, dateISO: null, repsAt: {}, count: 0 };
     (logs || []).forEach(function (log) {
       if (beforeISO && log.dateISO >= beforeISO) return;
       if (excludeLogId && log.id === excludeLogId) return;
       (log.sets || []).forEach(function (s) {
         if (!s.done || (s.type && s.type !== 'work')) return;
         if (s.exerciseId !== exerciseId) return;
-        var w = +s.weightKg || 0, r = +s.reps || 0;
-        var e = e1rm(w, r);
-        if (e > best.e1rm) { best.e1rm = e; best.dateISO = log.dateISO; }
-        if (w > best.weightKg) { best.weightKg = w; best.repsAtBest = r; }
+        var before = best.e1rm;
+        foldSessionSets(best, [s]);
+        if (best.e1rm > before) best.dateISO = log.dateISO;
       });
+    });
+    return best;
+  }
+  // Before bodyweight movements were understood, the only way to make a pull-up count was to type your
+  // own weight into the box. A weight within a tenth of what you weighed that day, on a bodyweight
+  // movement, is almost certainly that. Offered to the person and never applied on its own.
+  function looksLikeBodyweight(st, bwKg) {
+    var w = +st.weightKg || 0, bw = +bwKg || 0;
+    return !(+st.bwKg > 0) && w > 0 && bw > 0 && Math.abs(w - bw) <= 0.1 * bw;
+  }
+  // Re-read those sets as bodyweight: the number was you, so it moves to the snapshot and nothing was
+  // added. Edits in place; says how many it touched.
+  function retagBodyweight(logs, exerciseId, bwFor) {
+    var n = 0;
+    (logs || []).forEach(function (l) {
+      var bw = +bwFor(l.dateISO) || 0;
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId !== exerciseId || !looksLikeBodyweight(st, bw)) return;
+        st.bwKg = round(+st.weightKg, 2);
+        st.weightKg = 0;
+        n++;
+      });
+    });
+    return n;
+  }
+
+  // Fold sets into a running "best so far". One place for the rule, used by the history of records
+  // and by the session screen deciding, set by set, whether you just beat one. Two copies of it
+  // drifted apart once already. `weightKg` here is what was loaded or added, never the body weight.
+  function repKey(w) { return String(round(+w || 0, 2)); }
+  function foldSessionSets(best, sets) {
+    (sets || []).forEach(function (s) {
+      var w = +s.weightKg || 0, r = +s.reps || 0;
+      if (r <= 0) return;
+      var load = effectiveLoad(s);
+      var e = e1rm(load, r);
+      best.count = (best.count || 0) + 1;
+      if (e > best.e1rm) best.e1rm = e;
+      if (w > best.weightKg) { best.weightKg = w; best.repsAtBest = r; }
+      else if (Math.abs(w - best.weightKg) < 0.01 && r > best.repsAtBest) best.repsAtBest = r;
+      best.repsAt = best.repsAt || {};
+      var k = repKey(w);
+      if (!(best.repsAt[k] >= r)) best.repsAt[k] = r;
     });
     return best;
   }
@@ -1527,13 +1749,24 @@
   // care about all three: the heaviest you have ever lifted, the most reps you have managed at that
   // weight, and the best estimated one-rep max. A tiny epsilon on e1RM stops floating point noise
   // reporting a "record" that is 0.0001kg better than last week.
-  function prKind(weightKg, reps, best) {
-    var w = +weightKg || 0, r = +reps || 0;
-    if (w <= 0 || r <= 0) return null;
-    if (!best || (!best.e1rm && !best.weightKg)) return null;   // a first-ever set is not a record
-    if (w > best.weightKg + 0.01) return { kind: 'weight', label: 'Heaviest ever', value: w };
-    if (Math.abs(w - best.weightKg) < 0.01 && r > best.repsAtBest) return { kind: 'reps', label: 'Most reps at ' + round(w, 1), value: r };
-    var e = e1rm(w, r);
+  function prKind(weightKg, reps, best, bwKg) {
+    var w = +weightKg || 0, r = +reps || 0, bw = +bwKg || 0;
+    if (r <= 0) return null;
+    // A loaded movement needs a load. A bodyweight one has you.
+    if (!bw && w <= 0) return null;
+    if (!best || (!best.e1rm && !best.weightKg && !best.count)) return null;   // a first-ever set is not a record
+    if (w > best.weightKg + 0.01 && w > 0) return { kind: 'weight', label: bw ? 'Most added weight' : 'Heaviest ever', value: w };
+    // More reps than you have ever done at THIS weight, wherever it sits in your range. Double
+    // progression lives at a working weight below your heaviest, and a record that only counted at
+    // the top would never notice it. A weight you have never used is not a reps record.
+    var was = best.repsAt ? best.repsAt[repKey(w)] : (Math.abs(w - best.weightKg) < 0.01 ? best.repsAtBest : undefined);
+    if (was !== undefined && r > was) {
+      return { kind: 'reps', label: w > 0 ? 'Most reps at ' + round(w, 1) : 'Most reps', value: r };
+    }
+    // Pure bodyweight work does not get an estimated-1RM record: it would fire every time the scale
+    // went up, which is not an achievement.
+    if (bw && w <= 0) return null;
+    var e = e1rm(bw + w, r);
     if (e > best.e1rm + 0.05) return { kind: 'e1rm', label: 'Best estimated 1RM', value: e };
     return null;
   }
@@ -1549,15 +1782,11 @@
       // Compare against history AND against the earlier sets of this same session, so five identical
       // sets do not report five records.
       var best = bestBefore(logs, s.exerciseId, log.dateISO, log.id);
-      (seen[s.exerciseId] || []).forEach(function (p) {
-        if (p.e1rm > best.e1rm) { best.e1rm = p.e1rm; }
-        if (p.weightKg > best.weightKg) { best.weightKg = p.weightKg; best.repsAtBest = p.reps; }
-        else if (Math.abs(p.weightKg - best.weightKg) < 0.01 && p.reps > best.repsAtBest) best.repsAtBest = p.reps;
-      });
-      var pr = prKind(s.weightKg, s.reps, best);
+      foldSessionSets(best, seen[s.exerciseId] || []);
+      var pr = prKind(s.weightKg, s.reps, best, s.bwKg);
       if (pr) out.push(Object.assign({ exerciseId: s.exerciseId, setIndex: i }, pr));
       if (!seen[s.exerciseId]) seen[s.exerciseId] = [];
-      seen[s.exerciseId].push({ e1rm: e1rm(s.weightKg, s.reps), weightKg: +s.weightKg || 0, reps: +s.reps || 0 });
+      seen[s.exerciseId].push(s);
     });
     // One record per movement per session: the best of them. Working up 95, 110, 125 beats your old
     // best three times over, but nobody says "I set three bench records today", they say what they
@@ -1597,11 +1826,16 @@
         var sets = (log.sets || []).filter(function (s) { return s.exerciseId === exerciseId && s.done && (!s.type || s.type === 'work'); });
         if (!sets.length) return null;
         var b = bestSet(sets);
+        // A session with nothing inside twelve reps has no believable 1RM but still has a best set,
+        // which is the one that moved the most, and that is what a trend line needs.
+        var top = b ? b.set : sets.slice().sort(function (x, y) { return setIndex(y) - setIndex(x); })[0];
         return {
           dateISO: log.dateISO, sets: sets.length,
           tonnage: round(sets.reduce(function (a, s) { return a + setVolume(s); }, 0), 1),
-          e1rm: b ? b.e1rm : 0, topWeight: Math.max.apply(null, sets.map(function (s) { return +s.weightKg || 0; })),
-          topReps: b ? +b.set.reps || 0 : 0,
+          e1rm: b ? b.e1rm : 0, idx: setIndex(top),
+          topWeight: Math.max.apply(null, sets.map(function (s) { return +s.weightKg || 0; })),
+          topReps: top ? +top.reps || 0 : 0,
+          bw: sets.some(function (s) { return +s.bwKg > 0; }),
         };
       })
       .filter(Boolean)
@@ -1689,14 +1923,34 @@
   var LOWER_BODY = ['qu', 'ha', 'gl', 'ad', 'ca'];
   // The smallest jump this movement can actually be loaded by. Dumbbells come in pairs and jump in
   // twos; everything else moves in 2.5s.
-  function loadUnit(ex) { return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5; }
+  //
+  // A LOAD SPEC says what the machine in front of you actually shows: kilograms, pounds, or just a
+  // pin number, and whether you load plates on one side. Without one this is exactly what it always
+  // was. WITH one, the step is the smallest jump THAT machine can make, because a 10lb stack cannot
+  // be told to go up 2.5kg.
+  var LB = 2.20462;
+  function loadUnit(ex, spec) {
+    if (spec && spec.explicit) return specStepKg(spec);
+    return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5;
+  }
+  // One notch of the machine, in the units weightKg is stored in. For a pin machine weightKg IS the
+  // pin number, so a notch is the step itself; for plates on a side, one notch each side moves the
+  // total by two.
+  function specStepKg(spec) {
+    var step = +spec.step > 0 ? +spec.step : 1;
+    if (spec.unit === 'pin') return step;
+    var kg = spec.unit === 'lb' ? step / LB : step;
+    return round(spec.perSide ? kg * 2 : kg, 4);
+  }
   function isLowerBody(ex) {
     return !!(ex && (ex.primary || []).filter(function (m) { return LOWER_BODY.indexOf(m) !== -1; }).length);
   }
-  function loadStep(ex, weightKg, style) {
+  function loadStep(ex, weightKg, style, spec) {
     var w = +weightKg || 0;
     if (!w) return 0;
-    var inc = loadUnit(ex);
+    var inc = loadUnit(ex, spec);
+    // A pin has no "big lower-body jump": one pin is one pin.
+    if (spec && spec.explicit && spec.unit === 'pin') return inc;
     // On a style where every set is already all-out, a percentage jump is the wrong tool: there is
     // no reserve to absorb it. The step is the smallest the kit allows - one notch upstairs, two on
     // the big lower-body movements, which is the 1.25-2.5kg / 2.5-5kg the method is written around.
@@ -1710,11 +1964,91 @@
   // for the same weight again is asking for a set that lands three reps under the window and teaches
   // nobody anything. Fifteen percent off puts the second set back inside the window it is being
   // judged against, which is the only way it counts as a second working set at all.
-  function backOffLoad(topKg, ex) {
+  function backOffLoad(topKg, ex, spec) {
     var w = +topKg || 0;
     if (!w) return 0;
-    var inc = loadUnit(ex);
-    return Math.max(inc, Math.round((w * 0.85) / inc) * inc);
+    var inc = loadUnit(ex, spec);
+    return round(Math.max(inc, Math.round((w * 0.85) / inc) * inc), 4);
+  }
+
+  // ---- what a machine shows ---------------------------------------------------------------------
+  // Resolve the load spec for one movement. The most specific answer wins: THIS machine at THIS gym
+  // (the same "machine preacher curl" is a pin stack in one building and plates in another), then a
+  // person's default for the movement with no gym, then the default saved on a custom exercise, and
+  // last of all "whatever units you use", which is flagged `explicit: false` so every number it
+  // produces is the number the app has always produced.
+  function loadSpecFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom);
+    var prefs = opts.prefs || {};
+    var entry = opts.gym && opts.gym.machines && opts.gym.machines[exerciseId];
+    var found = (entry && entry.load) || (prefs.machineLoads && prefs.machineLoads[exerciseId]) || (ex && ex.load) || null;
+    var def = prefs.units === 'lb' ? 'lb' : 'kg';
+    if (!found) {
+      return {
+        unit: def, perSide: false, explicit: false,
+        step: def === 'lb' ? round(loadUnit(ex) * LB, 1) : loadUnit(ex),
+      };
+    }
+    var unit = found.unit === 'lb' || found.unit === 'pin' || found.unit === 'kg' ? found.unit : def;
+    var step = +found.step > 0 ? +found.step : (unit === 'pin' ? 1 : unit === 'lb' ? 5 : loadUnit(ex));
+    return { unit: unit, step: step, perSide: unit !== 'pin' && !!found.perSide, explicit: true };
+  }
+  // The same spec in words, for the row that opens the sheet that changes it.
+  function specLabel(spec) {
+    if (!spec) return '';
+    if (spec.unit === 'pin') return 'Pin number, ' + spec.step + ' pin' + (spec.step === 1 ? '' : 's') + ' a jump';
+    return spec.unit + (spec.perSide ? ' a side' : '') + ', ' + spec.step + ' ' + spec.unit + ' jumps';
+  }
+  // What the box on the screen says for a stored weight, and back. Sets keep `weightKg` whatever the
+  // machine shows, so every older log, chart and test still reads: kilograms and pounds are real
+  // weights, a pin number is stored as the number, and plates on a side are stored as the total.
+  function toMachine(weightKg, spec) {
+    var w = +weightKg || 0;
+    if (!spec || spec.unit === 'pin') return round(w, 1);
+    var v = spec.unit === 'lb' ? w * LB : w;
+    return round(spec.perSide ? v / 2 : v, 1);
+  }
+  function fromMachine(value, spec) {
+    var v = +value || 0;
+    if (!spec || spec.unit === 'pin') return v;
+    var w = spec.perSide ? v * 2 : v;
+    return spec.unit === 'lb' ? round(w / LB, 2) : w;
+  }
+  // A guess, offered and never applied: do the numbers logged on this movement look like pounds, or
+  // like a pin position? Pounds convert to near-multiples of 5 and rarely to a multiple of 1.25kg;
+  // a pin number is a small whole number on kit that takes weights.
+  function guessLoadUnit(logs, exerciseId, custom) {
+    var ex = byId(exerciseId, custom);
+    var ws = [];
+    (logs || []).forEach(function (l) {
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId === exerciseId && st.done && (!st.type || st.type === 'work') && +st.weightKg > 0) ws.push(+st.weightKg);
+      });
+    });
+    if (ws.length < 3) return null;
+    var kgFriendly = ws.some(function (w) { var r = w / 1.25; return Math.abs(r - Math.round(r)) * 1.25 < 0.01; });
+    var nearFive = ws.filter(function (w) { var l = w * LB / 5; return Math.abs(l - Math.round(l)) * 5 < 0.6; }).length;
+    if (!kgFriendly && nearFive >= 3) return 'lb';
+    var machine = ex && (ex.equipment === 'machine' || ex.equipment === 'cable');
+    if (machine && ws.every(function (w) { return w === Math.round(w) && w <= 25; })) return 'pin';
+    return null;
+  }
+  // Re-label one movement's past sets once the person has agreed they were something else. `lb`
+  // means the numbers were pounds typed into a kilogram box; `pin` means they were pin positions.
+  // Edits in place, so it is called inside an update; returns how many sets it touched.
+  function relabelLoads(logs, exerciseId, mode, opts) {
+    var from = (opts && opts.fromISO) || '';
+    var n = 0;
+    (logs || []).forEach(function (l) {
+      if (from && l.dateISO < from) return;
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId !== exerciseId || st.unit === 'pin') return;
+        if (mode === 'pin') { st.unit = 'pin'; n++; }
+        else if (mode === 'lb' && +st.weightKg > 0) { st.weightKg = round(st.weightKg / LB, 2); n++; }
+      });
+    });
+    return n;
   }
 
   // Three sessions on identical weight AND identical reps is a plateau, and on this style it is not
@@ -1943,6 +2277,15 @@
 
   // Given last week's prescription and what was actually done, what should next week say?
   // Returns { sets, repLow, repHigh, rir, weightKg, reason, action }.
+  // The rep window a movement progresses through. A written target of "6" (a fixed number, which is
+  // how some published programmes are written) cannot be double-progressed: six reps would add load
+  // and five would take ten percent off, with nothing in between. For progression only, it is read as
+  // six to eight. What the person SEES is still six.
+  function progressionWindow(target) {
+    var lo = +(target && target.repLow) || 0, hi = +(target && target.repHigh) || 0;
+    var fixed = lo > 0 && lo === hi;
+    return { low: lo, high: fixed ? lo + 2 : hi, fixed: fixed };
+  }
   function progressExercise(prescription, performedSets, ex, opts) {
     opts = opts || {};
     var t = Object.assign({ sets: 3, repLow: 8, repHigh: 12, rir: 2 }, prescription || {});
@@ -1972,17 +2315,22 @@
         });
       }
       if (!w) return Object.assign(next, { action: 'hold', reason: 'No weight logged last time, so this repeats.' });
+      var win = progressionWindow(t);
       // Ceiling hit: the top of the window, in form, at failure. Smallest jump the kit allows.
-      if (reps >= t.repHigh) {
-        next.weightKg = w + loadStep(ex, w, 'minmax');
-        return Object.assign(next, { action: 'load', reason: 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
+      if (reps >= win.high) {
+        next.weightKg = round(w + loadStep(ex, w, 'minmax', opts.spec), 4);
+        return Object.assign(next, { action: 'load', reason: win.fixed
+          ? 'You got ' + reps + ' on a ' + win.low + '-rep line, which is two over. Up one notch, and take it to failure again.'
+          : 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
       }
       // Inside the window: the weight is right, so the job is one more rep than last time.
-      if (reps >= t.repLow) {
-        return Object.assign(next, { action: 'reps', reason: 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
+      if (reps >= win.low) {
+        return Object.assign(next, { action: 'reps', reason: win.fixed
+          ? 'The plan says ' + win.low + '. You got ' + reps + ', so same weight and go for ' + (reps + 1) + '. At ' + win.high + ' it goes up a notch.'
+          : 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
       }
       // Under the floor: too heavy to be a stimulus rather than a test. Ten percent off.
-      next.weightKg = Math.max(loadUnit(ex), Math.round((w * 0.9) / loadUnit(ex)) * loadUnit(ex));
+      next.weightKg = round(Math.max(loadUnit(ex, opts.spec), Math.round((w * 0.9) / loadUnit(ex, opts.spec)) * loadUnit(ex, opts.spec)), 4);
       return Object.assign(next, { action: 'lighter', reason: 'Only ' + reps + ' last time, under the ' + t.repLow + ' this window needs. Ten percent off, so the set does some work rather than just being heavy.' });
     }
 
@@ -1994,7 +2342,7 @@
 
     // Every working set cleared the top of the range: add load and drop back to the bottom.
     if (minReps >= t.repHigh) {
-      next.weightKg = topWeight + loadStep(ex, topWeight);
+      next.weightKg = round(topWeight + loadStep(ex, topWeight, undefined, opts.spec), 4);
       return Object.assign(next, { action: 'load', reason: 'You cleared ' + t.repHigh + ' on every set last time, so go heavier and aim for ' + t.repLow + ' at ' + t.rir + ' left in the tank.' });
     }
     // Comfortably inside the range: chase reps before weight.
@@ -2013,7 +2361,7 @@
   function detectStall(history, minSessions) {
     var h = (history || []).slice(-(minSessions || 3));
     if (h.length < (minSessions || 3)) return null;
-    var first = h[0].e1rm, best = Math.max.apply(null, h.map(function (x) { return x.e1rm; }));
+    var first = strengthOf(h[0]), best = Math.max.apply(null, h.map(strengthOf));
     if (!first) return null;
     if (best <= first * 1.005) {
       return { stalled: true, sessions: h.length, advice: 'This lift has not moved in ' + h.length + ' sessions. Swap the variation or take the load back 10% and build in again.' };
@@ -2051,20 +2399,23 @@
       }).map(function (s) { return s.exerciseId; }));
     }, []));
     var rows = ids.map(function (id) {
-      var hist = exerciseHistory(logs, id).filter(function (h) { return h.e1rm > 0; });
+      var hist = exerciseHistory(logs, id).filter(function (h) { return strengthOf(h) > 0; });
       if (hist.length < minSessions) return null;
       var win = hist.slice(-window);
-      var series = win.map(function (h) { return h.e1rm; });
+      var series = win.map(strengthOf);
       var first = series[0] || 0, last = series[series.length - 1] || 0;
       var deltaPct = first ? round(((last - first) / first) * 100, 1) : 0;
       var ex = byId(id, opts.custom);
-      var best = hist.reduce(function (a, h) { return h.e1rm > a.e1rm ? h : a; }, hist[0]);
+      var best = hist.reduce(function (a, h) { return strengthOf(h) > strengthOf(a) ? h : a; }, hist[0]);
       // Stuck is the engine's existing rule, not a new one: no new best in the last few sessions.
       var stall = detectStall(hist, stallAt);
       return {
         exerciseId: id, name: ex ? ex.name : id,
         sessions: hist.length, lastISO: hist[hist.length - 1].dateISO,
-        e1rm: last, bestE1rm: best.e1rm, topKg: best.topWeight, topReps: best.topReps,
+        e1rm: last, bestE1rm: strengthOf(best), topKg: best.topWeight, topReps: best.topReps,
+        // 'bestSet' when most of the sessions had nothing inside twelve reps, so the screen can say
+        // "best set" instead of dressing an index up as a one-rep max.
+        metric: hist.filter(function (h) { return h.e1rm > 0; }).length * 2 >= hist.length ? 'e1rm' : 'bestSet',
         series: series, deltaPct: deltaPct,
         // Falling is its own thing: a lift going backwards is not the same news as one standing
         // still, and lumping them together loses the only bit that is urgent.
@@ -2133,7 +2484,12 @@
     opts = opts || {};
     var bw = +opts.bodyweightKg || 75;
     var custom = opts.custom;
-    var prs = computePRs(logs);
+    // A pin position is not a weight, so it cannot be compared with bodyweight.
+    var massLogs = (logs || []).map(function (l) {
+      return (l.sets || []).some(function (st) { return st.unit === 'pin'; })
+        ? Object.assign({}, l, { sets: l.sets.filter(function (st) { return st.unit !== 'pin'; }) }) : l;
+    });
+    var prs = computePRs(massLogs);
     var bestByPattern = {};
     for (var id in prs) {
       var ex = byId(id, custom);
@@ -2427,6 +2783,64 @@
     if (gym.bench === false) excluded = excluded.concat(NEEDS_BENCH);
     if (gym.pullupBar === false) excluded = excluded.concat(NEEDS_BAR);
     return { equipment: equipment, prefer: base.prefer || [], excluded: excluded, repBias: base.repBias || 0 };
+  }
+
+  // ---- which machine you use here ---------------------------------------------------------------
+  // A plan says "Machine fly". The gym you train in has a Hoist one, and you have said so. That
+  // answer is kept on the GYM (`gym.machines[planId].use`) rather than written into the block, so a
+  // different gym, or none, still gets the plan as its author wrote it, and the volume maths keeps
+  // reading the movement the plan was built on. One hop only: a mapped id is never followed again.
+  function atGym(exerciseId, gym, custom) {
+    var entry = gym && gym.machines && gym.machines[exerciseId];
+    var use = entry && entry.use;
+    if (!use || use === exerciseId || !byId(use, custom)) return exerciseId;
+    return use;
+  }
+  // A session's plan rows with this gym's machines in place. A new list of copies; the block is never
+  // touched. It goes through replaceExercise, so it is exactly a swap made by hand: the plan's
+  // movement stays as the way back and the author's note, which was about THAT movement, waits behind.
+  function applyGym(rows, gym, custom) {
+    return (rows || []).map(function (row) {
+      var to = atGym(row.exerciseId, gym, custom);
+      if (to === row.exerciseId) return row;
+      var copy = Object.assign({}, row);
+      replaceExercise(copy, to);
+      copy.gymMapped = true;
+      return copy;
+    });
+  }
+  // The swaps somebody keeps making. Two sessions in which the same plan movement was done as the
+  // same custom movement is a habit rather than a busy machine, so it is worth offering to remember.
+  // Pairs the gym already has are left out. Most-repeated first.
+  function suggestGymMachines(logs, blocks, custom, gym) {
+    var rowById = {};
+    (blocks || []).forEach(function (b) {
+      (b.sessions || []).forEach(function (s) { (s.exercises || []).forEach(function (e) { if (e.id) rowById[e.id] = e; }); });
+    });
+    var count = {};
+    (logs || []).forEach(function (l) {
+      var seen = {};
+      (l.sets || []).forEach(function (st) {
+        if (!st.itemId || !st.done) return;
+        var row = rowById[st.itemId];
+        if (!row) return;
+        var plan = row.baseExerciseId || row.exerciseId;
+        if (!plan || st.exerciseId === plan) return;
+        var ex = byId(st.exerciseId, custom);
+        if (!ex || !ex.custom) return;
+        var key = plan + '>' + st.exerciseId;
+        if (seen[key]) return;
+        seen[key] = 1;
+        count[key] = (count[key] || 0) + 1;
+      });
+    });
+    return Object.keys(count).filter(function (k) { return count[k] >= 2; }).map(function (k) {
+      var parts = k.split('>');
+      return { from: parts[0], to: parts[1], sessions: count[k] };
+    }).filter(function (p) {
+      var cur = gym && gym.machines && gym.machines[p.from];
+      return !(cur && cur.use);
+    }).sort(function (a, b) { return b.sessions - a.sessions; });
   }
 
   /* ---- how close to failure, per movement ------------------------------------------------------
@@ -2792,7 +3206,7 @@
             // stops a rep short on anything you could get hurt failing, and the intro week sits a
             // rep or two behind both.
             var pair = (style.toFailure && !asWritten) ? minmaxEffort(exx, sets, isIntro || isDeload) : null;
-            return {
+            return Object.assign({
               id: blockId + '_' + (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
               // Everything on a line that belongs to whoever WROTE it rather than to the week it
@@ -2809,7 +3223,7 @@
               target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
                 { sets: sets, rir: pair ? pair.rir : effort },
                 pair ? { rirLast: pair.rirLast } : {}),
-            };
+            }, item.addedBy ? { addedBy: item.addedBy } : null, item.priority ? { priority: true } : null);
           }),
         });
       });
@@ -2893,6 +3307,8 @@
         equipment: equipment, pattern: pattern, profile: 'mid',
         primary: guess, secondary: [], custom: true, auto: true,
       };
+      var made = splitBrand(raw.name).brand;
+      if (made) ex.brand = made;
       mintedById[id] = ex;
       newCustom.push(ex);
       return ex;
@@ -3059,6 +3475,9 @@
   var KEEP_CAPS = { ez: 'EZ', rdl: 'RDL', ohp: 'OHP', bb: 'barbell', db: 'dumbbell' };
   function tidyName(raw) {
     var s = String(raw || '').replace(COACH_PREFIX, '');
+    // "M1: standing dumbbell curl": the letter and number are the coach's filing, not the movement's
+    // name, and left in they made "M1:" and "M2:" two exercises.
+    s = s.replace(/^\s*[A-Za-z]\d{1,2}\s*[:.)]\s*/, '');
     s = s.replace(/\([^)]*\)/g, ' ');                       // "(OHTX)", "(mega mass)" - an aside, not a name
     s = s.replace(/\s+/g, ' ').trim();
     if (!s) return '';
@@ -3099,6 +3518,103 @@
         .map(function (w) { return w.replace(/s$/, ''); }).sort().join(' ');
     };
     return !!a && !!b && key(a) === key(b);
+  }
+
+  // ---- the same machine, saved twice ---------------------------------------------------------------
+  // Typing a machine in at the gym is quick and nobody checks what they called it last time. The
+  // result was one Hammer Strength press saved three ways, with the sets split three ways, so none of
+  // them ever had enough history to say anything. A candidate is a twin of an existing custom when it
+  // is the same words in any order, or when it is the same maker's version of the same movement.
+  // Library movements are left out on purpose: resolving a brand name TO them is the matcher's job.
+  function findDuplicate(candidate, custom) {
+    var c = candidate || {};
+    var name = String(c.name || '').trim();
+    if (!name) return null;
+    var list = custom || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (c.id && list[i].id === c.id) continue;
+      if (sameMovement(list[i].name, name)) return list[i];
+    }
+    var sb = splitBrand(name);
+    var brand = String(c.brand || sb.brand || '').toLowerCase();
+    var parentOf = function (nm, explicit) {
+      if (explicit) return explicit;
+      var r = resolveDetail(splitBrand(nm).rest || nm);
+      return r ? r.id : null;
+    };
+    var parent = parentOf(name, c.variantOf);
+    if (!brand || !parent) return null;
+    for (i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (c.id && o.id === c.id) continue;
+      var ob = String(o.brand || splitBrand(o.name).brand || '').toLowerCase();
+      if (ob && ob === brand && parentOf(o.name, o.variantOf) === parent) return o;
+    }
+    return null;
+  }
+  // What a movement is "like", for one nobody has described yet: two or more muscles doing the work
+  // is a compound, a trunk movement is core, and a single muscle is isolation. Only a starting
+  // point for the person to correct; a movement with a parent takes its parent's pattern instead.
+  function inferPattern(primary) {
+    var p = primary || [];
+    if (p.length && p.every(function (m) { return m === 'ab' || m === 'ob'; })) return 'core';
+    return p.length >= 2 ? 'compound' : 'isolation';
+  }
+  // Fold one custom movement into another: every set, plan row, note, gym setting and pointer that
+  // named `fromId` now names `intoId`, and `fromId` is deleted. Edits `tr` in place and says what it
+  // moved. Only a custom movement can be folded away; the library's are not the person's to delete.
+  function mergeExercise(tr, fromId, intoId) {
+    if (!tr || !fromId || !intoId || fromId === intoId) return null;
+    var custom = tr.custom || [];
+    var from = custom.filter(function (x) { return x.id === fromId; })[0];
+    if (!from || !byId(intoId, custom)) return null;
+    var moved = { sets: 0, rows: 0 };
+    var swap = function (id) { return id === fromId ? intoId : id; };
+    (tr.logs || []).forEach(function (l) {
+      (l.sets || []).forEach(function (st) { if (st.exerciseId === fromId) { st.exerciseId = intoId; moved.sets++; } });
+      var notes = l.exerciseNotes;
+      if (notes && notes[fromId] != null) {
+        if (!notes[intoId]) notes[intoId] = notes[fromId];
+        delete notes[fromId];
+      }
+    });
+    (tr.blocks || []).forEach(function (b) {
+      (b.sessions || []).forEach(function (sess) {
+        (sess.exercises || []).forEach(function (e) {
+          var hit = false;
+          if (e.exerciseId === fromId) { e.exerciseId = intoId; hit = true; }
+          if (e.baseExerciseId === fromId) { e.baseExerciseId = intoId; hit = true; }
+          if (e.alts && e.alts.indexOf(fromId) !== -1) { e.alts = e.alts.map(swap); hit = true; }
+          if (e.choice && e.choice.options && e.choice.options.indexOf(fromId) !== -1) { e.choice.options = e.choice.options.map(swap); hit = true; }
+          if (hit) moved.rows++;
+        });
+      });
+    });
+    custom.forEach(function (x) { if (x.variantOf === fromId) x.variantOf = intoId; });
+    // The merged movement keeps whatever the one folded into it knew that it did not.
+    var into = custom.filter(function (x) { return x.id === intoId; })[0];
+    if (into) ['brand', 'load', 'setup'].forEach(function (k) { if (into[k] == null && from[k] != null) into[k] = from[k]; });
+    tr.custom = custom.filter(function (x) { return x.id !== fromId; });
+    var fold = function (map) {
+      if (!map || !map[fromId]) return;
+      map[intoId] = Object.assign({}, map[fromId], map[intoId]);
+      delete map[fromId];
+    };
+    (tr.gyms || []).forEach(function (g) {
+      fold(g.machines);
+      Object.keys(g.machines || {}).forEach(function (k) {
+        var m = g.machines[k];
+        if (m && m.use === fromId) m.use = intoId;
+        if (m && m.use === k) delete m.use;
+      });
+    });
+    if (tr.prefs) {
+      fold(tr.prefs.machineLoads);
+      if (tr.prefs.dislikes) tr.prefs.dislikes = tr.prefs.dislikes.map(swap);
+    }
+    (tr.rotations || []).forEach(function (r) { r.from = swap(r.from); r.to = swap(r.to); });
+    return moved;
   }
 
   // ---- a variation of a movement you already have ------------------------------------------------
@@ -4484,11 +5000,87 @@
   { key: "mach5", name: "Stego", blurb: "Machines", daysPerWeek: 5, template: [
     {"name":"Legs 1","kind":"legs","dayOfWeek":0,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic2","sissy_squat"],"warmups":2,"planNote":"Seat back as far as is comfortable and pull yourself down into the seat with the handles.","sourceName":"Leg Extension"},{"exerciseId":"machine_back_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["45_hyperextension","cable_back_extension"],"warmups":1,"planNote":"Controlled on the way down; stop short of hyperextending at the top.","sourceName":"Machine Back Extension"},{"exerciseId":"hack_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["pendulum_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips allow without the pelvis tucking. Drive through the whole foot.","sourceName":"Hack Squat"},{"exerciseId":"hip_adduction","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_adduction","seated_machine_adduction"],"warmups":1,"planNote":"Start from the widest position you can control and squeeze the pads together.","sourceName":"Machine Hip Adduction"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
     {"name":"Upper","kind":"upper","dayOfWeek":1,"exercises":[{"exerciseId":"lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["close_grip_lat_pulldown","machine_pulldown"],"warmups":2,"planNote":"Let the lats stretch fully at the top, then drive the elbows down to your sides.","sourceName":"Lat Pulldown"},{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"cable_fly","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["pec_deck","machine_fly"],"warmups":1,"planNote":"Soft elbows, and a deep stretch across the chest at the back of every rep.","sourceName":"Cable Chest Fly"},{"exerciseId":"machine_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","db_lateral"],"warmups":1,"planNote":"Lead with the elbows and stop around shoulder height.","sourceName":"Machine Lateral Raise"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","triceps_pressdown"],"warmups":1,"planNote":"Overhead, so the long head is stretched at the bottom.","sourceName":"Overhead Cable Triceps Extension"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"}]},
-    {"name":"Legs 2","kind":"legs","dayOfWeek":3,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["hack_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips will let you go. The pendulum path keeps the load on the quads at the bottom.","sourceName":"Pendulum Squat"},{"exerciseId":"45_hyperextension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["machine_back_extension","cable_back_extension"],"warmups":1,"planNote":"Round slightly over the pad and squeeze the glutes to come up.","sourceName":"45° Back Extension"},{"exerciseId":"seated_leg_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_leg_curl","nordic_curl"],"warmups":2,"planNote":"Lean your torso forward to put the hamstrings on a longer stretch.","sourceName":"Seated Leg Curl"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["hip_thrust","smith_hip_thrust"],"warmups":2,"planNote":"Chin tucked, ribs down, and a one-second squeeze at lockout.","sourceName":"Machine Hip Thrust"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
+    {"name":"Legs 2","kind":"legs","dayOfWeek":3,"exercises":[{"exerciseId":"standing_calf","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["leg_press_calf","smith_calf"],"warmups":1,"planNote":"Pause a second at the bottom in the full stretch, then roll up onto the balls of your feet.","sourceName":"Standing Calf Raise"},{"exerciseId":"pendulum_squat","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["hack_squat","leg_press"],"warmups":3,"planNote":"As deep as your hips will let you go. The pendulum path keeps the load on the quads at the bottom.","sourceName":"Pendulum Squat"},{"exerciseId":"leg_extension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_nordic","sissy_squat"],"warmups":1,"planNote":"Lean back a touch and pause at the top. Quads get leg extension on one day only otherwise.","sourceName":"Leg Extension"},{"exerciseId":"45_hyperextension","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["machine_back_extension","cable_back_extension"],"warmups":1,"planNote":"Round slightly over the pad and squeeze the glutes to come up.","sourceName":"45° Back Extension"},{"exerciseId":"seated_leg_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["lying_leg_curl","nordic_curl"],"warmups":2,"planNote":"Lean your torso forward to put the hamstrings on a longer stretch.","sourceName":"Seated Leg Curl"},{"exerciseId":"machine_hip_thrust","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":120},"alts":["hip_thrust","smith_hip_thrust"],"warmups":2,"planNote":"Chin tucked, ribs down, and a one-second squeeze at lockout.","sourceName":"Machine Hip Thrust"},{"exerciseId":"machine_crunch2","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_crunch","machine_crunch"],"warmups":1,"planNote":"Round your spine down towards your hips rather than folding at the hips.","sourceName":"Machine Crunch"}]},
     {"name":"Push","kind":"push","dayOfWeek":4,"exercises":[{"exerciseId":"smith_machine_incline_press","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":240},"alts":["bb_incline","db_incline"],"warmups":3,"planNote":"A 30° or 45° bench. Pause a second at the bottom with the pecs still loaded.","sourceName":"Smith Machine Incline Press"},{"exerciseId":"machine_fly","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["pec_deck","cable_fly"],"warmups":1,"planNote":"Pause a second in the stretch with the pecs still loaded.","sourceName":"Machine Chest Fly"},{"exerciseId":"machine_ohp","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["seated_machine_press","db_ohp"],"warmups":2,"planNote":"Handles to about chin height, no bounce out of the bottom.","sourceName":"Machine Shoulder Press"},{"exerciseId":"db_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_lateral","machine_lateral"],"warmups":1,"planNote":"Slight lean forward, lead with the elbows, no swinging.","sourceName":"Dumbbell Lateral Raise"},{"exerciseId":"overhead_cable_triceps_extension","target":{"sets":3,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["overhead_dumbbell_triceps_extension","single_pushdown"],"warmups":1,"planNote":"One arm at a time on the cable, reaching long behind your head at the bottom.","sourceName":"Single-Arm Overhead Cable Extension"}]},
-    {"name":"Pull","kind":"pull","dayOfWeek":5,"exercises":[{"exerciseId":"chest_supported_machine_row","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","tbar_row_supported"],"warmups":2,"planNote":"Chest stays on the pad. Let the shoulder blades travel forward at the stretch.","sourceName":"Chest-Supported Machine Row"},{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["pulldown_neutral","1_arm_cable_pulldown"],"warmups":2,"planNote":"Lean back slightly and drive the elbows down towards your hips.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"machine_preacher","target":{"sets":3,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"},{"exerciseId":"cable_reverse_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_curl","barbell_reverse_curl"],"warmups":1,"planNote":"Overhand grip, elbows fixed at your sides.","sourceName":"Cable Reverse Curl"}]}
+    {"name":"Pull","kind":"pull","dayOfWeek":5,"exercises":[{"exerciseId":"chest_supported_machine_row","target":{"sets":2,"repLow":6,"repHigh":8,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_row","tbar_row_supported"],"warmups":2,"planNote":"Chest stays on the pad. Let the shoulder blades travel forward at the stretch.","sourceName":"Chest-Supported Machine Row"},{"exerciseId":"close_grip_lat_pulldown","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["pulldown_neutral","1_arm_cable_pulldown"],"warmups":2,"planNote":"Lean back slightly and drive the elbows down towards your hips.","sourceName":"Close-Grip Lat Pulldown"},{"exerciseId":"machine_row__wide","target":{"sets":2,"repLow":8,"repHigh":10,"rir":1,"rirLast":0,"restSec":150},"alts":["chest_supported_machine_row","cable_row_wide"],"warmups":2,"planNote":"Elbows out wide and pull to the upper chest, so the upper back and rear delts do the work rather than the lats.","sourceName":"Machine Upper Back Row"},{"exerciseId":"cable_lateral","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["machine_lateral","db_lateral"],"warmups":1,"planNote":"Cable behind you, not in front, and stop at shoulder height. A second side-delt day is what builds width.","sourceName":"Cable Lateral Raise"},{"exerciseId":"machine_rear_delt","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["cable_rear_fly","lying_reverse_dumbbell_fly"],"warmups":1,"planNote":"Chest on the pad, lead with the elbows and keep the traps out of it. Rear delts are half of how wide the shoulders look from behind.","sourceName":"Machine Rear Delt"},{"exerciseId":"machine_preacher","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["ez_bar_preacher_curl","dumbbell_preacher_curl"],"warmups":1,"planNote":"Keep your triceps pinned to the pad and let the arm get long at the bottom of every rep.","sourceName":"Machine Preacher Curl"},{"exerciseId":"cable_reverse_curl","target":{"sets":2,"repLow":8,"repHigh":10,"rir":0,"rirLast":0,"restSec":90},"alts":["reverse_curl","barbell_reverse_curl"],"warmups":1,"planNote":"Overhand grip, elbows fixed at your sides.","sourceName":"Cable Reverse Curl"}]}
   ] }
 ];
+
+  /* ---- what the Macrosaurus additions are ---------------------------------------------------------
+   * Three of the four programmes are somebody else's, written out line for line and checked against
+   * the sheets they came from. They are not edited. But a physique is judged on shoulder width and a
+   * balanced chest, and two of them spend more sets on the forearms than on anything else, so there
+   * is an OPT-IN layer on top: a few lines added, a few wrist exercises swapped for delt work. Off by
+   * default, shown as exactly what it is, and every line it touches says so on its face
+   * (`addedBy`), so nobody mistakes our edits for the author's.
+   *
+   * An op is { day, op: 'add' | 'replace', after?, exerciseId?, line }. 'add' puts the line after the
+   * movement named in `after` (or last); 'replace' swaps the movement named in `exerciseId`.
+   */
+  function addLine(exerciseId, sets, repLow, repHigh, rir, rirLast, restSec, alts, warmups, why, sourceName) {
+    return {
+      exerciseId: exerciseId,
+      target: { sets: sets, repLow: repLow, repHigh: repHigh, rir: rir, rirLast: rirLast, restSec: restSec },
+      alts: alts, warmups: warmups, planNote: 'Not in the original programme: ' + why,
+      sourceName: sourceName, addedBy: 'macrosaurus',
+    };
+  }
+  var REAR_DELT = function () {
+    return addLine('machine_rear_delt', 2, 8, 10, 0, 0, 90, ['cable_rear_fly', 'lying_reverse_dumbbell_fly'], 1,
+      'chest on the pad, lead with the elbows. Rear delts are half of how wide the shoulders look from behind.', 'Machine Rear Delt');
+  };
+  var SIDE_DELT = function (sets) {
+    return addLine('db_lateral', sets, 8, 10, 0, 0, 90, ['cable_lateral', 'machine_lateral'], 1,
+      'lead with the elbow and stop at shoulder height. Side delts are the width in a V-taper.', 'Dumbbell Lateral Raise');
+  };
+  var PROGRAMME_ADDITIONS = {
+    mac4: {
+      note: 'A pec deck for the chest, and rear-delt and side-delt work in place of the wrist work.',
+      ops: [
+        { day: 'Upper', op: 'add', after: 'machine_press', line: addLine('pec_deck', 2, 8, 10, 0, 0, 90, ['db_fly', 'cable_fly'], 1, 'the programme has no fly, and the chest is trained four sets a week without one.', 'Pec Deck') },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'wrist_curl', line: REAR_DELT() },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'dumbbell_wrist_extension', line: SIDE_DELT(2) },
+      ],
+    },
+    mac5: {
+      note: 'A second pec deck, and rear-delt and side-delt work in place of the wrist work.',
+      ops: [
+        { day: 'Upper 2', op: 'add', after: 'machine_press', line: addLine('pec_deck', 1, 8, 10, 0, 0, 90, ['db_fly', 'cable_fly'], 1, 'a second chest isolation, on the day that has none.', 'Pec Deck') },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'wrist_curl', line: REAR_DELT() },
+        { day: 'Arms and delts', op: 'replace', exerciseId: 'dumbbell_wrist_extension', line: SIDE_DELT(2) },
+      ],
+    },
+    bb5: {
+      note: 'Side delts on both upper days, calves on both lower days, and a hip hinge.',
+      ops: [
+        { day: 'Upper 1', op: 'add', after: 'smith_machine_incline_press', line: addLine('machine_lateral', 2, 10, 12, 0, 0, 90, ['high_cable_lateral_raise', 'db_lateral'], 1, 'side delts were trained once a week, on arms day.', 'Machine Lateral Raise') },
+        { day: 'Upper 2', op: 'add', after: 'smith_machine_incline_press', line: addLine('machine_lateral', 2, 10, 12, 0, 0, 90, ['high_cable_lateral_raise', 'db_lateral'], 1, 'a second side-delt day.', 'Machine Lateral Raise') },
+        { day: 'Lower 1', op: 'add', line: addLine('standing_calf', 2, 8, 10, 0, 0, 90, ['leg_press_calf', 'smith_calf'], 1, 'the programme has no calf work.', 'Standing Calf Raise') },
+        { day: 'Lower 2', op: 'add', after: 'smith_split_squat', line: addLine('rdl', 2, 6, 8, 2, 1, 150, ['dumbbell_rdl', 'seated_cable_deadlift'], 2, 'the hamstrings only get a curl, and nothing trains the hinge.', 'Romanian Deadlift') },
+        { day: 'Lower 2', op: 'add', line: addLine('standing_calf', 2, 8, 10, 0, 0, 90, ['leg_press_calf', 'smith_calf'], 1, 'a second calf day.', 'Standing Calf Raise') },
+      ],
+    },
+  };
+  // The template with an additions layer applied, as a new template. The programme itself is never
+  // mutated: a copy is made first, so turning the layer off again is just not asking for it.
+  function applyAdditions(template, ops) {
+    var out = JSON.parse(JSON.stringify(template));
+    (ops || []).forEach(function (o) {
+      var day = out.filter(function (d) { return d.name === o.day; })[0];
+      if (!day) return;
+      var line = JSON.parse(JSON.stringify(o.line));
+      var list = day.exercises;
+      if (o.op === 'replace') {
+        var at = list.findIndex(function (e) { return e.exerciseId === o.exerciseId; });
+        if (at === -1) return;
+        list[at] = line;
+      } else {
+        var after = o.after ? list.findIndex(function (e) { return e.exerciseId === o.after; }) : -1;
+        list.splice(after === -1 ? list.length : after + 1, 0, line);
+      }
+    });
+    return out;
+  }
 
   function programmeOf(key) {
     var found = PROGRAMMES.filter(function (p) { return p.key === key; });
@@ -4500,13 +5092,14 @@
     opts = opts || {};
     var p = programmeOf(key);
     if (!p) return null;
-    var block = blockFromTemplate(p.template, {
+    var extra = opts.additions && PROGRAMME_ADDITIONS[key] ? PROGRAMME_ADDITIONS[key] : null;
+    var block = blockFromTemplate(extra ? applyAdditions(p.template, extra.ops) : p.template, {
       // as-written, because this IS the plan: no set added per week, no trimming to our own
       // ceilings, and the effort target on every line is the one the programme states.
       weeks: opts.weeks || 4, shape: 'as-written', style: 'minmax',
       daysPerWeek: p.daysPerWeek, intensity: 'high', goal: 'hypertrophy',
       name: opts.name || p.name, custom: opts.custom, startISO: opts.startISO || null,
-      source: 'programme', sourceRef: { kind: 'programme', name: p.key },
+      source: 'programme', sourceRef: extra ? { kind: 'programme', name: p.key, additions: true } : { kind: 'programme', name: p.key },
     });
     block.archived = false;
     block.shared = false;
@@ -4521,12 +5114,266 @@
       return a + d.exercises.reduce(function (b, e) { return b + (e.target.sets || 0); }, 0);
     }, 0);
     var moves = p.template.reduce(function (a, d) { return a + d.exercises.length; }, 0);
+    var extra = PROGRAMME_ADDITIONS[key] || null;
+    var withSets = extra ? applyAdditions(p.template, extra.ops).reduce(function (a, d) {
+      return a + d.exercises.reduce(function (b, e) { return b + (e.target.sets || 0); }, 0);
+    }, 0) : sets;
     return {
       key: p.key, name: p.name, blurb: p.blurb || '', daysPerWeek: p.daysPerWeek, weeks: 4,
       sets: sets, movements: moves,
+      additions: extra ? { note: extra.note, sets: withSets - sets } : null,
       dayNames: p.template.map(function (d) { return d.name; }),
       volume: plannedVolume(p.template, custom),
     };
+  }
+
+  /* ---- a priority muscle -------------------------------------------------------------------------
+   * A bodybuilder picks the weak point for a block and gives it more work, earlier in the session,
+   * while it is fresh. Three things happen, in every session that trains the muscle as a primary
+   * mover: its first such line gains a set; that line moves up to just behind the session's first
+   * compound (never ahead of it, because the heavy opener stays first); and, so the session does not
+   * grow, a set comes off the biggest isolation line that does not train the muscle at all. Where no
+   * such line has a set to spare the session simply grows by one, and the screen can say so.
+   */
+  function applyPriority(block, muscle, opts) {
+    if (!block || MUSCLES.indexOf(muscle) === -1) return null;
+    var custom = opts && opts.custom;
+    var trains = function (e) { var c = setContribution(byId(e.exerciseId, custom)); return c[muscle] >= PRIMARY_WEIGHT; };
+    var touches = function (e) { return !!setContribution(byId(e.exerciseId, custom))[muscle]; };
+    var isCompound = function (e) { var x = byId(e.exerciseId, custom); return !!x && x.pattern !== 'isolation' && x.pattern !== 'core'; };
+    var sessions = 0, added = 0, offset = 0;
+    (block.sessions || []).forEach(function (sess) {
+      var list = (sess.exercises || []).slice().sort(function (a, b) { return a.order - b.order; });
+      var first = list.filter(trains)[0];
+      if (!first) return;
+      first.target.sets += 1;
+      first.priority = true;
+      added++;
+      // The set that pays for it.
+      var donor = list.filter(function (e) {
+        var x = byId(e.exerciseId, custom);
+        return !touches(e) && x && (x.pattern === 'isolation' || x.pattern === 'core') && e.target.sets >= 2;
+      }).sort(function (a, b) { return b.target.sets - a.target.sets; })[0];
+      if (donor) { donor.target.sets -= 1; offset++; }
+      // Up to just behind the first compound.
+      var opener = list.findIndex(isCompound);
+      var at = list.indexOf(first);
+      var to = opener === -1 ? 0 : opener + 1;
+      if (at > to) { list.splice(at, 1); list.splice(to, 0, first); }
+      list.forEach(function (e, i) { e.order = i; });
+      sess.exercises = list;
+      sessions++;
+    });
+    if (!sessions) return null;
+    block.priority = muscle;
+    return { sessions: sessions, added: added, offset: offset };
+  }
+
+  /* ---- bringing your history from another app ----------------------------------------------------
+   * The biggest cost of changing training apps is starting again: every lift begins blank, the first
+   * set of everything is a "record", and nothing can tell you a lift has stalled because it has no
+   * past. A logger's own export is a spreadsheet of sets, so this reads one.
+   *
+   * Strong, Hevy and FitNotes are recognised by their header rows. Columns are found by NAME rather
+   * than by position, because the apps add and reorder them, and a set is only taken if it has a
+   * weight or a rep count. Everything here is pure: it returns sessions in the shape a logged session
+   * has, plus the movements it could not place, and writes nothing. Re-reading the same file gives the
+   * same session ids, so importing twice cannot double a history.
+   */
+  function parseCsv(text) {
+    var src = String(text || '').replace(/^﻿/, '');
+    var first = src.split(/\r?\n/)[0] || '';
+    var delim = [',', ';', '\t'].map(function (d) { return [d, first.split(d).length]; })
+      .sort(function (a, b) { return b[1] - a[1]; })[0][0];
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < src.length; i++) {
+      var c = src[i];
+      if (q) {
+        if (c === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === delim) { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && src[i + 1] === '\n') i++;
+        row.push(cell); cell = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else cell += c;
+    }
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+    return rows;
+  }
+  var MONTHS3 = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  // "2023-10-22 07:27:02", "7 Oct 2023, 18:14" and "2023-10-22" all become a date and, when there is
+  // one, a time.
+  function parseWhen(v) {
+    var t = String(v || '').trim(), m;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    if ((m = t.match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/))) {
+      return { dateISO: m[1] + '-' + m[2] + '-' + m[3], time: m[4] ? pad(+m[4]) + ':' + m[5] : null };
+    }
+    if ((m = t.match(/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\.?,?\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?/)) && MONTHS3[m[2].toLowerCase()]) {
+      return { dateISO: m[3] + '-' + pad(MONTHS3[m[2].toLowerCase()]) + '-' + pad(+m[1]), time: m[4] ? pad(+m[4]) + ':' + m[5] : null };
+    }
+    return null;
+  }
+  function hashOf(str) {
+    var h = 5381;
+    for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+  // Another app's names, placed with more care than a typed one gets. They arrive as "Bench Press
+  // (Barbell)" and "Lat Pulldown - Wide Grip (Cable)": the kit belongs in front, and a dash is not a
+  // coach's tag. And because an import places hundreds of sets at once without anyone watching, a
+  // match is only taken on trust when it does not drop a word that changes the movement - an incline
+  // press that quietly became a flat one would put its weights on the wrong lift for good.
+  var IMPORT_KIT = /^(.*?)\s*\((barbell|dumbbell|cable|machine|smith machine|smith|bodyweight|kettlebell|band|ez bar|ez|assisted|weighted|plate loaded|trap bar)\)\s*$/i;
+  var CHANGES_THE_LIFT = ['incline', 'decline', 'wide', 'close', 'narrow', 'reverse', 'single', 'unilateral', 'overhead',
+    'seated', 'standing', 'lying', 'hammer', 'front', 'sumo', 'romanian', 'stiff', 'paused', 'pause', 'goblet', 'bulgarian',
+    'hack', 'sissy', 'neutral', 'underhand', 'supinated', 'pronated', 'preacher', 'incline', 'rear', 'lateral', 'seal'];
+  function resolveImportName(name, custom) {
+    var raw = String(name || '').trim();
+    var m = raw.match(IMPORT_KIT);
+    var cands = [raw];
+    if (m) {
+      var core = m[1].replace(/\s+-\s+/g, ' ');
+      cands.unshift(m[2] + ' ' + core);
+      // "Incline Bench Press (Dumbbell)" is what the library calls an incline dumbbell press.
+      if (/\b(incline|decline)\b/i.test(core)) cands.unshift(m[2] + ' ' + core.replace(/\bbench\b/i, '').replace(/\s+/g, ' ').trim());
+      cands.push(core);
+    }
+    var best = null;
+    cands.forEach(function (c) {
+      var d = resolveDetail(c, custom);
+      if (d && (!best || d.score > best.score)) best = d;
+    });
+    if (!best) return null;
+    // Right movement, wrong kit: an alias or an exact name will happily hand "Overhead Press (Dumbbell)"
+    // the barbell one. A different implement keeps its own history, so it is offered, not assumed.
+    if ((best.how === 'exact' || best.how === 'alias' || best.how === 'strong') && kitMismatch(raw, best.id, custom)) {
+      return Object.assign({}, best, { how: 'loose' });
+    }
+    if (best.how === 'strong') {
+      var got = norm((byId(best.id, custom) || {}).name || '').split(' ');
+      var said = norm(splitBrand(raw).rest || raw).split(' ');
+      var lost = CHANGES_THE_LIFT.some(function (w) { return said.indexOf(w) !== -1 && got.indexOf(w) === -1; });
+      if (lost) return Object.assign({}, best, { how: 'loose' });
+    }
+    return best;
+  }
+  function historyFromCsv(text, opts) {
+    opts = opts || {};
+    var grid = parseCsv(text);
+    if (grid.length < 2) return { ok: false, reason: 'That file is empty.' };
+    var head = grid[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var col = function () {
+      for (var a = 0; a < arguments.length; a++) {
+        for (var i = 0; i < head.length; i++) if (head[i] === arguments[a] || head[i].indexOf(arguments[a]) === 0) return i;
+      }
+      return -1;
+    };
+    var format = head.indexOf('exercise_title') !== -1 || head.indexOf('set_type') !== -1 ? 'Hevy'
+      : head.indexOf('exercise name') !== -1 && head.indexOf('set order') !== -1 ? 'Strong'
+        : head.indexOf('exercise') !== -1 && head.indexOf('category') !== -1 ? 'FitNotes' : null;
+    if (!format) return { ok: false, reason: 'That does not look like a Strong, Hevy or FitNotes export.' };
+    var c = {
+      date: format === 'Hevy' ? col('start_time') : col('date'),
+      title: format === 'Hevy' ? col('title') : format === 'Strong' ? col('workout name') : -1,
+      name: format === 'Hevy' ? col('exercise_title') : format === 'Strong' ? col('exercise name') : col('exercise'),
+      order: format === 'Strong' ? col('set order') : format === 'Hevy' ? col('set_index') : -1,
+      type: format === 'Hevy' ? col('set_type') : -1,
+      kg: col('weight_kg', 'weight (kg', 'weight (kgs'), lb: col('weight_lbs', 'weight (lb', 'weight (lbs'),
+      weight: col('weight'),
+      reps: col('reps'), rpe: col('rpe'),
+      dist: col('distance'), secs: col('seconds', 'duration_seconds', 'time'),
+      note: format === 'Strong' ? col('workout notes') : format === 'Hevy' ? col('description') : -1,
+    };
+    // Which unit the weights are in: the column says, when it can. Strong's does not.
+    var unit = c.kg !== -1 ? 'kg' : c.lb !== -1 ? 'lb' : (opts.units || null);
+    var wcol = c.kg !== -1 ? c.kg : c.lb !== -1 ? c.lb : c.weight;
+    var cell = function (r, i) { return i === -1 || i >= r.length ? '' : String(r[i]).trim(); };
+    var sessions = {}, order = [], names = {}, skipped = { cardio: 0, empty: 0, noDate: 0, old: 0 };
+    var sinceISO = opts.sinceISO || null, units = 0;
+    grid.slice(1).forEach(function (r) {
+      var nm = cell(r, c.name), when = parseWhen(cell(r, c.date));
+      if (!nm) { skipped.empty++; return; }
+      if (!when) { skipped.noDate++; return; }
+      if (sinceISO && when.dateISO < sinceISO) { skipped.old++; return; }
+      var so = cell(r, c.order);
+      if (/rest/i.test(so)) return;   // Strong writes its rest timers as rows
+      var w = parseFloat(cell(r, wcol)) || 0, reps = parseFloat(cell(r, c.reps)) || 0;
+      var moved = (parseFloat(cell(r, c.dist)) || 0) > 0 || (c.secs !== -1 && (parseFloat(cell(r, c.secs)) || 0) > 0);
+      if (!reps && !w) { if (moved) skipped.cardio++; else skipped.empty++; return; }
+      if (!reps && moved) { skipped.cardio++; return; }
+      var type = 'work';
+      var st = (cell(r, c.type) || so).toLowerCase();
+      if (st === 'w' || st === 'warmup') type = 'warmup';
+      else if (st === 'd' || st === 'dropset') type = 'drop';
+      else if (st === 'f' || st === 'failure') type = 'failure';
+      var title = c.title !== -1 ? cell(r, c.title) : '';
+      var key = (format === 'Hevy' ? cell(r, c.date) : when.dateISO) + '|' + title;
+      if (!sessions[key]) {
+        sessions[key] = { dateISO: when.dateISO, time: when.time, name: title || 'Imported session', notes: cell(r, c.note), rows: [] };
+        order.push(key);
+      }
+      var rpe = parseFloat(cell(r, c.rpe));
+      sessions[key].rows.push({ name: nm, weight: w, reps: reps, type: type, rir: isFinite(rpe) && rpe >= 5 && rpe <= 10 ? round(10 - rpe, 1) : null });
+      names[nm] = names[nm] || { name: nm, sets: 0 };
+      names[nm].sets++;
+      units++;
+    });
+    if (!order.length) return { ok: false, reason: 'No sets found in that file.' };
+    var needsUnits = !unit && units > 0;
+    // Place every name once. A match that is merely close is offered, never taken without being asked.
+    var map = opts.map || {};
+    var placed = Object.keys(names).map(function (n) {
+      var given = map[n];
+      if (given === null) return Object.assign(names[n], { id: null, how: 'skip' });
+      if (given) return Object.assign(names[n], { id: given, how: 'chosen' });
+      var d = resolveImportName(n, opts.custom);
+      if (d && (d.how === 'exact' || d.how === 'alias' || d.how === 'strong')) return Object.assign(names[n], { id: d.id, how: d.how });
+      return Object.assign(names[n], { id: null, how: d ? 'loose' : 'none', suggest: d ? d.id : null });
+    }).sort(function (a, b) { return b.sets - a.sets; });
+    var byName = {};
+    placed.forEach(function (p) { byName[p.name] = p; });
+    var toKg = function (v) { return unit === 'lb' ? round(v / 2.20462, 2) : v; };
+    var logs = order.map(function (k) {
+      var ss = sessions[k];
+      var sets = [], idx = {};
+      ss.rows.forEach(function (r) {
+        var p = byName[r.name];
+        if (!p || !p.id) return;
+        idx[p.id] = (idx[p.id] || 0);
+        var set = { exerciseId: p.id, setIndex: idx[p.id]++, type: r.type, weightKg: toKg(r.weight), reps: r.reps || null, done: true };
+        if (r.rir != null) set.rir = r.rir;
+        sets.push(set);
+      });
+      if (!sets.length) return null;
+      var at = ss.dateISO + 'T' + (ss.time || '12:00') + ':00.000Z';
+      return {
+        id: 'imp_' + hashOf(format + '|' + k), dateISO: ss.dateISO, blockId: null, sessionId: null,
+        name: ss.name, startedAt: at, endedAt: at, notes: ss.notes || '', sets: sets, imported: format,
+      };
+    }).filter(Boolean).sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : 1; });
+    var dates = order.map(function (k) { return sessions[k].dateISO; }).sort();
+    return {
+      ok: true, format: format, unit: unit, needsUnits: needsUnits,
+      sessions: order.length, sets: units, from: dates[0], to: dates[dates.length - 1],
+      names: placed, unplaced: placed.filter(function (p) { return !p.id && p.how !== 'skip'; }),
+      skipped: skipped, logs: needsUnits ? [] : logs,
+      bytes: JSON.stringify(logs).length,
+    };
+  }
+  // Add what an import found, without touching anything already there. A session whose id is already
+  // in the log is skipped, which is what makes importing the same file twice harmless. Returns how many
+  // sessions went in.
+  function addImportedLogs(tr, logs) {
+    var have = {};
+    (tr.logs || []).forEach(function (l) { have[l.id] = 1; });
+    var n = 0;
+    (logs || []).forEach(function (l) { if (!have[l.id]) { tr.logs.push(l); have[l.id] = 1; n++; } });
+    return n;
   }
 
   /* ---- loading a block somebody already owns ----------------------------------------------------
@@ -6441,7 +7288,7 @@
     var prevSets = last ? (logs.filter(function (l) { return l.dateISO === last.dateISO; })[0].sets || [])
       .filter(function (s) { return s.exerciseId === sessionExercise.exerciseId && s.done && (!s.type || s.type === 'work'); }) : [];
     var progressed = prevSets.length
-      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist })
+      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist, spec: opts.spec })
       : null;
     var n = (progressed && progressed.sets) || t.sets || 3;
     var out = [];
@@ -6456,7 +7303,7 @@
       var lead = progressed ? +progressed.weightKg || 0 : 0;
       var bothToFailure = (t.rir === 0);
       var planned = style.toFailure && lead
-        ? (i === 0 || !bothToFailure ? lead : backOffLoad(lead, ex))
+        ? (i === 0 || !bothToFailure ? lead : backOffLoad(lead, ex, opts.spec))
         : 0;
       out.push({
         setIndex: i, exerciseId: sessionExercise.exerciseId, type: 'work',
@@ -6500,16 +7347,15 @@
 
   var Training = {
     MUSCLES: MUSCLES, MUSCLE_LABEL: MUSCLE_LABEL, REGION: REGION, LANDMARKS: LANDMARKS,
-    BANDS: BANDS, SHAPES: SHAPES, SPLITS: SPLITS, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
-    PRIMARY_WEIGHT: PRIMARY_WEIGHT, SECONDARY_WEIGHT: SECONDARY_WEIGHT,
-    byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve, cleanName: cleanName,
+    SHAPES: SHAPES, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
+    byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve,
     repLabel: repLabel,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
-    resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
+    resolveDetail: resolveDetail, dayFocus: dayFocus,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
-    sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn, rirDrift: rirDrift,
+    sameJob: sameJob, skillOf: skillOf, roleOf: roleOf, blocksRunOn: blocksRunOn,
     rotationPlan: rotationPlan, applyRotation: applyRotation, rotationChain: rotationChain, familyHistory: familyHistory,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
     swapSlotInBlock: swapSlotInBlock, slotReach: slotReach,
@@ -6519,31 +7365,34 @@
     sessionItems: sessionItems, moveExercise: moveExercise, toggleSuperset: toggleSuperset,
     addExerciseToSession: addExerciseToSession, removeExerciseFromSession: removeExerciseFromSession,
     setExerciseTarget: setExerciseTarget, setSessionDay: setSessionDay, sessionsOnDay: sessionsOnDay,
-    dropBrokenSupersets: dropBrokenSupersets,
     SETS_MIN: SETS_MIN, SETS_MAX: SETS_MAX, REPS_MIN: REPS_MIN, REPS_MAX: REPS_MAX, RIR_MAX: RIR_MAX,
     blockFixes: blockFixes, applyBlockFixes: applyBlockFixes,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
-    cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
+    cueFor: cueFor, cueSource: cueSource, setupFor: setupFor, NO_CUE: NO_CUE, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
-    bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
+    bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
-    blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf, defaultDows: defaultDows,
+    blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf,
     liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
-
-    plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
+    plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
-    blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
+    dayTotals: dayTotals, historyFromCsv: historyFromCsv, addImportedLogs: addImportedLogs, parseCsv: parseCsv,
+    PROGRAMME_ADDITIONS: PROGRAMME_ADDITIONS, applyPriority: applyPriority,
+    looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,
+    splitBrand: splitBrand, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
+    loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,
+    guessLoadUnit: guessLoadUnit, relabelLoads: relabelLoads, loadUnit: loadUnit, loadStep: loadStep, backOffLoad: backOffLoad,
+    blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,
     PROGRAMMES: PROGRAMMES, programmeOf: programmeOf, programmeBlock: programmeBlock, programmeSummary: programmeSummary,
-    TECHNIQUES: TECHNIQUES, newItemFor: newItemFor, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
+    newItemFor: newItemFor, techniqueFor: techniqueFor, applyTechniques: applyTechniques, hasTechniques: hasTechniques,
     STYLES: STYLES, styleOf: styleOf, MINMAX_LANDMARKS: MINMAX_LANDMARKS, MINMAX_SPLITS: MINMAX_SPLITS,
     backOffLoad: backOffLoad, minmaxPlateau: minmaxPlateau, substituteFor: substituteFor,
     mergeCustom: mergeCustom, remapDays: remapDays,
-    INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, sessionOpen: sessionOpen,
     reviewBlock: reviewBlock, trainingSummary: trainingSummary,

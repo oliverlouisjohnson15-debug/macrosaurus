@@ -1222,13 +1222,44 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const fromProgramme = isNew && block.sourceRef && block.sourceRef.kind === 'programme'
     ? Training.programmeOf(block.sourceRef.name) : null;
   function resetToProgramme() {
-    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name });
+    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name, additions: !!block.sourceRef.additions });
     setConfirmReset(false);
     if (!fresh) return;
     fresh.id = block.id;
     setBlock(fresh);
     setWishResult(null); setWishErr(null);
     showToast && showToast('Back to ' + fromProgramme.name + ' as written.');
+  }
+  /* ---- the Macrosaurus additions, and a priority muscle ------------------------------------------
+     Both are changes to a block that has not been run yet. The additions layer rebuilds the block
+     from the programme, because it adds and swaps lines the author did not write; the priority muscle
+     adds a set and moves a line, and keeps the block as it stood a moment before it (stripped on
+     save) so choosing a different muscle, or none, starts again from there rather than stacking. */
+  const hasAdditions = !!(fromProgramme && Training.PROGRAMME_ADDITIONS[block.sourceRef.name]);
+  const additionsOn = !!(block.sourceRef && block.sourceRef.additions);
+  function toggleAdditions() {
+    const fresh = Training.programmeBlock(block.sourceRef.name, { custom: t.custom, startISO: startISO, name: name, additions: !additionsOn });
+    if (!fresh) return;
+    fresh.id = block.id;
+    if (block.priority) Training.applyPriority(fresh, block.priority, { custom: t.custom });
+    setBlock(fresh);
+    setWishResult(null); setWishErr(null);
+    opened.current = JSON.stringify({ b: fresh, n: name, s: startISO, sh: share });
+    showToast && showToast(additionsOn ? 'Back to ' + fromProgramme.name + ' as written.' : 'Macrosaurus additions added.');
+  }
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  // Only muscles this block trains as a main mover can be a priority: anything else has no line to
+  // lift. Read off week 1, which is the shape every week repeats.
+  const priorityChoices = Training.MUSCLES.filter(m => Training.weekSessions(block, 1).some(sess =>
+    (sess.exercises || []).some(e => (Training.setContribution(Training.byId(e.exerciseId, t.custom) || {})[m] || 0) >= 1)));
+  function pickPriority(m) {
+    setBlock(b => {
+      const n = JSON.parse(JSON.stringify(b));
+      if (n._beforePriority) n.sessions = n._beforePriority; else n._beforePriority = JSON.parse(JSON.stringify(n.sessions));
+      delete n.priority;
+      if (m) Training.applyPriority(n, m, { custom: t.custom }); else delete n._beforePriority;
+      return n;
+    });
   }
   // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
   // no question about switching, because nothing is being switched. Building a plan and running a
@@ -1250,6 +1281,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       startISO: later ? null : startISO,
       shared: share,
     });
+    delete out._beforePriority;
     trainUpdate(update, (tr) => {
       const i = tr.blocks.findIndex(b => b.id === out.id);
       if (i >= 0) tr.blocks[i] = out;
@@ -1303,6 +1335,26 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         <input type="date" value={startISO} onChange={e => setStartISO(e.target.value)}
           className="w-full pixel-box px-3 py-3 text-[14px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
       </Field>
+
+      {hasAdditions && isNew && (
+        <div className="mb-3">
+          <RowToggle label="Macrosaurus additions" on={additionsOn} onClick={toggleAdditions} />
+          <div className="text-[12px] -mt-1 px-0.5" style={{ color: 'var(--muted)' }}>
+            {Training.programmeSummary(block.sourceRef.name, t.custom).additions.note} Off, this is {fromProgramme.name} exactly as it was written.
+          </div>
+        </div>
+      )}
+      {priorityChoices.length > 0 && (
+        <div className="mb-3">
+          <Row title="Priority muscle" sub={block.priority ? 'A set more in every session that trains it, and earlier in the session' : 'Optional. Pick a weak point and it gets more work, while you are fresh'}
+            value={block.priority ? Training.MUSCLE_LABEL[block.priority] : 'None'} onClick={() => setPriorityOpen(true)} />
+        </div>
+      )}
+      {priorityOpen && (
+        <ActionSheet kicker="Priority muscle" title="Which one needs more?" onClose={() => setPriorityOpen(false)}
+          actions={[{ label: 'None', sub: block.priority ? 'Back to the block as it was before' : null, onClick: () => pickPriority(null) }].concat(
+            priorityChoices.map(m => ({ label: Training.MUSCLE_LABEL[m], sub: block.priority === m ? 'Current choice' : null, onClick: () => pickPriority(m) })))} />
+      )}
 
       {/* The week you are looking at, and the dates it covers. A row of "W1 W2 W3 W4" tabs told you
           which week but never WHEN, so you could not tell whether you were looking at this week or
@@ -1395,6 +1447,9 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
             </div>
           );
         })()}
+        <Collapsible label="See it on a body" sub="Show" variant="inline" className="mt-2">
+          <MuscleMap coverage={cov} />
+        </Collapsible>
       </Card>
 
       {/* What a second min-max block adds, since it adds nothing else: no extra sets, no extra
@@ -1814,6 +1869,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
+  // The room you train in. Its machines are shown in place of the plan's, without touching the plan.
+  const gymNow = currentGym(db);
   const [menuFor, setMenuFor] = useState(null);   // item id whose options sheet is open
   const [tuning, setTuning] = useState(null);     // item id whose sets/reps editor is open
   const [picking, setPicking] = useState(null);   // { mode: 'add' } | { mode: 'swap', itemId }
@@ -1902,11 +1959,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   // One body, wherever a movement lives, so a main lift opened as a full card and an accessory read
   // as a single line still say the same things about themselves in the same words.
   function movementBody(it) {
-    const ex = Training.byId(it.exerciseId, t.custom);
+    const useId = Training.atGym(it.exerciseId, gymNow, t.custom);
+    const ex = Training.byId(useId, t.custom);
     // A grip you have never used has no history of its own, and a blank row on the way into a
     // session is worse than useless when the number you want is sitting under the movement it
     // came from. Borrowed numbers say whose they are; the personal best stays per lift.
-    const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
+    const ref = Training.lastReference(t.logs, useId, Store.todayISO(), t.custom);
     const last = ref && ref.best;
     const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
     return (
@@ -1918,6 +1976,11 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             {it.target.sets} x {Training.repLabel(it.target)} &middot; {it.target.rir} RIR
             {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
           </span>
+          {useId !== it.exerciseId && (
+            <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>
+              for {(Training.byId(it.exerciseId, t.custom) || {}).name || 'the plan'}, at {gymNow.name}
+            </span>
+          )}
           {/* What you did last time is the number you actually want before you set off. */}
           {it.baseExerciseId && (
             <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>
@@ -1939,7 +2002,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   // cards read as eight decisions; five accessory ROWS read as a list you skim once and trust, which
   // is closer to how anybody actually treats the last five things on a leg day.
   function accessoryRow(it) {
-    const ex = Training.byId(it.exerciseId, t.custom);
+    const ex = Training.byId(Training.atGym(it.exerciseId, gymNow, t.custom), t.custom);
     return (
       <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
         <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
@@ -2106,7 +2169,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             // this week, a grip that suits you better is the rest of it. Asked once, and only when
             // there is genuinely more than one session it could touch.
             const reach = block ? Training.slotReach(block, live.id, row.id, prog ? prog.week : 1) : 1;
-            if (reach > 1) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId });
+            const offer = gymOffer(gymNow, row.exerciseId, exId, t.custom);
+            if (reach > 1 || offer) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId, offer });
             else doSwap(row.id, row.exerciseId, exId, 'session');
           }}
           onClose={() => setPicking(null)} />
@@ -2122,7 +2186,13 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             actions={[
               { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'session') },
-              { label: 'The rest of the block',
+              sc.offer && { label: 'Always at ' + gymNow.name,
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                onClick: () => {
+                  rememberAtGym(update, gymNow.id, sc.fromId, sc.exId);
+                  if (showToast) showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gymNow.name + ' now.');
+                } },
+              sc.reach > 1 && { label: 'The rest of the block',
                 sub: 'Changes ' + sc.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'block') },
             ]} />

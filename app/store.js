@@ -650,14 +650,24 @@
     out.itemTargets = Object.assign({}, older.itemTargets || {}, newer.itemTargets || {});
     out.exerciseNotes = Object.assign({}, older.exerciseNotes || {}, newer.exerciseNotes || {});
     var key = function (s) { return (s.itemId || s.exerciseId || '') + '#' + (s.setIndex == null ? '' : s.setIndex); };
-    var seen = {}, sets = [];
-    [newer.sets || [], older.sets || []].forEach(function (list) {
-      list.forEach(function (s) {
-        if (!s) return;
-        var k = key(s);
-        if (seen[k]) return;
-        seen[k] = 1; sets.push(s);
-      });
+    /* A set that carries an `id` is that set wherever it turns up, so two devices that each ADD a set
+       at the same position keep both: they are different sets that happen to want the same slot.
+       A set from before ids existed is still known by where it sits, and is dropped when a set with
+       an id already holds that place, because the id'd one is the same set written by a newer
+       build. Anything else is kept: nobody's ticked set is ever dropped by a merge. */
+    var byId2 = {}, idAt = {}, posSeen = {}, sets = [];
+    var all = [].concat(newer.sets || [], older.sets || []);
+    all.forEach(function (s) { if (s && s.id) idAt[key(s)] = 1; });
+    all.forEach(function (s) {
+      if (!s) return;
+      if (s.id) {
+        if (byId2[s.id]) return;
+        byId2[s.id] = 1; sets.push(s);
+        return;
+      }
+      var k = key(s);
+      if (idAt[k] || posSeen[k]) return;
+      posSeen[k] = 1; sets.push(s);
     });
     out.sets = sets;
     return out;
@@ -819,6 +829,8 @@
     out.week_plans     = alive(out.week_plans);
     out.training.blocks = alive(out.training.blocks);
     out.training.logs   = alive(out.training.logs);
+    // A movement folded into another is tombstoned, or the older copy's list would put it back.
+    out.training.custom = alive(out.training.custom);
     out.meal_templates = alive(out.meal_templates)
       .slice().sort(function (x, y) { return ((x && x.sort_order) || 0) - ((y && y.sort_order) || 0); });
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.

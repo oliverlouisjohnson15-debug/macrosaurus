@@ -215,6 +215,16 @@ test('mergeStates: a stale copy with a newer _rev can never drop the other copy 
   assert.deepStrictEqual(m2.log_entries.map(e => e.id).sort(), ['a', 'b', 'c']);
 });
 
+test('mergeStates: a custom movement folded into another stays gone, and one nobody deleted survives', () => {
+  // Device A merged cu_b into cu_a and tombstoned it. Device B, still holding the old list, syncs in
+  // afterwards. The union must not put cu_b back.
+  const a = { _rev: 200, deleted: { cu_b: 150 }, training: { custom: [{ id: 'cu_a', name: 'A' }], logs: [], blocks: [] } };
+  const b = { _rev: 100, training: { custom: [{ id: 'cu_a', name: 'A' }, { id: 'cu_b', name: 'B' }, { id: 'cu_c', name: 'C' }], logs: [], blocks: [] } };
+  for (const m of [Store.mergeStates(a, b), Store.mergeStates(b, a)]) {
+    assert.deepStrictEqual(m.training.custom.map(x => x.id).sort(), ['cu_a', 'cu_c']);
+  }
+});
+
 test('mergeStates: Amber earned/spent on two devices unions without loss or double-count', () => {
   const Game = require('../app/game.js');
   // Device A earned a weekly-boss payout; device B (higher _rev) earned a daily and spent on a crown.

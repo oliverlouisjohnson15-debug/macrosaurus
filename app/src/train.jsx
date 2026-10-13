@@ -228,6 +228,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
   const [advice, setAdvice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [allMuscles, setAllMuscles] = useState(false);
+  const [pickedMuscle, setPickedMuscle] = useState(null);
 
   // Performed is judged over the last seven days, which is how anyone actually thinks about a week.
   const weekAgo = new Date(Date.parse(today + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
@@ -272,6 +273,18 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
           ))}
         </div>
       )}
+
+      <Card className="p-4 mb-4">
+        <MuscleMap coverage={cov} onPick={(m) => setPickedMuscle(pickedMuscle === m ? null : m)} picked={pickedMuscle} />
+        {pickedMuscle && (() => {
+          const r = cov.rows.filter(x => x.muscle === pickedMuscle)[0];
+          return r ? (
+            <div className="text-[13px] mt-3 text-center" style={{ color: 'var(--text2)' }}>
+              <strong>{r.label}</strong>: {r.sets} {r.sets === 1 ? 'set' : 'sets'}{r.mev ? ' against a range of ' + r.mev + ' to ' + r.mrv : ', which this style does not programme'}.
+            </div>
+          ) : null;
+        })()}
+      </Card>
 
       <Card className="p-4 mb-4">
         <div className="flex items-baseline justify-between mb-4">
@@ -851,7 +864,7 @@ function recentSleepShort(db) {
  * soup the design system exists to prevent, and the same fault this screen was already fixed for
  * once on its other tab. One panel per week, ruled rows inside it.
  */
-function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab }) {
+function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab, onImport }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -859,6 +872,16 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [limit, setLimit] = useState(6);
+  const [twinsOpen, setTwinsOpen] = useState(false);
+  const twins = t.custom.length > 1 ? twinPairs(t) : [];
+  // A cell in the calendar takes you to that day: older weeks than the list is showing are opened
+  // first, and the scroll waits for them to exist.
+  const pickDay = (iso) => {
+    setLimit(1000);
+    setTimeout(() => {
+      try { const el = document.getElementById('hist-' + iso); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' }); } catch (_) { /* never fatal */ }
+    }, 60);
+  };
 
   const prsBySession = {};
   t.logs.forEach(l => { const p = Training.prsInLog(t.logs, l); if (p.length) prsBySession[l.id] = p; });
@@ -898,6 +921,9 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
     return 'Week of ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
   };
   const shown = groups.slice(0, limit);
+  // The first session of each day carries the anchor the calendar scrolls to.
+  const firstOfDay = {};
+  logs.forEach(l => { if (!firstOfDay[l.dateISO]) firstOfDay[l.dateISO] = l.id; });
 
   return (
     <div className="fade-in">
@@ -907,12 +933,23 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a session or a movement"
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+      {t.logs.length > 0 && !needle && <TrainingCalendar logs={t.logs} today={today} onPick={pickDay} />}
+      {twins.length > 0 && !needle && (
+        <div className="mb-4">
+          <Row title={twins.length + (twins.length === 1 ? ' machine looks' : ' machines look') + ' saved twice'}
+            sub="Merge them so the history sits in one place" onClick={() => setTwinsOpen(true)} />
+        </div>
+      )}
+      {twinsOpen && <TwinsSheet db={db} update={update} onClose={() => setTwinsOpen(false)} />}
 
       {t.logs.length === 0 && (
         <Card className="p-4">
           <div className="text-[13px] mb-1">Nothing logged yet.</div>
           <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Your first session will show up here.</div>
         </Card>
+      )}
+      {t.logs.length < 5 && onImport && (
+        <div className="mb-4"><Row title="Bring your history" sub="From Strong, Hevy or FitNotes, so your records start from what you have lifted" onClick={onImport} /></div>
       )}
 
       {t.logs.length > 0 && logs.length === 0 && (
@@ -930,7 +967,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
             const sessionPRs = prsBySession[l.id] || [];
             const d = new Date(Date.parse(l.dateISO + 'T00:00:00Z'));
             return (
-              <button key={l.id} onClick={() => onOpenSession && onOpenSession(l)}
+              <button key={l.id} id={firstOfDay[l.dateISO] === l.id ? 'hist-' + l.dateISO : undefined} onClick={() => onOpenSession && onOpenSession(l)}
                 className="w-full text-left px-3 py-3 flex items-start gap-3"
                 style={i ? { borderTop: '2px solid var(--track)' } : null}>
                 <span className="shrink-0 text-center" style={{ width: 34 }}>
@@ -976,11 +1013,271 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
   );
 }
 
-function ExerciseDetail({ db, exerciseId, onBack }) {
+// Twelve weeks of training days, Monday to Sunday down the side, oldest week on the left. A cell is
+// darker the more hard sets that day held; a tap goes to that day in the list below. Twelve weeks is
+// what fits a phone with a gutter; older history is still in the list.
+function TrainingCalendar({ logs, today, onPick }) {
+  const totals = Training.dayTotals(logs);
+  const [sel, setSel] = useState(null);
+  const day = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const dow = (new Date(Date.parse(today + 'T00:00:00Z')).getUTCDay() + 6) % 7;     // Monday = 0
+  const thisMonday = day(today, -dow);
+  const weeks = Array.from({ length: 12 }, (_, w) => day(thisMonday, (w - 11) * 7));
+  const level = (n) => (n >= 21 ? 3 : n >= 11 ? 2 : 1);
+  const trained = weeks.reduce((a, mon) => a + Array.from({ length: 7 }, (_, d) => totals[day(mon, d)] ? 1 : 0).reduce((x, y) => x + y, 0), 0);
+  const long = (iso) => { const d = new Date(Date.parse(iso + 'T00:00:00Z')); return WEEKDAYS_FULL[(d.getUTCDay() + 6) % 7] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; };
+  const cellBase = { aspectRatio: '1 / 1', minHeight: 0, padding: 0, border: 0 };
+  return (
+    <div className="mb-4">
+      <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>{trained} {trained === 1 ? 'day' : 'days'} trained in the last 12 weeks</div>
+      <div role="group" aria-label="Training days, last twelve weeks" className="grid gap-[3px]"
+        style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+        {[0, 1, 2, 3, 4, 5, 6].map(d => weeks.map(mon => {
+          const iso = day(mon, d), tot = totals[iso];
+          // A day with nothing on it is a blank square, not a control: eighty-four tab stops to
+          // reach the dozen that lead anywhere would be eighty-four small lies.
+          if (!tot) return <span key={iso} aria-hidden="true" style={Object.assign({}, cellBase, { background: 'var(--track)', opacity: iso > today ? 0.3 : 1 })} />;
+          return (
+            <button key={iso} onClick={() => { setSel(iso); onPick && onPick(iso); }}
+              aria-label={iso + ': ' + tot.sets + ' sets'} aria-pressed={sel === iso}
+              style={Object.assign({}, cellBase, { background: 'var(--accent)', opacity: [1, 0.4, 0.7, 1][level(tot.sets)],
+                boxShadow: sel === iso ? '0 0 0 2px var(--text)' : 'none' })} />
+          );
+        }))}
+      </div>
+      <div className="text-[12px] mt-2 tnum" style={{ color: sel ? 'var(--text2)' : 'var(--muted2)', minHeight: 18 }}>
+        {sel && totals[sel]
+          ? long(sel) + ': ' + totals[sel].sets + (totals[sel].sets === 1 ? ' set' : ' sets') + (totals[sel].tonnage ? ' · ' + fmtTonnage(totals[sel].tonnage, 'kg') + ' moved' : '')
+          : 'Tap a day to jump to it.'}
+      </div>
+    </div>
+  );
+}
+
+// ---- bringing your history from another app ----------------------------------------------------
+// One screen, four questions in the order they matter: which file, what unit it counts in, how far
+// back to read, and what to do with the names it could not place. Nothing is written until the last
+// button, and the sessions it adds sit beside yours without touching them.
+const IMPORT_SPANS = [
+  { v: 'half', l: '6 months', days: 183 }, { v: 'year', l: '1 year', days: 365 },
+  { v: 'two', l: '2 years', days: 730 }, { v: 'all', l: 'All', days: 0 },
+];
+function HistoryImport({ db, update, showToast, onBack, onDone }) {
   useBackClose(onBack);
+  const t = tdb(db);
+  const [text, setText] = useState(null);
+  const [units, setUnits] = useState(null);
+  const [span, setSpan] = useState('year');
+  const [map, setMap] = useState({});
+  const [mint, setMint] = useState(true);
+  const [pickFor, setPickFor] = useState(null);
+  const [err, setErr] = useState(null);
+  const days = (IMPORT_SPANS.filter(x => x.v === span)[0] || {}).days;
+  const sinceISO = days ? new Date(Date.parse(Store.todayISO() + 'T00:00:00Z') - days * 86400000).toISOString().slice(0, 10) : null;
+  const res = useMemo(() => (text ? Training.historyFromCsv(text, { units: units, map: map, sinceISO: sinceISO, custom: t.custom }) : null),
+    [text, units, map, sinceISO, t.custom]);
+  async function choose(file) {
+    if (!file) return;
+    setErr(null);
+    try { setText(await file.text()); setMap({}); setUnits(null); } catch (e) { setErr('That file could not be read.'); }
+  }
+  // What will actually go in. Names that are only a close match are saved as variations of that match
+  // when the switch is on, so for counting they stand in as the match.
+  const projected = useMemo(() => {
+    if (!res || !res.ok || res.needsUnits) return res;
+    if (!mint) return res;
+    const standIn = {};
+    res.unplaced.forEach(p => { if (map[p.name] === undefined && p.suggest) standIn[p.name] = p.suggest; });
+    if (!Object.keys(standIn).length) return res;
+    return Training.historyFromCsv(text, { units: units, map: Object.assign({}, standIn, map), sinceISO: sinceISO, custom: t.custom });
+  }, [res, mint, map, text, units, sinceISO, t.custom]);
+  const mb = projected && projected.ok ? projected.bytes / 1048576 : 0;
+  const tooBig = mb > 3;
+  const fmt = (iso) => { const d = new Date(Date.parse(iso + 'T00:00:00Z')); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+  function commit() {
+    let made = {}, added = 0;
+    trainUpdate(update, (tr) => {
+      // Names the library only half recognised become movements of their own, each one a variation of
+      // its closest match, so they inherit what that trains. Checked for twins first, so importing
+      // does not mint a second copy of a machine you already have.
+      if (mint) {
+        res.unplaced.forEach(p => {
+          if (map[p.name] !== undefined || !p.suggest) return;
+          const cand = { name: p.name, variantOf: p.suggest, brand: Training.splitBrand(p.name).brand };
+          const dup = Training.findDuplicate(cand, tr.custom);
+          if (dup) { made[p.name] = dup.id; return; }
+          const sd = Training.variationOf(p.suggest, p.name, tr.custom);
+          if (!sd) return;
+          const id = 'cu_' + trainUid();
+          tr.custom.push(Object.assign({ id: id, custom: true, variantOf: p.suggest, primary: sd.primary, secondary: sd.secondary,
+            equipment: sd.equipment, pattern: sd.pattern, profile: sd.profile, name: p.name.trim() }, cand.brand ? { brand: cand.brand } : null));
+          made[p.name] = id;
+        });
+      }
+      const final = Training.historyFromCsv(text, { units: units, map: Object.assign({}, made, map), sinceISO: sinceISO, custom: tr.custom });
+      added = Training.addImportedLogs(tr, final.logs);
+    });
+    showToast && showToast(added ? 'Added ' + added + ' session' + (added === 1 ? '' : 's') + ' to your history.' : 'Nothing new to add. Those sessions are already here.');
+    onDone && onDone();
+  }
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Train" title="Bring your history" />
+      <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>
+        Export your sets from Strong, Hevy or FitNotes as a CSV and pick the file here. Your records, charts and next weights
+        then start from what you have already lifted, not from nothing. It is read on this phone and nothing leaves it.
+      </div>
+      <label className="block mb-4">
+        <span className="ms-chip" style={{ cursor: 'pointer' }}>{text ? 'Choose a different file' : 'Choose a file'}</span>
+        <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden" onChange={e => choose(e.target.files && e.target.files[0])} />
+      </label>
+      {err && <div className="text-[13px] mb-4" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
+      {res && !res.ok && <div className="text-[13px] mb-4" style={{ color: 'var(--danger-ink)' }}>{res.reason}</div>}
+      {res && res.ok && (
+        <>
+          <Section title={res.format + ' export'}>
+            <Row title={res.sessions + ' session' + (res.sessions === 1 ? '' : 's') + ', ' + res.sets + ' sets'} sub={fmt(res.from) + ' to ' + fmt(res.to)} />
+          </Section>
+          {res.needsUnits && (
+            <Field label="Which unit are the weights in?" hint={res.format + ' does not say in the file. Check the app it came from.'}>
+              <Seg value={units} onChange={setUnits} options={[{ v: 'kg', l: 'Kilograms' }, { v: 'lb', l: 'Pounds' }]} />
+            </Field>
+          )}
+          <Field label="How far back" hint={res.skipped.old ? res.skipped.old + ' older sets are left out.' : 'Older sessions make your data bigger and slower to sync.'}>
+            <Seg value={span} onChange={setSpan} options={IMPORT_SPANS.map(x => ({ v: x.v, l: x.l }))} />
+          </Field>
+          {!res.needsUnits && res.unplaced.length > 0 && (
+            <Section title={res.unplaced.length + (res.unplaced.length === 1 ? ' name' : ' names') + ' to check'}>
+              {res.unplaced.map(p => (
+                <Row key={p.name} title={p.name}
+                  sub={p.sets + ' sets · ' + (p.suggest ? 'closest is ' + (Training.byId(p.suggest, t.custom) || {}).name : 'no close match')}
+                  onClick={() => setPickFor(p.name)}
+                  trailing={<button className="px-3 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}
+                    onClick={() => setMap(Object.assign({}, map, { [p.name]: null }))}>Skip</button>} />
+              ))}
+            </Section>
+          )}
+          {!res.needsUnits && res.names.some(p => p.how === 'skip') && (
+            <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
+              {res.names.filter(p => p.how === 'skip').length} skipped. <button className="underline" onClick={() => setMap({})}>Put them back</button>
+            </div>
+          )}
+          {!res.needsUnits && res.unplaced.some(p => p.suggest) && (
+            <RowToggle label="Save the rest as your own movements" on={mint} onClick={() => setMint(!mint)} />
+          )}
+          {!res.needsUnits && res.unplaced.length > 0 && (
+            <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
+              A name with a close match is saved as a variation of it, so it knows what it trains. A name with no match at all is left out unless you pick a movement for it.
+            </div>
+          )}
+          {res.skipped.cardio > 0 && <div className="text-[12px] mb-2" style={{ color: 'var(--muted)' }}>{res.skipped.cardio} cardio rows are not brought across.</div>}
+          {!res.needsUnits && (
+            <div className="text-[12px] mb-4" style={{ color: tooBig ? 'var(--danger-ink)' : 'var(--muted)' }}>
+              {tooBig ? 'That is about ' + mb.toFixed(1) + ' MB, which is too much to keep in sync. Choose a shorter span.' : 'Adds about ' + Math.max(1, Math.round(projected.bytes / 1024)) + ' KB to your data.'}
+            </div>
+          )}
+          <Btn onClick={commit} disabled={res.needsUnits || tooBig || !projected.logs.length}>
+            {res.needsUnits ? 'Pick a unit first' : 'Add ' + projected.logs.length + ' session' + (projected.logs.length === 1 ? '' : 's')}
+          </Btn>
+        </>
+      )}
+      {pickFor && <ExercisePicker db={db} update={update} title={'What is ' + pickFor + '?'}
+        onPick={(id) => { setMap(Object.assign({}, map, { [pickFor]: id })); setPickFor(null); }} onClose={() => setPickFor(null)} />}
+    </div>
+  );
+}
+
+// Folding one custom movement into another. The sets, the plan rows, the notes and the gym settings
+// all move across, so the history sits in one place and the progress chart has the whole of it to
+// draw. It is irreversible, so it says how much it is about to move before it does.
+function setsOn(t, id) {
+  return t.logs.reduce((n, l) => n + (l.sets || []).filter(s => s.exerciseId === id).length, 0);
+}
+function MergeSheet({ db, update, showToast, fromId, onClose, onMerged }) {
+  const t = tdb(db);
+  const from = Training.byId(fromId, t.custom);
+  const [into, setInto] = useState(null);
+  // The likeliest survivors first: another version of the same movement, then the same kit.
+  const rank = (x) => (x.variantOf && x.variantOf === from.variantOf ? 0 : x.equipment === from.equipment ? 1 : 2);
+  const others = t.custom.filter(x => x.id !== fromId).slice().sort((a, b) => rank(a) - rank(b));
+  if (!from) return null;
+  if (into) {
+    const keep = Training.byId(into, t.custom);
+    const n = setsOn(t, fromId);
+    return (
+      <ConfirmDialog title={'Merge into ' + (keep ? keep.name : 'it') + '?'}
+        body={'Moves ' + n + (n === 1 ? ' set' : ' sets') + ' from ' + from.name + ' into ' + (keep ? keep.name : 'it') + ', and everything that mentions it. ' + from.name + ' is deleted. This cannot be undone.'}
+        confirmLabel="Merge" confirmKind="primary"
+        onConfirm={() => {
+          trainUpdate(update, (tr, d) => { if (Training.mergeExercise(tr, fromId, into)) tombstone(d, [fromId]); });
+          showToast && showToast(from.name + ' is now ' + (keep ? keep.name : 'one movement') + '.');
+          onClose();
+          onMerged && onMerged(into);
+        }}
+        onClose={() => setInto(null)} />
+    );
+  }
+  return (
+    <Sheet title="Merge into…" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{from.name} goes into the one you pick.</div>
+      <div className="flex flex-col">
+        {others.map(x => (
+          <Row key={x.id} title={x.name} sub={(x.brand ? x.brand + ' · ' : '') + setsOn(t, x.id) + ' sets logged'} onClick={() => setInto(x.id)} />
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+// Pairs of custom movements that look like one machine saved twice.
+function twinPairs(t) {
+  const seen = {}, out = [];
+  (t.custom || []).forEach(c => {
+    const others = t.custom.filter(x => x.id !== c.id);
+    const o = Training.findDuplicate({ id: c.id, name: c.name, variantOf: c.variantOf, brand: c.brand }, others);
+    if (!o) return;
+    const k = [c.id, o.id].sort().join('|');
+    if (seen[k]) return;
+    seen[k] = 1;
+    // The one with the longer history survives.
+    out.push(setsOn(t, o.id) > setsOn(t, c.id) ? { keep: o, drop: c } : { keep: c, drop: o });
+  });
+  return out;
+}
+function TwinsSheet({ db, update, onClose }) {
+  const t = tdb(db);
+  const pairs = twinPairs(t);
+  return (
+    <Sheet title="Saved twice" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+        These look like the same machine under two names. Merging keeps the one with more history and moves the other's sets across.
+      </div>
+      {pairs.length === 0 && <div className="text-[13px]">Nothing left to merge.</div>}
+      {pairs.map(p => (
+        <SheetBox key={p.keep.id + p.drop.id} className="p-3">
+          <div className="text-[13px]" style={{ fontWeight: 600 }}>{p.keep.name}</div>
+          <div className="text-[12px] mb-2" style={{ color: 'var(--muted)' }}>
+            and {p.drop.name} · {setsOn(t, p.keep.id)} + {setsOn(t, p.drop.id)} sets
+          </div>
+          <Btn kind="ghost" onClick={() => trainUpdate(update, (tr, d) => { if (Training.mergeExercise(tr, p.drop.id, p.keep.id)) tombstone(d, [p.drop.id]); })}>
+            Merge into {p.keep.name}
+          </Btn>
+        </SheetBox>
+      ))}
+    </Sheet>
+  );
+}
+
+function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged }) {
+  useBackClose(onBack);
+  const [merging, setMerging] = useState(false);
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
+  // What this movement's own machine shows, so a pin position is not printed as a weight.
+  const spec = Training.loadSpecFor(exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs });
+  const pinned = spec.unit === 'pin';
+  // The estimate is of the whole load, so it is never halved for plates on a side.
+  const wholeSpec = Object.assign({}, spec, { perSide: false });
   // The whole run, across every movement this one was rotated into or out of. A rotation restarts
   // the load and nothing else, so a chart that restarts with it turns "I changed the implement" into
   // "I lost my progress", which is both untrue and the fastest way to stop anybody ever rotating
@@ -991,13 +1288,15 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
   // sessions before the change were a different exercise.
   const own = hist.filter(h => h.exerciseId === exerciseId);
   const stall = Training.detectStall(own);
-  const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
+  const max = Math.max.apply(null, hist.map(Training.strengthOf).concat([1]));
+  // Most sessions with nothing inside twelve reps: there is no honest 1RM to draw, so it draws the best set.
+  const bestSetView = hist.filter(h => h.e1rm > 0).length * 2 < hist.length;
   const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
   // Where you stand and which way it has gone: the chart shows the shape, this says what it means.
   const shownHist = hist.slice(-24);
   const firstRow = shownHist[0], latest = shownHist[shownHist.length - 1];
-  const delta = firstRow && firstRow.e1rm > 0 && latest ? Math.round(((latest.e1rm - firstRow.e1rm) / firstRow.e1rm) * 1000) / 10 : 0;
-  const isPB = !!(latest && latest.e1rm > 0 && latest.e1rm >= max);
+  const delta = firstRow && Training.strengthOf(firstRow) > 0 && latest ? Math.round(((Training.strengthOf(latest) - Training.strengthOf(firstRow)) / Training.strengthOf(firstRow)) * 1000) / 10 : 0;
+  const isPB = !!(latest && Training.strengthOf(latest) > 0 && Training.strengthOf(latest) >= max);
   // Month ticks under the chart, rather than two raw ISO dates at its ends: "Jun / Jul / Aug" is
   // what anybody scanning the shape of a run actually reads it against.
   const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1018,12 +1317,20 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
         )}
       </div>
       <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
+      {ex && ex.custom && update && t.custom.length > 1 && (
+        <div className="mb-6">
+          <Row title="Merge into another movement" sub="Saved this one twice? Move its sets into the one you keep" onClick={() => setMerging(true)} />
+        </div>
+      )}
+      {merging && <MergeSheet db={db} update={update} showToast={showToast} fromId={exerciseId} onClose={() => setMerging(false)} onMerged={onMerged} />}
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
+          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>{pinned ? 'Top pin' : bestSetView ? 'Best set' : 'Estimated 1RM'}</div>
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="pf text-[18px] tnum">{toDisplayWeight(latest.e1rm, units)}{unitLabel(units)}</span>
+            <span className="pf text-[18px] tnum">{pinned ? Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units)
+              : bestSetView ? (latest.bw ? (latest.topWeight > 0 ? '+' + Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units) : 'Bodyweight') : Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units)) + ' × ' + latest.topReps
+                : Training.toMachine(Training.strengthOf(latest), wholeSpec) + machineSuffix(wholeSpec, units)}</span>
             {delta !== 0 && (
               <span className="text-[12px] tnum font-bold" style={{ color: delta > 0 ? 'var(--good-ink)' : 'var(--danger)' }}>{delta > 0 ? '+' : ''}{delta}%</span>
             )}
@@ -1032,7 +1339,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
             {shownHist.map((h, i) => (
               <div key={i} className="flex-1" title={h.dateISO + ' · ' + h.name}
                 style={{
-                  height: Math.max(2, (h.e1rm / max) * 100) + '%',
+                  height: Math.max(2, (Training.strengthOf(h) / max) * 100) + '%',
                   // The sessions on an earlier movement are shown, and shown as not-this-movement:
                   // the shape of the run is the useful part, but the bars are not comparable loads.
                   background: h.exerciseId === exerciseId ? 'var(--accent)' : 'var(--surface3)',
@@ -1073,7 +1380,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
               {h.dateISO}
               {h.exerciseId !== exerciseId && <span className="block text-[11px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
             </span>
-            <span className="text-[12px]">{h.sets} sets · top {toDisplayWeight(h.topWeight, units)}{unitLabel(units)} x {h.topReps}</span>
+            <span className="text-[12px]">{h.sets} sets · top {h.bw ? (h.topWeight > 0 ? '+' + Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units) : 'BW') : Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units)} x {h.topReps}</span>
           </div>
         ))}
         {!hist.length && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>No sessions with this movement yet.</div>}
@@ -1086,7 +1393,9 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
 function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
   useBackClose(onBack);
   const t = tdb(db);
-  const [prefs, setPrefs] = useState(t.prefs);
+  // Read straight off the account on every render. It used to be copied into local state, which went
+  // stale the moment anything else wrote a preference while this screen was open.
+  const prefs = t.prefs;
   const [gymEdit, setGymEdit] = useState(null);
   const gyms = gymsOf(db);
   const targets = trainTargets(db);
@@ -1095,14 +1404,12 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
       tr.gyms = tr.gyms || [];
       const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
       const i = tr.gyms.findIndex(x => x.id === named.id);
-      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      if (i >= 0) tr.gyms[i] = Object.assign({}, tr.gyms[i], named); else tr.gyms.push(named);
       if (!tr.prefs.currentGymId) tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setGymEdit(null);
   }
   function set(k, v) {
-    const next = Object.assign({}, prefs, { [k]: v });
-    setPrefs(next);
     trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { [k]: v }); });
   }
   function resetTargets() {
@@ -1168,6 +1475,9 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
           <Field label="Rest timer" hint="Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest.">
             <Seg value={prefs.restTimer ? 'on' : 'off'} onChange={v => set('restTimer', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>
+          <Field label="Keep the screen on" hint="Stops the phone sleeping between sets while a session is open. Nothing is held once you step out of it.">
+            <Seg value={prefs.keepAwake === false ? 'off' : 'on'} onChange={v => set('keepAwake', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
+          </Field>
           <Field label="Sound when rest ends" hint="It buzzes either way. On an iPhone with the screen off the alert can arrive late, which is a limit of installed web apps rather than something we can fix.">
             <Seg value={prefs.restSound === false ? 'off' : 'on'} onChange={v => set('restSound', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>
@@ -1209,7 +1519,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
       </Card>
 
       {gymEdit && (
-        <GymEditor gym={gymEdit === 'new' ? null : gymEdit} onSave={saveGym} onClose={() => setGymEdit(null)}
+        <GymEditor gym={gymEdit === 'new' ? null : gymEdit} db={db} update={update} onSave={saveGym} onClose={() => setGymEdit(null)}
           onDelete={(id) => {
             trainUpdate(update, (tr) => {
               tr.gyms = (tr.gyms || []).filter(x => x.id !== id);
@@ -2261,7 +2571,7 @@ function uniqueGymName(list, name, selfId) {
 // Create or edit one gym. The two follow-ups for a home setup are not optional detail: a bench
 // unlocks every pressing angle and most rowing, and a bar is the only real vertical pull. Getting
 // them wrong is how an app ends up prescribing incline presses to someone with no bench.
-function GymEditor({ gym, onSave, onDelete, onClose }) {
+function GymEditor({ gym, db, update, onSave, onDelete, onClose }) {
   useBackClose(onClose);
   const [name, setName] = useState((gym && gym.name) || '');
   const [type, setType] = useState((gym && gym.type) || 'commercial');
@@ -2271,8 +2581,27 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
   const EQUIP = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbells'], ['machine', 'Machines'], ['cable', 'Cables'],
     ['bodyweight', 'Bodyweight'], ['band', 'Bands'], ['kettlebell', 'Kettlebells'], ['smith', 'Smith'], ['ez', 'EZ bar'], ['trapbar', 'Trap bar']];
   const asksKit = type === 'home' || type === 'minimal';
+  // The machines this gym has been taught. Read live, because they change under the dialog (stopping
+  // one, or changing its units) while the dialog's own `gym` is the snapshot it opened with.
+  const t = db ? tdb(db) : null;
+  const live = gym && db ? (gymsOf(db).filter(g => g.id === gym.id)[0] || gym) : gym;
+  const machines = (live && live.machines) || {};
+  const usedIds = Object.keys(machines).filter(id => machines[id] && machines[id].use);
+  const loadOnly = Object.keys(machines).filter(id => machines[id] && machines[id].load && !usedIds.some(u => machines[u].use === id));
+  const [mrow, setMrow] = useState(null);       // plan movement id whose options are open
+  const [munits, setMunits] = useState(null);   // id of the movement whose units are being changed
+  const nameOf = (id) => (Training.byId(id, t && t.custom) || {}).name || id;
+  function editMachine(id, fn) {
+    trainUpdate(update, (tr) => {
+      const g = (tr.gyms || []).filter(x => x.id === gym.id)[0];
+      if (!g || !g.machines) return;
+      fn(g.machines);
+      Object.keys(g.machines).forEach(k => { const m = g.machines[k]; if (!m || (!m.use && !m.load)) delete g.machines[k]; });
+    });
+  }
 
   return (
+    <>
     <div role="dialog" aria-modal="true" aria-label="Edit gym" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[12px] mb-4">{gym ? 'Edit gym' : 'Add a gym'}</h2>
@@ -2321,6 +2650,33 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
           </Field>
         )}
 
+        {gym && db && update && (usedIds.length > 0 || loadOnly.length > 0) && (
+          <Field label="Machines here" hint="What this gym has taught the plans. Another gym still gets the plan as written.">
+            <div className="flex flex-col gap-2">
+              {usedIds.map(id => {
+                const use = machines[id].use;
+                const sp = Training.loadSpecFor(use, { gym: live, custom: t.custom, prefs: t.prefs });
+                return (
+                  <button key={id} onClick={() => setMrow(id)} className="pixel-box p-3 text-left" style={{ background: 'var(--surface2)' }}>
+                    <span className="block text-[13px] font-semibold">{nameOf(use)}</span>
+                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                      instead of {nameOf(id)}{sp.explicit ? ' · ' + Training.specLabel(sp) : ''}
+                    </span>
+                  </button>
+                );
+              })}
+              {loadOnly.map(id => (
+                <button key={id} onClick={() => setMunits(id)} className="pixel-box p-3 text-left" style={{ background: 'var(--surface2)' }}>
+                  <span className="block text-[13px] font-semibold">{nameOf(id)}</span>
+                  <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                    {Training.specLabel(Training.loadSpecFor(id, { gym: live, custom: t.custom, prefs: t.prefs }))}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
+
         <div className="flex gap-2 mt-1">
           <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
           <Btn className="flex-1" onClick={() => onSave({
@@ -2335,6 +2691,25 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
         )}
       </div>
     </div>
+    {/* Siblings of the dialog, not children: a tap on a sheet's backdrop would otherwise bubble into
+        the dialog's own close and take the whole editor away with it. */}
+      {mrow && machines[mrow] && (
+        <ActionSheet kicker="Machine here" title={nameOf(machines[mrow].use) + ' instead of ' + nameOf(mrow)} onClose={() => setMrow(null)}
+          actions={[
+            { label: 'Machine units', sub: 'kg, lb, pins or plates, and the smallest jump', onClick: () => setMunits(machines[mrow].use) },
+            { label: 'Stop using it here', sub: nameOf(mrow) + ' goes back to being what the plan says.', danger: true,
+              onClick: () => editMachine(mrow, (m) => { if (m[mrow]) delete m[mrow].use; }) },
+          ]} />
+      )}
+      {munits && (
+        <MachineUnitsSheet name={nameOf(munits)} where={live.name}
+          spec={Training.loadSpecFor(munits, { gym: live, custom: t.custom, prefs: t.prefs })}
+          guess={Training.guessLoadUnit(t.logs, munits, t.custom)}
+          onSave={(spec) => editMachine(munits, (m) => { m[munits] = Object.assign({}, m[munits], { load: { unit: spec.unit, step: spec.step, perSide: !!spec.perSide } }); })}
+          onConvert={(mode) => trainUpdate(update, (tr) => { Training.relabelLoads(tr.logs, munits, mode); })}
+          onClose={() => setMunits(null)} />
+      )}
+    </>
   );
 }
 
@@ -2351,7 +2726,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
       tr.gyms = tr.gyms || [];
       const named = Object.assign({}, g, { name: uniqueGymName(tr.gyms, g.name, g.id) });
       const i = tr.gyms.findIndex(x => x.id === named.id);
-      if (i >= 0) tr.gyms[i] = named; else tr.gyms.push(named);
+      if (i >= 0) tr.gyms[i] = Object.assign({}, tr.gyms[i], named); else tr.gyms.push(named);
       tr.prefs = Object.assign({}, tr.prefs, { currentGymId: named.id });
     });
     setEditing(null);
@@ -2381,7 +2756,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
         <button onClick={onClose} className="w-full py-3 text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Close</button>
       </div>
       {editing && (
-        <GymEditor gym={editing === 'new' ? null : editing} onSave={save} onClose={() => setEditing(null)}
+        <GymEditor gym={editing === 'new' ? null : editing} db={db} update={update} onSave={save} onClose={() => setEditing(null)}
           onDelete={(id) => {
             trainUpdate(update, (tr) => { tr.gyms = (tr.gyms || []).filter(x => x.id !== id); });
             setEditing(null);
@@ -2521,7 +2896,9 @@ function PRFlash({ pr, db, units, onClose }) {
         </div>
         <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>New best</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
-        <div className="pf text-[16px] tnum mb-2">{toDisplayWeight(pr.weightKg, units)}{unitLabel(units)} × {pr.reps}</div>
+        <div className="pf text-[16px] tnum mb-2">{pr.bwKg > 0
+            ? (pr.weightKg > 0 ? 'Bodyweight + ' + toDisplayWeight(pr.weightKg, units) + unitLabel(units) : pr.weightKg < 0 ? 'Bodyweight − ' + toDisplayWeight(-pr.weightKg, units) + unitLabel(units) : 'Bodyweight')
+            : machineStr(pr.weightKg, Training.loadSpecFor(pr.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }), units)} × {pr.reps}</div>
         <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
     </div>
@@ -2897,7 +3274,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
           <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
-            {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
+            {(() => { const sp = Training.loadSpecFor(r.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }); if (sp.unit === 'pin') return 'pin machine'; if (r.metric === 'bestSet') return r.topKg > 0 ? 'best set ' + Training.toMachine(r.topKg, sp) + machineSuffix(sp, units) + ' × ' + r.topReps : 'best set ' + r.topReps + ' reps'; const w = Object.assign({}, sp, { perSide: false }); return Training.toMachine(r.e1rm, w) + machineSuffix(w, units) + ' est. 1RM'; })()} · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
           {r.state === 'stuck' && (
             <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>

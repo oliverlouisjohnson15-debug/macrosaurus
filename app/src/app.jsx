@@ -4643,6 +4643,27 @@ if (typeof window !== 'undefined') {
     BACK_LAYERS[BACK_LAYERS.length - 1].close();
   });
 }
+// Keeps the screen on while `active`: cooking, and a workout, are both times your hands are busy and
+// the phone is propped against something. The browser lets go of the lock whenever the page is hidden,
+// so it is asked for again when the page comes back, and let go of when the screen using it goes away.
+// A browser without the API, or a phone that says no (low battery), is not an error: it just sleeps.
+function useWakeLock(active) {
+  useEffect(() => {
+    if (!active) return;
+    let lock = null, dead = false;
+    const acquire = async () => {
+      try {
+        if (!navigator.wakeLock || dead || (lock && !lock.released)) return;
+        lock = await navigator.wakeLock.request('screen');
+        if (dead) { try { lock.release(); } catch (e) {} }
+      } catch (e) { /* unsupported, or refused */ }
+    };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { dead = true; document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch (e) {} };
+  }, [active]);
+}
 function useBackClose(onClose) {
   const ref = useRef(onClose); ref.current = onClose;
   const armed = !!onClose; // when embedded in another sheet, pass null so we don't add a stray back layer
@@ -20867,15 +20888,8 @@ function CookMode({ recipe, onClose, onLogDone }) {
   const [showIng, setShowIng] = useState(false);
   const [checked, setChecked] = useState({});
   const [timer, setTimer] = useState(null); // { left, total, on }
-  // Keep the screen awake while cooking (re-acquire when returning to the tab).
-  useEffect(() => {
-    let lock, dead = false;
-    const acquire = async () => { try { if (navigator.wakeLock && !dead) lock = await navigator.wakeLock.request('screen'); } catch (e) { /* unsupported */ } };
-    acquire();
-    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { dead = true; document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch (e) {} };
-  }, []);
+  // Keep the screen awake while cooking.
+  useWakeLock(true);
   useEffect(() => {
     if (!timer || !timer.on) return;
     if (timer.left <= 0) { try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {} return; }
