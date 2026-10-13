@@ -203,7 +203,11 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'history') {
     return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onTab={(v) => go(v === 'lifts' ? 'progress' : 'history')} onOpenExercise={(id) => go('exercise', { exerciseId: id })}
+      onImport={() => go('import')}
       onOpenSession={(log) => go('player', { logId: log.id, sessionId: log.sessionId || null, blockId: log.blockId || null, from: 'history' })} />);
+  }
+  if (screen.name === 'import') {
+    return page(<HistoryImport db={db} update={update} showToast={showToast} onBack={() => go('block')} onDone={() => go('history')} />);
   }
   if (screen.name === 'exercise') {
     return page(<ExerciseDetail db={db} update={update} showToast={showToast} exerciseId={screen.exerciseId} onBack={() => go('progress')}
@@ -867,6 +871,7 @@ function BlockPlace({ db, block, go }) {
       <Section title="More">
         <Row icon={<Icon.book width="24" />} title="Community blocks" sub="What other members are running" onClick={() => go('library')} />
         <Row icon={<Icon.history width="24" />} title="All blocks" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />
+        <Row icon={<Icon.book width="24" />} title="Bring your history" sub="From Strong, Hevy or FitNotes" onClick={() => go('import')} />
         <Row icon={<Icon.sliders width="24" />} title="Training settings" sub={(t.prefs.units || 'kg') + ' · rest timer · reps in reserve'} onClick={() => go('settings')} />
       </Section>
     </div>

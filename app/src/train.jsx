@@ -851,7 +851,7 @@ function recentSleepShort(db) {
  * soup the design system exists to prevent, and the same fault this screen was already fixed for
  * once on its other tab. One panel per week, ruled rows inside it.
  */
-function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab }) {
+function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab, onImport }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -923,6 +923,9 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
           <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Your first session will show up here.</div>
         </Card>
       )}
+      {t.logs.length < 5 && onImport && (
+        <div className="mb-4"><Row title="Bring your history" sub="From Strong, Hevy or FitNotes, so your records start from what you have lifted" onClick={onImport} /></div>
+      )}
 
       {t.logs.length > 0 && logs.length === 0 && (
         <div className="text-[12.5px] py-6 text-center" style={{ color: 'var(--muted)' }}>
@@ -981,6 +984,139 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
       {confirm && <ConfirmDialog title="Delete this session?" body="It comes out of your volume and your records too."
         onConfirm={() => trainUpdate(update, (tr, d) => { tr.logs = tr.logs.filter(x => x.id !== confirm); tombstone(d, [confirm]); })}
         onClose={() => setConfirm(null)} />}
+    </div>
+  );
+}
+
+// ---- bringing your history from another app ----------------------------------------------------
+// One screen, four questions in the order they matter: which file, what unit it counts in, how far
+// back to read, and what to do with the names it could not place. Nothing is written until the last
+// button, and the sessions it adds sit beside yours without touching them.
+const IMPORT_SPANS = [
+  { v: 'half', l: '6 months', days: 183 }, { v: 'year', l: '1 year', days: 365 },
+  { v: 'two', l: '2 years', days: 730 }, { v: 'all', l: 'All', days: 0 },
+];
+function HistoryImport({ db, update, showToast, onBack, onDone }) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const [text, setText] = useState(null);
+  const [units, setUnits] = useState(null);
+  const [span, setSpan] = useState('year');
+  const [map, setMap] = useState({});
+  const [mint, setMint] = useState(true);
+  const [pickFor, setPickFor] = useState(null);
+  const [err, setErr] = useState(null);
+  const days = (IMPORT_SPANS.filter(x => x.v === span)[0] || {}).days;
+  const sinceISO = days ? new Date(Date.parse(Store.todayISO() + 'T00:00:00Z') - days * 86400000).toISOString().slice(0, 10) : null;
+  const res = useMemo(() => (text ? Training.historyFromCsv(text, { units: units, map: map, sinceISO: sinceISO, custom: t.custom }) : null),
+    [text, units, map, sinceISO, t.custom]);
+  async function choose(file) {
+    if (!file) return;
+    setErr(null);
+    try { setText(await file.text()); setMap({}); setUnits(null); } catch (e) { setErr('That file could not be read.'); }
+  }
+  // What will actually go in. Names that are only a close match are saved as variations of that match
+  // when the switch is on, so for counting they stand in as the match.
+  const projected = useMemo(() => {
+    if (!res || !res.ok || res.needsUnits) return res;
+    if (!mint) return res;
+    const standIn = {};
+    res.unplaced.forEach(p => { if (map[p.name] === undefined && p.suggest) standIn[p.name] = p.suggest; });
+    if (!Object.keys(standIn).length) return res;
+    return Training.historyFromCsv(text, { units: units, map: Object.assign({}, standIn, map), sinceISO: sinceISO, custom: t.custom });
+  }, [res, mint, map, text, units, sinceISO, t.custom]);
+  const mb = projected && projected.ok ? projected.bytes / 1048576 : 0;
+  const tooBig = mb > 3;
+  const fmt = (iso) => { const d = new Date(Date.parse(iso + 'T00:00:00Z')); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+  function commit() {
+    let made = {}, added = 0;
+    trainUpdate(update, (tr) => {
+      // Names the library only half recognised become movements of their own, each one a variation of
+      // its closest match, so they inherit what that trains. Checked for twins first, so importing
+      // does not mint a second copy of a machine you already have.
+      if (mint) {
+        res.unplaced.forEach(p => {
+          if (map[p.name] !== undefined || !p.suggest) return;
+          const cand = { name: p.name, variantOf: p.suggest, brand: Training.splitBrand(p.name).brand };
+          const dup = Training.findDuplicate(cand, tr.custom);
+          if (dup) { made[p.name] = dup.id; return; }
+          const sd = Training.variationOf(p.suggest, p.name, tr.custom);
+          if (!sd) return;
+          const id = 'cu_' + trainUid();
+          tr.custom.push(Object.assign({ id: id, custom: true, variantOf: p.suggest, primary: sd.primary, secondary: sd.secondary,
+            equipment: sd.equipment, pattern: sd.pattern, profile: sd.profile, name: p.name.trim() }, cand.brand ? { brand: cand.brand } : null));
+          made[p.name] = id;
+        });
+      }
+      const final = Training.historyFromCsv(text, { units: units, map: Object.assign({}, made, map), sinceISO: sinceISO, custom: tr.custom });
+      added = Training.addImportedLogs(tr, final.logs);
+    });
+    showToast && showToast(added ? 'Added ' + added + ' session' + (added === 1 ? '' : 's') + ' to your history.' : 'Nothing new to add. Those sessions are already here.');
+    onDone && onDone();
+  }
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Train" title="Bring your history" />
+      <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>
+        Export your sets from Strong, Hevy or FitNotes as a CSV and pick the file here. Your records, charts and next weights
+        then start from what you have already lifted, not from nothing. It is read on this phone and nothing leaves it.
+      </div>
+      <label className="block mb-4">
+        <span className="ms-chip" style={{ cursor: 'pointer' }}>{text ? 'Choose a different file' : 'Choose a file'}</span>
+        <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden" onChange={e => choose(e.target.files && e.target.files[0])} />
+      </label>
+      {err && <div className="text-[13px] mb-4" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
+      {res && !res.ok && <div className="text-[13px] mb-4" style={{ color: 'var(--danger-ink)' }}>{res.reason}</div>}
+      {res && res.ok && (
+        <>
+          <Section title={res.format + ' export'}>
+            <Row title={res.sessions + ' session' + (res.sessions === 1 ? '' : 's') + ', ' + res.sets + ' sets'} sub={fmt(res.from) + ' to ' + fmt(res.to)} />
+          </Section>
+          {res.needsUnits && (
+            <Field label="Which unit are the weights in?" hint={res.format + ' does not say in the file. Check the app it came from.'}>
+              <Seg value={units} onChange={setUnits} options={[{ v: 'kg', l: 'Kilograms' }, { v: 'lb', l: 'Pounds' }]} />
+            </Field>
+          )}
+          <Field label="How far back" hint={res.skipped.old ? res.skipped.old + ' older sets are left out.' : 'Older sessions make your data bigger and slower to sync.'}>
+            <Seg value={span} onChange={setSpan} options={IMPORT_SPANS.map(x => ({ v: x.v, l: x.l }))} />
+          </Field>
+          {!res.needsUnits && res.unplaced.length > 0 && (
+            <Section title={res.unplaced.length + (res.unplaced.length === 1 ? ' name' : ' names') + ' to check'}>
+              {res.unplaced.map(p => (
+                <Row key={p.name} title={p.name}
+                  sub={p.sets + ' sets · ' + (p.suggest ? 'closest is ' + (Training.byId(p.suggest, t.custom) || {}).name : 'no close match')}
+                  onClick={() => setPickFor(p.name)}
+                  trailing={<button className="px-3 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}
+                    onClick={() => setMap(Object.assign({}, map, { [p.name]: null }))}>Skip</button>} />
+              ))}
+            </Section>
+          )}
+          {!res.needsUnits && res.names.some(p => p.how === 'skip') && (
+            <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
+              {res.names.filter(p => p.how === 'skip').length} skipped. <button className="underline" onClick={() => setMap({})}>Put them back</button>
+            </div>
+          )}
+          {!res.needsUnits && res.unplaced.some(p => p.suggest) && (
+            <RowToggle label="Save the rest as your own movements" on={mint} onClick={() => setMint(!mint)} />
+          )}
+          {!res.needsUnits && res.unplaced.length > 0 && (
+            <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
+              A name with a close match is saved as a variation of it, so it knows what it trains. A name with no match at all is left out unless you pick a movement for it.
+            </div>
+          )}
+          {res.skipped.cardio > 0 && <div className="text-[12px] mb-2" style={{ color: 'var(--muted)' }}>{res.skipped.cardio} cardio rows are not brought across.</div>}
+          {!res.needsUnits && (
+            <div className="text-[12px] mb-4" style={{ color: tooBig ? 'var(--danger-ink)' : 'var(--muted)' }}>
+              {tooBig ? 'That is about ' + mb.toFixed(1) + ' MB, which is too much to keep in sync. Choose a shorter span.' : 'Adds about ' + Math.max(1, Math.round(projected.bytes / 1024)) + ' KB to your data.'}
+            </div>
+          )}
+          <Btn onClick={commit} disabled={res.needsUnits || tooBig || !projected.logs.length}>
+            {res.needsUnits ? 'Pick a unit first' : 'Add ' + projected.logs.length + ' session' + (projected.logs.length === 1 ? '' : 's')}
+          </Btn>
+        </>
+      )}
+      {pickFor && <ExercisePicker db={db} update={update} title={'What is ' + pickFor + '?'}
+        onPick={(id) => { setMap(Object.assign({}, map, { [pickFor]: id })); setPickFor(null); }} onClose={() => setPickFor(null)} />}
     </div>
   );
 }

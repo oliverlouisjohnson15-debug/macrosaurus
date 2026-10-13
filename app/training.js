@@ -5085,6 +5085,213 @@
     return { sessions: sessions, added: added, offset: offset };
   }
 
+  /* ---- bringing your history from another app ----------------------------------------------------
+   * The biggest cost of changing training apps is starting again: every lift begins blank, the first
+   * set of everything is a "record", and nothing can tell you a lift has stalled because it has no
+   * past. A logger's own export is a spreadsheet of sets, so this reads one.
+   *
+   * Strong, Hevy and FitNotes are recognised by their header rows. Columns are found by NAME rather
+   * than by position, because the apps add and reorder them, and a set is only taken if it has a
+   * weight or a rep count. Everything here is pure: it returns sessions in the shape a logged session
+   * has, plus the movements it could not place, and writes nothing. Re-reading the same file gives the
+   * same session ids, so importing twice cannot double a history.
+   */
+  function parseCsv(text) {
+    var src = String(text || '').replace(/^﻿/, '');
+    var first = src.split(/\r?\n/)[0] || '';
+    var delim = [',', ';', '\t'].map(function (d) { return [d, first.split(d).length]; })
+      .sort(function (a, b) { return b[1] - a[1]; })[0][0];
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < src.length; i++) {
+      var c = src[i];
+      if (q) {
+        if (c === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === delim) { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && src[i + 1] === '\n') i++;
+        row.push(cell); cell = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else cell += c;
+    }
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+    return rows;
+  }
+  var MONTHS3 = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  // "2023-10-22 07:27:02", "7 Oct 2023, 18:14" and "2023-10-22" all become a date and, when there is
+  // one, a time.
+  function parseWhen(v) {
+    var t = String(v || '').trim(), m;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    if ((m = t.match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/))) {
+      return { dateISO: m[1] + '-' + m[2] + '-' + m[3], time: m[4] ? pad(+m[4]) + ':' + m[5] : null };
+    }
+    if ((m = t.match(/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\.?,?\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?/)) && MONTHS3[m[2].toLowerCase()]) {
+      return { dateISO: m[3] + '-' + pad(MONTHS3[m[2].toLowerCase()]) + '-' + pad(+m[1]), time: m[4] ? pad(+m[4]) + ':' + m[5] : null };
+    }
+    return null;
+  }
+  function hashOf(str) {
+    var h = 5381;
+    for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+  // Another app's names, placed with more care than a typed one gets. They arrive as "Bench Press
+  // (Barbell)" and "Lat Pulldown - Wide Grip (Cable)": the kit belongs in front, and a dash is not a
+  // coach's tag. And because an import places hundreds of sets at once without anyone watching, a
+  // match is only taken on trust when it does not drop a word that changes the movement - an incline
+  // press that quietly became a flat one would put its weights on the wrong lift for good.
+  var IMPORT_KIT = /^(.*?)\s*\((barbell|dumbbell|cable|machine|smith machine|smith|bodyweight|kettlebell|band|ez bar|ez|assisted|weighted|plate loaded|trap bar)\)\s*$/i;
+  var CHANGES_THE_LIFT = ['incline', 'decline', 'wide', 'close', 'narrow', 'reverse', 'single', 'unilateral', 'overhead',
+    'seated', 'standing', 'lying', 'hammer', 'front', 'sumo', 'romanian', 'stiff', 'paused', 'pause', 'goblet', 'bulgarian',
+    'hack', 'sissy', 'neutral', 'underhand', 'supinated', 'pronated', 'preacher', 'incline', 'rear', 'lateral', 'seal'];
+  function resolveImportName(name, custom) {
+    var raw = String(name || '').trim();
+    var m = raw.match(IMPORT_KIT);
+    var cands = [raw];
+    if (m) {
+      var core = m[1].replace(/\s+-\s+/g, ' ');
+      cands.unshift(m[2] + ' ' + core);
+      // "Incline Bench Press (Dumbbell)" is what the library calls an incline dumbbell press.
+      if (/\b(incline|decline)\b/i.test(core)) cands.unshift(m[2] + ' ' + core.replace(/\bbench\b/i, '').replace(/\s+/g, ' ').trim());
+      cands.push(core);
+    }
+    var best = null;
+    cands.forEach(function (c) {
+      var d = resolveDetail(c, custom);
+      if (d && (!best || d.score > best.score)) best = d;
+    });
+    if (!best) return null;
+    // Right movement, wrong kit: an alias or an exact name will happily hand "Overhead Press (Dumbbell)"
+    // the barbell one. A different implement keeps its own history, so it is offered, not assumed.
+    if ((best.how === 'exact' || best.how === 'alias' || best.how === 'strong') && kitMismatch(raw, best.id, custom)) {
+      return Object.assign({}, best, { how: 'loose' });
+    }
+    if (best.how === 'strong') {
+      var got = norm((byId(best.id, custom) || {}).name || '').split(' ');
+      var said = norm(splitBrand(raw).rest || raw).split(' ');
+      var lost = CHANGES_THE_LIFT.some(function (w) { return said.indexOf(w) !== -1 && got.indexOf(w) === -1; });
+      if (lost) return Object.assign({}, best, { how: 'loose' });
+    }
+    return best;
+  }
+  function historyFromCsv(text, opts) {
+    opts = opts || {};
+    var grid = parseCsv(text);
+    if (grid.length < 2) return { ok: false, reason: 'That file is empty.' };
+    var head = grid[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var col = function () {
+      for (var a = 0; a < arguments.length; a++) {
+        for (var i = 0; i < head.length; i++) if (head[i] === arguments[a] || head[i].indexOf(arguments[a]) === 0) return i;
+      }
+      return -1;
+    };
+    var format = head.indexOf('exercise_title') !== -1 || head.indexOf('set_type') !== -1 ? 'Hevy'
+      : head.indexOf('exercise name') !== -1 && head.indexOf('set order') !== -1 ? 'Strong'
+        : head.indexOf('exercise') !== -1 && head.indexOf('category') !== -1 ? 'FitNotes' : null;
+    if (!format) return { ok: false, reason: 'That does not look like a Strong, Hevy or FitNotes export.' };
+    var c = {
+      date: format === 'Hevy' ? col('start_time') : col('date'),
+      title: format === 'Hevy' ? col('title') : format === 'Strong' ? col('workout name') : -1,
+      name: format === 'Hevy' ? col('exercise_title') : format === 'Strong' ? col('exercise name') : col('exercise'),
+      order: format === 'Strong' ? col('set order') : format === 'Hevy' ? col('set_index') : -1,
+      type: format === 'Hevy' ? col('set_type') : -1,
+      kg: col('weight_kg', 'weight (kg', 'weight (kgs'), lb: col('weight_lbs', 'weight (lb', 'weight (lbs'),
+      weight: col('weight'),
+      reps: col('reps'), rpe: col('rpe'),
+      dist: col('distance'), secs: col('seconds', 'duration_seconds', 'time'),
+      note: format === 'Strong' ? col('workout notes') : format === 'Hevy' ? col('description') : -1,
+    };
+    // Which unit the weights are in: the column says, when it can. Strong's does not.
+    var unit = c.kg !== -1 ? 'kg' : c.lb !== -1 ? 'lb' : (opts.units || null);
+    var wcol = c.kg !== -1 ? c.kg : c.lb !== -1 ? c.lb : c.weight;
+    var cell = function (r, i) { return i === -1 || i >= r.length ? '' : String(r[i]).trim(); };
+    var sessions = {}, order = [], names = {}, skipped = { cardio: 0, empty: 0, noDate: 0, old: 0 };
+    var sinceISO = opts.sinceISO || null, units = 0;
+    grid.slice(1).forEach(function (r) {
+      var nm = cell(r, c.name), when = parseWhen(cell(r, c.date));
+      if (!nm) { skipped.empty++; return; }
+      if (!when) { skipped.noDate++; return; }
+      if (sinceISO && when.dateISO < sinceISO) { skipped.old++; return; }
+      var so = cell(r, c.order);
+      if (/rest/i.test(so)) return;   // Strong writes its rest timers as rows
+      var w = parseFloat(cell(r, wcol)) || 0, reps = parseFloat(cell(r, c.reps)) || 0;
+      var moved = (parseFloat(cell(r, c.dist)) || 0) > 0 || (c.secs !== -1 && (parseFloat(cell(r, c.secs)) || 0) > 0);
+      if (!reps && !w) { if (moved) skipped.cardio++; else skipped.empty++; return; }
+      if (!reps && moved) { skipped.cardio++; return; }
+      var type = 'work';
+      var st = (cell(r, c.type) || so).toLowerCase();
+      if (st === 'w' || st === 'warmup') type = 'warmup';
+      else if (st === 'd' || st === 'dropset') type = 'drop';
+      else if (st === 'f' || st === 'failure') type = 'failure';
+      var title = c.title !== -1 ? cell(r, c.title) : '';
+      var key = (format === 'Hevy' ? cell(r, c.date) : when.dateISO) + '|' + title;
+      if (!sessions[key]) {
+        sessions[key] = { dateISO: when.dateISO, time: when.time, name: title || 'Imported session', notes: cell(r, c.note), rows: [] };
+        order.push(key);
+      }
+      var rpe = parseFloat(cell(r, c.rpe));
+      sessions[key].rows.push({ name: nm, weight: w, reps: reps, type: type, rir: isFinite(rpe) && rpe >= 5 && rpe <= 10 ? round(10 - rpe, 1) : null });
+      names[nm] = names[nm] || { name: nm, sets: 0 };
+      names[nm].sets++;
+      units++;
+    });
+    if (!order.length) return { ok: false, reason: 'No sets found in that file.' };
+    var needsUnits = !unit && units > 0;
+    // Place every name once. A match that is merely close is offered, never taken without being asked.
+    var map = opts.map || {};
+    var placed = Object.keys(names).map(function (n) {
+      var given = map[n];
+      if (given === null) return Object.assign(names[n], { id: null, how: 'skip' });
+      if (given) return Object.assign(names[n], { id: given, how: 'chosen' });
+      var d = resolveImportName(n, opts.custom);
+      if (d && (d.how === 'exact' || d.how === 'alias' || d.how === 'strong')) return Object.assign(names[n], { id: d.id, how: d.how });
+      return Object.assign(names[n], { id: null, how: d ? 'loose' : 'none', suggest: d ? d.id : null });
+    }).sort(function (a, b) { return b.sets - a.sets; });
+    var byName = {};
+    placed.forEach(function (p) { byName[p.name] = p; });
+    var toKg = function (v) { return unit === 'lb' ? round(v / 2.20462, 2) : v; };
+    var logs = order.map(function (k) {
+      var ss = sessions[k];
+      var sets = [], idx = {};
+      ss.rows.forEach(function (r) {
+        var p = byName[r.name];
+        if (!p || !p.id) return;
+        idx[p.id] = (idx[p.id] || 0);
+        var set = { exerciseId: p.id, setIndex: idx[p.id]++, type: r.type, weightKg: toKg(r.weight), reps: r.reps || null, done: true };
+        if (r.rir != null) set.rir = r.rir;
+        sets.push(set);
+      });
+      if (!sets.length) return null;
+      var at = ss.dateISO + 'T' + (ss.time || '12:00') + ':00.000Z';
+      return {
+        id: 'imp_' + hashOf(format + '|' + k), dateISO: ss.dateISO, blockId: null, sessionId: null,
+        name: ss.name, startedAt: at, endedAt: at, notes: ss.notes || '', sets: sets, imported: format,
+      };
+    }).filter(Boolean).sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : 1; });
+    var dates = order.map(function (k) { return sessions[k].dateISO; }).sort();
+    return {
+      ok: true, format: format, unit: unit, needsUnits: needsUnits,
+      sessions: order.length, sets: units, from: dates[0], to: dates[dates.length - 1],
+      names: placed, unplaced: placed.filter(function (p) { return !p.id && p.how !== 'skip'; }),
+      skipped: skipped, logs: needsUnits ? [] : logs,
+      bytes: JSON.stringify(logs).length,
+    };
+  }
+  // Add what an import found, without touching anything already there. A session whose id is already
+  // in the log is skipped, which is what makes importing the same file twice harmless. Returns how many
+  // sessions went in.
+  function addImportedLogs(tr, logs) {
+    var have = {};
+    (tr.logs || []).forEach(function (l) { have[l.id] = 1; });
+    var n = 0;
+    (logs || []).forEach(function (l) { if (!have[l.id]) { tr.logs.push(l); have[l.id] = 1; n++; } });
+    return n;
+  }
+
   /* ---- loading a block somebody already owns ----------------------------------------------------
    * A plan bought as a spreadsheet, converted once (see tools/minmax-import.mjs) and loaded straight
    * in. No model, no guessing, and nothing published: the file lands in the person's own blocks and
@@ -7091,6 +7298,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    resolveImportName: resolveImportName, historyFromCsv: historyFromCsv, addImportedLogs: addImportedLogs, parseCsv: parseCsv,
     PROGRAMME_ADDITIONS: PROGRAMME_ADDITIONS, applyAdditions: applyAdditions, applyPriority: applyPriority,
     looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,
     splitBrand: splitBrand, BRANDS: BRANDS, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
