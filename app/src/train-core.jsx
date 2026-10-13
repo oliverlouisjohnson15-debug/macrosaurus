@@ -155,6 +155,20 @@ function rememberAtGym(update, gymId, fromId, toId) {
     g.machines[fromId] = Object.assign({}, g.machines[fromId], { use: toId });
   });
 }
+// Your body weight on a given day, for movements where you are part of the load: the latest weigh-in
+// on or before that date, else the weight in your profile, else nothing. Snapshotted onto each set as
+// it is logged, so a later weigh-in can never rewrite an old record.
+function bodyWeightOn(db, dateISO) {
+  const hits = ((db && db.weight_entries) || []).filter(w => w && w.scale_weight != null && w.date <= dateISO)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  if (hits.length) return +hits[0].scale_weight || 0;
+  return (db && db.profile && +db.profile.weightKg) || 0;
+}
+// Is this a movement where the weight box means what you ADDED (or, negative, what helps you)?
+function isBodyweightLift(exerciseId, custom) {
+  const ex = Training.byId(exerciseId, custom);
+  return !!ex && ex.equipment === 'bodyweight' && !Training.isCardio(ex);
+}
 function machineStr(kg, spec, units) {
   return (+kg > 0) ? Training.toMachine(kg, spec) + machineSuffix(spec, units) : 'BW';
 }

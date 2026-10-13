@@ -1086,13 +1086,15 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
   // sessions before the change were a different exercise.
   const own = hist.filter(h => h.exerciseId === exerciseId);
   const stall = Training.detectStall(own);
-  const max = Math.max.apply(null, hist.map(h => h.e1rm).concat([1]));
+  const max = Math.max.apply(null, hist.map(Training.strengthOf).concat([1]));
+  // Most sessions with nothing inside twelve reps: there is no honest 1RM to draw, so it draws the best set.
+  const bestSetView = hist.filter(h => h.e1rm > 0).length * 2 < hist.length;
   const cameFrom = hist.length && hist[0].exerciseId !== exerciseId ? hist.filter(h => h.changed).slice(-1)[0] : null;
   // Where you stand and which way it has gone: the chart shows the shape, this says what it means.
   const shownHist = hist.slice(-24);
   const firstRow = shownHist[0], latest = shownHist[shownHist.length - 1];
-  const delta = firstRow && firstRow.e1rm > 0 && latest ? Math.round(((latest.e1rm - firstRow.e1rm) / firstRow.e1rm) * 1000) / 10 : 0;
-  const isPB = !!(latest && latest.e1rm > 0 && latest.e1rm >= max);
+  const delta = firstRow && Training.strengthOf(firstRow) > 0 && latest ? Math.round(((Training.strengthOf(latest) - Training.strengthOf(firstRow)) / Training.strengthOf(firstRow)) * 1000) / 10 : 0;
+  const isPB = !!(latest && Training.strengthOf(latest) > 0 && Training.strengthOf(latest) >= max);
   // Month ticks under the chart, rather than two raw ISO dates at its ends: "Jun / Jul / Aug" is
   // what anybody scanning the shape of a run actually reads it against.
   const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1122,9 +1124,11 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>{pinned ? 'Top pin' : 'Estimated 1RM'}</div>
+          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>{pinned ? 'Top pin' : bestSetView ? 'Best set' : 'Estimated 1RM'}</div>
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="pf text-[18px] tnum">{pinned ? Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units) : Training.toMachine(latest.e1rm, wholeSpec) + machineSuffix(wholeSpec, units)}</span>
+            <span className="pf text-[18px] tnum">{pinned ? Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units)
+              : bestSetView ? (latest.bw ? (latest.topWeight > 0 ? '+' + Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units) : 'Bodyweight') : Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units)) + ' × ' + latest.topReps
+                : Training.toMachine(Training.strengthOf(latest), wholeSpec) + machineSuffix(wholeSpec, units)}</span>
             {delta !== 0 && (
               <span className="text-[12px] tnum font-bold" style={{ color: delta > 0 ? 'var(--good-ink)' : 'var(--danger)' }}>{delta > 0 ? '+' : ''}{delta}%</span>
             )}
@@ -1133,7 +1137,7 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
             {shownHist.map((h, i) => (
               <div key={i} className="flex-1" title={h.dateISO + ' · ' + h.name}
                 style={{
-                  height: Math.max(2, (h.e1rm / max) * 100) + '%',
+                  height: Math.max(2, (Training.strengthOf(h) / max) * 100) + '%',
                   // The sessions on an earlier movement are shown, and shown as not-this-movement:
                   // the shape of the run is the useful part, but the bars are not comparable loads.
                   background: h.exerciseId === exerciseId ? 'var(--accent)' : 'var(--surface3)',
@@ -1174,7 +1178,7 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
               {h.dateISO}
               {h.exerciseId !== exerciseId && <span className="block text-[11px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
             </span>
-            <span className="text-[12px]">{h.sets} sets · top {Training.toMachine(h.topWeight, spec)}{machineSuffix(spec, units)} x {h.topReps}</span>
+            <span className="text-[12px]">{h.sets} sets · top {h.bw ? (h.topWeight > 0 ? '+' + Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units) : 'BW') : Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units)} x {h.topReps}</span>
           </div>
         ))}
         {!hist.length && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>No sessions with this movement yet.</div>}
@@ -2687,7 +2691,9 @@ function PRFlash({ pr, db, units, onClose }) {
         </div>
         <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>New best</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
-        <div className="pf text-[16px] tnum mb-2">{machineStr(pr.weightKg, Training.loadSpecFor(pr.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }), units)} × {pr.reps}</div>
+        <div className="pf text-[16px] tnum mb-2">{pr.bwKg > 0
+            ? (pr.weightKg > 0 ? 'Bodyweight + ' + toDisplayWeight(pr.weightKg, units) + unitLabel(units) : pr.weightKg < 0 ? 'Bodyweight − ' + toDisplayWeight(-pr.weightKg, units) + unitLabel(units) : 'Bodyweight')
+            : machineStr(pr.weightKg, Training.loadSpecFor(pr.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }), units)} × {pr.reps}</div>
         <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
     </div>
@@ -3063,7 +3069,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
           <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
-            {(() => { const sp = Training.loadSpecFor(r.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }); return sp.unit === 'pin' ? 'pin machine' : Training.toMachine(r.e1rm, Object.assign({}, sp, { perSide: false })) + machineSuffix(Object.assign({}, sp, { perSide: false }), units) + ' est. 1RM'; })()} · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
+            {(() => { const sp = Training.loadSpecFor(r.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }); if (sp.unit === 'pin') return 'pin machine'; if (r.metric === 'bestSet') return r.topKg > 0 ? 'best set ' + Training.toMachine(r.topKg, sp) + machineSuffix(sp, units) + ' × ' + r.topReps : 'best set ' + r.topReps + ' reps'; const w = Object.assign({}, sp, { perSide: false }); return Training.toMachine(r.e1rm, w) + machineSuffix(w, units) + ' est. 1RM'; })()} · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
           {r.state === 'stuck' && (
             <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>

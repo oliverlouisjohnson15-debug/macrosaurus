@@ -1550,6 +1550,24 @@
     return round(w * (1 + r / 30), 1);
   }
   // A pin number is not a mass, so a set logged against one adds nothing to tonnage.
+  // What a set actually moved. A bodyweight movement is logged by what you ADDED (or, for an assisted
+  // machine, took off as a negative), and the body weight of the day is snapshotted onto the set as
+  // `bwKg`, so the load of a pull-up is you plus the plate on the belt. Anything without a snapshot
+  // is a loaded movement and its weight is just its weight.
+  function effectiveLoad(st) {
+    var bw = +st.bwKg || 0;
+    return bw > 0 ? bw + (+st.weightKg || 0) : (+st.weightKg || 0);
+  }
+  // The same arithmetic with no ceiling, for trend lines only. Twelve reps is where an estimated 1RM
+  // stops being believable, so records and strength scores still stop there, but a lateral raise taken
+  // for fifteen deserves a chart, and any index that rises with weight and with reps will draw one.
+  function setIndex(st) {
+    var w = effectiveLoad(st), r = +st.reps || 0;
+    if (w <= 0 || r <= 0) return 0;
+    return r === 1 ? round(w, 1) : round(w * (1 + r / 30), 1);
+  }
+  function strengthOf(row) { return (row && (row.e1rm || row.idx)) || 0; }
+  // A pin number is not a mass, so a set logged against one adds nothing to tonnage.
   function setVolume(st) { return st.unit === 'pin' ? 0 : (+st.weightKg || 0) * (+st.reps || 0); }
   function tonnage(log) {
     return round((log && log.sets || []).reduce(function (a, s) {
@@ -1560,7 +1578,7 @@
     var best = null, bestE = 0;
     (sets || []).forEach(function (s) {
       if (!s.done) return;
-      var e = e1rm(s.weightKg, s.reps);
+      var e = e1rm(effectiveLoad(s), s.reps);
       if (e > bestE) { bestE = e; best = s; }
     });
     return best ? { set: best, e1rm: bestE } : null;
@@ -1572,7 +1590,7 @@
     (logs || []).forEach(function (log) {
       (log.sets || []).forEach(function (s) {
         if (!s.done || (s.type && s.type !== 'work')) return;
-        var e = e1rm(s.weightKg, s.reps);
+        var e = e1rm(effectiveLoad(s), s.reps);
         if (!e) return;
         var cur = out[s.exerciseId];
         if (!cur || e > cur.e1rm) out[s.exerciseId] = { e1rm: e, weightKg: +s.weightKg || 0, reps: +s.reps || 0, dateISO: log.dateISO };
@@ -1585,18 +1603,60 @@
   // record depends on this being "before", not "including": comparing a set against a list that
   // already contains it means nothing is ever a record.
   function bestBefore(logs, exerciseId, beforeISO, excludeLogId) {
-    var best = { e1rm: 0, weightKg: 0, repsAtBest: 0, dateISO: null };
+    var best = { e1rm: 0, weightKg: 0, repsAtBest: 0, dateISO: null, repsAt: {}, count: 0 };
     (logs || []).forEach(function (log) {
       if (beforeISO && log.dateISO >= beforeISO) return;
       if (excludeLogId && log.id === excludeLogId) return;
       (log.sets || []).forEach(function (s) {
         if (!s.done || (s.type && s.type !== 'work')) return;
         if (s.exerciseId !== exerciseId) return;
-        var w = +s.weightKg || 0, r = +s.reps || 0;
-        var e = e1rm(w, r);
-        if (e > best.e1rm) { best.e1rm = e; best.dateISO = log.dateISO; }
-        if (w > best.weightKg) { best.weightKg = w; best.repsAtBest = r; }
+        var before = best.e1rm;
+        foldSessionSets(best, [s]);
+        if (best.e1rm > before) best.dateISO = log.dateISO;
       });
+    });
+    return best;
+  }
+  // Before bodyweight movements were understood, the only way to make a pull-up count was to type your
+  // own weight into the box. A weight within a tenth of what you weighed that day, on a bodyweight
+  // movement, is almost certainly that. Offered to the person and never applied on its own.
+  function looksLikeBodyweight(st, bwKg) {
+    var w = +st.weightKg || 0, bw = +bwKg || 0;
+    return !(+st.bwKg > 0) && w > 0 && bw > 0 && Math.abs(w - bw) <= 0.1 * bw;
+  }
+  // Re-read those sets as bodyweight: the number was you, so it moves to the snapshot and nothing was
+  // added. Edits in place; says how many it touched.
+  function retagBodyweight(logs, exerciseId, bwFor) {
+    var n = 0;
+    (logs || []).forEach(function (l) {
+      var bw = +bwFor(l.dateISO) || 0;
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId !== exerciseId || !looksLikeBodyweight(st, bw)) return;
+        st.bwKg = round(+st.weightKg, 2);
+        st.weightKg = 0;
+        n++;
+      });
+    });
+    return n;
+  }
+
+  // Fold sets into a running "best so far". One place for the rule, used by the history of records
+  // and by the session screen deciding, set by set, whether you just beat one. Two copies of it
+  // drifted apart once already. `weightKg` here is what was loaded or added, never the body weight.
+  function repKey(w) { return String(round(+w || 0, 2)); }
+  function foldSessionSets(best, sets) {
+    (sets || []).forEach(function (s) {
+      var w = +s.weightKg || 0, r = +s.reps || 0;
+      if (r <= 0) return;
+      var load = effectiveLoad(s);
+      var e = e1rm(load, r);
+      best.count = (best.count || 0) + 1;
+      if (e > best.e1rm) best.e1rm = e;
+      if (w > best.weightKg) { best.weightKg = w; best.repsAtBest = r; }
+      else if (Math.abs(w - best.weightKg) < 0.01 && r > best.repsAtBest) best.repsAtBest = r;
+      best.repsAt = best.repsAt || {};
+      var k = repKey(w);
+      if (!(best.repsAt[k] >= r)) best.repsAt[k] = r;
     });
     return best;
   }
@@ -1605,13 +1665,24 @@
   // care about all three: the heaviest you have ever lifted, the most reps you have managed at that
   // weight, and the best estimated one-rep max. A tiny epsilon on e1RM stops floating point noise
   // reporting a "record" that is 0.0001kg better than last week.
-  function prKind(weightKg, reps, best) {
-    var w = +weightKg || 0, r = +reps || 0;
-    if (w <= 0 || r <= 0) return null;
-    if (!best || (!best.e1rm && !best.weightKg)) return null;   // a first-ever set is not a record
-    if (w > best.weightKg + 0.01) return { kind: 'weight', label: 'Heaviest ever', value: w };
-    if (Math.abs(w - best.weightKg) < 0.01 && r > best.repsAtBest) return { kind: 'reps', label: 'Most reps at ' + round(w, 1), value: r };
-    var e = e1rm(w, r);
+  function prKind(weightKg, reps, best, bwKg) {
+    var w = +weightKg || 0, r = +reps || 0, bw = +bwKg || 0;
+    if (r <= 0) return null;
+    // A loaded movement needs a load. A bodyweight one has you.
+    if (!bw && w <= 0) return null;
+    if (!best || (!best.e1rm && !best.weightKg && !best.count)) return null;   // a first-ever set is not a record
+    if (w > best.weightKg + 0.01 && w > 0) return { kind: 'weight', label: bw ? 'Most added weight' : 'Heaviest ever', value: w };
+    // More reps than you have ever done at THIS weight, wherever it sits in your range. Double
+    // progression lives at a working weight below your heaviest, and a record that only counted at
+    // the top would never notice it. A weight you have never used is not a reps record.
+    var was = best.repsAt ? best.repsAt[repKey(w)] : (Math.abs(w - best.weightKg) < 0.01 ? best.repsAtBest : undefined);
+    if (was !== undefined && r > was) {
+      return { kind: 'reps', label: w > 0 ? 'Most reps at ' + round(w, 1) : 'Most reps', value: r };
+    }
+    // Pure bodyweight work does not get an estimated-1RM record: it would fire every time the scale
+    // went up, which is not an achievement.
+    if (bw && w <= 0) return null;
+    var e = e1rm(bw + w, r);
     if (e > best.e1rm + 0.05) return { kind: 'e1rm', label: 'Best estimated 1RM', value: e };
     return null;
   }
@@ -1627,15 +1698,11 @@
       // Compare against history AND against the earlier sets of this same session, so five identical
       // sets do not report five records.
       var best = bestBefore(logs, s.exerciseId, log.dateISO, log.id);
-      (seen[s.exerciseId] || []).forEach(function (p) {
-        if (p.e1rm > best.e1rm) { best.e1rm = p.e1rm; }
-        if (p.weightKg > best.weightKg) { best.weightKg = p.weightKg; best.repsAtBest = p.reps; }
-        else if (Math.abs(p.weightKg - best.weightKg) < 0.01 && p.reps > best.repsAtBest) best.repsAtBest = p.reps;
-      });
-      var pr = prKind(s.weightKg, s.reps, best);
+      foldSessionSets(best, seen[s.exerciseId] || []);
+      var pr = prKind(s.weightKg, s.reps, best, s.bwKg);
       if (pr) out.push(Object.assign({ exerciseId: s.exerciseId, setIndex: i }, pr));
       if (!seen[s.exerciseId]) seen[s.exerciseId] = [];
-      seen[s.exerciseId].push({ e1rm: e1rm(s.weightKg, s.reps), weightKg: +s.weightKg || 0, reps: +s.reps || 0 });
+      seen[s.exerciseId].push(s);
     });
     // One record per movement per session: the best of them. Working up 95, 110, 125 beats your old
     // best three times over, but nobody says "I set three bench records today", they say what they
@@ -1675,11 +1742,16 @@
         var sets = (log.sets || []).filter(function (s) { return s.exerciseId === exerciseId && s.done && (!s.type || s.type === 'work'); });
         if (!sets.length) return null;
         var b = bestSet(sets);
+        // A session with nothing inside twelve reps has no believable 1RM but still has a best set,
+        // which is the one that moved the most, and that is what a trend line needs.
+        var top = b ? b.set : sets.slice().sort(function (x, y) { return setIndex(y) - setIndex(x); })[0];
         return {
           dateISO: log.dateISO, sets: sets.length,
           tonnage: round(sets.reduce(function (a, s) { return a + setVolume(s); }, 0), 1),
-          e1rm: b ? b.e1rm : 0, topWeight: Math.max.apply(null, sets.map(function (s) { return +s.weightKg || 0; })),
-          topReps: b ? +b.set.reps || 0 : 0,
+          e1rm: b ? b.e1rm : 0, idx: setIndex(top),
+          topWeight: Math.max.apply(null, sets.map(function (s) { return +s.weightKg || 0; })),
+          topReps: top ? +top.reps || 0 : 0,
+          bw: sets.some(function (s) { return +s.bwKg > 0; }),
         };
       })
       .filter(Boolean)
@@ -2121,6 +2193,15 @@
 
   // Given last week's prescription and what was actually done, what should next week say?
   // Returns { sets, repLow, repHigh, rir, weightKg, reason, action }.
+  // The rep window a movement progresses through. A written target of "6" (a fixed number, which is
+  // how some published programmes are written) cannot be double-progressed: six reps would add load
+  // and five would take ten percent off, with nothing in between. For progression only, it is read as
+  // six to eight. What the person SEES is still six.
+  function progressionWindow(target) {
+    var lo = +(target && target.repLow) || 0, hi = +(target && target.repHigh) || 0;
+    var fixed = lo > 0 && lo === hi;
+    return { low: lo, high: fixed ? lo + 2 : hi, fixed: fixed };
+  }
   function progressExercise(prescription, performedSets, ex, opts) {
     opts = opts || {};
     var t = Object.assign({ sets: 3, repLow: 8, repHigh: 12, rir: 2 }, prescription || {});
@@ -2150,14 +2231,19 @@
         });
       }
       if (!w) return Object.assign(next, { action: 'hold', reason: 'No weight logged last time, so this repeats.' });
+      var win = progressionWindow(t);
       // Ceiling hit: the top of the window, in form, at failure. Smallest jump the kit allows.
-      if (reps >= t.repHigh) {
+      if (reps >= win.high) {
         next.weightKg = round(w + loadStep(ex, w, 'minmax', opts.spec), 4);
-        return Object.assign(next, { action: 'load', reason: 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
+        return Object.assign(next, { action: 'load', reason: win.fixed
+          ? 'You got ' + reps + ' on a ' + win.low + '-rep line, which is two over. Up one notch, and take it to failure again.'
+          : 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
       }
       // Inside the window: the weight is right, so the job is one more rep than last time.
-      if (reps >= t.repLow) {
-        return Object.assign(next, { action: 'reps', reason: 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
+      if (reps >= win.low) {
+        return Object.assign(next, { action: 'reps', reason: win.fixed
+          ? 'The plan says ' + win.low + '. You got ' + reps + ', so same weight and go for ' + (reps + 1) + '. At ' + win.high + ' it goes up a notch.'
+          : 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
       }
       // Under the floor: too heavy to be a stimulus rather than a test. Ten percent off.
       next.weightKg = round(Math.max(loadUnit(ex, opts.spec), Math.round((w * 0.9) / loadUnit(ex, opts.spec)) * loadUnit(ex, opts.spec)), 4);
@@ -2191,7 +2277,7 @@
   function detectStall(history, minSessions) {
     var h = (history || []).slice(-(minSessions || 3));
     if (h.length < (minSessions || 3)) return null;
-    var first = h[0].e1rm, best = Math.max.apply(null, h.map(function (x) { return x.e1rm; }));
+    var first = strengthOf(h[0]), best = Math.max.apply(null, h.map(strengthOf));
     if (!first) return null;
     if (best <= first * 1.005) {
       return { stalled: true, sessions: h.length, advice: 'This lift has not moved in ' + h.length + ' sessions. Swap the variation or take the load back 10% and build in again.' };
@@ -2229,20 +2315,23 @@
       }).map(function (s) { return s.exerciseId; }));
     }, []));
     var rows = ids.map(function (id) {
-      var hist = exerciseHistory(logs, id).filter(function (h) { return h.e1rm > 0; });
+      var hist = exerciseHistory(logs, id).filter(function (h) { return strengthOf(h) > 0; });
       if (hist.length < minSessions) return null;
       var win = hist.slice(-window);
-      var series = win.map(function (h) { return h.e1rm; });
+      var series = win.map(strengthOf);
       var first = series[0] || 0, last = series[series.length - 1] || 0;
       var deltaPct = first ? round(((last - first) / first) * 100, 1) : 0;
       var ex = byId(id, opts.custom);
-      var best = hist.reduce(function (a, h) { return h.e1rm > a.e1rm ? h : a; }, hist[0]);
+      var best = hist.reduce(function (a, h) { return strengthOf(h) > strengthOf(a) ? h : a; }, hist[0]);
       // Stuck is the engine's existing rule, not a new one: no new best in the last few sessions.
       var stall = detectStall(hist, stallAt);
       return {
         exerciseId: id, name: ex ? ex.name : id,
         sessions: hist.length, lastISO: hist[hist.length - 1].dateISO,
-        e1rm: last, bestE1rm: best.e1rm, topKg: best.topWeight, topReps: best.topReps,
+        e1rm: last, bestE1rm: strengthOf(best), topKg: best.topWeight, topReps: best.topReps,
+        // 'bestSet' when most of the sessions had nothing inside twelve reps, so the screen can say
+        // "best set" instead of dressing an index up as a one-rep max.
+        metric: hist.filter(function (h) { return h.e1rm > 0; }).length * 2 >= hist.length ? 'e1rm' : 'bestSet',
         series: series, deltaPct: deltaPct,
         // Falling is its own thing: a lift going backwards is not the same news as one standing
         // still, and lumping them together loses the only bit that is urgent.
@@ -6878,6 +6967,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,
     splitBrand: splitBrand, BRANDS: BRANDS, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
     loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,
     guessLoadUnit: guessLoadUnit, relabelLoads: relabelLoads, loadUnit: loadUnit, loadStep: loadStep, backOffLoad: backOffLoad,

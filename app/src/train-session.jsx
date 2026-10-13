@@ -352,7 +352,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           exerciseId: it.exerciseId, itemId: it.id || null, setIndex: i, type: s.type || 'work',
           weightKg: +s.weightKg || 0, reps: s.reps == null ? null : +s.reps,
           rir: s.rir == null ? null : +s.rir, done: !!s.done,
-        }, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null));
+        }, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null, +s.bwKg > 0 ? { bwKg: +s.bwKg } : null));
       });
     });
     // One prescription per MOVEMENT, not per set: a handful of small objects against a session,
@@ -515,9 +515,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         ? (tgt ? tgt.repHigh : (row.lastTime ? row.lastTime.reps : null))
         : +row.reps,
     };
+    // You are part of the load on a bodyweight movement, and your weight on the day is written onto
+    // the set so it can never be rewritten by a later weigh-in.
+    const bwKg = isBodyweightLift(items[ii].exerciseId, t.custom) ? bodyWeightOn(db, dateISO) : 0;
     mutate(n => {
       const s = n[ii].sets[si];
       s.done = !s.done;
+      if (s.done && bwKg > 0) s.bwKg = bwKg;
       if (s.done && (s.reps == null || s.reps === '')) s.reps = filled.reps;
       // And the weight, but ONLY from a real last time, and only into the box where you can see it.
       //
@@ -549,20 +553,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // A record, worked out against everything before today plus the earlier sets of this session.
     // Warm-ups and drop sets are excluded, so a light back-off set cannot claim one.
     const setType = items[ii].sets[si].type || 'work';
-    if (setType === 'work' && filled && filled.reps > 0 && filled.weightKg > 0) {
+    if (setType === 'work' && filled && filled.reps > 0 && (filled.weightKg > 0 || bwKg > 0)) {
       const best = Training.bestBefore(t.logs, items[ii].exerciseId, dateISO, logId);
-      items[ii].sets.forEach((prev, pi) => {
-        if (pi >= si || !prev.done || (prev.type || 'work') !== 'work') return;
-        const pe = Training.e1rm(prev.weightKg, prev.reps);
-        if (pe > best.e1rm) best.e1rm = pe;
-        if ((+prev.weightKg || 0) > best.weightKg) { best.weightKg = +prev.weightKg || 0; best.repsAtBest = +prev.reps || 0; }
-        else if (Math.abs((+prev.weightKg || 0) - best.weightKg) < 0.01 && (+prev.reps || 0) > best.repsAtBest) best.repsAtBest = +prev.reps || 0;
-      });
-      const hit = Training.prKind(filled.weightKg, filled.reps, best);
+      // Folded in with the same rule the history of records uses, so the two cannot disagree.
+      Training.foldSessionSets(best, items[ii].sets.filter((prev, pi) => pi < si && prev.done && (prev.type || 'work') === 'work'));
+      const hit = Training.prKind(filled.weightKg, filled.reps, best, bwKg);
       if (hit) {
         try { if (navigator.vibrate) navigator.vibrate([30, 50, 30, 50, 90]); } catch (_) {}
         prFanfare(t.prefs);
-        setPr({ exerciseId: items[ii].exerciseId, weightKg: filled.weightKg, reps: filled.reps, kind: hit.kind, label: hit.label });
+        setPr({ exerciseId: items[ii].exerciseId, weightKg: filled.weightKg, bwKg: bwKg, reps: filled.reps, kind: hit.kind, label: hit.label });
       }
     }
 
@@ -1260,7 +1259,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 <div ref={open ? openRowsRef : null}>
                 <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[11px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
-                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{machineSuffix(specOf(it.exerciseId), units).trim()}</div>
+                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{(isBodyweightLift(it.exerciseId, t.custom) ? '+' : '') + machineSuffix(specOf(it.exerciseId), units).trim()}</div>
                   <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
                   {!style.toFailure && <div className="w-11 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
                   <div className="w-12 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
@@ -1680,7 +1679,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           }}
           onClose={() => setUnitsFor(null)} />
       )}
-      {pastFor && <PastSets db={db} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
+      {pastFor && <PastSets db={db} update={update} showToast={showToast} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
       {swapping != null && (
         <ExercisePicker db={db} update={update} title="Replace movement"
@@ -1904,12 +1903,17 @@ function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClos
 
 // Every previous session of this movement, newest first. The question in the gym is never "what is
 // my all-time best", it is "what did I do last time, and the time before".
-function PastSets({ db, exerciseId, spec, onClose }) {
+function PastSets({ db, update, showToast, exerciseId, spec, onClose }) {
   useBackClose(onClose);
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
   const logs = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+  // On a bodyweight movement, sets that look like the person typed their own weight in to make it
+  // count. Flagged, and fixed only when they say so.
+  const isBw = isBodyweightLift(exerciseId, t.custom);
+  const maybeBw = (s, dateISO) => isBw && Training.looksLikeBodyweight(s, bodyWeightOn(db, dateISO));
+  const flagged = isBw ? t.logs.reduce((n, l) => n + (l.sets || []).filter(s => s.exerciseId === exerciseId && s.done && maybeBw(s, l.dateISO)).length, 0) : 0;
   // Which sets were records ON THE DAY. Scrolling back through your sessions should show where the
   // good days were, not just a wall of numbers, and "that was a best at the time" stays true even
   // after you have since beaten it.
@@ -1932,6 +1936,18 @@ function PastSets({ db, exerciseId, spec, onClose }) {
         <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recent sets</div>
         <h2 className="text-[15px] font-bold leading-tight mb-4">{ex ? ex.name : 'This movement'}</h2>
         {rows.length === 0 && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>You have not logged this one yet.</div>}
+        {flagged > 0 && update && (
+          <div className="mb-3 p-3" style={{ background: 'var(--surface2)' }}>
+            <div className="text-[12px] mb-2" style={{ color: 'var(--text2)' }}>
+              {flagged} of these {flagged === 1 ? 'looks' : 'look'} like your own weight typed in. If that is what they are, they are counted as bodyweight with nothing added.
+            </div>
+            <Btn kind="ghost" onClick={() => {
+              let n = 0;
+              trainUpdate(update, (tr, d) => { n = Training.retagBodyweight(tr.logs, exerciseId, (iso) => bodyWeightOn(d, iso)); });
+              showToast && showToast(n + ' set' + (n === 1 ? '' : 's') + ' counted as bodyweight.');
+            }}>Those were my bodyweight</Btn>
+          </div>
+        )}
         {rows.map((r, i) => (
           <div key={i} className="py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-2">
@@ -1949,7 +1965,9 @@ function PastSets({ db, exerciseId, spec, onClose }) {
                     color: mark ? 'var(--accent-ink)' : 'var(--text2)',
                     fontWeight: mark ? 700 : 400,
                   }}>
-                    {mark ? <Spark size={12} /> : null}{mark ? ' ' : ''}{Training.toMachine(s.weightKg, spec)}{machineSuffix(spec, units)} × {s.reps}{s.rir != null ? ' @' + s.rir : ''}
+                    {mark ? <Spark size={12} /> : null}{mark ? ' ' : ''}{+s.bwKg > 0
+                      ? (s.weightKg > 0 ? 'BW + ' + Training.toMachine(s.weightKg, spec) + machineSuffix(spec, units) : s.weightKg < 0 ? 'BW − ' + Training.toMachine(-s.weightKg, spec) + machineSuffix(spec, units) : 'BW')
+                      : Training.toMachine(s.weightKg, spec) + machineSuffix(spec, units)}{maybeBw(s, r.dateISO) ? ' (bodyweight?)' : ''} × {s.reps}{s.rir != null ? ' @' + s.rir : ''}
                   </span>
                 );
               })}
