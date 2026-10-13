@@ -981,6 +981,11 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
+  // What this movement's own machine shows, so a pin position is not printed as a weight.
+  const spec = Training.loadSpecFor(exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs });
+  const pinned = spec.unit === 'pin';
+  // The estimate is of the whole load, so it is never halved for plates on a side.
+  const wholeSpec = Object.assign({}, spec, { perSide: false });
   // The whole run, across every movement this one was rotated into or out of. A rotation restarts
   // the load and nothing else, so a chart that restarts with it turns "I changed the implement" into
   // "I lost my progress", which is both untrue and the fastest way to stop anybody ever rotating
@@ -1021,9 +1026,9 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">
-          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Estimated 1RM</div>
+          <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>{pinned ? 'Top pin' : 'Estimated 1RM'}</div>
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="pf text-[18px] tnum">{toDisplayWeight(latest.e1rm, units)}{unitLabel(units)}</span>
+            <span className="pf text-[18px] tnum">{pinned ? Training.toMachine(latest.topWeight, spec) + machineSuffix(spec, units) : Training.toMachine(latest.e1rm, wholeSpec) + machineSuffix(wholeSpec, units)}</span>
             {delta !== 0 && (
               <span className="text-[12px] tnum font-bold" style={{ color: delta > 0 ? 'var(--good-ink)' : 'var(--danger)' }}>{delta > 0 ? '+' : ''}{delta}%</span>
             )}
@@ -1073,7 +1078,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
               {h.dateISO}
               {h.exerciseId !== exerciseId && <span className="block text-[11px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
             </span>
-            <span className="text-[12px]">{h.sets} sets · top {toDisplayWeight(h.topWeight, units)}{unitLabel(units)} x {h.topReps}</span>
+            <span className="text-[12px]">{h.sets} sets · top {Training.toMachine(h.topWeight, spec)}{machineSuffix(spec, units)} x {h.topReps}</span>
           </div>
         ))}
         {!hist.length && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>No sessions with this movement yet.</div>}
@@ -2521,7 +2526,7 @@ function PRFlash({ pr, db, units, onClose }) {
         </div>
         <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>New best</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
-        <div className="pf text-[16px] tnum mb-2">{toDisplayWeight(pr.weightKg, units)}{unitLabel(units)} × {pr.reps}</div>
+        <div className="pf text-[16px] tnum mb-2">{machineStr(pr.weightKg, Training.loadSpecFor(pr.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }), units)} × {pr.reps}</div>
         <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
     </div>
@@ -2897,7 +2902,7 @@ function TrainProgress({ db, onBack, onOpenExercise, go, onTab }) {
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-semibold leading-tight">{r.name}</span>
           <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
-            {toDisplayWeight(r.e1rm, units)}{unitLabel(units)} est. 1RM · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
+            {(() => { const sp = Training.loadSpecFor(r.exerciseId, { gym: currentGym(db), custom: t.custom, prefs: t.prefs }); return sp.unit === 'pin' ? 'pin machine' : Training.toMachine(r.e1rm, Object.assign({}, sp, { perSide: false })) + machineSuffix(Object.assign({}, sp, { perSide: false }), units) + ' est. 1RM'; })()} · {r.sessions} {r.sessions === 1 ? 'session' : 'sessions'}
           </span>
           {r.state === 'stuck' && (
             <span className="block text-[11px] mt-1 leading-snug" style={{ color: ink }}>

@@ -1472,7 +1472,8 @@
     if (r === 1) return round(w, 1);
     return round(w * (1 + r / 30), 1);
   }
-  function setVolume(st) { return (+st.weightKg || 0) * (+st.reps || 0); }
+  // A pin number is not a mass, so a set logged against one adds nothing to tonnage.
+  function setVolume(st) { return st.unit === 'pin' ? 0 : (+st.weightKg || 0) * (+st.reps || 0); }
   function tonnage(log) {
     return round((log && log.sets || []).reduce(function (a, s) {
       return a + (s.done && (!s.type || s.type === 'work') ? setVolume(s) : 0);
@@ -1689,14 +1690,34 @@
   var LOWER_BODY = ['qu', 'ha', 'gl', 'ad', 'ca'];
   // The smallest jump this movement can actually be loaded by. Dumbbells come in pairs and jump in
   // twos; everything else moves in 2.5s.
-  function loadUnit(ex) { return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5; }
+  //
+  // A LOAD SPEC says what the machine in front of you actually shows: kilograms, pounds, or just a
+  // pin number, and whether you load plates on one side. Without one this is exactly what it always
+  // was. WITH one, the step is the smallest jump THAT machine can make, because a 10lb stack cannot
+  // be told to go up 2.5kg.
+  var LB = 2.20462;
+  function loadUnit(ex, spec) {
+    if (spec && spec.explicit) return specStepKg(spec);
+    return (ex && ex.equipment === 'dumbbell') ? 2 : 2.5;
+  }
+  // One notch of the machine, in the units weightKg is stored in. For a pin machine weightKg IS the
+  // pin number, so a notch is the step itself; for plates on a side, one notch each side moves the
+  // total by two.
+  function specStepKg(spec) {
+    var step = +spec.step > 0 ? +spec.step : 1;
+    if (spec.unit === 'pin') return step;
+    var kg = spec.unit === 'lb' ? step / LB : step;
+    return round(spec.perSide ? kg * 2 : kg, 4);
+  }
   function isLowerBody(ex) {
     return !!(ex && (ex.primary || []).filter(function (m) { return LOWER_BODY.indexOf(m) !== -1; }).length);
   }
-  function loadStep(ex, weightKg, style) {
+  function loadStep(ex, weightKg, style, spec) {
     var w = +weightKg || 0;
     if (!w) return 0;
-    var inc = loadUnit(ex);
+    var inc = loadUnit(ex, spec);
+    // A pin has no "big lower-body jump": one pin is one pin.
+    if (spec && spec.explicit && spec.unit === 'pin') return inc;
     // On a style where every set is already all-out, a percentage jump is the wrong tool: there is
     // no reserve to absorb it. The step is the smallest the kit allows - one notch upstairs, two on
     // the big lower-body movements, which is the 1.25-2.5kg / 2.5-5kg the method is written around.
@@ -1710,11 +1731,91 @@
   // for the same weight again is asking for a set that lands three reps under the window and teaches
   // nobody anything. Fifteen percent off puts the second set back inside the window it is being
   // judged against, which is the only way it counts as a second working set at all.
-  function backOffLoad(topKg, ex) {
+  function backOffLoad(topKg, ex, spec) {
     var w = +topKg || 0;
     if (!w) return 0;
-    var inc = loadUnit(ex);
-    return Math.max(inc, Math.round((w * 0.85) / inc) * inc);
+    var inc = loadUnit(ex, spec);
+    return round(Math.max(inc, Math.round((w * 0.85) / inc) * inc), 4);
+  }
+
+  // ---- what a machine shows ---------------------------------------------------------------------
+  // Resolve the load spec for one movement. The most specific answer wins: THIS machine at THIS gym
+  // (the same "machine preacher curl" is a pin stack in one building and plates in another), then a
+  // person's default for the movement with no gym, then the default saved on a custom exercise, and
+  // last of all "whatever units you use", which is flagged `explicit: false` so every number it
+  // produces is the number the app has always produced.
+  function loadSpecFor(exerciseId, opts) {
+    opts = opts || {};
+    var ex = byId(exerciseId, opts.custom);
+    var prefs = opts.prefs || {};
+    var entry = opts.gym && opts.gym.machines && opts.gym.machines[exerciseId];
+    var found = (entry && entry.load) || (prefs.machineLoads && prefs.machineLoads[exerciseId]) || (ex && ex.load) || null;
+    var def = prefs.units === 'lb' ? 'lb' : 'kg';
+    if (!found) {
+      return {
+        unit: def, perSide: false, explicit: false,
+        step: def === 'lb' ? round(loadUnit(ex) * LB, 1) : loadUnit(ex),
+      };
+    }
+    var unit = found.unit === 'lb' || found.unit === 'pin' || found.unit === 'kg' ? found.unit : def;
+    var step = +found.step > 0 ? +found.step : (unit === 'pin' ? 1 : unit === 'lb' ? 5 : loadUnit(ex));
+    return { unit: unit, step: step, perSide: unit !== 'pin' && !!found.perSide, explicit: true };
+  }
+  // The same spec in words, for the row that opens the sheet that changes it.
+  function specLabel(spec) {
+    if (!spec) return '';
+    if (spec.unit === 'pin') return 'Pin number, ' + spec.step + ' pin' + (spec.step === 1 ? '' : 's') + ' a jump';
+    return spec.unit + (spec.perSide ? ' a side' : '') + ', ' + spec.step + ' ' + spec.unit + ' jumps';
+  }
+  // What the box on the screen says for a stored weight, and back. Sets keep `weightKg` whatever the
+  // machine shows, so every older log, chart and test still reads: kilograms and pounds are real
+  // weights, a pin number is stored as the number, and plates on a side are stored as the total.
+  function toMachine(weightKg, spec) {
+    var w = +weightKg || 0;
+    if (!spec || spec.unit === 'pin') return round(w, 1);
+    var v = spec.unit === 'lb' ? w * LB : w;
+    return round(spec.perSide ? v / 2 : v, 1);
+  }
+  function fromMachine(value, spec) {
+    var v = +value || 0;
+    if (!spec || spec.unit === 'pin') return v;
+    var w = spec.perSide ? v * 2 : v;
+    return spec.unit === 'lb' ? round(w / LB, 2) : w;
+  }
+  // A guess, offered and never applied: do the numbers logged on this movement look like pounds, or
+  // like a pin position? Pounds convert to near-multiples of 5 and rarely to a multiple of 1.25kg;
+  // a pin number is a small whole number on kit that takes weights.
+  function guessLoadUnit(logs, exerciseId, custom) {
+    var ex = byId(exerciseId, custom);
+    var ws = [];
+    (logs || []).forEach(function (l) {
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId === exerciseId && st.done && (!st.type || st.type === 'work') && +st.weightKg > 0) ws.push(+st.weightKg);
+      });
+    });
+    if (ws.length < 3) return null;
+    var kgFriendly = ws.some(function (w) { var r = w / 1.25; return Math.abs(r - Math.round(r)) * 1.25 < 0.01; });
+    var nearFive = ws.filter(function (w) { var l = w * LB / 5; return Math.abs(l - Math.round(l)) * 5 < 0.6; }).length;
+    if (!kgFriendly && nearFive >= 3) return 'lb';
+    var machine = ex && (ex.equipment === 'machine' || ex.equipment === 'cable');
+    if (machine && ws.every(function (w) { return w === Math.round(w) && w <= 25; })) return 'pin';
+    return null;
+  }
+  // Re-label one movement's past sets once the person has agreed they were something else. `lb`
+  // means the numbers were pounds typed into a kilogram box; `pin` means they were pin positions.
+  // Edits in place, so it is called inside an update; returns how many sets it touched.
+  function relabelLoads(logs, exerciseId, mode, opts) {
+    var from = (opts && opts.fromISO) || '';
+    var n = 0;
+    (logs || []).forEach(function (l) {
+      if (from && l.dateISO < from) return;
+      (l.sets || []).forEach(function (st) {
+        if (st.exerciseId !== exerciseId || st.unit === 'pin') return;
+        if (mode === 'pin') { st.unit = 'pin'; n++; }
+        else if (mode === 'lb' && +st.weightKg > 0) { st.weightKg = round(st.weightKg / LB, 2); n++; }
+      });
+    });
+    return n;
   }
 
   // Three sessions on identical weight AND identical reps is a plateau, and on this style it is not
@@ -1974,7 +2075,7 @@
       if (!w) return Object.assign(next, { action: 'hold', reason: 'No weight logged last time, so this repeats.' });
       // Ceiling hit: the top of the window, in form, at failure. Smallest jump the kit allows.
       if (reps >= t.repHigh) {
-        next.weightKg = w + loadStep(ex, w, 'minmax');
+        next.weightKg = round(w + loadStep(ex, w, 'minmax', opts.spec), 4);
         return Object.assign(next, { action: 'load', reason: 'You got ' + reps + ' last time, which is the top of the window. Up one notch, and take it to failure again.' });
       }
       // Inside the window: the weight is right, so the job is one more rep than last time.
@@ -1982,7 +2083,7 @@
         return Object.assign(next, { action: 'reps', reason: 'Same weight as last time. You got ' + reps + ', so the whole job today is ' + (reps + 1) + '.' });
       }
       // Under the floor: too heavy to be a stimulus rather than a test. Ten percent off.
-      next.weightKg = Math.max(loadUnit(ex), Math.round((w * 0.9) / loadUnit(ex)) * loadUnit(ex));
+      next.weightKg = round(Math.max(loadUnit(ex, opts.spec), Math.round((w * 0.9) / loadUnit(ex, opts.spec)) * loadUnit(ex, opts.spec)), 4);
       return Object.assign(next, { action: 'lighter', reason: 'Only ' + reps + ' last time, under the ' + t.repLow + ' this window needs. Ten percent off, so the set does some work rather than just being heavy.' });
     }
 
@@ -1994,7 +2095,7 @@
 
     // Every working set cleared the top of the range: add load and drop back to the bottom.
     if (minReps >= t.repHigh) {
-      next.weightKg = topWeight + loadStep(ex, topWeight);
+      next.weightKg = round(topWeight + loadStep(ex, topWeight, undefined, opts.spec), 4);
       return Object.assign(next, { action: 'load', reason: 'You cleared ' + t.repHigh + ' on every set last time, so go heavier and aim for ' + t.repLow + ' at ' + t.rir + ' left in the tank.' });
     }
     // Comfortably inside the range: chase reps before weight.
@@ -2133,7 +2234,12 @@
     opts = opts || {};
     var bw = +opts.bodyweightKg || 75;
     var custom = opts.custom;
-    var prs = computePRs(logs);
+    // A pin position is not a weight, so it cannot be compared with bodyweight.
+    var massLogs = (logs || []).map(function (l) {
+      return (l.sets || []).some(function (st) { return st.unit === 'pin'; })
+        ? Object.assign({}, l, { sets: l.sets.filter(function (st) { return st.unit !== 'pin'; }) }) : l;
+    });
+    var prs = computePRs(massLogs);
     var bestByPattern = {};
     for (var id in prs) {
       var ex = byId(id, custom);
@@ -6441,7 +6547,7 @@
     var prevSets = last ? (logs.filter(function (l) { return l.dateISO === last.dateISO; })[0].sets || [])
       .filter(function (s) { return s.exerciseId === sessionExercise.exerciseId && s.done && (!s.type || s.type === 'work'); }) : [];
     var progressed = prevSets.length
-      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist })
+      ? progressExercise(t, prevSets, ex, { style: opts.style, history: hist, spec: opts.spec })
       : null;
     var n = (progressed && progressed.sets) || t.sets || 3;
     var out = [];
@@ -6456,7 +6562,7 @@
       var lead = progressed ? +progressed.weightKg || 0 : 0;
       var bothToFailure = (t.rir === 0);
       var planned = style.toFailure && lead
-        ? (i === 0 || !bothToFailure ? lead : backOffLoad(lead, ex))
+        ? (i === 0 || !bothToFailure ? lead : backOffLoad(lead, ex, opts.spec))
         : 0;
       out.push({
         setIndex: i, exerciseId: sessionExercise.exerciseId, type: 'work',
@@ -6535,6 +6641,8 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,
+    guessLoadUnit: guessLoadUnit, relabelLoads: relabelLoads, loadUnit: loadUnit, loadStep: loadStep, backOffLoad: backOffLoad,
     blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,
     packBlock: packBlock, unpackBlock: unpackBlock, packBlocks: packBlocks, unpackBlocks: unpackBlocks,
     blocksFromGrid: blocksFromGrid, remapBlocks: remapBlocks,

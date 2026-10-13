@@ -87,6 +87,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   // off the top set rather than off a reps-in-reserve estimate nobody can give at failure anyway.
   const style = Training.styleOf(block && block.style);
   const preOpts = { style: block && block.style };
+  // What each movement's own machine shows (kg, lb, a pin, plates a side), at THIS gym. Progression,
+  // the weight box and every weight printed for a movement read it, so a 10lb stack is never told to
+  // go up 2.5kg and a pin number is never added up as a mass.
+  // A spec saved a moment ago is not in `db` until the update lands, but the very next write to the
+  // log needs it, or a set typed after switching to pins would be filed as kilograms.
+  const specNow = useRef({});
+  const specOf = (exId) => specNow.current[exId] || Training.loadSpecFor(exId, { gym: gym, custom: t.custom, prefs: t.prefs });
+  const preFor = (exId) => Object.assign({}, preOpts, { spec: specOf(exId) });
+  const wStr = (kg, exId) => machineStr(kg, specOf(exId), units);
 
   // Which log this screen is writing to. Opened from History it is a NAMED one, which is what makes
   // a session from three weeks ago something you can go back into and correct rather than a receipt
@@ -218,7 +227,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     }
     if (!session) return [];
     return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
-      const pre = Training.prefillSets(e, t.logs, t.custom, preOpts);
+      const pre = Training.prefillSets(e, t.logs, t.custom, preFor(e.exerciseId));
       return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
         choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
         // What the plan asked for before anybody replaced it, so the picker can offer the way back
@@ -242,6 +251,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null);  // index of the exercise whose options are open
+  const [unitsFor, setUnitsFor] = useState(null);   // index of the movement whose machine units are open
   const [help, setHelp] = useState(null);          // which "?" explainer is open
   const [pastFor, setPastFor] = useState(null);    // exercise id whose history sheet is open
   const [noteOpen, setNoteOpen] = useState(null);  // exercise id whose note field is open
@@ -333,14 +343,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     const flat = [];
     (nextItems || items).forEach(it => {
       it.sets.forEach((s, i) => {
-        flat.push({
+        flat.push(Object.assign({
           // itemId says WHICH line of the plan this set belongs to, which exerciseId cannot when a
           // day programmes the same movement twice. Everything downstream still reads exerciseId, so
           // this is additive: history, tonnage and PRs are untouched.
           exerciseId: it.exerciseId, itemId: it.id || null, setIndex: i, type: s.type || 'work',
           weightKg: +s.weightKg || 0, reps: s.reps == null ? null : +s.reps,
           rir: s.rir == null ? null : +s.rir, done: !!s.done,
-        });
+        }, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null));
       });
     });
     // One prescription per MOVEMENT, not per set: a handful of small objects against a session,
@@ -452,6 +462,33 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     if (key === 'weightKg' && +value > 0 && !t.prefs.sawWarmupHint) {
       trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { sawWarmupHint: true }); });
     }
+  }
+  // Change what this movement's machine shows. The numbers already typed keep reading the same on
+  // screen, so the stored weight is re-expressed rather than left to jump; the choice is remembered
+  // for THIS machine at THIS gym (or for the movement, with no gym), so it is asked once.
+  function saveSpec(ii, next) {
+    const exId = items[ii].exerciseId;
+    const old = specOf(exId);
+    const spec = Object.assign({}, next, { explicit: true });
+    specNow.current[exId] = spec;
+    mutate(n => {
+      n[ii].sets.forEach(s => {
+        if (+s.weightKg > 0) s.weightKg = Training.fromMachine(Training.toMachine(s.weightKg, old), spec);
+      });
+    });
+    const keep = { unit: spec.unit, step: spec.step, perSide: !!spec.perSide };
+    trainUpdate(update, (tr) => {
+      const g = gym && (tr.gyms || []).filter(x => x.id === gym.id)[0];
+      if (g) {
+        g.machines = g.machines || {};
+        g.machines[exId] = Object.assign({}, g.machines[exId], { load: keep });
+        return;
+      }
+      const c = (tr.custom || []).filter(x => x.id === exId)[0];
+      if (c) { c.load = keep; return; }
+      tr.prefs = Object.assign({}, tr.prefs, { machineLoads: Object.assign({}, tr.prefs.machineLoads, { [exId]: keep }) });
+    });
+    showToast && showToast('Saved. ' + Training.specLabel(spec) + '.');
   }
   function cycleType(ii, si) {
     mutate(n => {
@@ -594,7 +631,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     setPicking(false);
     mutate(n => {
       const fresh = Training.newItemFor(exId, { style: block && block.style, week: (session && session.week) || 1, custom: t.custom });
-      const pre = Training.prefillSets({ exerciseId: exId, target: fresh.target }, t.logs, t.custom, preOpts);
+      const pre = Training.prefillSets({ exerciseId: exId, target: fresh.target }, t.logs, t.custom, preFor(exId));
       // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
       // its sets still group as one movement when the session is reopened.
       n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: fresh.target, sets: pre.sets, note: coachNote(pre), superset: null });
@@ -612,7 +649,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
      movement the plan originally asked for. Losing those meant the picker you had just used could
      not offer you the way back. */
   function replacedRow(old, exId) {
-    const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: (old.sets || []).length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preOpts);
+    const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: (old.sets || []).length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preFor(exId));
     const row = {
       id: old.id || ('swap_' + trainUid()), exerciseId: old.exerciseId, target: old.target,
       sets: pre.sets, note: coachNote(pre), superset: old.superset,
@@ -718,7 +755,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         return {
           name: codes[ii] + ' · ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || it.exerciseId),
           detail: logged.length
-            ? setsSummary(logged, kg => toDisplayWeight(kg, units) + unitLabel(units))
+            ? setsSummary(logged, kg => machineStr(kg, specOf(it.exerciseId), units))
             : 'not logged',
           logged: logged.length > 0,
         };
@@ -1066,7 +1103,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       ? 'All ' + work.length + ' sets logged'
                       : 'Set ' + ((work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length)
                     : done
-                      ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
+                      ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? wStr(work[0].weightKg, it.exerciseId) : 'BW') + ' logged'
                       : work.length + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
@@ -1142,7 +1179,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     return (
                       <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
                         <span style={{ color: 'var(--muted2)' }}>Last time: </span>
-                        {lts.map(l => (l.weightKg > 0 ? toDisplayWeight(l.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + l.reps).join(', ')}
+                        {lts.map(l => (l.weightKg > 0 ? wStr(l.weightKg, it.exerciseId) : 'BW') + ' × ' + l.reps).join(', ')}
                       </div>
                     );
                   }
@@ -1155,7 +1192,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   const from = Training.byId(ref.fromId, t.custom);
                   return (
                     <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-                      New to this one. On {from ? from.name : 'the plain version'} you did {toDisplayWeight(ref.best.weightKg, units)}{unitLabel(units)} × {ref.best.repsAtBest}
+                      New to this one. On {from ? from.name : 'the plain version'} you did {wStr(ref.best.weightKg, it.exerciseId)} × {ref.best.repsAtBest}
                     </div>
                   );
                 })()}
@@ -1220,7 +1257,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 <div ref={open ? openRowsRef : null}>
                 <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[11px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
-                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
+                  <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{machineSuffix(specOf(it.exerciseId), units).trim()}</div>
                   <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
                   {!style.toFailure && <div className="w-11 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>RIR</div>}
                   <div className="w-12 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Done</div>
@@ -1261,10 +1298,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                             column is headed KG, and a nought sitting in it reads as a weight
                             somebody has already entered rather than as an invitation to type one. */}
                         <input type="number" inputMode="decimal" className={'flex-1 ' + cell} style={cellStyle}
-                          value={s.weightKg ? toDisplayWeight(s.weightKg, units) : ''}
+                          value={s.weightKg ? Training.toMachine(s.weightKg, specOf(it.exerciseId)) : ''}
                           onFocus={e => { try { e.target.select(); } catch (_) {} }}
-                          onChange={e => setField(ii, si, 'weightKg', fromDisplayWeight(e.target.value, units))}
-                          placeholder={s.lastTime ? String(toDisplayWeight(s.lastTime.weightKg, units)) : ''} />
+                          onChange={e => setField(ii, si, 'weightKg', Training.fromMachine(e.target.value, specOf(it.exerciseId)))}
+                          placeholder={s.lastTime ? String(Training.toMachine(s.lastTime.weightKg, specOf(it.exerciseId))) : ''} />
                         <input type="number" inputMode="numeric" className={'flex-1 ' + cell} style={cellStyle}
                           value={s.reps == null ? '' : s.reps}
                           onFocus={e => { try { e.target.select(); } catch (_) {} }}
@@ -1331,7 +1368,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                           </button>
                         </div>
                       )}
-                      {t.prefs.plateCalc !== false && Training.usesBar(ex) && s.weightKg > 0
+                      {t.prefs.plateCalc !== false && Training.usesBar(ex) && s.weightKg > 0 && specOf(it.exerciseId).unit !== 'pin'
                         && (si === 0 || it.sets[si - 1].weightKg !== s.weightKg) && (
                         <button onClick={() => setPlateFor(plateFor === ii + ':' + si ? null : ii + ':' + si)}
                           className="text-[11px] pl-10 tnum text-left" style={{ color: 'var(--muted2)' }}>
@@ -1549,7 +1586,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               disabled: !items[menuOpen].target,
               onClick: () => setTargetFor(menuOpen),
             },
-            { label: 'Log warm-up sets', sub: 'Adds rows above the working sets', onClick: () => addWarmups(menuOpen) },
+            { label: 'Machine units', sub: specOf(items[menuOpen].exerciseId).explicit ? Training.specLabel(specOf(items[menuOpen].exerciseId)) : 'Follows your settings (' + unitLabel(units) + '). Tap if this one reads in pounds, pins or plates.', onClick: () => setUnitsFor(menuOpen) },
+            { label: 'Log warm-up sets', sub: 'Adds rows above the working sets', disabled: specOf(items[menuOpen].exerciseId).unit === 'pin', onClick: () => addWarmups(menuOpen) },
             items[menuOpen].superset
               ? { label: 'Break the superset', onClick: () => toggleSuperset(menuOpen) }
               : { label: 'Superset with the next', sub: 'No rest between them', disabled: !items[menuOpen + 1], onClick: () => toggleSuperset(menuOpen) },
@@ -1625,7 +1663,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       {signOff && <SessionSignOff db={db} facts={signOff} units={units} onDone={onFinish} />}
       {help && <TrainHelp topic={help} db={db} onClose={() => setHelp(null)}
         onHideForGood={() => { trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { hideHelp: true }); }); setHelp(null); }} />}
-      {pastFor && <PastSets db={db} exerciseId={pastFor} onClose={() => setPastFor(null)} />}
+      {unitsFor != null && items[unitsFor] && (
+        <MachineUnitsSheet
+          name={(Training.byId(items[unitsFor].exerciseId, t.custom) || {}).name || 'This movement'}
+          spec={specOf(items[unitsFor].exerciseId)} where={gym ? gym.name : null}
+          guess={Training.guessLoadUnit(t.logs, items[unitsFor].exerciseId, t.custom)}
+          onSave={(spec) => saveSpec(unitsFor, spec)}
+          onConvert={(mode) => {
+            const exId = items[unitsFor].exerciseId;
+            let n = 0;
+            trainUpdate(update, (tr) => { n = Training.relabelLoads(tr.logs, exId, mode); });
+            showToast && showToast(n ? n + ' past ' + (n === 1 ? 'set' : 'sets') + ' relabelled.' : 'Nothing to relabel.');
+          }}
+          onClose={() => setUnitsFor(null)} />
+      )}
+      {pastFor && <PastSets db={db} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
       {swapping != null && (
         <ExercisePicker db={db} update={update} title="Replace movement"
@@ -1798,9 +1850,50 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
   );
 }
 
+// What the machine in front of you actually shows. A stack that reads in pounds, a pin you move by
+// hand, plates you load a side at a time: each is a different kind of number, and the app cannot
+// tell which from the name. So it asks once, remembers it for this machine at this gym, and from
+// then on types, shows and steps in the machine's own terms.
+const STEPS = { kg: [1, 1.25, 2.5, 5], lb: [2.5, 5, 10, 15], pin: [1] };
+function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClose }) {
+  const [unit, setUnit] = useState(spec.unit);
+  const [step, setStep] = useState(spec.step);
+  const [side, setSide] = useState(!!spec.perSide);
+  const steps = STEPS[unit];
+  const stepNow = steps.indexOf(step) !== -1 ? step : steps[Math.min(1, steps.length - 1)];
+  const guessWords = guess === 'lb' ? 'pounds' : guess === 'pin' ? 'pin positions' : null;
+  return (
+    <Sheet title="Machine units" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+        {name}. Pick what its own display or stack plate says, and the box, the history and the next
+        weight all use it.
+      </div>
+      <Seg value={unit} onChange={(u) => { setUnit(u); setStep(STEPS[u][Math.min(1, STEPS[u].length - 1)]); }}
+        options={[{ v: 'kg', l: 'kg' }, { v: 'lb', l: 'lb' }, { v: 'pin', l: 'Pin' }]} />
+      <div>
+        <SheetLabel>{unit === 'pin' ? 'One move is' : 'Smallest jump'}</SheetLabel>
+        <Seg value={stepNow} onChange={setStep} options={steps.map(v => ({ v: v, l: unit === 'pin' ? '1 pin' : v + ' ' + unit }))} />
+      </div>
+      {unit !== 'pin' && <RowToggle label="Plates, one side at a time" on={side} onClick={() => setSide(!side)} />}
+      {guessWords && (
+        <SheetBox className="p-3">
+          <div className="text-[13px]" style={{ color: 'var(--text2)' }}>
+            The numbers you have logged on this look like {guessWords}. Relabel the past sessions to match?
+          </div>
+          <div className="mt-2"><Btn kind="ghost" onClick={() => { onConvert(guess); }}>Relabel past sessions</Btn></div>
+        </SheetBox>
+      )}
+      <div className="text-[12px]" style={{ color: 'var(--muted2)' }}>
+        {where ? 'Saved for this machine at ' + where + '.' : 'Saved for this movement.'}
+      </div>
+      <Btn onClick={() => { onSave({ unit: unit, step: stepNow, perSide: unit !== 'pin' && side }); onClose(); }}>Save</Btn>
+    </Sheet>
+  );
+}
+
 // Every previous session of this movement, newest first. The question in the gym is never "what is
 // my all-time best", it is "what did I do last time, and the time before".
-function PastSets({ db, exerciseId, onClose }) {
+function PastSets({ db, exerciseId, spec, onClose }) {
   useBackClose(onClose);
   const t = tdb(db);
   const units = t.prefs.units;
@@ -1845,7 +1938,7 @@ function PastSets({ db, exerciseId, onClose }) {
                     color: mark ? 'var(--accent-ink)' : 'var(--text2)',
                     fontWeight: mark ? 700 : 400,
                   }}>
-                    {mark ? <Spark size={12} /> : null}{mark ? ' ' : ''}{toDisplayWeight(s.weightKg, units)}{unitLabel(units)} × {s.reps}{s.rir != null ? ' @' + s.rir : ''}
+                    {mark ? <Spark size={12} /> : null}{mark ? ' ' : ''}{Training.toMachine(s.weightKg, spec)}{machineSuffix(spec, units)} × {s.reps}{s.rir != null ? ' @' + s.rir : ''}
                   </span>
                 );
               })}

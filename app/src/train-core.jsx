@@ -129,6 +129,19 @@ function weekRangeLabel(startISO, week) {
 function toDisplayWeight(kg, units) { return units === 'lb' ? Training.round((+kg || 0) * 2.20462, 1) : Training.round(+kg || 0, 1); }
 function fromDisplayWeight(v, units) { return units === 'lb' ? Training.round((+v || 0) / 2.20462, 2) : (+v || 0); }
 function unitLabel(units) { return units === 'lb' ? 'lb' : 'kg'; }
+// What the box on a MACHINE says. A load spec (Training.loadSpecFor) knows whether this movement is
+// read off a kilogram stack, a pound stack, a pin position, or loaded with plates on each side. The
+// stored weight is still `weightKg`; these only change what is shown and typed.
+function machineSuffix(spec, units) {
+  if (spec && spec.explicit) {
+    if (spec.unit === 'pin') return ' pin';
+    return (spec.unit === 'lb' ? 'lb' : 'kg') + (spec.perSide ? ' a side' : '');
+  }
+  return unitLabel(units);
+}
+function machineStr(kg, spec, units) {
+  return (+kg > 0) ? Training.toMachine(kg, spec) + machineSuffix(spec, units) : 'BW';
+}
 // Say something only when something CHANGED. The engine hands back a reason for every exercise,
 // but "on track, add a rep where you can" repeated down a six-exercise session stops being read
 // after the second one, and it repeats what the rep range above it already says. A weight going up,
