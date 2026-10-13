@@ -1447,6 +1447,9 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
             </div>
           );
         })()}
+        <Collapsible label="See it on a body" sub="Show" variant="inline" className="mt-2">
+          <MuscleMap coverage={cov} />
+        </Collapsible>
       </Card>
 
       {/* What a second min-max block adds, since it adds nothing else: no extra sets, no extra

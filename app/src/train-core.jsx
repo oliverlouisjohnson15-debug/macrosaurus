@@ -382,6 +382,78 @@ function CoverageRow({ row, compact }) {
   );
 }
 
+/* ---- the body, shaded by the week ---------------------------------------------------------------
+   Seventeen bars answer "is each muscle in its range"; a body answers "what does my week look like"
+   in one glance, and shows at once that a block is all front and no back, or all arms. The figure is
+   drawn here, as blocks on a pixel grid to suit the rest of the app, rather than borrowed: each
+   muscle is a list of [x, y, width, height] rectangles for the LEFT half of a 60 x 100 body, mirrored
+   across the middle unless it is marked central. Every muscle appears on at least one side.
+
+   Colour is the same three states as the bars (in its range, short, past recovery) and a muscle the
+   style does not programme at all stays blank rather than reading as a failure. */
+const BODY = {
+  front: {
+    fd: { r: [[16, 16, 6, 7]] }, sd: { r: [[11, 17, 5, 8]] }, ch: { r: [[22, 17, 8, 9]] },
+    bi: { r: [[11, 26, 5, 10]] }, fa: { r: [[9, 37, 5, 12]] }, ab: { r: [[25, 27, 10, 15]], central: true },
+    ob: { r: [[21, 28, 4, 12]] }, qu: { r: [[20, 45, 9, 22]] }, ad: { r: [[28, 50, 2, 14]] }, ca: { r: [[21, 71, 7, 19]] },
+  },
+  back: {
+    ub: { r: [[22, 14, 16, 8]], central: true }, rd: { r: [[16, 16, 6, 7]] }, sd: { r: [[11, 17, 5, 8]] },
+    lt: { r: [[18, 23, 7, 14]] }, lb: { r: [[25, 38, 10, 7]], central: true }, tr: { r: [[11, 26, 5, 10]] },
+    fa: { r: [[9, 37, 5, 12]] }, gl: { r: [[21, 46, 9, 9]] }, ha: { r: [[20, 56, 9, 15]] }, ca: { r: [[21, 72, 7, 18]] },
+  },
+};
+// The parts nobody trains for: head, neck, hands, feet and the hips. Drawn faintly so the figure reads.
+const BODY_STATIC = [[26, 2, 8, 9], [28, 11, 4, 3], [8, 50, 6, 4], [46, 50, 6, 4], [21, 91, 8, 4], [31, 91, 8, 4], [22, 42, 16, 4]];
+function muscleState(row) {
+  if (!row) return 'none';
+  if (!row.mev && !row.sets) return 'none';
+  return row.sets < row.mev ? 'short' : row.sets > row.mrv ? 'over' : 'in';
+}
+const STATE_FILL = { in: 'var(--good)', short: 'var(--muted2)', over: 'var(--warn)', none: 'var(--track)' };
+function MuscleMap({ coverage, onPick, picked }) {
+  const byMuscle = {};
+  coverage.rows.forEach(r => { byMuscle[r.muscle] = r; });
+  const counts = { in: 0, short: 0, over: 0 };
+  coverage.rows.forEach(r => { const st = muscleState(r); if (counts[st] != null) counts[st]++; });
+  const figure = (side, dx) => (
+    <g transform={'translate(' + dx + ' 0)'}>
+      {BODY_STATIC.map((q, i) => <rect key={'s' + i} x={q[0]} y={q[1]} width={q[2]} height={q[3]} fill="var(--track)" opacity="0.55" />)}
+      {Object.keys(BODY[side]).map(m => {
+        const def = BODY[side][m], row = byMuscle[m], st = muscleState(row);
+        const rects = def.central ? def.r : def.r.concat(def.r.map(q => [60 - q[0] - q[2], q[1], q[2], q[3]]));
+        return (
+          <g key={m} role="button" tabIndex={0} aria-label={Training.MUSCLE_LABEL[m] + (row ? ': ' + row.sets + ' sets, ' + (st === 'in' ? 'in range' : st === 'short' ? 'short' : st === 'over' ? 'past recovery' : 'not programmed') : '')}
+            onClick={() => onPick && onPick(m)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onPick && onPick(m); }}
+            style={{ cursor: onPick ? 'pointer' : 'default' }}>
+            {rects.map((q, i) => (
+              <rect key={i} x={q[0]} y={q[1]} width={q[2]} height={q[3]} fill={STATE_FILL[st]}
+                stroke={picked === m ? 'var(--text)' : 'var(--border)'} strokeWidth={picked === m ? 1.6 : 0.8} />
+            ))}
+          </g>
+        );
+      })}
+    </g>
+  );
+  return (
+    <div>
+      <svg viewBox="0 0 132 98" className="w-full" style={{ maxWidth: 360, display: 'block', margin: '0 auto', shapeRendering: 'crispEdges' }}
+        role="group" aria-label={'Muscle map. ' + counts.in + ' in range, ' + counts.short + ' short, ' + counts.over + ' past recovery.'}>
+        {figure('front', 0)}
+        {figure('back', 72)}
+      </svg>
+      <div className="flex justify-around text-[11px] mt-1" style={{ color: 'var(--muted2)', maxWidth: 360, margin: '0 auto' }}><span>Front</span><span>Back</span></div>
+      <div className="flex gap-3 justify-center flex-wrap mt-2">
+        {[['in', 'in its range'], ['short', 'short'], ['over', 'past recovery']].map(([k, l]) => (
+          <span key={k} className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted2)' }}>
+            <span className="shrink-0" style={{ width: 10, height: 10, background: STATE_FILL[k], border: '2px solid var(--border)' }} />{l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* A shaded stripe and a marker mean nothing until somebody says once what they are, so any group of
    these carries the key. Suppressed on the compact/limited variants, where the bars are a glance
    inside a bigger card rather than the thing you came to read. */

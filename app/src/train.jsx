@@ -228,6 +228,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
   const [advice, setAdvice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [allMuscles, setAllMuscles] = useState(false);
+  const [pickedMuscle, setPickedMuscle] = useState(null);
 
   // Performed is judged over the last seven days, which is how anyone actually thinks about a week.
   const weekAgo = new Date(Date.parse(today + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
@@ -272,6 +273,18 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
           ))}
         </div>
       )}
+
+      <Card className="p-4 mb-4">
+        <MuscleMap coverage={cov} onPick={(m) => setPickedMuscle(pickedMuscle === m ? null : m)} picked={pickedMuscle} />
+        {pickedMuscle && (() => {
+          const r = cov.rows.filter(x => x.muscle === pickedMuscle)[0];
+          return r ? (
+            <div className="text-[13px] mt-3 text-center" style={{ color: 'var(--text2)' }}>
+              <strong>{r.label}</strong>: {r.sets} {r.sets === 1 ? 'set' : 'sets'}{r.mev ? ' against a range of ' + r.mev + ' to ' + r.mrv : ', which this style does not programme'}.
+            </div>
+          ) : null;
+        })()}
+      </Card>
 
       <Card className="p-4 mb-4">
         <div className="flex items-baseline justify-between mb-4">
@@ -861,6 +874,14 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
   const [limit, setLimit] = useState(6);
   const [twinsOpen, setTwinsOpen] = useState(false);
   const twins = t.custom.length > 1 ? twinPairs(t) : [];
+  // A cell in the calendar takes you to that day: older weeks than the list is showing are opened
+  // first, and the scroll waits for them to exist.
+  const pickDay = (iso) => {
+    setLimit(1000);
+    setTimeout(() => {
+      try { const el = document.getElementById('hist-' + iso); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' }); } catch (_) { /* never fatal */ }
+    }, 60);
+  };
 
   const prsBySession = {};
   t.logs.forEach(l => { const p = Training.prsInLog(t.logs, l); if (p.length) prsBySession[l.id] = p; });
@@ -900,6 +921,9 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
     return 'Week of ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
   };
   const shown = groups.slice(0, limit);
+  // The first session of each day carries the anchor the calendar scrolls to.
+  const firstOfDay = {};
+  logs.forEach(l => { if (!firstOfDay[l.dateISO]) firstOfDay[l.dateISO] = l.id; });
 
   return (
     <div className="fade-in">
@@ -909,6 +933,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a session or a movement"
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+      {t.logs.length > 0 && !needle && <TrainingCalendar logs={t.logs} today={today} onPick={pickDay} />}
       {twins.length > 0 && !needle && (
         <div className="mb-4">
           <Row title={twins.length + (twins.length === 1 ? ' machine looks' : ' machines look') + ' saved twice'}
@@ -942,7 +967,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
             const sessionPRs = prsBySession[l.id] || [];
             const d = new Date(Date.parse(l.dateISO + 'T00:00:00Z'));
             return (
-              <button key={l.id} onClick={() => onOpenSession && onOpenSession(l)}
+              <button key={l.id} id={firstOfDay[l.dateISO] === l.id ? 'hist-' + l.dateISO : undefined} onClick={() => onOpenSession && onOpenSession(l)}
                 className="w-full text-left px-3 py-3 flex items-start gap-3"
                 style={i ? { borderTop: '2px solid var(--track)' } : null}>
                 <span className="shrink-0 text-center" style={{ width: 34 }}>
@@ -984,6 +1009,47 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
       {confirm && <ConfirmDialog title="Delete this session?" body="It comes out of your volume and your records too."
         onConfirm={() => trainUpdate(update, (tr, d) => { tr.logs = tr.logs.filter(x => x.id !== confirm); tombstone(d, [confirm]); })}
         onClose={() => setConfirm(null)} />}
+    </div>
+  );
+}
+
+// Twelve weeks of training days, Monday to Sunday down the side, oldest week on the left. A cell is
+// darker the more hard sets that day held; a tap goes to that day in the list below. Twelve weeks is
+// what fits a phone with a gutter; older history is still in the list.
+function TrainingCalendar({ logs, today, onPick }) {
+  const totals = Training.dayTotals(logs);
+  const [sel, setSel] = useState(null);
+  const day = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const dow = (new Date(Date.parse(today + 'T00:00:00Z')).getUTCDay() + 6) % 7;     // Monday = 0
+  const thisMonday = day(today, -dow);
+  const weeks = Array.from({ length: 12 }, (_, w) => day(thisMonday, (w - 11) * 7));
+  const level = (n) => (n >= 21 ? 3 : n >= 11 ? 2 : 1);
+  const trained = weeks.reduce((a, mon) => a + Array.from({ length: 7 }, (_, d) => totals[day(mon, d)] ? 1 : 0).reduce((x, y) => x + y, 0), 0);
+  const long = (iso) => { const d = new Date(Date.parse(iso + 'T00:00:00Z')); return WEEKDAYS_FULL[(d.getUTCDay() + 6) % 7] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; };
+  const cellBase = { aspectRatio: '1 / 1', minHeight: 0, padding: 0, border: 0 };
+  return (
+    <div className="mb-4">
+      <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>{trained} {trained === 1 ? 'day' : 'days'} trained in the last 12 weeks</div>
+      <div role="group" aria-label="Training days, last twelve weeks" className="grid gap-[3px]"
+        style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+        {[0, 1, 2, 3, 4, 5, 6].map(d => weeks.map(mon => {
+          const iso = day(mon, d), tot = totals[iso];
+          // A day with nothing on it is a blank square, not a control: eighty-four tab stops to
+          // reach the dozen that lead anywhere would be eighty-four small lies.
+          if (!tot) return <span key={iso} aria-hidden="true" style={Object.assign({}, cellBase, { background: 'var(--track)', opacity: iso > today ? 0.3 : 1 })} />;
+          return (
+            <button key={iso} onClick={() => { setSel(iso); onPick && onPick(iso); }}
+              aria-label={iso + ': ' + tot.sets + ' sets'} aria-pressed={sel === iso}
+              style={Object.assign({}, cellBase, { background: 'var(--accent)', opacity: [1, 0.4, 0.7, 1][level(tot.sets)],
+                boxShadow: sel === iso ? '0 0 0 2px var(--text)' : 'none' })} />
+          );
+        }))}
+      </div>
+      <div className="text-[12px] mt-2 tnum" style={{ color: sel ? 'var(--text2)' : 'var(--muted2)', minHeight: 18 }}>
+        {sel && totals[sel]
+          ? long(sel) + ': ' + totals[sel].sets + (totals[sel].sets === 1 ? ' set' : ' sets') + (totals[sel].tonnage ? ' · ' + fmtTonnage(totals[sel].tonnage, 'kg') + ' moved' : '')
+          : 'Tap a day to jump to it.'}
+      </div>
     </div>
   );
 }

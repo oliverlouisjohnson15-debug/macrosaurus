@@ -1492,6 +1492,24 @@
     };
   }
 
+  // What was done on each day, for the calendar: working sets, tonnage and sessions. Warm-ups are not
+  // work, and a pin number is not a mass.
+  function dayTotals(logs) {
+    var out = {};
+    (logs || []).forEach(function (l) {
+      var d = out[l.dateISO] || (out[l.dateISO] = { sets: 0, tonnage: 0, sessions: 0 });
+      var n = 0;
+      (l.sets || []).forEach(function (st) {
+        if (!st.done || st.type === 'warmup') return;
+        n++;
+        d.tonnage += setVolume(st);
+      });
+      if (n) { d.sets += n; d.sessions++; }
+    });
+    Object.keys(out).forEach(function (k) { if (!out[k].sets) delete out[k]; else out[k].tonnage = round(out[k].tonnage, 1); });
+    return out;
+  }
+
   // How often each muscle is hit across the week. Twice beats once at matched volume, so a muscle
   // sitting at a good weekly total but crammed into one session is still worth flagging.
   function frequency(sessions, custom) {
@@ -7298,7 +7316,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
-    resolveImportName: resolveImportName, historyFromCsv: historyFromCsv, addImportedLogs: addImportedLogs, parseCsv: parseCsv,
+    resolveImportName: resolveImportName, dayTotals: dayTotals, historyFromCsv: historyFromCsv, addImportedLogs: addImportedLogs, parseCsv: parseCsv,
     PROGRAMME_ADDITIONS: PROGRAMME_ADDITIONS, applyAdditions: applyAdditions, applyPriority: applyPriority,
     looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,
     splitBrand: splitBrand, BRANDS: BRANDS, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
