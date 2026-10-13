@@ -76,3 +76,22 @@ shape. Do them in the order 03 → 01 → 02, and merge each before starting the
   `npm test`. Both must pass.
 - Check the result in `?demo` at 390×844 and 320×640, in paper and dark.
 - Do not put a model name in commits, code or PRs.
+
+## What was built (13 Oct 2026)
+
+Every plan except two parts was implemented on `ccr-887ef22b-b97l4d`, one commit each, with the full
+suite green after each (1,697 tests at the end, up from 1,569).
+
+| Plan | Status | Notes |
+|---|---|---|
+| 03 Machine units | Done | `Training.loadSpecFor`; kg / lb / pin / plates a side; a "Machine units" sheet on the movement menu |
+| 01 Machines per gym | Done | `gym.machines[x].use`; "Always at <gym>" on the swap sheet; gym editor lists them. Deviation: "Always at" does **not** also rewrite the rest of the block, because the gym mapping already covers later sessions and the block stays as the author wrote it |
+| 02 Brands and duplicates | Done | `splitBrand`, `findDuplicate`, `mergeExercise`; new-exercise sheet rebuilt. Merged movements are tombstoned, and the store now filters tombstoned customs |
+| 04 Fixed reps | Done | `progressionWindow` |
+| 06 Records | Done, one deviation | Pure bodyweight work does not get an estimated-1RM record (it would fire whenever the scale went up); weighted bodyweight work and reps at the same added load do |
+| 05 Programme balance | Done | Stego edited; additions layer and priority muscle for the other three. The review screen's "keep this priority?" question is **not** built |
+| 07 Wake lock | Done | Part B (server rest alert) not built: needs timing on a real iPhone |
+| 08 History import | Done | Fixtures are written to the apps' documented layouts with invented data, **not** real exports |
+| 09 Muscle map and calendar | Done | The figure is drawn in-house, so no third-party artwork or licence |
+| 10 How-tos and setup notes | Done | The optional dataset-steps item is not built |
+| 11 Debts | Part A done | The engine split is deferred, with the reasons in that plan's Status section |
