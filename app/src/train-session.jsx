@@ -1866,7 +1866,7 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
 // tell which from the name. So it asks once, remembers it for this machine at this gym, and from
 // then on types, shows and steps in the machine's own terms.
 const STEPS = { kg: [1, 1.25, 2.5, 5], lb: [2.5, 5, 10, 15], pin: [1] };
-function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClose }) {
+function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClose, z }) {
   const [unit, setUnit] = useState(spec.unit);
   const [step, setStep] = useState(spec.step);
   const [side, setSide] = useState(!!spec.perSide);
@@ -1874,7 +1874,7 @@ function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClos
   const stepNow = steps.indexOf(step) !== -1 ? step : steps[Math.min(1, steps.length - 1)];
   const guessWords = guess === 'lb' ? 'pounds' : guess === 'pin' ? 'pin positions' : null;
   return (
-    <Sheet title="Machine units" onClose={onClose}>
+    <Sheet title="Machine units" onClose={onClose} z={z}>
       <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
         {name}. Pick what its own display or stack plate says, and the box, the history and the next
         weight all use it.
@@ -1895,7 +1895,7 @@ function MachineUnitsSheet({ name, spec, where, guess, onSave, onConvert, onClos
         </SheetBox>
       )}
       <div className="text-[12px]" style={{ color: 'var(--muted2)' }}>
-        {where ? 'Saved for this machine at ' + where + '.' : 'Saved for this movement.'}
+        {where ? 'Saved for this machine at ' + where + '.' : 'Saved with this movement.'}
       </div>
       <Btn onClick={() => { onSave({ unit: unit, step: stepNow, perSide: unit !== 'pin' && side }); onClose(); }}>Save</Btn>
     </Sheet>
@@ -2085,7 +2085,7 @@ function restAlert(prefs) {
 }
 
 // ---- exercise picker --------------------------------------------------------------------------
-function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, offer }) {
+function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, offer, z }) {
   useBackClose(onClose);
   const t = tdb(db);
   // Opening on the plan's own wording for a movement means the search has already been run and the
@@ -2108,7 +2108,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
   if (!q) list = list.concat(Training.CARDIO);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)', zIndex: z || undefined }}>
       <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
         <button onClick={onClose} className="pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>Close</button>
         <div className="pf text-[11px] flex-1 text-center">{title || 'Add exercise'}</div>
@@ -2221,6 +2221,9 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
             <div key={e.id} className="pixel-box p-3 mb-2" style={{ background: 'var(--surface2)' }}>
               <button onClick={() => onPick(e.id)} className="w-full text-left">
                 <div className="text-[13px] font-bold">{e.name}</div>
+                {e.brand && !norm2(e.name).includes(norm2(e.brand)) && (
+                  <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>{e.brand}</div>
+                )}
                 {Training.isCardio(e)
                   ? <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
                   : <MuscleTags exerciseId={e.id} custom={t.custom} />}
@@ -2255,77 +2258,143 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
 // A user-invented movement still has to say what it trains, or it would sit in the plan
 // contributing nothing and quietly making the coverage audit wrong.
 function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
-  useBackClose(onClose);
   const t0 = tdb(db);
-  // A variation arrives with everything but its name already answered, because its parent already
-  // answered it. The fields stay editable: inherited is a starting point, not a claim.
-  const seed = basedOn ? Training.variationOf(basedOn, 'x', t0.custom) : null;
-  const parent = basedOn ? Training.byId(basedOn, t0.custom) : null;
+  const gym = currentGym(db);
+  // What it is LIKE. A variation arrives with this answered; a brand-new movement can answer it now,
+  // and either way everything that follows (muscles, kit, pattern, warm-up ramp) starts from the
+  // answer instead of from a blank. The fields stay editable: inherited is a starting point.
+  const [likeId, setLikeId] = useState(basedOn || null);
+  const seed = likeId ? Training.variationOf(likeId, 'x', t0.custom) : null;
+  const parent = likeId ? Training.byId(likeId, t0.custom) : null;
   const [name, setName] = useState(initialName || (parent ? parent.name : ''));
+  // The maker, offered from the name until the person says otherwise.
+  const [brand, setBrand] = useState(() => Training.splitBrand(initialName || '').brand || '');
+  const [brandTouched, setBrandTouched] = useState(false);
   const [primary, setPrimary] = useState(seed ? seed.primary : []);
   const [secondary, setSecondary] = useState(seed ? seed.secondary : []);
   const [equipment, setEquipment] = useState(seed ? seed.equipment : 'machine');
+  const [load, setLoad] = useState(null);          // what its own display shows, if the person said
+  const [likePicker, setLikePicker] = useState(false);
+  const [unitsOpen, setUnitsOpen] = useState(false);
+  const [twin, setTwin] = useState(null);          // an existing movement this looks like a copy of
   function toggle(list, setList, m) { setList(list.indexOf(m) !== -1 ? list.filter(x => x !== m) : list.concat([m])); }
+  function chooseLike(id) {
+    const sd = Training.variationOf(id, 'x', t0.custom);
+    setLikeId(id);
+    if (sd) { setPrimary(sd.primary); setSecondary(sd.secondary); setEquipment(sd.equipment); }
+    setLikePicker(false);
+  }
+  function typeName(v) {
+    setName(v);
+    setTwin(null);
+    if (!brandTouched) setBrand(Training.splitBrand(v).brand || '');
+  }
+  // A guess at what it is like, from the name alone, offered rather than applied: "Hammer Strength
+  // incline press" is an incline machine press, and one tap says so.
+  const guess = (() => {
+    if (likeId || !name.trim()) return null;
+    const r = Training.resolveDetail(Training.splitBrand(name).rest || name);
+    return r && (r.how === 'exact' || r.how === 'alias' || r.how === 'strong') ? Training.byId(r.id) : null;
+  })();
   // A variation opens with its parent's name so you can add to it rather than retype it, which means
   // the one thing that must not happen is saving it unchanged and quietly minting a second exercise
   // with the same name as the first.
   const unchanged = !!parent && norm2(name) === norm2(parent.name);
-  function save() {
+  function save(skipTwin) {
     if (!name.trim() || !primary.length || unchanged) return;
+    const cand = { name: name.trim(), variantOf: likeId || null, brand: brand.trim() || null };
+    if (!skipTwin) {
+      const dup = Training.findDuplicate(cand, t0.custom);
+      if (dup) { setTwin(dup); return; }
+    }
     const id = 'cu_' + trainUid();
     trainUpdate(update, (tr) => {
-      tr.custom.push({
+      const made = {
         id: id, name: name.trim(), equipment: equipment,
         // A variation keeps its parent's movement pattern and resistance profile too. Those decide
         // warm-up ramps and which gaps it can fill, and a wide-grip row is still a horizontal pull.
-        pattern: seed ? seed.pattern : 'isolation', profile: seed ? seed.profile : 'mid',
+        // One with no parent is worked out from what it trains, rather than assumed to be isolation.
+        pattern: seed ? seed.pattern : Training.inferPattern(primary), profile: seed ? seed.profile : 'mid',
         primary: primary, secondary: secondary.filter(m => primary.indexOf(m) === -1),
-        custom: true, variantOf: basedOn || null,
-      });
+        custom: true, variantOf: likeId || null,
+      };
+      if (cand.brand) made.brand = cand.brand;
+      if (load) made.load = load;
+      tr.custom.push(made);
     });
     onDone(id);
   }
+  const kit = equipment === 'machine' || equipment === 'cable' || equipment === 'smith';
+  const loadSpec = Training.loadSpecFor('x', { prefs: t0.prefs, custom: [{ id: 'x', equipment: equipment, load: load }] });
   return (
-    <div role="dialog" aria-modal="true" aria-label="New movement" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[85vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[11px] mb-1">{parent ? 'Variation' : 'New exercise'}</h2>
-        {parent && (
-          <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            Based on {parent.name}, so it already knows what it trains. Change anything that is not true of yours.
-          </div>
-        )}
-        <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} placeholder="What do you call it?" /></Field>
-        <Field label="Equipment">
-          <Seg value={equipment} onChange={setEquipment} options={[{ v: 'barbell', l: 'Barbell' }, { v: 'dumbbell', l: 'Dumbbell' }, { v: 'machine', l: 'Machine' }, { v: 'cable', l: 'Cable' }, { v: 'bodyweight', l: 'Body' }]} />
-        </Field>
-        <Field label="Muscles it mainly works" hint="Pick at least one, or it cannot count toward your weekly volume.">
-          <div className="flex gap-2 flex-wrap">
-            {Training.MUSCLES.map(m => (
-              <button key={m} onClick={() => toggle(primary, setPrimary, m)} className="pixel-box px-2 py-2 text-[11px]"
-                style={{ background: primary.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)', color: primary.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)' }}>
-                {Training.MUSCLE_LABEL[m]}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Muscles that assist" hint="These count as half a set each, the way a coach would count them.">
-          <div className="flex gap-2 flex-wrap">
-            {Training.MUSCLES.filter(m => primary.indexOf(m) === -1).map(m => (
-              <button key={m} onClick={() => toggle(secondary, setSecondary, m)} className="pixel-box px-2 py-2 text-[11px]"
-                style={{ background: secondary.indexOf(m) !== -1 ? 'var(--warn)' : 'var(--surface2)', color: secondary.indexOf(m) !== -1 ? '#1a1200' : 'var(--text2)' }}>
-                {Training.MUSCLE_LABEL[m]}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <div className="flex gap-2">
-          <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
-          <Btn className="flex-1" onClick={save} disabled={!name.trim() || !primary.length || unchanged}>
-            {unchanged ? 'Name it' : 'Save'}
-          </Btn>
+    <Sheet title={parent && basedOn ? 'Variation' : 'New exercise'} onClose={onClose} z={86}>
+      {parent && basedOn && (
+        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+          Based on {parent.name}, so it already knows what it trains. Change anything that is not true of yours.
         </div>
+      )}
+      <Field label="Name"><TextInput value={name} onChange={e => typeName(e.target.value)} placeholder="What do you call it?" /></Field>
+      <Field label="Brand" hint="If the machine has a maker, so the same one is not saved twice.">
+        <TextInput value={brand} onChange={e => { setBrand(e.target.value); setBrandTouched(true); setTwin(null); }} placeholder="Hammer Strength, Hoist, Prime…" />
+      </Field>
+      {guess && (
+        <Row title={'Looks like ' + guess.name} sub="Take its muscles, kit and warm-up from it" onClick={() => chooseLike(guess.id)} />
+      )}
+      {!basedOn && (
+        <Row title="What is it most like?" sub={parent ? parent.name : 'Optional. Pick a movement and it inherits what that trains'}
+          onClick={() => setLikePicker(true)} />
+      )}
+      <Field label="Equipment">
+        <Seg value={equipment} onChange={setEquipment} options={[{ v: 'barbell', l: 'Barbell' }, { v: 'dumbbell', l: 'Dumbbell' }, { v: 'machine', l: 'Machine' }, { v: 'cable', l: 'Cable' }, { v: 'bodyweight', l: 'Bodyweight' }]} />
+      </Field>
+      {kit && (
+        <Row title="Machine units" sub={load ? Training.specLabel(loadSpec) : 'Follows your settings. Tap if it reads in pounds, pins or plates.'}
+          onClick={() => setUnitsOpen(true)} />
+      )}
+      <Field label="Muscles it mainly works" hint="Pick at least one, or it cannot count toward your weekly volume.">
+        <div className="flex gap-1 flex-wrap">
+          {Training.MUSCLES.map(m => (
+            <button key={m} onClick={() => toggle(primary, setPrimary, m)} className={'ms-chip' + (primary.indexOf(m) !== -1 ? ' on' : '')}
+              aria-pressed={primary.indexOf(m) !== -1}>
+              {Training.MUSCLE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Muscles that assist" hint="These count as half a set each, the way a coach would count them.">
+        <div className="flex gap-1 flex-wrap">
+          {Training.MUSCLES.filter(m => primary.indexOf(m) === -1).map(m => (
+            <button key={m} onClick={() => toggle(secondary, setSecondary, m)} className={'ms-chip' + (secondary.indexOf(m) !== -1 ? ' on' : '')}
+              aria-pressed={secondary.indexOf(m) !== -1}>
+              {Training.MUSCLE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </Field>
+      {twin && (
+        <SheetBox className="p-3">
+          <div className="text-[13px]" style={{ color: 'var(--text2)' }}>
+            You already have <strong>{twin.name}</strong>. Use that one, so its history stays in one place?
+          </div>
+          <div className="flex gap-2 mt-3">
+            <Btn className="flex-1" onClick={() => onDone(twin.id)}>Use it</Btn>
+            <Btn kind="ghost" className="flex-1" onClick={() => save(true)}>Save as new</Btn>
+          </div>
+        </SheetBox>
+      )}
+      <div className="flex gap-2">
+        <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
+        <Btn className="flex-1" onClick={() => save(false)} disabled={!name.trim() || !primary.length || unchanged}>
+          {unchanged ? 'Name it' : 'Save'}
+        </Btn>
       </div>
-    </div>
+      {likePicker && <ExercisePicker db={db} update={update} z={96} title="What is it most like?" onPick={chooseLike} onClose={() => setLikePicker(false)} />}
+      {unitsOpen && (
+        <MachineUnitsSheet z={96} name={name.trim() || 'This machine'} spec={loadSpec} where={null} guess={null}
+          onSave={(spec) => setLoad({ unit: spec.unit, step: spec.step, perSide: !!spec.perSide })}
+          onConvert={() => {}} onClose={() => setUnitsOpen(false)} />
+      )}
+    </Sheet>
   );
 }
 

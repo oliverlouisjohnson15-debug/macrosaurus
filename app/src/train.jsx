@@ -859,6 +859,8 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [limit, setLimit] = useState(6);
+  const [twinsOpen, setTwinsOpen] = useState(false);
+  const twins = t.custom.length > 1 ? twinPairs(t) : [];
 
   const prsBySession = {};
   t.logs.forEach(l => { const p = Training.prsInLog(t.logs, l); if (p.length) prsBySession[l.id] = p; });
@@ -907,6 +909,13 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a session or a movement"
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+      {twins.length > 0 && !needle && (
+        <div className="mb-4">
+          <Row title={twins.length + (twins.length === 1 ? ' machine looks' : ' machines look') + ' saved twice'}
+            sub="Merge them so the history sits in one place" onClick={() => setTwinsOpen(true)} />
+        </div>
+      )}
+      {twinsOpen && <TwinsSheet db={db} update={update} onClose={() => setTwinsOpen(false)} />}
 
       {t.logs.length === 0 && (
         <Card className="p-4">
@@ -976,8 +985,89 @@ function TrainHistory({ db, update, onBack, onOpenExercise, onOpenSession, onTab
   );
 }
 
-function ExerciseDetail({ db, exerciseId, onBack }) {
+// Folding one custom movement into another. The sets, the plan rows, the notes and the gym settings
+// all move across, so the history sits in one place and the progress chart has the whole of it to
+// draw. It is irreversible, so it says how much it is about to move before it does.
+function setsOn(t, id) {
+  return t.logs.reduce((n, l) => n + (l.sets || []).filter(s => s.exerciseId === id).length, 0);
+}
+function MergeSheet({ db, update, showToast, fromId, onClose, onMerged }) {
+  const t = tdb(db);
+  const from = Training.byId(fromId, t.custom);
+  const [into, setInto] = useState(null);
+  // The likeliest survivors first: another version of the same movement, then the same kit.
+  const rank = (x) => (x.variantOf && x.variantOf === from.variantOf ? 0 : x.equipment === from.equipment ? 1 : 2);
+  const others = t.custom.filter(x => x.id !== fromId).slice().sort((a, b) => rank(a) - rank(b));
+  if (!from) return null;
+  if (into) {
+    const keep = Training.byId(into, t.custom);
+    const n = setsOn(t, fromId);
+    return (
+      <ConfirmDialog title={'Merge into ' + (keep ? keep.name : 'it') + '?'}
+        body={'Moves ' + n + (n === 1 ? ' set' : ' sets') + ' from ' + from.name + ' into ' + (keep ? keep.name : 'it') + ', and everything that mentions it. ' + from.name + ' is deleted. This cannot be undone.'}
+        confirmLabel="Merge" confirmKind="primary"
+        onConfirm={() => {
+          trainUpdate(update, (tr, d) => { if (Training.mergeExercise(tr, fromId, into)) tombstone(d, [fromId]); });
+          showToast && showToast(from.name + ' is now ' + (keep ? keep.name : 'one movement') + '.');
+          onClose();
+          onMerged && onMerged(into);
+        }}
+        onClose={() => setInto(null)} />
+    );
+  }
+  return (
+    <Sheet title="Merge into…" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{from.name} goes into the one you pick.</div>
+      <div className="flex flex-col">
+        {others.map(x => (
+          <Row key={x.id} title={x.name} sub={(x.brand ? x.brand + ' · ' : '') + setsOn(t, x.id) + ' sets logged'} onClick={() => setInto(x.id)} />
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+// Pairs of custom movements that look like one machine saved twice.
+function twinPairs(t) {
+  const seen = {}, out = [];
+  (t.custom || []).forEach(c => {
+    const others = t.custom.filter(x => x.id !== c.id);
+    const o = Training.findDuplicate({ id: c.id, name: c.name, variantOf: c.variantOf, brand: c.brand }, others);
+    if (!o) return;
+    const k = [c.id, o.id].sort().join('|');
+    if (seen[k]) return;
+    seen[k] = 1;
+    // The one with the longer history survives.
+    out.push(setsOn(t, o.id) > setsOn(t, c.id) ? { keep: o, drop: c } : { keep: c, drop: o });
+  });
+  return out;
+}
+function TwinsSheet({ db, update, onClose }) {
+  const t = tdb(db);
+  const pairs = twinPairs(t);
+  return (
+    <Sheet title="Saved twice" onClose={onClose}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+        These look like the same machine under two names. Merging keeps the one with more history and moves the other's sets across.
+      </div>
+      {pairs.length === 0 && <div className="text-[13px]">Nothing left to merge.</div>}
+      {pairs.map(p => (
+        <SheetBox key={p.keep.id + p.drop.id} className="p-3">
+          <div className="text-[13px]" style={{ fontWeight: 600 }}>{p.keep.name}</div>
+          <div className="text-[12px] mb-2" style={{ color: 'var(--muted)' }}>
+            and {p.drop.name} · {setsOn(t, p.keep.id)} + {setsOn(t, p.drop.id)} sets
+          </div>
+          <Btn kind="ghost" onClick={() => trainUpdate(update, (tr, d) => { if (Training.mergeExercise(tr, p.drop.id, p.keep.id)) tombstone(d, [p.drop.id]); })}>
+            Merge into {p.keep.name}
+          </Btn>
+        </SheetBox>
+      ))}
+    </Sheet>
+  );
+}
+
+function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged }) {
   useBackClose(onBack);
+  const [merging, setMerging] = useState(false);
   const t = tdb(db);
   const units = t.prefs.units;
   const ex = Training.byId(exerciseId, t.custom);
@@ -1023,6 +1113,12 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
         )}
       </div>
       <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
+      {ex && ex.custom && update && t.custom.length > 1 && (
+        <div className="mb-6">
+          <Row title="Merge into another movement" sub="Saved this one twice? Move its sets into the one you keep" onClick={() => setMerging(true)} />
+        </div>
+      )}
+      {merging && <MergeSheet db={db} update={update} showToast={showToast} fromId={exerciseId} onClose={() => setMerging(false)} onMerged={onMerged} />}
 
       {hist.length > 1 && (
         <Card className="p-4 mb-4">

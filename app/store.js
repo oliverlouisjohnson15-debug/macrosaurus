@@ -819,6 +819,8 @@
     out.week_plans     = alive(out.week_plans);
     out.training.blocks = alive(out.training.blocks);
     out.training.logs   = alive(out.training.logs);
+    // A movement folded into another is tombstoned, or the older copy's list would put it back.
+    out.training.custom = alive(out.training.custom);
     out.meal_templates = alive(out.meal_templates)
       .slice().sort(function (x, y) { return ((x && x.sort_order) || 0) - ((y && y.sort_order) || 0); });
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.

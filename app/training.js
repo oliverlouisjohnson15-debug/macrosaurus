@@ -1145,6 +1145,68 @@
       }).join(' ').trim();
   }
 
+  /* ---- brands --------------------------------------------------------------------------------
+   * A machine's maker is a label on the kit, not a different movement. "Hammer Strength Incline
+   * Press" is an incline press done on somebody's machine, and the library has never heard of the
+   * maker, so the maker's name used to drag every match under the bar and the movement resolved to
+   * nothing. Splitting the brand off first lets the rest of the name do the matching.
+   *
+   * Only a brand at the START of a name (or in a trailing bracket) is taken, and only whole words:
+   * "hammer curl" is a movement, "hammer strength" is a maker. Add a maker by adding one row; the
+   * second column is how it is written back to the person. Longest first, so "life fitness" is
+   * found before anything shorter could be.
+   */
+  var BRANDS = [
+    ['hammer strength', 'Hammer Strength'], ['life fitness', 'Life Fitness'], ['booty builder', 'Booty Builder'],
+    ['star trac', 'Star Trac'], ['body solid', 'Body-Solid'], ['pit shark', 'Pit Shark'], ['gym 80', 'Gym80'],
+    ['iso lateral', 'Iso-Lateral'], ['technogym', 'Technogym'], ['freemotion', 'FreeMotion'],
+    ['newtech', 'Newtech'], ['atlantis', 'Atlantis'], ['nautilus', 'Nautilus'], ['arsenal', 'Arsenal'],
+    ['precor', 'Precor'], ['panatta', 'Panatta'], ['primal', 'Primal'], ['legend', 'Legend'],
+    ['matrix', 'Matrix'], ['cybex', 'Cybex'], ['hoist', 'Hoist'], ['prime', 'Prime'], ['gym80', 'Gym80'],
+    ['watson', 'Watson'], ['eleiko', 'Eleiko'], ['rogue', 'Rogue'], ['keiser', 'Keiser'],
+  ].sort(function (a, b) { return b[0].length - a[0].length; });
+  var BRAND_QUALIFIER = { 'Iso-Lateral': 1 };
+  function splitBrand(name) {
+    var t = String(name || '').toLowerCase();
+    // A coach's tag in front ("M1: standing curl") is not part of the name either.
+    t = t.replace(/^\s*[a-z]\d{1,2}\s*[:.)]\s*/, '');
+    var trailing = null;
+    var paren = t.match(/\(([^)]*)\)\s*$/);
+    var plain = function (x) { return x.replace(/[^a-z0-9]+/g, ' ').trim(); };
+    if (paren) {
+      var inner = plain(paren[1]);
+      var hit = BRANDS.filter(function (b) { return b[0] === inner; })[0];
+      if (hit) { trailing = hit[1]; t = t.slice(0, paren.index); }
+    }
+    t = plain(t);
+    var brand = trailing, found = true, guard = 0;
+    while (found && guard++ < 3) {
+      found = false;
+      for (var i = 0; i < BRANDS.length; i++) {
+        var k = BRANDS[i][0];
+        if (t === k || t.indexOf(k + ' ') === 0) {
+          if (!brand || BRAND_QUALIFIER[brand]) brand = BRANDS[i][1];
+          t = t.slice(k.length).trim();
+          found = true;
+          break;
+        }
+      }
+    }
+    // A maker written after the movement ("Incline Hammer Strength Press") is only taken when its
+    // name is more than one word, because a single word in the middle of a name is as likely to be
+    // a movement word as a maker.
+    for (var j = 0; j < BRANDS.length; j++) {
+      var kk = BRANDS[j][0];
+      if (kk.indexOf(' ') === -1) continue;
+      var at = (' ' + t + ' ').indexOf(' ' + kk + ' ');
+      if (at !== -1) {
+        if (!brand || BRAND_QUALIFIER[brand]) brand = BRANDS[j][1];
+        t = (' ' + t + ' ').replace(' ' + kk + ' ', ' ').trim();
+      }
+    }
+    return { brand: brand, rest: t };
+  }
+
   // Resolve a free-text movement name to a library id. Exact, then alias, then a token-overlap
   // score. Returns null rather than guessing wildly, so the import UI can flag it for the user
   // instead of quietly logging bench press as bicep curls.
@@ -1164,6 +1226,20 @@
     var al = aliasFor(q); if (al) return { id: al, how: 'alias', score: 1 };
     var singular = q.replace(/s$/, '');
     al = aliasFor(singular); if (al) return { id: al, how: 'alias', score: 1 };
+    // The maker is not part of the movement. Resolve what is left, and when the maker's kit is the
+    // sort that is bolted to a floor, try it as a machine as well, because "Hammer Strength incline
+    // press" is the machine one and a bare "incline press" is not.
+    var sb = splitBrand(name);
+    if (sb.brand && sb.rest && sb.rest !== q) {
+      var tries = [sb.rest];
+      if (!/\b(machine|cable|barbell|dumbbell|smith|ez|plate|bodyweight|band|kettlebell)\b/.test(sb.rest)) tries.unshift('machine ' + sb.rest);
+      var viaRest = null;
+      tries.forEach(function (c) {
+        var r = resolveDetail(c, custom);
+        if (r && (!viaRest || r.score > viaRest.score)) viaRest = r;
+      });
+      if (viaRest) return viaRest;
+    }
     var qt = q.split(' ').filter(Boolean);
     var best = null, bestScore = 0;
     for (i = 0; i < pool.length; i++) {
@@ -1245,7 +1321,8 @@
     if (!n) return pool.slice(0, limit || 30);
     var starts = [], contains = [];
     for (var i = 0; i < pool.length; i++) {
-      var nm = norm(pool[i].name);
+      // A custom machine's maker is searchable even when the person never typed it into the name.
+      var nm = norm(pool[i].name + (pool[i].brand ? ' ' + pool[i].brand : ''));
       if (nm.indexOf(n) === 0) starts.push(pool[i]);
       else if (nm.indexOf(n) !== -1) contains.push(pool[i]);
     }
@@ -3057,6 +3134,8 @@
         equipment: equipment, pattern: pattern, profile: 'mid',
         primary: guess, secondary: [], custom: true, auto: true,
       };
+      var made = splitBrand(raw.name).brand;
+      if (made) ex.brand = made;
       mintedById[id] = ex;
       newCustom.push(ex);
       return ex;
@@ -3223,6 +3302,9 @@
   var KEEP_CAPS = { ez: 'EZ', rdl: 'RDL', ohp: 'OHP', bb: 'barbell', db: 'dumbbell' };
   function tidyName(raw) {
     var s = String(raw || '').replace(COACH_PREFIX, '');
+    // "M1: standing dumbbell curl": the letter and number are the coach's filing, not the movement's
+    // name, and left in they made "M1:" and "M2:" two exercises.
+    s = s.replace(/^\s*[A-Za-z]\d{1,2}\s*[:.)]\s*/, '');
     s = s.replace(/\([^)]*\)/g, ' ');                       // "(OHTX)", "(mega mass)" - an aside, not a name
     s = s.replace(/\s+/g, ' ').trim();
     if (!s) return '';
@@ -3263,6 +3345,103 @@
         .map(function (w) { return w.replace(/s$/, ''); }).sort().join(' ');
     };
     return !!a && !!b && key(a) === key(b);
+  }
+
+  // ---- the same machine, saved twice ---------------------------------------------------------------
+  // Typing a machine in at the gym is quick and nobody checks what they called it last time. The
+  // result was one Hammer Strength press saved three ways, with the sets split three ways, so none of
+  // them ever had enough history to say anything. A candidate is a twin of an existing custom when it
+  // is the same words in any order, or when it is the same maker's version of the same movement.
+  // Library movements are left out on purpose: resolving a brand name TO them is the matcher's job.
+  function findDuplicate(candidate, custom) {
+    var c = candidate || {};
+    var name = String(c.name || '').trim();
+    if (!name) return null;
+    var list = custom || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (c.id && list[i].id === c.id) continue;
+      if (sameMovement(list[i].name, name)) return list[i];
+    }
+    var sb = splitBrand(name);
+    var brand = String(c.brand || sb.brand || '').toLowerCase();
+    var parentOf = function (nm, explicit) {
+      if (explicit) return explicit;
+      var r = resolveDetail(splitBrand(nm).rest || nm);
+      return r ? r.id : null;
+    };
+    var parent = parentOf(name, c.variantOf);
+    if (!brand || !parent) return null;
+    for (i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (c.id && o.id === c.id) continue;
+      var ob = String(o.brand || splitBrand(o.name).brand || '').toLowerCase();
+      if (ob && ob === brand && parentOf(o.name, o.variantOf) === parent) return o;
+    }
+    return null;
+  }
+  // What a movement is "like", for one nobody has described yet: two or more muscles doing the work
+  // is a compound, a trunk movement is core, and a single muscle is isolation. Only a starting
+  // point for the person to correct; a movement with a parent takes its parent's pattern instead.
+  function inferPattern(primary) {
+    var p = primary || [];
+    if (p.length && p.every(function (m) { return m === 'ab' || m === 'ob'; })) return 'core';
+    return p.length >= 2 ? 'compound' : 'isolation';
+  }
+  // Fold one custom movement into another: every set, plan row, note, gym setting and pointer that
+  // named `fromId` now names `intoId`, and `fromId` is deleted. Edits `tr` in place and says what it
+  // moved. Only a custom movement can be folded away; the library's are not the person's to delete.
+  function mergeExercise(tr, fromId, intoId) {
+    if (!tr || !fromId || !intoId || fromId === intoId) return null;
+    var custom = tr.custom || [];
+    var from = custom.filter(function (x) { return x.id === fromId; })[0];
+    if (!from || !byId(intoId, custom)) return null;
+    var moved = { sets: 0, rows: 0 };
+    var swap = function (id) { return id === fromId ? intoId : id; };
+    (tr.logs || []).forEach(function (l) {
+      (l.sets || []).forEach(function (st) { if (st.exerciseId === fromId) { st.exerciseId = intoId; moved.sets++; } });
+      var notes = l.exerciseNotes;
+      if (notes && notes[fromId] != null) {
+        if (!notes[intoId]) notes[intoId] = notes[fromId];
+        delete notes[fromId];
+      }
+    });
+    (tr.blocks || []).forEach(function (b) {
+      (b.sessions || []).forEach(function (sess) {
+        (sess.exercises || []).forEach(function (e) {
+          var hit = false;
+          if (e.exerciseId === fromId) { e.exerciseId = intoId; hit = true; }
+          if (e.baseExerciseId === fromId) { e.baseExerciseId = intoId; hit = true; }
+          if (e.alts && e.alts.indexOf(fromId) !== -1) { e.alts = e.alts.map(swap); hit = true; }
+          if (e.choice && e.choice.options && e.choice.options.indexOf(fromId) !== -1) { e.choice.options = e.choice.options.map(swap); hit = true; }
+          if (hit) moved.rows++;
+        });
+      });
+    });
+    custom.forEach(function (x) { if (x.variantOf === fromId) x.variantOf = intoId; });
+    // The merged movement keeps whatever the one folded into it knew that it did not.
+    var into = custom.filter(function (x) { return x.id === intoId; })[0];
+    if (into) ['brand', 'load', 'setup'].forEach(function (k) { if (into[k] == null && from[k] != null) into[k] = from[k]; });
+    tr.custom = custom.filter(function (x) { return x.id !== fromId; });
+    var fold = function (map) {
+      if (!map || !map[fromId]) return;
+      map[intoId] = Object.assign({}, map[fromId], map[intoId]);
+      delete map[fromId];
+    };
+    (tr.gyms || []).forEach(function (g) {
+      fold(g.machines);
+      Object.keys(g.machines || {}).forEach(function (k) {
+        var m = g.machines[k];
+        if (m && m.use === fromId) m.use = intoId;
+        if (m && m.use === k) delete m.use;
+      });
+    });
+    if (tr.prefs) {
+      fold(tr.prefs.machineLoads);
+      if (tr.prefs.dislikes) tr.prefs.dislikes = tr.prefs.dislikes.map(swap);
+    }
+    (tr.rotations || []).forEach(function (r) { r.from = swap(r.from); r.to = swap(r.to); });
+    return moved;
   }
 
   // ---- a variation of a movement you already have ------------------------------------------------
@@ -6699,7 +6878,7 @@
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
     blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
-    atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
+    splitBrand: splitBrand, BRANDS: BRANDS, findDuplicate: findDuplicate, inferPattern: inferPattern, mergeExercise: mergeExercise, atGym: atGym, applyGym: applyGym, suggestGymMachines: suggestGymMachines,
     loadSpecFor: loadSpecFor, specLabel: specLabel, toMachine: toMachine, fromMachine: fromMachine,
     guessLoadUnit: guessLoadUnit, relabelLoads: relabelLoads, loadUnit: loadUnit, loadStep: loadStep, backOffLoad: backOffLoad,
     blockTweak: blockTweak, setDaysPerWeek: setDaysPerWeek, TWEAK_OPS: TWEAK_OPS, TWEAK_MAX_OPS: TWEAK_MAX_OPS,

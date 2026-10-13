@@ -206,7 +206,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
       onOpenSession={(log) => go('player', { logId: log.id, sessionId: log.sessionId || null, blockId: log.blockId || null, from: 'history' })} />);
   }
   if (screen.name === 'exercise') {
-    return page(<ExerciseDetail db={db} exerciseId={screen.exerciseId} onBack={() => go('progress')} />);
+    return page(<ExerciseDetail db={db} update={update} showToast={showToast} exerciseId={screen.exerciseId} onBack={() => go('progress')}
+      onMerged={(id) => go('exercise', { exerciseId: id })} />);
   }
   if (screen.name === 'settings') {
     return page(<TrainSettings db={db} update={update} showToast={showToast} onBack={() => go('block')} onHowItWorks={() => go('how')} />);
