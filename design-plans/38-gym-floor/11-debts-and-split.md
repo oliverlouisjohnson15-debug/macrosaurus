@@ -68,3 +68,21 @@ Each is its own small commit, in this order.
 - `node build.mjs` produces an `index.html` whose `Training` has exactly the same `Object.keys` as
   before the split. Add a test that snapshots the key list.
 - The bundled size is within 1% of today's.
+
+## Status
+
+- **Part A is done**, in four of its four items: `TrainSettings` reads the account every render; sets carry
+  an `id` and the store merge unions by it (a set from before ids existed is never doubled, and adding a
+  set no longer copies the last set's id, which the first version of this did and the new test caught);
+  the dead-control sweep now presses every control inside the movement menu, the session menu, the units
+  and setup sheets, the gym editor and the priority picker; and twenty engine exports that nothing
+  used were dropped (`BANDS`, `SPLITS`, `cleanName`, `kitMismatch`, `TECHNIQUES`, and the rest).
+- **Part B, the split, is deliberately not done.** The engine is one 7,400-line closure of 184 functions
+  that call each other as locals, so the only mechanical split is into text fragments that are glued
+  back together before use. That works, but it turns `app/training.js` into a loader, so (1) every
+  other branch that touches `training.js` stops merging cleanly, (2) `build.mjs`, `tests/helpers/app.js`
+  and `tools/name-style.mjs` (which rewrites names inside the file) all have to learn the new layout,
+  and (3) stack traces, editors and linters see a synthetic file. Do it in a quiet moment, when no open
+  branch edits the engine, and preferably as real modules with the dependencies passed in, starting
+  with the self-contained pieces (`historyFromCsv` and its helpers, the programmes) rather than
+  by cutting at section banners.
