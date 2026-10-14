@@ -1,7 +1,8 @@
 'use strict';
-// Tests for supabase/functions/lifecycle-email/decide.ts: who gets the one-off "what got in the
-// way?" email and what it says. Emailing someone who is actually using the app, or emailing anyone
-// twice, is the failure that matters, so the "stays quiet" cases come first.
+// Tests for supabase/functions/lifecycle-email/decide.ts: who gets the early "log one meal" nudge
+// and the later one-question "what got in the way?", and what they say. Emailing someone who is
+// actually using the app, or sending both on one day, is the failure that matters, so the
+// "stays quiet" cases come first.
 const { test } = require('node:test');
 const assert = require('node:assert');
 
@@ -10,59 +11,85 @@ const NOW = new Date('2026-10-14T09:07:00Z');
 const daysAgo = (n) => new Date(NOW.getTime() - n * 86400000).toISOString();
 const isoAgo = (n) => daysAgo(n).slice(0, 10);
 const cand = (o = {}) => Object.assign({
-  user_id: 'u1', email: 'a@b.com', created_at: daysAgo(4), has_profile: true,
+  user_id: 'u1', email: 'a@b.com', created_at: daysAgo(2), has_profile: true,
   buddy_name: null, active_days: 0, last_active: null, has_ticket: false,
 }, o);
 
 // ---- Silence ----
 
-test('too new: nobody is asked before day three', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ created_at: daysAgo(2) }), NOW), null);
+test('nobody is emailed on their first day', async () => {
+  const { pickVariant, NUDGE, FEEDBACK } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ created_at: daysAgo(0.5) }), NOW), null);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: daysAgo(0.5) }), NOW), null);
 });
 
-test('too old: the backlog of old sign-ups is never blasted', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ created_at: daysAgo(40) }), NOW), null);
+test('the two windows never overlap, so one run cannot send both', async () => {
+  const { pickVariant, NUDGE, FEEDBACK } = await load();
+  for (let d = 0; d <= 30; d++) {
+    const c = cand({ created_at: daysAgo(d + 0.1) });
+    assert.ok(!(pickVariant(NUDGE, c, NOW) && pickVariant(FEEDBACK, c, NOW)), 'day ' + d);
+  }
+});
+
+test('the backlog of old sign-ups is never blasted', async () => {
+  const { pickVariant, NUDGE, FEEDBACK } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ created_at: daysAgo(40) }), NOW), null);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: daysAgo(40) }), NOW), null);
 });
 
 test('someone who already wrote to support is left alone', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ has_ticket: true }), NOW), null);
+  const { pickVariant, NUDGE, FEEDBACK } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ has_ticket: true }), NOW), null);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ has_ticket: true, created_at: daysAgo(8) }), NOW), null);
 });
 
 test('an engaged user hears nothing', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ active_days: 5, last_active: isoAgo(0) }), NOW), null);
+  const { pickVariant, NUDGE, FEEDBACK } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ active_days: 1, last_active: isoAgo(0) }), NOW), null);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: daysAgo(10), active_days: 5, last_active: isoAgo(0) }), NOW), null);
   // Only a couple of days, but still active recently: give them room.
-  assert.strictEqual(pickVariant(cand({ active_days: 2, last_active: isoAgo(1) }), NOW), null);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: daysAgo(10), active_days: 2, last_active: isoAgo(1) }), NOW), null);
+});
+
+test('someone who logged once is not nudged to log: they already did', async () => {
+  const { pickVariant, NUDGE } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ active_days: 1, last_active: isoAgo(2) }), NOW), null);
 });
 
 // ---- Variants ----
 
-test('never finished setup -> setup', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ has_profile: false }), NOW), 'setup');
+test('nudge: never finished setup -> setup, set up but never logged -> never', async () => {
+  const { pickVariant, NUDGE } = await load();
+  assert.strictEqual(pickVariant(NUDGE, cand({ has_profile: false }), NOW), 'setup');
+  assert.strictEqual(pickVariant(NUDGE, cand(), NOW), 'never');
 });
 
-test('set up but never logged -> never', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand(), NOW), 'never');
+test('feedback: setup / never / tried', async () => {
+  const { pickVariant, FEEDBACK } = await load();
+  const wk = daysAgo(8);
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: wk, has_profile: false }), NOW), 'setup');
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: wk }), NOW), 'never');
+  assert.strictEqual(pickVariant(FEEDBACK, cand({ created_at: wk, active_days: 1, last_active: isoAgo(7) }), NOW), 'tried');
 });
 
-test('tried it briefly then went quiet -> tried', async () => {
-  const { pickVariant } = await load();
-  assert.strictEqual(pickVariant(cand({ created_at: daysAgo(10), active_days: 1, last_active: isoAgo(8) }), NOW), 'tried');
-});
-
-test('every variant has an unsubscribe link, a reply ask, and no em dashes', async () => {
-  const { compose } = await load();
-  for (const v of ['setup', 'never', 'tried']) {
-    const m = compose(cand({ buddy_name: 'Rex' }), v, 'https://x/unsub');
+test('every email has an unsubscribe link, a reply ask, and no em dashes', async () => {
+  const { compose, NUDGE, FEEDBACK } = await load();
+  const all = [[NUDGE, 'setup'], [NUDGE, 'never'], [FEEDBACK, 'setup'], [FEEDBACK, 'never'], [FEEDBACK, 'tried']];
+  for (const [k, v] of all) {
+    const m = compose(k, v, 'https://x/unsub');
     assert.ok(m.subject.length > 0);
-    assert.ok(m.text.includes('https://x/unsub'), v);
-    assert.ok(/reply/i.test(m.text), v);
-    assert.ok(!m.text.includes('—'), v);
+    assert.ok(m.text.includes('https://x/unsub'), k + v);
+    assert.ok(/reply/i.test(m.text), k + v);
+    assert.ok(!m.text.includes('—'), k + v);
+  }
+});
+
+test('feedback emails ask one numbered question', async () => {
+  const { compose, FEEDBACK } = await load();
+  for (const v of ['setup', 'never', 'tried']) {
+    const m = compose(FEEDBACK, v, 'u');
+    assert.ok(/reply with a number/i.test(m.text), v);
+    assert.ok(/\n1\. /.test(m.text) && /\n3\. /.test(m.text), v);
   }
 });
 

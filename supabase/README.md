@@ -112,18 +112,21 @@ select net.http_post(
 > Settings toggle detects this and tells the user to Add to Home Screen first. Android/desktop
 > Chrome/Firefox/Edge work in-browser.
 
-## "What got in the way?" email (the `lifecycle-email` function)
+## Getting-started emails (the `lifecycle-email` function)
 
-One plain-text email, **once per person ever**, to people who signed up and then barely used the
-app, asking what stopped them. From `olly@macrosaurus.com` with replies going to the same inbox, sent
-through the same Resend account (`RESEND_API_KEY`) as `support`.
+At most **two** plain-text emails, ever, to people who signed up and then barely used the app. From
+`olly@macrosaurus.com` with replies going to the same inbox, sent through the same Resend account
+(`RESEND_API_KEY`) as `support`. Service messages, not marketing: no offers, unsubscribe in every one.
 
-- **When:** daily at 09:07 UTC (`lifecycle_email_daily`), to accounts **3–21 days old** with a
-  confirmed email. The 21-day ceiling stops it from emailing the whole backlog of older sign-ups.
-- **Who / what** (`lifecycle-email/decide.ts`, tested in `tests/lifecycle-email.test.js`):
-  `setup` = never finished setting up; `never` = set up but logged nothing; `tried` = active on at
-  most 2 days, then nothing for 5+. Anyone more active, or who has already filed a support ticket, is
-  skipped.
+| Email | Sign-up age | Who | Goal |
+|---|---|---|---|
+| `activation_nudge` | days 1–3 | never finished setup, or set up and logged nothing | one small action: finish setup / log one meal (photo or barcode) |
+| `inactive_feedback` | days 7–21 | still nothing, or active on ≤2 days then quiet 5+ days | one question, answered by replying with a number |
+
+- **When:** daily at 09:07 UTC (`lifecycle_email_daily`), confirmed emails only. The windows are
+  disjoint, so nobody gets both on one day, and the 21-day ceiling stops it emailing the backlog of
+  older sign-ups. Anyone more active, or who has filed a support ticket, is skipped
+  (`lifecycle-email/decide.ts`, tested in `tests/lifecycle-email.test.js`).
 - **Dedupe:** a `lifecycle_emails` row is claimed before sending (PK `user_id, kind`); a failed send
   releases it so the next day retries.
 - **Unsubscribe:** every email has a signed link plus `List-Unsubscribe` one-click headers. A click
@@ -138,7 +141,7 @@ select net.http_post(url := 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/
   headers := jsonb_build_object('Content-Type','application/json',
     'x-cron-secret', (select value from public.app_secrets where key='cron_secret')),
   body := '{"dry_run":true}'::jsonb);
--- or send yourself one of each variant: body := '{"preview_to":"you@example.com"}'::jsonb
+-- or send yourself every email: body := '{"preview_to":"you@example.com"}'::jsonb
 -- then: select status_code, content from net._http_response order by id desc limit 1;
 ```
 

@@ -1,10 +1,11 @@
-// lifecycle-email: one personal "what got in the way?" email to people who signed up and then
-// barely used the app. See decide.ts for who qualifies and what each variant says.
+// lifecycle-email: up to two personal emails to people who signed up and then barely used the app:
+// an early nudge toward a first log, then a one-question "what got in the way?". See decide.ts for
+// who qualifies and what each one says.
 //
 // Two jobs, one function (deployed with verify_jwt disabled, like push-nudge):
 //   POST (pg_cron, daily, x-cron-secret)  - find candidates, claim a lifecycle_emails row, send.
 //       Body { dry_run: true } lists who WOULD be emailed, and with what subject, without sending.
-//       Body { preview_to: "you@x.com" } sends one of each variant to that address only.
+//       Body { preview_to: "you@x.com" } sends every email to that address only.
 //   GET/POST ?unsub=<user_id>&sig=<hmac>  - the unsubscribe link (and RFC 8058 one-click) in every
 //       email. Records an opt-out; no sign-in needed, the HMAC is the proof.
 //
@@ -13,7 +14,7 @@
 // function secret the support function already uses.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { KIND, MIN_DAYS, MAX_DAYS, pickVariant, compose, unsubToken, verifyUnsub, type Candidate, type Variant } from "./decide.ts";
+import { NUDGE, FEEDBACK, WINDOWS, pickVariant, compose, unsubToken, verifyUnsub, type Candidate, type Kind, type Variant } from "./decide.ts";
 
 const FROM = "Olly at Macrosaurus <olly@macrosaurus.com>";   // any address on the verified Resend domain
 const REPLY_TO = "olly@macrosaurus.com";
@@ -54,48 +55,54 @@ Deno.serve(async (req) => {
     if (!key && !dryRun) return json({ error: "RESEND_API_KEY not set" }, 500);
 
     if (previewTo) {
-      const fake: Candidate = { user_id: "preview", email: previewTo, created_at: new Date().toISOString(), has_profile: true, buddy_name: "Rex", active_days: 0, last_active: null, has_ticket: false };
       const sent: string[] = [];
-      for (const v of ["setup", "never", "tried"] as Variant[]) {
-        const m = compose(fake, v, FN_URL + "?unsub=preview&sig=preview");
-        const r = await send(key!, previewTo, "[preview: " + v + "] " + m.subject, m.text, FN_URL);
-        sent.push(v + ": " + (r.ok ? "sent" : "failed " + r.error));
+      const all: [Kind, Variant][] = [[NUDGE, "setup"], [NUDGE, "never"], [FEEDBACK, "setup"], [FEEDBACK, "never"], [FEEDBACK, "tried"]];
+      for (const [k, v] of all) {
+        const m = compose(k, v, FN_URL + "?unsub=preview&sig=preview");
+        const r = await send(key!, previewTo, "[preview: " + k + "/" + v + "] " + m.subject, m.text, FN_URL);
+        sent.push(k + "/" + v + ": " + (r.ok ? "sent" : "failed " + r.error));
       }
       return json({ ok: true, preview: sent });
     }
 
-    const { data: rows, error } = await admin.rpc("lifecycle_candidates", { p_kind: KIND, p_min_days: MIN_DAYS, p_max_days: MAX_DAYS });
-    if (error) return json({ error: "candidates: " + error.message }, 500);
-
     const now = new Date();
-    const planned: { user_id: string; email: string; variant: Variant; subject: string }[] = [];
-    let sent = 0, failed = 0, skipped = 0;
+    const planned: { user_id: string; email: string; kind: Kind; variant: Variant; subject: string }[] = [];
+    let sent = 0, failed = 0, skipped = 0, candidates = 0;
 
-    for (const c of (rows || []) as Candidate[]) {
-      const variant = pickVariant(c, now);
-      if (!variant) { skipped++; continue; }
-      if (planned.length >= MAX_PER_RUN) break;
-      const unsubUrl = FN_URL + "?unsub=" + c.user_id + "&sig=" + await unsubToken(unsubSecret, c.user_id);
-      const m = compose(c, variant, unsubUrl);
-      planned.push({ user_id: c.user_id, email: c.email, variant, subject: m.subject });
-      if (dryRun) continue;
+    // The two windows are disjoint (decide.ts WINDOWS), so nobody can get both in one run.
+    for (const kind of [NUDGE, FEEDBACK]) {
+      const w = WINDOWS[kind];
+      // +1 on the max: the SQL window is a coarse pre-filter; pickVariant applies the exact day count.
+      const { data: rows, error } = await admin.rpc("lifecycle_candidates", { p_kind: kind, p_min_days: w.min, p_max_days: w.max + 1 });
+      if (error) return json({ error: "candidates: " + error.message }, 500);
+      candidates += (rows || []).length;
 
-      // Claim first: the primary key makes a second claim fail, so an overlapping run cannot double-send.
-      const { error: claimErr } = await admin.from("lifecycle_emails").insert({ user_id: c.user_id, kind: KIND, variant });
-      if (claimErr) { skipped++; continue; }
-      const r = await send(key!, c.email, m.subject, m.text, unsubUrl);
-      if (r.ok) {
-        sent++;
-        if (r.id) await admin.from("lifecycle_emails").update({ resend_id: r.id }).eq("user_id", c.user_id).eq("kind", KIND);
-      } else {
-        failed++;
-        console.error("lifecycle-email: send failed", c.user_id, r.error);
-        // Release the claim so tomorrow's run can try again.
-        await admin.from("lifecycle_emails").delete().eq("user_id", c.user_id).eq("kind", KIND);
+      for (const c of (rows || []) as Candidate[]) {
+        const variant = pickVariant(kind, c, now);
+        if (!variant) { skipped++; continue; }
+        if (planned.length >= MAX_PER_RUN) break;
+        const unsubUrl = FN_URL + "?unsub=" + c.user_id + "&sig=" + await unsubToken(unsubSecret, c.user_id);
+        const m = compose(kind, variant, unsubUrl);
+        planned.push({ user_id: c.user_id, email: c.email, kind, variant, subject: m.subject });
+        if (dryRun) continue;
+
+        // Claim first: the primary key makes a second claim fail, so an overlapping run cannot double-send.
+        const { error: claimErr } = await admin.from("lifecycle_emails").insert({ user_id: c.user_id, kind, variant });
+        if (claimErr) { skipped++; continue; }
+        const r = await send(key!, c.email, m.subject, m.text, unsubUrl);
+        if (r.ok) {
+          sent++;
+          if (r.id) await admin.from("lifecycle_emails").update({ resend_id: r.id }).eq("user_id", c.user_id).eq("kind", kind);
+        } else {
+          failed++;
+          console.error("lifecycle-email: send failed", kind, c.user_id, r.error);
+          // Release the claim so tomorrow's run can try again (still inside the window, usually).
+          await admin.from("lifecycle_emails").delete().eq("user_id", c.user_id).eq("kind", kind);
+        }
       }
     }
 
-    return json({ ok: true, dry_run: dryRun, candidates: (rows || []).length, sent, failed, skipped, planned: dryRun ? planned : planned.length });
+    return json({ ok: true, dry_run: dryRun, candidates, sent, failed, skipped, planned: dryRun ? planned : planned.length });
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);
   }
