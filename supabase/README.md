@@ -35,7 +35,7 @@ To rebuild the database from scratch: `supabase db push` (or `supabase db reset`
 | 20260720173542 | push_subscriptions | `push_subscriptions` (Web Push devices, owner-managed RLS) |
 | 20260720173553 | app_secrets | `app_secrets` (server-only secrets, deny-all RLS) |
 | 20260720174224 | push_nudge_cron | hourly pg_cron job → `push-nudge` edge function |
-| 20261014120000 | lifecycle_emails | `lifecycle_emails`, `email_optouts` (deny-all) + `lifecycle_candidates()` (service_role) + daily `lifecycle_email_daily` cron |
+| 20261014150856 | lifecycle_emails | `lifecycle_emails`, `email_optouts` (deny-all) + `lifecycle_candidates()` (service_role) + daily `lifecycle_email_daily` cron |
 
 ## RLS model (the important part)
 

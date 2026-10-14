@@ -1,6 +1,7 @@
 -- Lifecycle email: at most two personal emails to people who signed up and then barely used the app
--- (an early "log one meal" nudge, then a one-question "what got in the way?"). Sent by the `lifecycle-email` edge function, daily via
--- pg_cron, through the same Resend account the support function uses.
+-- (an early "log one meal" nudge, then a one-question "what got in the way?"). Sent by the
+-- `lifecycle-email` edge function, daily via pg_cron, through the same Resend account the support
+-- function uses.
 --
 -- Two server-only tables (deny-all RLS, same pattern as app_secrets / ai_logs):
 --   lifecycle_emails - one row per (user, kind) ever sent. The primary key IS the dedupe: the
