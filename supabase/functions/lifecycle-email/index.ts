@@ -1,6 +1,6 @@
-// lifecycle-email: up to two personal emails to people who signed up and then barely used the app:
-// an early nudge toward a first log, then a one-question "what got in the way?". See decide.ts for
-// who qualifies and what each one says.
+// lifecycle-email: short personal emails at the moments people quietly leave: an early nudge and a
+// one-question "what got in the way?" for sign-ups who never start, a "why did you cancel?", and a
+// win-back for regulars who went quiet. See decide.ts for who qualifies and what each one says.
 //
 // Two jobs, one function (deployed with verify_jwt disabled, like push-nudge):
 //   POST (pg_cron, daily, x-cron-secret)  - find candidates, claim a lifecycle_emails row, send.
@@ -14,7 +14,7 @@
 // function secret the support function already uses.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { NUDGE, FEEDBACK, WINDOWS, pickVariant, compose, unsubToken, verifyUnsub, type Candidate, type Kind, type Variant } from "./decide.ts";
+import { NUDGE, FEEDBACK, CANCEL, WINBACK, KINDS, WINDOWS, pickVariant, contextFor, compose, unsubToken, verifyUnsub, type Candidate, type Context, type Kind, type Variant } from "./decide.ts";
 
 const FROM = "Olly at Macrosaurus <olly@macrosaurus.com>";   // any address on the verified Resend domain
 const REPLY_TO = "olly@macrosaurus.com";
@@ -56,9 +56,14 @@ Deno.serve(async (req) => {
 
     if (previewTo) {
       const sent: string[] = [];
-      const all: [Kind, Variant][] = [[NUDGE, "setup"], [NUDGE, "never"], [FEEDBACK, "setup"], [FEEDBACK, "never"], [FEEDBACK, "tried"]];
+      // Previews only the kinds asked for (body.kinds), or all of them.
+      const sample: Context = { buddy: "Rex", activeDays: 23, quietDays: 16, periodEnd: new Date(Date.now() + 12 * 86400000).toISOString() };
+      const all: [Kind, Variant][] = [[NUDGE, "setup"], [NUDGE, "never"], [FEEDBACK, "setup"], [FEEDBACK, "never"], [FEEDBACK, "tried"],
+        [CANCEL, "ending"], [CANCEL, "ended"], [WINBACK, "lapsed"]];
+      const only = Array.isArray(body.kinds) ? body.kinds as string[] : null;
       for (const [k, v] of all) {
-        const m = compose(k, v, FN_URL + "?unsub=preview&sig=preview");
+        if (only && !only.includes(k)) continue;
+        const m = compose(k, v, FN_URL + "?unsub=preview&sig=preview", sample);
         const r = await send(key!, previewTo, "[preview: " + k + "/" + v + "] " + m.subject, m.text, m.html, FN_URL);
         sent.push(k + "/" + v + ": " + (r.ok ? "sent" : "failed " + r.error));
       }
@@ -69,20 +74,23 @@ Deno.serve(async (req) => {
     const planned: { user_id: string; email: string; kind: Kind; variant: Variant; subject: string }[] = [];
     let sent = 0, failed = 0, skipped = 0, candidates = 0;
 
-    // The two windows are disjoint (decide.ts WINDOWS), so nobody can get both in one run.
-    for (const kind of [NUDGE, FEEDBACK]) {
+    // At most one email per person per run: the getting-started windows are disjoint, and anyone who
+    // already got something this run is skipped for the later kinds.
+    const emailed = new Set<string>();
+    for (const kind of KINDS) {
       const w = WINDOWS[kind];
       // +1 on the max: the SQL window is a coarse pre-filter; pickVariant applies the exact day count.
-      const { data: rows, error } = await admin.rpc("lifecycle_candidates", { p_kind: kind, p_min_days: w.min, p_max_days: w.max + 1 });
+      const { data: rows, error } = await admin.rpc("lifecycle_candidates", { p_kind: kind, p_min_days: w.min, p_max_days: w.max == null ? null : w.max + 1 });
       if (error) return json({ error: "candidates: " + error.message }, 500);
       candidates += (rows || []).length;
 
       for (const c of (rows || []) as Candidate[]) {
-        const variant = pickVariant(kind, c, now);
+        const variant = emailed.has(c.user_id) ? null : pickVariant(kind, c, now);
         if (!variant) { skipped++; continue; }
         if (planned.length >= MAX_PER_RUN) break;
         const unsubUrl = FN_URL + "?unsub=" + c.user_id + "&sig=" + await unsubToken(unsubSecret, c.user_id);
-        const m = compose(kind, variant, unsubUrl);
+        const m = compose(kind, variant, unsubUrl, contextFor(c, now));
+        emailed.add(c.user_id);
         planned.push({ user_id: c.user_id, email: c.email, kind, variant, subject: m.subject });
         if (dryRun) continue;
 
