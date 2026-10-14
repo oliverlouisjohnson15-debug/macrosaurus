@@ -104,3 +104,15 @@ test('unsubscribe token verifies for its user only', async () => {
   assert.strictEqual(await verifyUnsub('', 'user-a', sig), false);
   assert.strictEqual(await verifyUnsub('s3cret', 'user-a', ''), false);
 });
+
+test('the HTML part hyperlinks "Unsubscribe" instead of printing the URL', async () => {
+  const { compose, NUDGE, FEEDBACK } = await load();
+  const url = 'https://x/fn?unsub=u1&sig=abc';
+  for (const [k, v] of [[NUDGE, 'never'], [FEEDBACK, 'tried']]) {
+    const m = compose(k, v, url);
+    assert.ok(m.html.includes('<a href="https://x/fn?unsub=u1&amp;sig=abc" style="color:#888">Unsubscribe</a>'), k + v);
+    assert.ok(!m.html.includes('>https://x/fn'), 'the raw unsubscribe URL is not shown as text');
+    assert.ok(m.html.includes('<a href="https://macrosaurus.com'), 'app links are clickable');
+    assert.ok(m.text.includes(url), 'plain-text part still carries the URL');
+  }
+});

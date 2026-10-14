@@ -45,7 +45,7 @@ export type Candidate = {
   has_ticket: boolean;
 };
 export type Variant = "setup" | "never" | "tried";
-export type Email = { kind: Kind; variant: Variant; subject: string; text: string };
+export type Email = { kind: Kind; variant: Variant; subject: string; text: string; html: string };
 
 function daysSince(iso: string, now: Date): number {
   return Math.floor((now.getTime() - Date.parse(iso.length === 10 ? iso + "T00:00:00Z" : iso)) / 86400000);
@@ -66,9 +66,19 @@ export function pickVariant(kind: Kind, c: Candidate, now: Date): Variant | null
 }
 
 const SIGN = "\n\nOlly\nFounder, Macrosaurus";
-const footer = (unsubUrl: string) =>
-  "\n\n--\nYou're getting this because you signed up to Macrosaurus. I'll only ever send two of these. " +
-  "Don't want them? Unsubscribe: " + unsubUrl;
+const FOOTER = "You're getting this because you signed up to Macrosaurus. I'll only ever send two of these.";
+const footer = (unsubUrl: string) => "\n\n--\n" + FOOTER + " Don't want them? Unsubscribe: " + unsubUrl;
+
+// The HTML part is the same note, unstyled, so it still reads like a personal email: paragraphs,
+// line breaks, links made clickable, and the unsubscribe as a word rather than a long URL. The text
+// part (with the full URL) stays alongside it for clients that only show plain text.
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export function toHtml(body: string, unsubUrl: string): string {
+  const paras = body.split("\n\n").map((p) =>
+    "<p>" + esc(p).replace(/https:\/\/[^\s<]+/g, (u) => '<a href="' + u + '">' + u + "</a>").replace(/\n/g, "<br>") + "</p>");
+  return '<div style="font-family:sans-serif;font-size:15px;line-height:1.5">' + paras.join("") +
+    '<p style="color:#888;font-size:12px">' + esc(FOOTER) + ' <a href="' + esc(unsubUrl) + '" style="color:#888">Unsubscribe</a></p></div>';
+}
 const numbered = (opts: string[]) => opts.map((o, i) => (i + 1) + ". " + o).join("\n");
 
 // Plain text on purpose: it reads like a note from a person, lands in the main inbox rather than
@@ -117,7 +127,7 @@ export function compose(kind: Kind, variant: Variant, unsubUrl: string): Email {
       numbered(opts) + "\n\n" +
       "Or tell me in your own words. Even one line helps, and it comes straight to me.";
   }
-  return { kind, variant, subject, text: body + SIGN + footer(unsubUrl) };
+  return { kind, variant, subject, text: body + SIGN + footer(unsubUrl), html: toHtml(body + SIGN, unsubUrl) };
 }
 
 // --- Unsubscribe tokens ----------------------------------------------------------------------

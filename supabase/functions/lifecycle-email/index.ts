@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       const all: [Kind, Variant][] = [[NUDGE, "setup"], [NUDGE, "never"], [FEEDBACK, "setup"], [FEEDBACK, "never"], [FEEDBACK, "tried"]];
       for (const [k, v] of all) {
         const m = compose(k, v, FN_URL + "?unsub=preview&sig=preview");
-        const r = await send(key!, previewTo, "[preview: " + k + "/" + v + "] " + m.subject, m.text, FN_URL);
+        const r = await send(key!, previewTo, "[preview: " + k + "/" + v + "] " + m.subject, m.text, m.html, FN_URL);
         sent.push(k + "/" + v + ": " + (r.ok ? "sent" : "failed " + r.error));
       }
       return json({ ok: true, preview: sent });
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         // Claim first: the primary key makes a second claim fail, so an overlapping run cannot double-send.
         const { error: claimErr } = await admin.from("lifecycle_emails").insert({ user_id: c.user_id, kind, variant });
         if (claimErr) { skipped++; continue; }
-        const r = await send(key!, c.email, m.subject, m.text, unsubUrl);
+        const r = await send(key!, c.email, m.subject, m.text, m.html, unsubUrl);
         if (r.ok) {
           sent++;
           if (r.id) await admin.from("lifecycle_emails").update({ resend_id: r.id }).eq("user_id", c.user_id).eq("kind", kind);
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
   }
 });
 
-async function send(key: string, to: string, subject: string, body: string, unsubUrl: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function send(key: string, to: string, subject: string, body: string, html: string, unsubUrl: string): Promise<{ ok: boolean; id?: string; error?: string }> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -119,6 +119,7 @@ async function send(key: string, to: string, subject: string, body: string, unsu
         reply_to: REPLY_TO,
         subject,
         text: body,
+        html,
         // One-click unsubscribe (RFC 8058). Gmail and Yahoo expect it from bulk senders, and it
         // gives people a way out that is not the spam button.
         headers: { "List-Unsubscribe": "<" + unsubUrl + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
