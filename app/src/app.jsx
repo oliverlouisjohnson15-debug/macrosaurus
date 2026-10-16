@@ -2315,15 +2315,16 @@ function shiftISO(d, n) { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDa
 function prettyDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(); }
 
 /* ---------- image / AI helpers (the AI / Anthropic) ---------- */
-const AI_MODEL = 'claude-sonnet-5';               // reasoning jobs: meal estimates, body fat
-const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutrition-label scans
-// Sonnet 5 runs adaptive thinking BY DEFAULT when a request leaves `thinking` unset (Sonnet 4.6 did
-// not), and thinking tokens are spent out of the same max_tokens budget as the reply. Our jobs all
-// ask for one compact JSON object, so the budget was going on thinking and the reply came back
-// empty or cut off mid-object: every estimate failed with "couldn't read the estimate". These are
-// structured extraction jobs rather than open reasoning, so we turn thinking off explicitly and
-// keep the whole budget for the JSON. Only models that take the parameter get it.
-const THINKING_MODELS = { [AI_MODEL]: { type: 'disabled' } };
+const AI_MODEL = 'claude-sonnet-5-5';             // reasoning jobs: meal estimates, body fat
+const AI_MODEL_FAST = 'claude-haiku-5-5';          // deterministic OCR: nutrition-label scans
+// Both models run adaptive thinking BY DEFAULT when a request leaves `thinking` unset, and thinking
+// tokens are spent out of the same max_tokens budget as the reply. Our jobs all ask for one compact
+// JSON object, so the budget was going on thinking and the reply came back empty or cut off
+// mid-object: every estimate failed with "couldn't read the estimate". These are structured
+// extraction jobs rather than open reasoning, so thinking is pinned to its lowest setting and the
+// whole budget goes to the JSON. The setting is not the same on both: Sonnet 5.5 returns a 400 for
+// `disabled` and takes `between_tools` instead, while Haiku 5.5 still takes `disabled`.
+const THINKING_MODELS = { [AI_MODEL]: { type: 'between_tools' }, [AI_MODEL_FAST]: { type: 'disabled' } };
 function thinkingFor(model) { return THINKING_MODELS[model] || null; }
 // AI now runs through our own server-side proxy (Supabase Edge Function) that holds the Anthropic
 // key, so users never need to bring their own. The proxy checks the signed-in user and enforces a

@@ -11,6 +11,10 @@ const MAX_TOOLS_BYTES = 20000;                        // bound the definitions a
 
 // Price per token (USD). Update if Anthropic pricing changes.
 const PRICES: Record<string, { in: number; out: number }> = {
+  'claude-sonnet-5-5':          { in: 2 / 1e6,    out: 10 / 1e6 },
+  'claude-haiku-5-5':           { in: 0.1 / 1e6,  out: 0.5 / 1e6 }, // prompts up to 100K tokens; ours are far below
+  // Previous generation, kept so a browser still running the last build (or a cached service worker)
+  // is served rather than refused. Remove once nothing sends them.
   'claude-sonnet-5':            { in: 3 / 1e6,  out: 15 / 1e6 },
   'claude-haiku-4-5-20251001': { in: 1 / 1e6,  out: 5  / 1e6 },
 };
@@ -152,11 +156,15 @@ Deno.serve(async (req) => {
   const messages = payload?.messages;
   if (!Array.isArray(messages)) return json({ error: { message: 'Missing messages.' } }, 400);
   const system = (typeof payload?.system === 'string' && payload.system) ? payload.system : undefined;
-  // Thinking mode. Sonnet 5 thinks by default and spends the thinking on the same max_tokens budget
+  // Thinking mode. Sonnet 5 and later think by default and spend the thinking on the same max_tokens budget
   // as the answer, so the client sends an explicit config to keep the budget for the JSON. Only the
   // two shapes we use are passed on; anything else is dropped rather than forwarded to Anthropic.
   const t = payload?.thinking;
-  const thinking = (t && (t.type === 'disabled' || t.type === 'adaptive')) ? t : undefined;
+  let thinking = (t && (t.type === 'disabled' || t.type === 'adaptive' || t.type === 'between_tools')) ? { type: t.type } : undefined;
+  // Sonnet 5.5 returns a 400 for `disabled`; its lowest setting is `between_tools`. And `between_tools`
+  // is accepted by no other model, so it is dropped for them rather than forwarded to a 400.
+  if (thinking && model === 'claude-sonnet-5-5' && thinking.type === 'disabled') thinking = { type: 'between_tools' };
+  if (thinking && thinking.type === 'between_tools' && model !== 'claude-sonnet-5-5') thinking = undefined;
   // Tools. The buddy conversation is a client-executed tool loop: the model asks for a tool, the
   // CLIENT runs it against local state (the diary lives on the device, not here) and sends the
   // result back. So this only has to carry the definitions through and let tool_result blocks ride
