@@ -569,6 +569,221 @@
   }
 
   // ---------------------------------------------------------------------------
+  // How much of the diary is a guess, and how good are the guesses?
+  //
+  // An AI estimate is the one number in the diary nobody weighed, so three things follow from it:
+  // the check-in should say how much of the intake it carries, an estimate that disagrees with a
+  // food you have MEASURED (a label, a barcode, the UK tables) should be flagged against it, and the
+  // same dish should not come out at 166 kcal one day and 173 the next.
+  //
+  // Everything keys on kcal per 100 g, which every entry carries as `nq.ed` (the same figure the
+  // Density Score reads), so a gram weight does not have to be parsed back out of a free-text
+  // quantity label such as "1 burger bun (65 g)". Where it is missing the old grams/amount fields
+  // are the fallback; where neither is there the entry simply takes no part.
+
+  var MEASURED_SOURCES = { label: 1, off: 1, cofid: 1 };
+  // Words that describe the portion or the cook's pride rather than the food. Cooking STATE words
+  // (raw, fried, grilled...) are deliberately not here: "raw chicken" and "fried chicken" are
+  // different densities, and a match across them is a false correction.
+  var NAME_FILLER = /^(a|an|the|of|with|and|in|for|per|our|my|large|small|medium|big|regular|extra|homemade|fresh|plain|pack|portion|serving|slice|slices|piece|pieces|approx)$/;
+  var NAME_STATE = /^(raw|cooked|fried|grilled|roasted|boiled|baked|dried|steamed|smoked)$/;
+
+  function nameTokens(name) {
+    var seen = {}, out = [];
+    String(name || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z\s]/g, ' ').split(/\s+/).forEach(function (w) {
+      if (w.length < 2 || NAME_FILLER.test(w)) return;
+      if (w.length > 3 && /s$/.test(w) && !/ss$/.test(w)) w = w.replace(/s$/, '');
+      if (!seen[w]) { seen[w] = 1; out.push(w); }
+    });
+    return out.sort();
+  }
+  function nameSubset(a, b) { // every token of a is in b
+    for (var i = 0; i < a.length; i++) if (b.indexOf(a[i]) < 0) return false;
+    return true;
+  }
+  /* Two names are the same food when their tokens are equal, or when the shorter has at least two
+     tokens and sits wholly inside the longer ("frozen blackberries" in "frozen blackberries 500g").
+     One shared word is never enough ("chicken" is not "chicken curry"), and two different cooking
+     states cancel the match. Conservative on purpose: a wrong match hands someone a worse number. */
+  function sameFood(a, b) {
+    if (!a.length || !b.length) return false;
+    var sa = a.filter(function (w) { return NAME_STATE.test(w); }), sb = b.filter(function (w) { return NAME_STATE.test(w); });
+    if (sa.length && sb.length && sa.join() !== sb.join()) return false;
+    if (a.join(' ') === b.join(' ')) return true;
+    var small = a.length <= b.length ? a : b, big = a.length <= b.length ? b : a;
+    return small.length >= 2 && nameSubset(small, big);
+  }
+  function median(xs) {
+    if (!xs.length) return 0;
+    var s = xs.slice().sort(function (x, y) { return x - y; }), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  // kcal per 100 g of a logged entry, or 0 when it cannot be told.
+  function entryEd(e) {
+    if (!e) return 0;
+    var ed = e.nq ? +e.nq.ed : 0;
+    if (ed > 0) return ed;
+    var k = e.computed_macros ? +e.computed_macros.kcal : 0;
+    if (e.unit === 'g' && +e.amount > 0 && k > 0) return k / +e.amount * 100;
+    return 0;
+  }
+  // A logged entry as a per-100 g profile. Macros ride on the entry's own kcal-to-density ratio, so
+  // a half-portion entry and a double one give the same profile.
+  function entryProfile(e) {
+    var ed = entryEd(e), m = e.computed_macros || {}, k = +m.kcal || 0;
+    if (!(ed > 0) || !(k > 0)) return null;
+    var f = ed / k;
+    return { kcal: ed, protein: (+m.protein || 0) * f, carbs: (+m.carbs || 0) * f, fat: (+m.fat || 0) * f, fiber: (+m.fiber || 0) * f };
+  }
+  function foldProfiles(list) {
+    var out = {};
+    ['kcal', 'protein', 'carbs', 'fat', 'fiber'].forEach(function (k) { out[k] = median(list.map(function (p) { return p[k]; })); });
+    return out;
+  }
+  function plainEntry(e) { return e && !e.is_alcohol && (e.ref_type || 'food') === 'food'; }
+
+  /* The two reference sets, built once per diary: foods you MEASURED (label, barcode, UK tables) and
+     foods you have logged as an AI estimate at least twice. Each is keyed by its name tokens and
+     carries the median per-100 g profile, so one odd entry does not move it. */
+  function ownRefs(entries) {
+    var measured = {}, guessed = {};
+    (entries || []).forEach(function (e) {
+      if (!plainEntry(e)) return;
+      var measuredSrc = !!MEASURED_SOURCES[e.source];
+      if (!measuredSrc && e.source !== 'ai_estimate') return;
+      var pr = entryProfile(e), tk = nameTokens(e.name);
+      if (!pr || !tk.length) return;
+      var bag = measuredSrc ? measured : guessed, key = tk.join(' ');
+      (bag[key] || (bag[key] = { name: e.name, tokens: tk, list: [] })).list.push(pr);
+    });
+    function fold(bag, min) {
+      return Object.keys(bag).map(function (k) {
+        var b = bag[k];
+        return { name: b.name, tokens: b.tokens, n: b.list.length, per100: foldProfiles(b.list) };
+      }).filter(function (r) { return r.n >= min; });
+    }
+    return { measured: fold(measured, 1), usual: fold(guessed, 2) };
+  }
+  function findRef(list, tokens) {
+    var best = null;
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!sameFood(tokens, r.tokens)) continue;
+      var exact = tokens.join(' ') === r.tokens.join(' ');
+      if (!best || (exact && !best.exact) || (exact === best.exact && r.n > best.r.n)) best = { r: r, exact: exact };
+    }
+    return best ? best.r : null;
+  }
+  function perGram(p) {
+    return { kcal: p.kcal / 100, protein: p.protein / 100, carbs: p.carbs / 100, fat: p.fat / 100, fiber: p.fiber / 100, satfat: null, sugars: null, salt: null };
+  }
+  // The gap that earns a flag. Measured figures are your own packets, so the bar is low; a repeated
+  // estimate is only a habit, so it has to disagree more before it overrules the model.
+  var OWN_TOL_MEASURED = 0.15, OWN_TOL_USUAL = 0.12;
+
+  /* Items of a fresh AI estimate that disagree with something you already know. Same shape as the
+     UK-tables check (app/cofid.js) so the confirm screen can offer both the same way, and like it
+     this only ever OFFERS: a weight you stated is never questioned, and grams stay the model's. */
+  function ownCheck(refs, items) {
+    var out = [];
+    if (!refs) return out;
+    (items || []).forEach(function (it, i) {
+      var g = +it.grams || 0, kcal = +it.kcal || 0;
+      if (g <= 0 || kcal <= 0 || it.userSpecified) return;
+      var tk = nameTokens(it.name);
+      if (!tk.length) return;
+      var ai = kcal / g * 100;
+      var pick = [[findRef(refs.measured, tk), OWN_TOL_MEASURED, 'measured'], [findRef(refs.usual, tk), OWN_TOL_USUAL, 'usual']];
+      for (var k = 0; k < pick.length; k++) {
+        var r = pick[k][0];
+        if (!r || !(r.per100.kcal > 0)) continue;
+        if (Math.abs(ai - r.per100.kcal) / r.per100.kcal <= pick[k][1]) return; // agrees with the best thing we know
+        out.push({ i: i, name: it.name, kind: pick[k][2], ref: r.name, n: r.n, refKcal100: Math.round(r.per100.kcal),
+          aiKcal100: Math.round(ai), high: ai > r.per100.kcal, profile: perGram(r.per100) });
+        return;
+      }
+    });
+    return out;
+  }
+
+  /* Looking back instead of forward: how do the estimates already in the diary sit against foods of
+     the same name that were measured? Returns the matched rows and how they lean, or null when
+     there are too few matches to say anything (a handful is noise, and noise read as a verdict is
+     worse than silence). */
+  function estimateAudit(entries, minMatches) {
+    var refs = ownRefs(entries), rows = [];
+    (entries || []).forEach(function (e) {
+      if (!plainEntry(e) || e.source !== 'ai_estimate') return;
+      var ed = entryEd(e), tk = nameTokens(e.name);
+      if (!(ed > 0) || !tk.length) return;
+      var r = findRef(refs.measured, tk);
+      if (!r || !(r.per100.kcal > 0)) return;
+      rows.push({ id: e.id, date: e.date, name: e.name, ref: r.name, aiKcal100: Math.round(ed), refKcal100: Math.round(r.per100.kcal), pct: (ed - r.per100.kcal) / r.per100.kcal * 100 });
+    });
+    if (rows.length < (minMatches || 3)) return null;
+    var pcts = rows.map(function (r) { return r.pct; });
+    return {
+      n: rows.length, medianPct: round(median(pcts), 0),
+      high: rows.filter(function (r) { return r.pct > 15; }).length,
+      low: rows.filter(function (r) { return r.pct < -15; }).length,
+      rows: rows.sort(function (a, b) { return Math.abs(b.pct) - Math.abs(a.pct); })
+    };
+  }
+
+  /* How much of what was logged between two dates is an AI estimate, and which entries carry most
+     of it. Alcohol and recipes are not estimates in this sense (alcohol is a slider over a known
+     drink, a recipe is summed from its ingredients) so only `ai_estimate` counts. */
+  function estimateShare(entries, startISO, endISO, topN) {
+    var total = 0, est = 0, days = {}, estDays = {}, list = [];
+    (entries || []).forEach(function (e) {
+      if (!e || e.date < startISO || e.date > endISO) return;
+      var k = e.computed_macros ? +e.computed_macros.kcal || 0 : 0;
+      if (!(k > 0)) return;
+      total += k; days[e.date] = 1;
+      if (e.source === 'ai_estimate' && !e.is_alcohol) { est += k; estDays[e.date] = 1; list.push({ id: e.id, name: e.name, date: e.date, kcal: Math.round(k) }); }
+    });
+    var nDays = Object.keys(days).length;
+    list.sort(function (a, b) { return b.kcal - a.kcal; });
+    return {
+      totalKcal: Math.round(total), estimatedKcal: Math.round(est),
+      share: total > 0 ? est / total : 0, days: nDays, estimatedDays: Object.keys(estDays).length,
+      perDay: nDays ? Math.round(est / nDays) : 0, count: list.length, top: list.slice(0, topN || 3)
+    };
+  }
+
+  /* One plain paragraph for the check-in: how much of the intake is a guess, the entries carrying
+     most of it, and (when there are enough measured matches to say) which way the guesses lean.
+     Null when there is nothing worth saying: under a tenth of the log being estimated is not a
+     reason to doubt the read, and a note on every check-in is a note nobody reads. */
+  function estimateNote(share, audit) {
+    if (!share || !(share.estimatedKcal > 0) || share.share < 0.1 || share.days < 3) return null;
+    var pct = Math.round(share.share * 100);
+    var out = 'About ' + pct + '% of what you logged this cycle (around ' + share.perDay + ' kcal a day) is an AI estimate, so that part of your intake is a best guess rather than weighed.';
+    if (share.share >= 0.2 && share.top && share.top.length) {
+      out += ' The biggest: ' + share.top.map(function (t) { return t.name + ' (' + t.kcal + ')'; }).join(', ') + '. Those are the ones worth a second look.';
+    }
+    if (audit && audit.n >= 3) {
+      var m = Math.abs(audit.medianPct);
+      out += m >= 10
+        ? ' Against foods you have scanned or looked up, your estimates have run about ' + m + '% ' + (audit.medianPct > 0 ? 'high' : 'low') + ' (' + audit.n + ' matches).'
+        : ' Against foods you have scanned or looked up, your estimates have landed within about 10% (' + audit.n + ' matches).';
+    }
+    return out;
+  }
+
+  /* The grams worth keeping from an AI item. The estimator now and then returns a count where grams
+     belong ("1" for one chicken leg), and "1 g" at 690 kcal is 690 kcal per gram: fat is 9. Past that
+     the weight is not a weight, so it is dropped and the entry is logged as a portion instead of
+     carrying a quantity that will quietly mis-scale the next time someone edits it. */
+  var MAX_KCAL_PER_G = 9.5;
+  function aiGramsOk(grams, kcal) {
+    var g = +grams || 0, k = +kcal || 0;
+    if (!(g > 0)) return 0;
+    if (k > 0 && k / g > MAX_KCAL_PER_G) return 0;
+    return g;
+  }
+
+  // ---------------------------------------------------------------------------
   // What kind of food is this?
   //
   // Drives the icon on every diary row, and on a free account the colour of its tile too. Lives here
@@ -2412,6 +2627,8 @@
     meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
     cycleStripState: cycleStripState,
     photoUpdatable: photoUpdatable, priorEstimateBrief: priorEstimateBrief,
+    ownRefs: ownRefs, ownCheck: ownCheck, estimateAudit: estimateAudit, estimateShare: estimateShare, estimateNote: estimateNote, aiGramsOk: aiGramsOk,
+    foodNameTokens: nameTokens, sameFood: sameFood,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;

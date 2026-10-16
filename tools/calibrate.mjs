@@ -28,7 +28,7 @@ import { extname } from 'path';
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) { console.error('Set ANTHROPIC_API_KEY.'); process.exit(1); }
 
-const MODEL = 'claude-sonnet-5';
+const MODEL = 'claude-sonnet-5-5';
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1] || '';
 
 // Pull AI_PROMPT out of the shipped source. prompts.jsx is declarations only, by design, so it can
@@ -55,7 +55,7 @@ async function estimate(text, imagePath) {
     headers: { 'content-type': 'application/json', 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: MODEL, max_tokens: 3000,
-      thinking: { type: 'disabled' },   // matches the app: thinking tokens come out of max_tokens and truncate the JSON
+      thinking: { type: 'between_tools' },   // matches the app (Sonnet 5.5 400s on 'disabled'): thinking tokens come out of max_tokens and truncate the JSON
       system: AI_PROMPT,
       messages: [{ role: 'user', content }]
     })

@@ -2315,15 +2315,16 @@ function shiftISO(d, n) { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDa
 function prettyDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(); }
 
 /* ---------- image / AI helpers (the AI / Anthropic) ---------- */
-const AI_MODEL = 'claude-sonnet-5';               // reasoning jobs: meal estimates, body fat
-const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutrition-label scans
-// Sonnet 5 runs adaptive thinking BY DEFAULT when a request leaves `thinking` unset (Sonnet 4.6 did
-// not), and thinking tokens are spent out of the same max_tokens budget as the reply. Our jobs all
-// ask for one compact JSON object, so the budget was going on thinking and the reply came back
-// empty or cut off mid-object: every estimate failed with "couldn't read the estimate". These are
-// structured extraction jobs rather than open reasoning, so we turn thinking off explicitly and
-// keep the whole budget for the JSON. Only models that take the parameter get it.
-const THINKING_MODELS = { [AI_MODEL]: { type: 'disabled' } };
+const AI_MODEL = 'claude-sonnet-5-5';             // reasoning jobs: meal estimates, body fat
+const AI_MODEL_FAST = 'claude-haiku-5-5';          // deterministic OCR: nutrition-label scans
+// Both models run adaptive thinking BY DEFAULT when a request leaves `thinking` unset, and thinking
+// tokens are spent out of the same max_tokens budget as the reply. Our jobs all ask for one compact
+// JSON object, so the budget was going on thinking and the reply came back empty or cut off
+// mid-object: every estimate failed with "couldn't read the estimate". These are structured
+// extraction jobs rather than open reasoning, so thinking is pinned to its lowest setting and the
+// whole budget goes to the JSON. The setting is not the same on both: Sonnet 5.5 returns a 400 for
+// `disabled` and takes `between_tools` instead, while Haiku 5.5 still takes `disabled`.
+const THINKING_MODELS = { [AI_MODEL]: { type: 'between_tools' }, [AI_MODEL_FAST]: { type: 'disabled' } };
 function thinkingFor(model) { return THINKING_MODELS[model] || null; }
 // AI now runs through our own server-side proxy (Supabase Edge Function) that holds the Anthropic
 // key, so users never need to bring their own. The proxy checks the signed-in user and enforces a
@@ -6688,6 +6689,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       {note && <div className="text-[12px] text-[var(--muted)] mt-2 leading-snug">{note}</div>}
     </div>
   );
+  // How much of this cycle's intake is a guess. Read off the log, never sent anywhere.
+  const estNote = useMemo(() => E.estimateNote(E.estimateShare(db.log_entries, cs, today, 3), E.estimateAudit(db.log_entries)), [db.log_entries, cs, today]);
   const numbersPanel = (
     <Collapsible variant="inline" label="What I'm reading from" className="mb-4">
       <div className="py-3 mb-2" style={{ borderBottom: '1px solid var(--hairline)' }}>
@@ -6706,6 +6709,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           ? <MiniStat label="Weigh-in" value={liveCount ? 'Done' : 'Needed'} ok={liveCount > 0} />
           : <MiniStat label="Weigh-ins" value={weighDays + '/' + (cov.expectedWeighWindow || weighWindow)} ok={weighDays >= needWeigh} />}
       </div>
+      {estNote && <div className="text-[11px] text-[var(--muted)] leading-snug mb-2">{estNote}</div>}
       {chartDots.length >= 2 && <div className="pt-2 mb-2">
         <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
       </div>}
@@ -10152,7 +10156,7 @@ function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMe
     return (
       <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
         <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
-        <AiConfirm est={c.est} photos={c.photos || []}
+        <AiConfirm est={c.est} photos={c.photos || []} db={db}
           onAdd={(item) => { onAdd && onAdd(c.mealId, item); onDone('Logged to ' + mealName(c.mealId)); }}
           onAddItems={(items) => { onAddItems && onAddItems(c.mealId, items); onDone('Logged ' + items.length + ' items to ' + mealName(c.mealId)); }}
           onCancel={() => onDone('Left it')} />
@@ -15541,7 +15545,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
    one and had scrolled off the top entirely by the time the commit button was reachable, so the
    decision was being taken with only one of the two numbers on screen. Both left unset, an add
    flow renders exactly as it did. */
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare, preferOne }) {
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare, preferOne, db }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -15573,7 +15577,15 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   // are not there, the estimate stands exactly as it did before, it just goes unchecked.
   const [foods, setFoods] = useState(null);
   useEffect(() => { let live = true; loadGenericFoods().then(f => { if (live) setFoods(f); }).catch(() => {}); return () => { live = false; }; }, []);
-  const checks = useMemo(() => (foods ? cofidCheck(foods, items) : []), [foods, items]);
+  // Your own record outranks the UK tables: a label you scanned, or what this dish came to the last
+  // times you logged it, is closer to what you actually ate than a table average. The refs are built
+  // once per diary, not per keystroke; where both sources flag the same item, yours wins.
+  const ownRefs = useMemo(() => (db && db.log_entries ? E.ownRefs(db.log_entries) : null), [db && db.log_entries]);
+  const checks = useMemo(() => {
+    const own = ownRefs ? E.ownCheck(ownRefs, items) : [];
+    const taken = {}; own.forEach(c => { taken[c.i] = 1; });
+    return own.concat((foods ? cofidCheck(foods, items) : []).filter(c => !taken[c.i]));
+  }, [foods, items, ownRefs]);
   // Fired once per estimate when the offer first appears, so 'shown' can be compared against
   // 'applied' later. Without the denominator an unused offer is indistinguishable from no offer.
   const shownRef = useRef(false);
@@ -15585,7 +15597,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   // Re-price one item from its matched CoFID food, keeping the grams the model estimated from the
   // photo. Once applied the energy density matches, so the item drops out of `checks` on its own.
   function applyCofid(c) {
-    try { window.MTRACK && MTRACK('ai_tables_offer', { outcome: 'applied', direction: c.high ? 'high' : 'low', ai: c.aiKcal100, ref: c.refKcal100 }); } catch (_) {}
+    try { window.MTRACK && MTRACK('ai_tables_offer', { outcome: 'applied', direction: c.high ? 'high' : 'low', ai: c.aiKcal100, ref: c.refKcal100, source: c.kind || 'tables' }); } catch (_) {}
     setItems(arr => arr.map((it, idx) => {
       if (idx !== c.i) return it;
       const g = +it.grams || 0, p = c.profile;
@@ -15667,7 +15679,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const itemised = canItemise && !asOne;
   const stepP = (d) => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
-  const qtyLabel = p === 1 ? '' : (fmtCount(p) + ' portion');
+  const qtyLabel = fmtCount(p) + ' portion'; // never blank: a diary row that says how much is one you can audit later
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[var(--muted)] min-h-[44px] -ml-1 px-1 flex items-center"><Icon.arrow_left width="16" /> Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
@@ -15732,7 +15744,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? 'One item looks off' : checks.length + ' items look off'}</div>
       <div className="space-y-1.5">{checks.map(c => (
         <div key={c.i} className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 text-[11px] text-[var(--muted)] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}</div>
+          <div className="min-w-0 flex-1 text-[11px] text-[var(--muted)] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}{c.kind === 'measured' ? ' against ' + c.ref + ' (' + c.refKcal100 + ' on a label you logged)' : c.kind === 'usual' ? ' against your usual ' + c.refKcal100 + ' (logged ' + c.n + ' times)' : ''}</div>
           <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] border" style={{ borderColor: 'var(--border)', color: 'var(--link)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
@@ -15767,7 +15779,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[var(--muted)] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => E.aiGramsOk(it.grams, it.kcal) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = E.aiGramsOk(only.grams, only.kcal); onAdd(g > 0 ? { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: fmtCount(g) + ' g', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq } : { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: '1 portion', macros: final, rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
     {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[var(--muted)] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
@@ -15831,7 +15843,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} db={db} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
   return (<div>
@@ -16122,7 +16134,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   ) : null;
 
   if (est) return (<div className="fade-in">
-    <AiConfirm key={ver} est={est} busy={busy === 'refine'} refineCount={refineCount} onRefine={refine} preferOne
+    <AiConfirm key={ver} est={est} db={db} busy={busy === 'refine'} refineCount={refineCount} onRefine={refine} preferOne
       verb={hasPlan && swap ? 'Swap in' : 'Add'}
       onAdd={it => onPick(Object.assign({}, it, { replaceIds: replacing }))}
       onAddItems={its => onAddItems(its, replacing)}
@@ -16480,7 +16492,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
           {/* No "currently logged" block above this: the confirm screen now carries the old figure
               beside the new one and on the commit button, and a third copy at the top of the sheet
               would only be the one furthest from the decision. */}
-          <AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine}
+          <AiConfirm key={ver} est={result} photos={imgs} db={db} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine}
             verb="Update" compare={before} onAdd={(item) => onSave(item)} onCancel={() => setResult(null)} />
         </div>)
         : (<>
