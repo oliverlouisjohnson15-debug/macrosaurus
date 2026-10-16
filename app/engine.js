@@ -1082,6 +1082,37 @@
     return { kcal: round(kcal), protein_g: base.protein_g, fat_g: base.fat_g, carbs_g: round(carbs_g), deltaKcal: round(deltaKcal) };
   }
 
+  // ---- diet break readiness ----
+  // When is a maintenance break worth taking? The trial evidence is mixed: MATADOR (Byrne 2018) found
+  // intermittent dieting cut metabolic adaptation, ICECAP (Peos 2021) found no fat-loss edge from
+  // scheduled breaks. So the clock alone is a weak reason. What a break reliably buys is recovery and
+  // adherence in a long cut, and it is worth most when someone is lean, has dieted a long time, is
+  // burning noticeably less than they were, is sleeping badly or has stopped losing while sticking to
+  // the plan. Pure: the caller passes what it measured; nothing here reads the store.
+  //   in: { weeks, bfPct, sex, adaptDropPct, deficitPct, stalled, sleepAvgH }
+  //   out: { score, level: 'wait'|'consider'|'recommended', reasons: [string], days: 7|14 }
+  var DB_WEEKS_STEPS = [6, 9, 12];
+  var DB_CONSIDER = 3, DB_RECOMMEND = 4;
+  function dietBreakReadiness(i) {
+    i = i || {};
+    var score = 0, reasons = [];
+    var weeks = +i.weeks || 0;
+    var male = i.sex !== 'female';
+    for (var k = 0; k < DB_WEEKS_STEPS.length; k++) if (weeks >= DB_WEEKS_STEPS[k]) score += 1;
+    if (weeks >= DB_WEEKS_STEPS[0]) reasons.push(weeks + ' weeks in a deficit');
+    var bf = i.bfPct;
+    var lean = bf != null && bf > 0 && bf <= (male ? 15 : 24);
+    var soft = bf != null && bf >= (male ? 25 : 32);
+    if (lean) { score += 2; reasons.push('you are fairly lean, where long cuts cost the most'); }
+    else if (soft && weeks < 16) score -= 2;       // plenty to lose and nothing else wrong: keep going
+    if (i.adaptDropPct != null && i.adaptDropPct >= 8) { score += 1; reasons.push('your estimated burn is down ' + Math.round(i.adaptDropPct) + '% beyond what the weight lost explains'); }
+    if (i.deficitPct != null && i.deficitPct >= 25) { score += 1; reasons.push('a deficit of ' + Math.round(i.deficitPct) + '% is a hard one to hold'); }
+    if (i.stalled) { score += 1; reasons.push('loss has run well behind your target while you stuck to the plan'); }
+    if (i.sleepAvgH != null && i.sleepAvgH > 0 && i.sleepAvgH < 6.5) { score += 1; reasons.push('sleep is averaging ' + (Math.round(i.sleepAvgH * 10) / 10) + ' h'); }
+    var level = score >= DB_RECOMMEND ? 'recommended' : score >= DB_CONSIDER ? 'consider' : 'wait';
+    return { score: score, level: level, reasons: reasons, days: (weeks >= 14 || lean) ? 14 : 7 };
+  }
+
   // ---- trend + adaptive ----
   // Gap-aware EMA: a 5-day gap between weigh-ins decays the trend as five daily steps would
   // (effAlpha = 1 - (1-alpha)^gapDays), so sparse weighing can't freeze the trend in the past.
@@ -2402,6 +2433,7 @@
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     weekdayRhythm: weekdayRhythm,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
+    dietBreakReadiness: dietBreakReadiness,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,

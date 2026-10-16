@@ -4014,10 +4014,12 @@ function maintenanceKcal(db) {
   return Math.max(E.kcalFloor(prof), Math.round((base && base.estimatedTDEE) || E.tdeeFromProfile(prof)));
 }
 function dietBreakActive(db, date) { const b = db.diet_break; return !!(b && date >= b.start && date <= b.end); }
-// Research-backed eligibility: only offer a diet break after a sustained, well-tracked
-// cut (~6 weeks). MATADOR (Byrne 2018) shows periodic maintenance breaks blunt metabolic
-// adaptation and improve fat-loss efficiency. Thresholds keep the dashboard uncluttered.
-const DIETBREAK_MIN_DAYS = 42, DIETBREAK_MIN_CHECKINS = 4, DIETBREAK_MIN_LOGGED = 28, DIETBREAK_SNOOZE_DAYS = 14;
+// Personalised, not a stopwatch. The trials disagree on whether scheduled breaks speed fat loss
+// (MATADOR, Byrne 2018: less adaptation; ICECAP, Peos 2021: no edge), so the clock only opens the door.
+// Whether the card appears, and how hard it pushes, comes from Engine.dietBreakReadiness over what we
+// can measure: time in deficit, leanness, burn drop beyond the weight lost, deficit size, a stall while
+// adhering, and sleep. A floor keeps it off anyone who has barely started or is not tracking.
+const DIETBREAK_MIN_DAYS = 28, DIETBREAK_MIN_CHECKINS = 3, DIETBREAK_MIN_LOGGED = 21, DIETBREAK_SNOOZE_DAYS = 14;
 function dietBreakStatus(db, today) {
   const p = db.profile || {};
   const logDates = db.log_entries.map(e => e.date);
@@ -4032,12 +4034,34 @@ function dietBreakStatus(db, today) {
   if (planFloorISO(db) && planFloorISO(db) <= today) anchors.push(planFloorISO(db));
   const windowStart = anchors.length ? anchors.reduce((a, b) => a > b ? a : b) : dietStart;
   const daysDieting = Math.max(0, daysBetween(windowStart, today));
-  const checkins = (db.checkins || []).filter(c => c.date >= windowStart).length;
+  const cis = (db.checkins || []).filter(c => c.date >= windowStart);
   const loggedDays = new Set(logDates.filter(d => d >= windowStart)).size;
   const snoozed = db.diet_break_snooze && today <= db.diet_break_snooze;
+  const weeks = Math.max(1, Math.floor(daysDieting / 7));
+  // Burn drop beyond what losing weight explains (burn scales ~0.7 with body mass), first vs latest read.
+  const tdees = cis.filter(c => c.tdee > 0);
+  const wts = cis.filter(c => c.weightKg > 0);
+  let adaptDropPct = null;
+  if (tdees.length >= 3) {
+    const t0 = tdees[0].tdee, t1 = tdees[tdees.length - 1].tdee;
+    const wDrop = wts.length >= 2 ? Math.max(0, (wts[0].weightKg - wts[wts.length - 1].weightKg) / wts[0].weightKg * 100) : 0;
+    adaptDropPct = (t0 - t1) / t0 * 100 - 0.7 * wDrop;
+  }
+  const bt = currentTargets(db);
+  const deficitPct = (bt && bt.estimatedTDEE > 0 && bt.kcal > 0) ? (bt.estimatedTDEE - bt.kcal) / bt.estimatedTDEE * 100 : null;
+  // Stalled: the last three weekly reads averaged under half the intended loss, on weeks that were adhered to.
+  const rate = +(db.goals && db.goals.rate_per_week_kg) || +p.rateKgPerWeek || 0;
+  const recent = cis.filter(c => typeof c.weeklyChangeKg === 'number').slice(-3);
+  const stalled = !!(rate > 0 && recent.length === 3 && recent.every(c => c.adhered !== false)
+    && recent.reduce((a, c) => a + -c.weeklyChangeKg, 0) / 3 < rate * 0.5);
+  const sl = db.sleep || {}; const mins = [];
+  for (let i = 0; i < 7; i++) { const r = sl[shiftISO(today, -i)]; if (r && r.min > 180) mins.push(r.min); }
+  const sleepAvgH = mins.length >= 4 ? mins.reduce((a, b) => a + b, 0) / mins.length / 60 : null;
+  const ready = E.dietBreakReadiness({ weeks, bfPct: p.bodyFatPct, sex: p.sex, adaptDropPct, deficitPct, stalled, sleepAvgH });
   const eligible = p.goalType === 'cut' && !db.paused && !dietBreakActive(db, today)
-    && daysDieting >= DIETBREAK_MIN_DAYS && checkins >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED && !snoozed;
-  return { eligible, weeks: Math.max(1, Math.floor(daysDieting / 7)) };
+    && daysDieting >= DIETBREAK_MIN_DAYS && cis.length >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED
+    && ready.level !== 'wait' && !snoozed;
+  return { eligible, weeks, level: ready.level, reasons: ready.reasons, days: ready.days };
 }
 // Has the person said they are done eating on `iso`? Only ever set for today, from the Today card.
 function dayClosed(db, iso) { return !!(db.day_closed && db.day_closed[iso]); }
@@ -8083,10 +8107,12 @@ function DietBreakCard({ db, update }) {
   if (!status.eligible) return null;
   const start = (n) => update(d => { d.diet_break = { start: today, end: shiftISO(today, n - 1), returnGoal: d.profile.goalType }; d.diet_break_snooze = null; });
   const notNow = () => update(d => { d.diet_break_snooze = shiftISO(today, DIETBREAK_SNOOZE_DAYS); });
+  const strong = status.level === 'recommended';
   return (
     <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
-      <div className="text-lg font-bold mb-1">Time for a diet break?</div>
-      <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">You've been cutting steadily for {status.weeks} weeks. Taking a week or two at maintenance (~{mk} kcal) now can ease the metabolic slowdown that long cuts cause, so fat loss picks back up when you return. Your cut resumes automatically after, nothing to remember. <span className="text-[#6A6A70]">Backed by the MATADOR trial (Byrne 2018).</span></div>
+      <div className="text-lg font-bold mb-1">{strong ? 'Time for a diet break?' : 'A diet break could help'}</div>
+      <div className="text-[12px] text-[var(--muted)] mb-2 leading-relaxed">You've been cutting for {status.weeks} weeks. {strong ? 'This looks like a good point' : 'You could take one now, or keep going'}: {status.reasons.join('; ')}.</div>
+      <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">{status.days === 14 ? 'Two weeks' : 'A week'} at maintenance (~{mk} kcal) mostly buys recovery and makes the cut easier to stick with; research is mixed on whether it speeds fat loss. Your cut resumes automatically after. <span className="text-[#6A6A70]">MATADOR (Byrne 2018), ICECAP (Peos 2021).</span></div>
       {!ask
         ? <div className="grid grid-cols-2 gap-2">
           <Btn kind="accent" onClick={() => setAsk(true)}>Yes please</Btn>
@@ -8094,7 +8120,7 @@ function DietBreakCard({ db, update }) {
         </div>
         : <div className="fade-in">
           <div className="text-[11px] text-[var(--muted)] mb-2">How long?</div>
-          <div className="grid grid-cols-2 gap-2">{[7, 14].map(n => <Btn key={n} kind="accent" onClick={() => start(n)}>{n} days</Btn>)}</div>
+          <div className="grid grid-cols-2 gap-2">{[7, 14].map(n => <Btn key={n} kind={n === status.days ? 'accent' : 'ghost'} onClick={() => start(n)}>{n} days</Btn>)}</div>
           <button className="hit text-[11px] text-[var(--muted)] w-full text-center mt-2" onClick={() => setAsk(false)}>Back</button>
         </div>}
     </Card>
