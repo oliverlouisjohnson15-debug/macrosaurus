@@ -5096,16 +5096,13 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal, plan, proj
   const Xt = t => padL + ((t - t0) / tspan) * plotW;       // ...and by raw time, for the forecast
   const Y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
   const dense = pts.length > 45;                            // long range → lead with the trend
-  const useTrend = dense && trendPts.length >= 2;
+  const hasTrend = trendPts.length >= 2;                    // the trend is always the bold line when there is one
   const rawStr = pts.map(p => `${Xd(p.date).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
   const trendStr = trendPts.map(p => `${Xd(p.date).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
-  const primaryPts = useTrend ? trendPts : pts;
-  const area = `${Xd(primaryPts[0].date).toFixed(1)},${Y(min).toFixed(1)} ` + (useTrend ? trendStr : rawStr) + ` ${Xd(primaryPts[primaryPts.length - 1].date).toFixed(1)},${Y(min).toFixed(1)}`;
   const trendByDate = {}; trendPts.forEach(p => { trendByDate[p.date] = p.value; });
   const ticks = [max - pad * 0.4, (max + min) / 2, min + pad * 0.4];
   const fmtd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const dec = decimals != null ? decimals : 1;
-  const gid = 'lg' + color.replace(/[^a-z0-9]/gi, '');
   const suffix = unitLabel ? ' ' + unitLabel : '';
   const selPt = sel ? pts.find(p => p.date === sel) : null;
   const selX = selPt ? Xd(selPt.date) : 0;
@@ -5123,7 +5120,6 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal, plan, proj
   }
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H, cursor: 'pointer' }} onClick={pick}>
-      <defs><linearGradient id={gid} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
       {ticks.map((t, i) => { const y = Y(t); return <g key={i}><line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border)" strokeWidth="1" /><text x={2} y={y + 3} fill="var(--muted)" fontSize="11">{t.toFixed(dec)}</text></g>; })}
       {/* The goal, as a line. The meter on the card above says 1.6 of 6.6 kg; this says the same
           thing in the one place where you can see the distance rather than read it. */}
@@ -5151,10 +5147,11 @@ function LineChart({ points, trend, color, decimals, unitLabel, goal, plan, proj
           <text x={(cx1 + x2) / 2} y={(cy1 + y2) / 2 - 4} fill="var(--muted)" fontSize="11" textAnchor="middle">plan</text>
         </g>;
       })()}
-      <polygon points={area} fill={`url(#${gid})`} />
       {selPt && <line x1={selX} y1={padT} x2={selX} y2={H - padB} stroke={color} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />}
-      <polyline points={rawStr} fill="none" stroke={color} strokeWidth={useTrend ? 1 : 2} opacity={useTrend ? 0.3 : 1} strokeLinejoin="round" strokeLinecap="round" />
-      {trendStr && <polyline points={trendStr} fill="none" stroke={color} strokeWidth={useTrend ? 2 : 1.5} opacity={useTrend ? 1 : 0.4} strokeDasharray={useTrend ? '' : '4 3'} strokeLinejoin="round" strokeLinecap="round" />}
+      {/* ONE encoding at every density: readings are dots (a faint line once there are too many for
+          dots), the trend is the one solid line. With no trend to draw, the readings are the line. */}
+      {(dense || !hasTrend) && <polyline points={rawStr} fill="none" stroke={color} strokeWidth={hasTrend ? 1 : 2} opacity={hasTrend ? 0.3 : 1} strokeLinejoin="round" strokeLinecap="round" />}
+      {hasTrend && <polyline points={trendStr} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
       {!dense && pts.map((p, i) => <circle key={'m' + i} cx={Xd(p.date)} cy={Y(p.value)} r={sel === p.date ? 3.4 : 2.2} fill={color} />)}
       {selPt && <circle cx={selX} cy={selY} r="3.4" fill={color} />}
       {/* YOUR OWN LINE, carried forward at the rate the verdict just quoted, to the day it meets
@@ -5350,17 +5347,13 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
         const perDisp = kg => (unit === 'st_lb' ? kg * LB_PER_KG : kg);
         const plan = (v && v.startISO && v.startKg != null && v.goal !== 'maintain' && Math.abs(v.target) > 0.01)
           ? { fromISO: v.startISO, from: toDisp(v.startKg), perWeek: perDisp(v.goal === 'gain' ? Math.abs(v.target) : -Math.abs(v.target)) } : null;
-        const project = (v && v.nowKg != null) ? { from: toDisp(v.nowKg), rate: perDisp(v.rate) } : null;
-        // Only the check-ins that actually moved a number. One notch a week for eight weeks of "no
-        // change" is a picket fence, and it would say nothing.
-        const marks = tab === 'weight' ? (db.checkins || []).filter(c => c && +c.deltaKcal).map(c => c.date) : [];
-        // What each week put in is the Premium half of this card, alongside energy balance.
-        const weekly = (v && window.MISPREMIUM === true) ? weeklyContributions(db, v, 12) : [];
+        // Weigh-ins, the trend, the plan and the goal. The forecast, the check-in notches and the
+        // weekly bars are not drawn here: the sentence above the chart already says when.
         return <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl}
           goal={tab === 'weight' && db.profile.goalWeightKg > 0 ? toDisp(db.profile.goalWeightKg) : null}
-          plan={plan} project={project} marks={marks} weekly={weekly.filter(w => w.start >= cut)} />;
+          plan={plan} />;
       })()}
-      <div className="text-[11px] text-[var(--muted)] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[var(--muted)]">tap a point</span></div>
+      <div className="text-[11px] text-[var(--muted)] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 4, height: 4, background: color, display: 'inline-block' }} /> {tab === 'weight' ? 'weigh-ins' : 'readings'}</span><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, display: 'inline-block' }} /> trend</span></div>
       {tab === 'weight' && <WeekdayRhythmNote db={db} />}
       </>}
   </>);
@@ -7397,7 +7390,6 @@ function ProgressHero({ db }) {
   const [range, setRange] = useState(90);
   const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
   const RANGES = [{ v: 30, l: '1M' }, { v: 90, l: '3M' }, { v: 180, l: '6M' }, { v: 365, l: '1Y' }, { v: 'all', l: 'All' }];
-  const RANGE_WORDS = { 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' };
   const tone = v ? v.tone : 'none';
   const ink = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : tone === 'bad' ? 'var(--danger-ink)' : 'var(--muted)';
   const lb = unit === 'st_lb';
@@ -7428,14 +7420,21 @@ function ProgressHero({ db }) {
       <div className="p-4 pb-3">
         <div className="flex items-baseline justify-between gap-2 text-[13px]" style={{ fontWeight: 600 }}>
           <span style={{ color: ink }}>{v ? v.headline : 'Your first read'}</span>
-          <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{v ? 'trend' : 'last reading'}</span>
         </div>
         <div className="flex items-end justify-between gap-3 mt-1">
           {v ? <div className="flex items-baseline gap-2 min-w-0">
             <span className="num text-[34px] leading-none">{rateNum(v.rate)}</span>
             <span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}>{lb ? 'lb' : 'kg'} a week</span>
           </div> : <div className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>Weigh in for a week or so and I will tell you whether the plan is working.</div>}
-          <span className="num text-[22px] leading-none shrink-0">{nowKg != null ? fmtWeight(nowKg, unit).replace(/ ?(kg|lb)$/, '') : '–'}</span>
+          <div className="shrink-0 text-right">
+            <div className="text-[12px] leading-none mb-1" style={{ color: 'var(--muted)' }}>{v ? 'Trend weight' : 'Last reading'}</div>
+            {nowKg == null ? <span className="num text-[22px] leading-none">–</span>
+              : lb ? (() => { const sl = kgToStLb(nowKg); return <span className="leading-none">
+                  <span className="num text-[22px]">{sl.st}</span><span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}> st </span>
+                  <span className="num text-[22px]">{sl.lb.toFixed(1)}</span><span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}> lb</span>
+                </span>; })()
+              : <span className="leading-none"><span className="num text-[22px]">{nowKg.toFixed(1)}</span><span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}> kg</span></span>}
+          </div>
         </div>
         {v && <div className="text-[13px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
           {v.goal === 'maintain' ? 'Aiming to hold steady' : 'Plan is ' + rateNum(v.target)}
@@ -7446,7 +7445,7 @@ function ProgressHero({ db }) {
           <PipMeter value={lad.doneCells} target={lad.cells} cells={lad.cells} scale={1} color="var(--good)" small overIsFine />
           <div className="flex justify-between gap-2 mt-1 text-[12px]" style={{ color: 'var(--muted)' }}>
             <span>To your goal</span>
-            <span>Next {fmtWeightDelta(lad.nextKg, unit).replace(/^[+−]/, '')}{lad.weeks ? ', about ' + lad.weeks + ' week' + (lad.weeks === 1 ? '' : 's') : ''}</span>
+            <span>Next {fmtWeightDelta(lad.nextKg, unit).replace(/^[+−]/, '')}</span>
           </div>
         </div>}
         {thin && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>{thin}</div>}
@@ -7457,7 +7456,7 @@ function ProgressHero({ db }) {
           {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
         </div>
         <TrendCard db={db} tab={metric} range={range} bare
-          header={<span className="text-[12px]" style={{ color: 'var(--muted)' }}>{RANGE_WORDS[range]}</span>} />
+          header={<span className="text-[12px]" style={{ color: 'var(--muted)' }}>Change</span>} />
       </div>
     </Hero>
   );
@@ -7849,7 +7848,7 @@ function burnEstimate(db) {
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   return est;
 }
-function ExpenditureCard({ db, plan, title = 'Energy' }) {
+function ExpenditureCard({ db, plan }) {
   const [showMath, setShowMath] = useState(false);
   // The lens: the same bars, measured from a different line. Against the burn it is your real
   // deficit; against the target it is an audit of how closely you followed the plan.
@@ -7859,13 +7858,18 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
   const t = currentTargets(db);
   const est = burnEstimate(db);
   const unit = db.profile.weight_unit;
+  /* The sheet that holds this names it ("What you burn"), so there is no title and no frame here:
+     groups are Sections, and the target the plan sets against the burn is the last of them. */
+  const target = (burn) => {
+    const out = typeof plan === 'function' ? plan(burn) : plan;
+    return out ? <Section title="Your target"><div className="py-3">{out}</div></Section> : null;
+  };
   /* ---- Before there is a burn to show ----
      The same treatment the cycle strip's starting-out state got, for the same reason: this is where
      every new account and every reset account sits for a fortnight, and it used to be a differently
-     shaped card - other padding, a paragraph, two tiles - that was replaced wholesale the morning
-     the estimate landed. Same frame now: the title bar keeps its right-hand slot (a countdown where
-     the daily balance will go), the body keeps its padding, and the plan block stays exactly where
-     it is, so what changes on the day is the middle filling in.
+     shaped card that was replaced wholesale the morning the estimate landed. Same frame now: the
+     first line keeps its slot (a countdown where the figure will go), and the plan block stays
+     exactly where it is, so what changes on the day is the middle filling in.
 
      Three requirements, because there are three (see Engine.liveExpenditure): enough weigh-ins,
      enough logged days, and a week between the first weigh-in and the last. The spread used to be
@@ -7880,9 +7884,8 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
     ];
     const left = reqs.reduce((m, r) => Math.max(m, r.want - r.got), 0);
     return (
-      <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title={title} right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
-        <div className="p-4">
+      <div>
+        <div className="text-[15px] mb-1" style={{ fontWeight: 600 }}>{left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'}</div>
         <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
         {/* Capped at what is being asked for: a counter reading 6/4 is a sum nobody wants, and the
             question here is whether a requirement is MET, not by how far it was passed. */}
@@ -7891,130 +7894,116 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
         </div>
         {/* Explicitly the 14-day window, not this cycle: unlabelled it read as another version of
             your weekly coverage. The date is the earliest this can land, not a promise. */}
-        <div className="tnum text-[11px] mt-2" style={{ color: 'var(--muted)' }}>
+        <div className="tnum text-[11px] mt-2 mb-5" style={{ color: 'var(--muted)' }}>
           last 14 days{left > 0 ? ' · first read from ' + fmtShortDay(shiftISO(today, left)) : ' · one more day of either will do it'}
         </div>
-        {typeof plan === 'function' ? plan(null) : plan}
-        </div>
-      </Card>
+        {target(null)}
+      </div>
     );
   }
   if (est.implausible) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return (
-      <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title={title} right="Still settling" rightTone="muted" />
-        <div className="p-5">
-        <div className="text-[12px] text-[var(--muted)] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
-        {typeof plan === 'function' ? plan(null) : plan}
-        </div>
-      </Card>
+      <div>
+        <div className="text-[15px] mb-1" style={{ fontWeight: 600 }}>Still settling</div>
+        <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-5">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
+        {target(null)}
+      </div>
     );
   }
   const confLabel = est.confidence === 'high' ? 'Dialled in' : est.confidence === 'medium' ? 'Getting there' : 'Still learning';
   const bal = isPremium ? energyBalance(db, est.tdee, 28) : null;
   const fcColor = est.forecast.dir === 'hold' ? 'var(--good)' : est.forecast.dir === 'unknown' ? 'var(--muted)' : 'var(--fat)';
+  // Burn history: TDEE learned at each past check-in, ending on today's live figure. Floored at the
+  // fresh-start line, so a retired run's curve does not run into this one.
+  const hist = (db.checkins || []).filter(c => c && afterFloor(db, c.date) && c.date !== today).map(c => {
+    let v = c.tdee > 0 ? c.tdee : null;
+    if (v == null) {
+      const tr = (db.targets || []).find(x => x.effective_date === c.date && x.estimatedTDEE > 0);
+      v = tr ? Math.round(tr.estimatedTDEE) : null;
+    }
+    return v != null ? { date: c.date, value: v } : null;
+  }).filter(Boolean);
+  const burnPts = hist.concat([{ date: today, value: est.tdee }]).slice(-12);
+  const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
+  const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
   return (
-    /* The header carries the two facts this card exists for: what it is, and the gap between what
-       you ate and what you burn. The confidence badge stands in until there is a balance to show.
-       A bordered pill floating inside the card was a second frame drawn to say one word. */
-    <Card className="p-0 mb-4 overflow-hidden">
-      <CardHead title={title} right={bal && bal.avgAte != null ? fmtSignedKcal(bal.avgAte - est.tdee) + ' / day' : confLabel} rightTone={bal && bal.avgAte != null && bal.avgAte < est.tdee ? 'accent' : 'muted'} />
-      <div className="p-4">
-        {/* THE BALANCE, leading, because it is the only thing on this page that joins what you ate
-            to what you weigh - and because the burn below it is the line it is measured against. */}
-        {bal ? <>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <Pill value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} />
-            <span className="pf text-[11px] uppercase text-[var(--muted)] shrink-0">28 days</span>
-          </div>
-          <BalanceBars days={bal.days} lens={lens} />
-          <div className="grid grid-cols-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
-            <div className="pr-2.5">
-              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Ate</div>
-              <div className="text-2xl font-bold tnum" style={{ color: 'var(--hero)' }}>{bal.avgAte != null ? bal.avgAte.toLocaleString() : '\u2013'}</div>
-            </div>
-            <div className="px-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Target</div>
-              <div className="text-2xl font-bold tnum">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '\u2013'}</div>
-            </div>
-            <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
-              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">Burn</div>
-              <div className="text-2xl font-bold tnum">{est.tdee.toLocaleString()}</div>
-            </div>
-          </div>
-          {/* The chain, said once, in a sentence: what you ate, what that is worth per week, and
-              whether it matches what you asked for. Nobody should have to do this arithmetic. */}
-          {bal.avgAte != null && (() => {
-            const gap = bal.avgAte - est.tdee;
-            const perWeek = Math.abs(gap) * 7 / E.KCAL_PER_KG;
-            const wanted = Math.abs(db.profile.rateKgPerWeek || 0);
-            const dir = gap < 0 ? 'deficit' : 'surplus';
-            const cmp = (wanted > 0.05 && perWeek > 0.05)
-              ? (perWeek > wanted * 1.2 ? ' That is more than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
-                : perWeek < wanted * 0.8 ? ' That is less than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
-                : ' Which is the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.') : '';
-            return <div className="text-[12px] text-[var(--muted)] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
-              You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
-            </div>;
-          })()}
-        </> : <PremiumTease headline="See the deficit you actually ran, day by day" />}
-
-        {/* THE BURN, and the arithmetic behind it. It stopped being its own card when it became the
-            line the balance above is measured against, and it was already being printed up there as
-            one of three averages. */}
-        <div className="mt-3.5 pt-3.5" style={{ borderTop: '2px solid var(--surface2)' }}>
-          {(() => {
-            const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
-            const sign = est.direction === 'up' ? '\u2212' : '+'; // gaining => burn is below intake; losing => above
-            return <>
-              <div className="flex items-center justify-between gap-3">
-                <button onClick={() => setShowMath(v => !v)} className="hit text-[11px] inline-flex items-center gap-1" aria-expanded={showMath}>
-                  <span style={{ color: 'var(--good-ink)' }}>How your burn was worked out</span>
-                  <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
-                </button>
-                <span className="tnum text-[11px] text-[var(--muted)] shrink-0">{est.low.toLocaleString()}–{est.high.toLocaleString()}</span>
-              </div>
-              {showMath && <div className="fade-in text-[11px] text-[var(--muted)] leading-relaxed mt-2 space-y-1.5">
-                <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
-                {est.direction === 'flat'
-                  ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
-                  : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtRateKg(est.weeklyChangeKg, unit)}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
-                <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
-              </div>}
-            </>;
-          })()}
-          {(() => {
-            // Burn history: TDEE learned at each past check-in, ending on today's live figure.
-            // Floored at the fresh-start line, so a retired run's curve does not run into this one.
-            const hist = (db.checkins || []).filter(c => c && afterFloor(db, c.date)).map(c => {
-              if (c.tdee > 0) return c.tdee;
-              const t = (db.targets || []).find(x => x.effective_date === c.date && x.estimatedTDEE > 0);
-              return t ? Math.round(t.estimatedTDEE) : null;
-            }).filter(x => x != null);
-            const pts = hist.concat([est.tdee]).slice(-12);
-            if (pts.length < 2) return null;
-            return <div className="flex items-center gap-3 mt-2.5">
-              <span className="pf text-[11px] uppercase text-[var(--muted)] shrink-0" style={{ width: 76 }}>Burn over time</span>
-              <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--hero)" /></div>
-            </div>;
-          })()}
-        </div>
-
-        {/* What the next weekly check-in is likely to do with your targets, then the target itself. */}
-        {typeof plan === 'function' ? plan(est.tdee) : plan}
-        <div className="text-[11px] mt-3 pt-3" style={{ color: fcColor, borderTop: '2px solid var(--surface2)' }}>Next weekly check-in: {est.forecast.text}.</div>
-        {/* How much of the above rests on real days. It used to be two stat tiles in a card of their
-            own, printing two different denominators, which is a report card rather than a caveat. */}
-        {(() => {
-          const b = behaviourStats(db, 14);
-          if (!b.loggedDays) return null;
-          return <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
-            Resting on {b.complete} of {b.days} day{b.days === 1 ? '' : 's'} fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
-          </div>;
-        })()}
+    <div>
+      {/* THE BURN, leading: it is the figure the row outside promised, and the line everything
+          below is measured against. */}
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>You burn about</div>
+      <div className="flex items-baseline gap-2 mt-1">
+        <span className="num text-[32px] leading-none">{est.tdee.toLocaleString()}</span>
+        <span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}>kcal a day</span>
       </div>
-    </Card>
+      <div className="tnum text-[12px] mt-1.5 mb-5" style={{ color: 'var(--muted)' }}>Likely {est.low.toLocaleString()}–{est.high.toLocaleString()} · {confLabel}</div>
+
+      <Section title="Burn over time">
+        <div className="py-3">
+          {burnPts.length >= 2
+            ? <LineChart points={burnPts} trend={null} color="var(--hero)" decimals={0} unitLabel="kcal" />
+            : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>This builds with each weekly check-in.</div>}
+          <button onClick={() => setShowMath(v => !v)} className="hit text-[11px] inline-flex items-center gap-1 mt-2" aria-expanded={showMath}>
+            <span style={{ color: 'var(--good-ink)' }}>How your burn was worked out</span>
+            <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
+          </button>
+          {showMath && <div className="fade-in text-[11px] text-[var(--muted)] leading-relaxed mt-2 space-y-1.5">
+            <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
+            {est.direction === 'flat'
+              ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
+              : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtRateKg(est.weeklyChangeKg, unit)}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
+            <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
+          </div>}
+        </div>
+      </Section>
+
+      {/* THE BALANCE: the only thing here that joins what you ate to what you weigh. */}
+      <Section title="Eating vs burn" right="Last 28 days">
+        <div className="py-3">
+          {bal ? <>
+            <div className="mb-3"><Seg value={lens} onChange={setLens} options={[{ v: 'burn', l: 'vs burn' }, { v: 'target', l: 'vs target' }]} /></div>
+            <BalanceBars days={bal.days} lens={lens} />
+            <div className="grid grid-cols-2 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+              <div className="pr-2.5">
+                <div className="text-[12px] text-[var(--muted)] mb-1">Ate</div>
+                <div className="num text-[22px] leading-none">{bal.avgAte != null ? bal.avgAte.toLocaleString() : '–'}</div>
+              </div>
+              <div className="pl-2.5" style={{ borderLeft: '2px solid var(--surface2)' }}>
+                <div className="text-[12px] text-[var(--muted)] mb-1">Target</div>
+                <div className="num text-[22px] leading-none">{bal.avgTarget != null ? bal.avgTarget.toLocaleString() : '–'}</div>
+              </div>
+            </div>
+            {/* The chain, said once, in a sentence: what you ate, what that is worth per week, and
+                whether it matches what you asked for. Nobody should have to do this arithmetic. */}
+            {bal.avgAte != null && (() => {
+              const gap = bal.avgAte - est.tdee;
+              const perWeek = Math.abs(gap) * 7 / E.KCAL_PER_KG;
+              const wanted = Math.abs(db.profile.rateKgPerWeek || 0);
+              const dir = gap < 0 ? 'deficit' : 'surplus';
+              const cmp = (wanted > 0.05 && perWeek > 0.05)
+                ? (perWeek > wanted * 1.2 ? ' That is more than the ' + fmtWeightDelta(wanted, unit).replace(/^[+−]/, '') + ' a week you asked for.'
+                  : perWeek < wanted * 0.8 ? ' That is less than the ' + fmtWeightDelta(wanted, unit).replace(/^[+−]/, '') + ' a week you asked for.'
+                  : ' Which is the ' + fmtWeightDelta(wanted, unit).replace(/^[+−]/, '') + ' a week you asked for.') : '';
+              return <div className="text-[12px] text-[var(--muted)] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+                You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+−]/, '')}</span> a week.{cmp}
+              </div>;
+            })()}
+          </> : <PremiumTease headline="See the deficit you actually ran, day by day" />}
+        </div>
+      </Section>
+
+      {/* What the plan does with this burn. */}
+      {target(est.tdee)}
+      <div className="text-[11px]" style={{ color: fcColor }}>Next weekly check-in: {est.forecast.text}.</div>
+      {/* How much of the above rests on real days. */}
+      {(() => {
+        const b = behaviourStats(db, 14);
+        if (!b.loggedDays) return null;
+        return <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
+          Resting on {b.complete} of {b.days} day{b.days === 1 ? '' : 's'} fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
+        </div>;
+      })()}
+    </div>
   );
 }
 /* The balance bars. Countable cells like every other meter here, measured from a rule in the middle:
@@ -16977,6 +16966,17 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
       {/* THE ANSWER AND THE EVIDENCE, in one hero. */}
       <ProgressHero db={db} />
 
+      {/* THE EVIDENCE BEHIND THE HERO, directly under it: what you burn, the weigh-ins, and how the
+          plan has moved. Each row opens the same sheet it always did. */}
+      <Section title="Weight and burn">
+        <Row icon={<Icon.bolt width="24" />} title="What you burn" onClick={() => setOpen('energy')}
+          sub={est.ok && !est.implausible ? 'About ' + Math.round(est.tdee).toLocaleString() + ' kcal a day' : 'Still learning what you burn'} />
+        <Row icon={<Icon.scale width="24" />} title="Weigh-ins" onClick={() => setOpen('weighins')}
+          sub={weighedThisWeek + ' in the last 7 days' + (todays ? ' \u00b7 weighed today' : '')}
+          trailing={!todays && onWeigh ? <button type="button" onClick={onWeigh} className="shrink-0 px-2 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}>Weigh in</button> : null} />
+        {(db.checkins || []).length > 0 && <Row icon={<Icon.history width="24" />} title="Your plan over time" sub={(db.checkins || []).length + ' check-in' + ((db.checkins || []).length === 1 ? '' : 's')} onClick={() => setOpen('history')} />}
+      </Section>
+
       {/* WHAT THE PLAN IS SET TO, on the page that says how it is going. Each row opens the same
           screen it always did, and its back comes here. */}
       <Section title="Your plan">
@@ -16986,30 +16986,23 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
         {planRow('weekplans')}
       </Section>
 
-      <Section title="More">
-        <Row icon={<Icon.bolt width="24" />} title="Energy" onClick={() => setOpen('energy')}
-          sub={est.ok && !est.implausible ? 'You burn about ' + Math.round(est.tdee).toLocaleString() + ' kcal a day' : 'Still learning what you burn'} />
-        <Row icon={<Icon.scale width="24" />} title="Weigh-ins" onClick={() => setOpen('weighins')}
-          sub={weighedThisWeek + ' in the last 7 days' + (todays ? ' \u00b7 weighed today' : '')}
-          trailing={!todays && onWeigh ? <button type="button" onClick={onWeigh} className="shrink-0 px-2 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}>Weigh in</button> : null} />
-        {(db.checkins || []).length > 0 && <Row icon={<Icon.history width="24" />} title="Your plan over time" sub={(db.checkins || []).length + ' check-in' + ((db.checkins || []).length === 1 ? '' : 's')} onClick={() => setOpen('history')} />}
+      <Section title="Settings">
         {planRow('coaching')}
         {planRow('weekly')}
         {planRow('checkins')}
         {onOpenSetting && <Row icon={<Icon.swap width="24" />} title="Fresh start" sub={(db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set up again') + ' \u00b7 nothing is deleted'} onClick={() => onOpenSetting('freshstart')} />}
       </Section>
 
-      {open === 'energy' && <Sheet title="Energy" onClose={() => setOpen(null)}>
-          <ExpenditureCard db={db} title="What you burn" plan={(liveBurn) => {
-            if (!base) return <div className="mt-3 pt-3 border-t border-[var(--hairline)]"><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
+      {open === 'energy' && <Sheet title="What you burn" onClose={() => setOpen(null)}>
+          <ExpenditureCard db={db} plan={(liveBurn) => {
+            if (!base) return <div><TextBtn onClick={() => onOpenSetting && onOpenSetting('goal')}>Set your goal</TextBtn></div>;
             // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
             // the burn as it stood when that target was written, so the card said 2,582 and then did its
             // arithmetic against 2,786 and printed a deficit that did not subtract.
             const gap = liveBurn > 0 ? base.kcal - Math.round(liveBurn) : null;
-            return <div className="mt-3 pt-3 border-t border-[var(--hairline)]">
-              <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1">So your target is</div>
+            return <div>
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                <span className="tnum"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[var(--muted)]"> kcal a day</span></span>
+                <span className="tnum"><span className="num text-[22px]">{base.kcal}</span><span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}> kcal a day</span></span>
                 <span className="tnum text-[12px] shrink-0"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></span>
               </div>
               <div className="text-[11px] text-[var(--muted)] mt-1.5 leading-snug">

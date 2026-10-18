@@ -227,7 +227,7 @@ test('the burn card keeps its frame while it waits', () => {
   const db = cutting();
   db.weight_entries = []; db.log_entries = [];
   const r = energy(db);
-  assert.ok(r.has('Energy'), 'same card, same name: ' + r.text.slice(0, 200));
+  assert.ok(r.has('days to go'), 'the countdown keeps its place: ' + r.text.slice(0, 200));
   assert.ok(r.has('0/4') && r.has('0/5') && r.has('0/7'), 'all three counters start at nothing: ' + r.text.slice(0, 300));
   assert.ok(r.has('last 14 days'), 'and the window is named, not implied: ' + r.text.slice(0, 300));
 });
