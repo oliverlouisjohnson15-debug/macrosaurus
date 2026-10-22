@@ -2172,6 +2172,109 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
 // Where days collected from several sources wait until there are enough of them to be a programme.
 // This is the answer to "I follow someone who posts Upper A on Monday and Lower B on Thursday":
 // import each post as it lands, and build the block once the week is complete.
+/* One day of an imported programme, as a list you can rearrange. Its own component because every day
+   needs its own drag list and a hook cannot live inside a map. Hold a row or grab the dots to put it
+   in a different place; tap the dots for the menu, which is also how a movement goes to a DIFFERENT
+   day - the commonest thing an import gets wrong is which day a line belongs to. */
+function DraftDayRows({ day, di, days, t, edit, setPicking }) {
+  const rows = day.exercises || [];
+  const rowKey = (e, ei) => e.id || ('ix' + ei);
+  const byKey = {};
+  rows.forEach((e, ei) => { byKey[rowKey(e, ei)] = { e, ei }; });
+  const [moving, setMoving] = useState(null);     // row key whose "move" menu is open
+  const dnd = useDragList({
+    ids: rows.map(rowKey),
+    onDrop: (id, to) => edit(d => {
+      const arr = d.days[di].exercises;
+      const from = arr.findIndex((x, i) => rowKey(x, i) === id);
+      if (from < 0) return;
+      arr.splice(to, 0, arr.splice(from, 1)[0]);
+      arr.forEach((x, i) => { x.order = i; });
+    }),
+    disabled: moving != null,
+  });
+  const shown = dnd.order.map(k => byKey[k]).filter(Boolean);
+  const shown0 = (e) => e.sourceName || (Training.byId(e.exerciseId, t.custom) || {}).name || e.exerciseId;
+  const mv = moving != null ? byKey[moving] : null;
+  function toDay(target) {
+    if (!mv) return;
+    edit(d => {
+      const row = d.days[di].exercises.splice(mv.ei, 1)[0];
+      d.days[di].exercises.forEach((x, i) => { x.order = i; });
+      const dest = d.days[target].exercises = d.days[target].exercises || [];
+      row.order = dest.length;
+      dest.push(row);
+    });
+  }
+  function toPlace(to) {
+    if (!mv) return;
+    edit(d => {
+      const arr = d.days[di].exercises;
+      arr.splice(to < 0 ? arr.length : to, 0, arr.splice(mv.ei, 1)[0]);
+      arr.forEach((x, i) => { x.order = i; });
+    });
+  }
+  return (
+    <>
+      {shown.map(({ e, ei }) => {
+            const rp = dnd.rowProps(rowKey(e, ei));
+            const lib = Training.byId(e.exerciseId, t.custom);
+            const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
+            // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is
+            // noise on every line; "Smith machine split squat, counted as Split squat" is the whole
+            // point, and it is one tap from being corrected.
+            // The engine decides what is worth a second look, and marks it on the row at import.
+            // Anything unmarked matched cleanly enough that saying so would be noise on every line.
+            const differs = !!e.check && lib;
+            return (
+              <div key={rowKey(e, ei)} ref={rp.ref} data-drag-id={rp['data-drag-id']} onPointerDown={rp.onPointerDown}
+                className="flex items-start justify-between gap-2 py-2 border-t" style={Object.assign({ borderColor: 'var(--border)' }, rp.style)}>
+                <DragHandle dnd={dnd} id={rowKey(e, ei)} label={shown0(e)} onTap={() => setMoving(rowKey(e, ei))} />
+                <button onClick={() => setPicking({ day: di, index: ei })} className="min-w-0 flex-1 text-left">
+                  <span className="block text-[12.5px] leading-snug">{shown}</span>
+                  {/* Three words and the name. The row is tappable, so the note's whole job is to
+                      say what happened, not to argue for it. */}
+                  {differs && (
+                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>
+                      {e.check === 'kit' ? 'Counted as ' + lib.name
+                        : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check'
+                          : 'Read as ' + lib.name + '?'}
+                    </span>
+                  )}
+                </button>
+                {/* Agreeing with the guess is the common answer and it had no control at all: the
+                    only way to clear a flag was to open the picker and re-choose the movement the
+                    app had already chosen. Now the row offers both, and the count bar above can
+                    actually reach zero. */}
+                {differs && (
+                  <button onClick={() => edit(d => { delete d.days[di].exercises[ei].check; })}
+                    aria-label={'Keep ' + shown + ' as ' + lib.name}
+                    className="shrink-0 px-2 text-[11px]" style={{ minHeight: 44, border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
+                    Keep
+                  </button>
+                )}
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
+                    {e.target.sets} x {Training.repLabel(e.target)}
+                    {e.target.tempo ? ' · ' + e.target.tempo : ''}
+                  </span>
+                  <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label={'Remove ' + shown} className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
+                </span>
+              </div>
+            );
+          })}
+      {mv && (
+        <ActionSheet kicker="Movement" title={shown0(mv.e)} onClose={() => setMoving(null)}
+          actions={[
+            { label: 'Move to the top', disabled: mv.ei === 0, onClick: () => toPlace(0) },
+            { label: 'Move to the bottom', disabled: mv.ei >= rows.length - 1, onClick: () => toPlace(-1) },
+          ].concat(days.map((d, k) => (k === di ? null
+            : { label: 'Move to ' + d.name, sub: 'Goes at the end of that day', onClick: () => toDay(k) })))} />
+      )}
+    </>
+  );
+}
+
 function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBuild, onImport }) {
   useBackClose(onBack);
   const t = tdb(db);
@@ -2180,6 +2283,14 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
   const [name, setName] = useState((draft && draft.name) || 'My block');
   const [confirmClear, setConfirmClear] = useState(false);
   const [picking, setPicking] = useState(null);   // day index we are adding a movement to
+  // The days themselves, rearranged by their grip. Only the grip: a day is a card full of fields and
+  // buttons, and a hold anywhere on it would fight the scroll. Days are keyed by position, which is
+  // stable for the length of a drag; the order they land in is the order of the week.
+  const dayDnd = useDragList({
+    ids: ((draft && draft.days) || []).map((d, i) => String(i)),
+    onDrop: (id, to) => edit(d => { d.days.splice(to, 0, d.days.splice(+id, 1)[0]); }),
+    disabled: picking != null,
+  });
   const [tweak, setTweak] = useState('');
   const [tweakBusy, setTweakBusy] = useState(false);
   const [tweakNote, setTweakNote] = useState(null);
@@ -2348,9 +2459,10 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
         </div>
       )}
 
-      {draft.days.map((day, di) => (
-        <Card key={di} className="p-4 mb-4">
-          <div className="flex items-baseline justify-between gap-2 mb-2">
+      {dayDnd.order.map(k => ({ day: draft.days[+k], di: +k })).filter(x => x.day).map(({ day, di }) => { const rp = dayDnd.rowProps(String(di)); return (
+        <div key={di} ref={rp.ref} data-drag-id={rp['data-drag-id']} className="ms-card p-4 mb-4" style={rp.style}>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            {draft.days.length > 1 && <DragHandle dnd={dayDnd} id={String(di)} label={day.name} />}
             <input value={day.name} onChange={e => edit(d => { d.days[di].name = e.target.value; })}
               className="text-[13.5px] font-bold bg-transparent min-w-0 flex-1" style={{ color: 'var(--text)' }} aria-label="Day name" />
             <button onClick={() => edit(d => { d.days.splice(di, 1); })} aria-label="Remove day" className="px-2 text-[16px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
@@ -2360,50 +2472,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
               from {day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? (day.sourceRef.name || 'a file') : 'text you pasted'}
             </div>
           )}
-          {(day.exercises || []).map((e, ei) => {
-            const lib = Training.byId(e.exerciseId, t.custom);
-            const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
-            // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is
-            // noise on every line; "Smith machine split squat, counted as Split squat" is the whole
-            // point, and it is one tap from being corrected.
-            // The engine decides what is worth a second look, and marks it on the row at import.
-            // Anything unmarked matched cleanly enough that saying so would be noise on every line.
-            const differs = !!e.check && lib;
-            return (
-              <div key={e.id || ei} className="flex items-start justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                <button onClick={() => setPicking({ day: di, index: ei })} className="min-w-0 flex-1 text-left">
-                  <span className="block text-[12.5px] leading-snug">{shown}</span>
-                  {/* Three words and the name. The row is tappable, so the note's whole job is to
-                      say what happened, not to argue for it. */}
-                  {differs && (
-                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>
-                      {e.check === 'kit' ? 'Counted as ' + lib.name
-                        : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check'
-                          : 'Read as ' + lib.name + '?'}
-                    </span>
-                  )}
-                </button>
-                {/* Agreeing with the guess is the common answer and it had no control at all: the
-                    only way to clear a flag was to open the picker and re-choose the movement the
-                    app had already chosen. Now the row offers both, and the count bar above can
-                    actually reach zero. */}
-                {differs && (
-                  <button onClick={() => edit(d => { delete d.days[di].exercises[ei].check; })}
-                    aria-label={'Keep ' + shown + ' as ' + lib.name}
-                    className="shrink-0 px-2 text-[11px]" style={{ minHeight: 44, border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
-                    Keep
-                  </button>
-                )}
-                <span className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
-                    {e.target.sets} x {Training.repLabel(e.target)}
-                    {e.target.tempo ? ' · ' + e.target.tempo : ''}
-                  </span>
-                  <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label={'Remove ' + shown} className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
-                </span>
-              </div>
-            );
-          })}
+          <DraftDayRows day={day} di={di} days={draft.days} t={t} edit={edit} setPicking={setPicking} />
           {/* What this day had that could not be placed, sitting IN the day rather than in a list of
               warnings further up. The day then shows every movement the source did, and the fix is
               next to the gap instead of a screen away. */}
@@ -2417,8 +2486,8 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             </button>
           ))}
           <button onClick={() => setPicking({ day: di, index: null })} className="pixel-box w-full h-11 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
-        </Card>
-      ))}
+        </div>
+      ); })}
 
       <div className="flex gap-2 mb-4">
         <button onClick={onImport} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Import another day</button>

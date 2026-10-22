@@ -567,3 +567,317 @@ function BuddySays({ db, children, tone, className }) {
     </Card>
   );
 }
+
+/* ---- drag to reorder ---------------------------------------------------------------------------
+ * One hook for every list in Train that can be rearranged, so the session player, the plan preview,
+ * the block builder and the import review all pick a row up the same way.
+ *
+ * Two ways in, because there are two kinds of person holding a phone. The grip handle grabs at once
+ * (touch-action: none on it, so the page does not scroll out from under the finger). Anywhere else on
+ * the row, a half-second hold picks it up, and moving more than a few pixels first cancels the hold,
+ * which is how a scroll through the list stays a scroll. That is the pattern the food diary already
+ * uses for logged entries, for the same reasons, including the touchmove blocker: once the browser
+ * owns a touch it ignores preventDefault on pointermove, so the gesture is kept by blocking
+ * touchmove itself after the finger has been still long enough that no scroll has begun.
+ *
+ * The list is previewed live: the held row is spliced to where it would land and the others move out
+ * of the way, so the drop is never a surprise. Rows can be different heights (an open card beside
+ * compact rows), so targets are worked out from the rows' measured boxes, never a fixed height.
+ * A row that shares a `unitOf` key with its neighbours (a superset) travels with them and is never
+ * dropped between them.
+ *
+ * Moving a row by keyboard is on the handle too: ArrowUp / ArrowDown. A drag is a pointer gesture and
+ * nothing else here may be the only way to do it.
+ */
+// Which row is the finger on? `rects` is each row's box, top to bottom, in the order currently drawn;
+// [a, b] is the held unit. Returns a row index: inside [a, b] means "no move". Beyond either end the
+// nearest row wins, and a row only counts once the finger is past ITS midpoint, so a tall row that
+// has just swapped places cannot hand the held one straight back.
+function dragDropIndex(y, rects, a, b) {
+  if (!rects || !rects.length) return a;
+  let k = 0, best = Infinity;
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (!r) continue;
+    const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    if (d < best) { best = d; k = i; }
+  }
+  if (k >= a && k <= b) return k;
+  const mid = (rects[k].top + rects[k].bottom) / 2;
+  if (k > b && y < mid) return a;
+  if (k < a && y > mid) return a;
+  return k;
+}
+
+function useDragList(opts) {
+  const ids = opts.ids;
+  const [order, setOrder] = useState(null);       // ids in preview order while a drag is live
+  const [dragging, setDragging] = useState(null);
+  const [arming, setArming] = useState(null);
+  const els = useRef({});
+  const cur = useRef(null);                       // the live order, for the handlers that outlive a render
+  const job = useRef(null);
+  const droppedAt = useRef(0);
+  const moved = useRef(false);                    // did the last grab actually change the order?
+  const latest = useRef(opts); latest.current = opts;
+
+  function unitKey(id) { const u = latest.current.unitOf; return u ? (u(id) || null) : null; }
+  function unitOf(list, id) {
+    const i = list.indexOf(id), g = unitKey(id);
+    let a = i, b = i;
+    if (g) {
+      while (a > 0 && unitKey(list[a - 1]) === g) a--;
+      while (b < list.length - 1 && unitKey(list[b + 1]) === g) b++;
+    }
+    return [a, b];
+  }
+  function end(commit) {
+    const j = job.current;
+    if (!j) return;
+    job.current = null;
+    clearInterval(j.scroller);
+    window.removeEventListener('pointermove', j.move);
+    window.removeEventListener('pointerup', j.up);
+    window.removeEventListener('pointercancel', j.up);
+    window.removeEventListener('touchmove', j.block);
+    document.body.style.userSelect = j.prevSel;
+    document.body.style.touchAction = j.prevTouch;
+    const final = cur.current;
+    cur.current = null;
+    moved.current = !!(commit && final && j.start.join() !== final.join());
+    droppedAt.current = Date.now();
+    setOrder(null); setDragging(null);
+    if (commit && final && j.start.join() !== final.join()) {
+      // The first row of the unit, which is what the engine's reorder is told: grabbing the second
+      // leg of a superset still moves the pair, and reports where the pair now starts.
+      latest.current.onDrop(j.id, unitOf(final, j.id)[0]);
+    }
+  }
+  function begin(id, x, y) {
+    const o = latest.current;
+    if (o.disabled || (o.canDrag && !o.canDrag(id))) return;
+    end(false);                                   // single flight: a new grab supersedes an old one
+    moved.current = false;
+    const start = ids.slice();
+    cur.current = start.slice();
+    let lastY = y;
+    const move = (ev) => {
+      lastY = ev.clientY;
+      const list = cur.current;
+      if (!list) return;
+      const [a, b] = unitOf(list, id);
+      const rects = list.map(k => (els.current[k] ? els.current[k].getBoundingClientRect() : null));
+      const r = dragDropIndex(lastY, rects, a, b);
+      if (r >= a && r <= b) return;
+      const size = b - a + 1;
+      const to = r < a ? r : r - (size - 1);
+      const rows = list.map(k => ({ id: k, g: unitKey(k) }));
+      const next = Training.reorderUnits(rows, id, to, 'g').map(x2 => x2.id);
+      if (next.join() === list.join()) return;
+      cur.current = next; setOrder(next);
+    };
+    const up = () => end(true);
+    const block = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+    // Held near the top or bottom edge the page keeps scrolling without the finger having to move.
+    // The top edge clears the pinned bars; the bottom clears the nav.
+    const scroller = setInterval(() => {
+      const top = 140, bottom = window.innerHeight - 130;
+      const dy = lastY < top ? -12 : lastY > bottom ? 12 : 0;
+      if (dy) { window.scrollBy(0, dy); move({ clientY: lastY }); }
+    }, 16);
+    job.current = {
+      id, start, move, up, block, scroller,
+      prevSel: document.body.style.userSelect, prevTouch: document.body.style.touchAction,
+    };
+    window.addEventListener('touchmove', block, { passive: false });
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    document.body.style.userSelect = 'none';
+    document.body.style.touchAction = 'none';
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+    setOrder(start); setDragging(id); setArming(null);
+  }
+  useEffect(() => () => end(false), []);
+
+  function hold(id, e) {
+    const o = latest.current;
+    if (o.disabled || (o.canDrag && !o.canDrag(id))) return;
+    if (e.button != null && e.button !== 0) return;
+    if (e.target && e.target.closest && e.target.closest('input, textarea, select, [data-no-drag]')) return;
+    const sx = e.clientX, sy = e.clientY;
+    setArming(id);
+    const wait = (o.longPressMs || 350);
+    const timer = setTimeout(() => { clean(); begin(id, sx, sy); }, wait);
+    const onMove = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) { clearTimeout(timer); clean(); setArming(null); } };
+    const onUp = () => { clearTimeout(timer); clean(); setArming(null); };
+    function clean() {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
+  function step(id, delta) {
+    const o = latest.current;
+    if (o.disabled || (o.canDrag && !o.canDrag(id))) return;
+    const list = ids.slice();
+    if (list.indexOf(id) < 0) return;
+    const [a, b] = unitOf(list, id);
+    const to = a + delta;
+    if (to < 0 || to > list.length - (b - a + 1)) return;
+    o.onDrop(id, to);
+  }
+
+  return {
+    order: order || ids,
+    dragging,
+    justDropped: () => Date.now() - droppedAt.current < 500,
+    rowProps: (id) => ({
+      ref: (el) => { if (el) els.current[id] = el; else delete els.current[id]; },
+      'data-drag-id': id,
+      onPointerDown: (e) => hold(id, e),
+      style: Object.assign(
+        { WebkitTouchCallout: 'none' },
+        dragging === id
+          ? { position: 'relative', zIndex: 2, transform: 'translateX(6px)', outline: '2px solid var(--accent)', outlineOffset: -2, background: 'color-mix(in srgb, var(--accent) 14%, var(--card))' }
+          : arming === id ? { background: 'color-mix(in srgb, var(--accent) 8%, var(--card))' } : null),
+    }),
+    handleProps: (id, label, onTap) => ({
+      'aria-label': 'Reorder ' + (label || 'this one') + '. Hold and drag, or use the up and down arrow keys.',
+      'data-no-drag': true,
+      onPointerDown: (e) => {
+        if (e.button != null && e.button !== 0) return;
+        e.stopPropagation();
+        begin(id, e.clientX, e.clientY);
+      },
+      // Pressed and let go without moving anything is a tap, and a tap on the grip opens the
+      // movement's own menu, which is where the step-by-step moves live. A control that is only a
+      // gesture is invisible to a keyboard and to anyone who cannot drag.
+      onClick: (e) => {
+        e.stopPropagation();
+        const m = moved.current;
+        moved.current = false;
+        if (!m && onTap) onTap();
+      },
+      onKeyDown: (e) => {
+        if (e.key === 'ArrowUp') { e.preventDefault(); step(id, -1); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); step(id, 1); }
+      },
+      style: { touchAction: 'none', minWidth: 44, minHeight: 44, cursor: 'grab' },
+    }),
+    step,
+  };
+}
+
+// The grip, as a control: a 44px target around the six dots.
+function DragHandle({ dnd, id, label, color, onTap }) {
+  const hp = dnd.handleProps(id, label, onTap);
+  return (
+    <button type="button" {...hp} className="shrink-0 flex items-center justify-center"
+      style={Object.assign({}, hp.style, { color: color || 'var(--muted2)' })}>
+      <Grip color={color || 'var(--muted2)'} />
+    </button>
+  );
+}
+
+/* Drag something onto one of several places, rather than up and down a list: the week strip, where a
+   session is held and dropped onto another weekday. Same hold-to-pick-up as `useDragList` and for the
+   same reasons. The place under the finger is found with elementsFromPoint, skipping the floating
+   chip, so the targets are whatever carries `data-drop-key` and need no registration.
+   `cellProps(id, fromKey)` goes on the thing you pick up, `zoneProps(key)` on each target. */
+function useDragToZone(opts) {
+  const [drag, setDrag] = useState(null);     // { id, label }
+  const [over, setOver] = useState(null);
+  const [ghost, setGhost] = useState(null);
+  const [arming, setArming] = useState(null);
+  const job = useRef(null);
+  const droppedAt = useRef(0);
+  const latest = useRef(opts); latest.current = opts;
+
+  function end(commit) {
+    const j = job.current;
+    if (!j) return;
+    job.current = null;
+    window.removeEventListener('pointermove', j.move);
+    window.removeEventListener('pointerup', j.up);
+    window.removeEventListener('pointercancel', j.cancel);
+    window.removeEventListener('touchmove', j.block);
+    document.body.style.userSelect = j.prevSel;
+    document.body.style.touchAction = j.prevTouch;
+    droppedAt.current = Date.now();
+    const target = j.over;
+    setDrag(null); setOver(null); setGhost(null);
+    if (commit && target != null && target !== j.from) latest.current.onDrop(j.id, target);
+  }
+  function zoneAt(x, y) {
+    const els = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)];
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i];
+      if (!el || !el.closest || el.closest('[data-ghost]')) continue;
+      const z = el.closest('[data-drop-key]');
+      if (z) return z.getAttribute('data-drop-key');
+    }
+    return null;
+  }
+  function begin(id, from, x, y) {
+    end(false);
+    const j = { id, from, over: null };
+    const at = (ev) => { j.over = zoneAt(ev.clientX, ev.clientY); setOver(j.over); setGhost({ x: ev.clientX, y: ev.clientY }); };
+    j.move = at;
+    j.up = (ev) => { j.over = zoneAt(ev.clientX, ev.clientY) || j.over; end(true); };
+    j.cancel = () => end(true);
+    j.block = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+    j.prevSel = document.body.style.userSelect; j.prevTouch = document.body.style.touchAction;
+    job.current = j;
+    window.addEventListener('touchmove', j.block, { passive: false });
+    window.addEventListener('pointermove', j.move, { passive: true });
+    window.addEventListener('pointerup', j.up);
+    window.addEventListener('pointercancel', j.cancel);
+    document.body.style.userSelect = 'none';
+    document.body.style.touchAction = 'none';
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+    setDrag({ id, label: latest.current.label ? latest.current.label(id) : '' });
+    setGhost({ x, y }); setArming(null);
+  }
+  useEffect(() => () => end(false), []);
+
+  return {
+    dragging: drag ? drag.id : null,
+    over,
+    arming,
+    justDropped: () => Date.now() - droppedAt.current < 500,
+    cellProps: (id, from) => ({
+      onPointerDown: (e) => {
+        const o = latest.current;
+        if (o.disabled || (o.canDrag && !o.canDrag(id))) return;
+        if (e.button != null && e.button !== 0) return;
+        const sx = e.clientX, sy = e.clientY;
+        setArming(id);
+        const timer = setTimeout(() => { clean(); begin(id, from, sx, sy); }, o.longPressMs || 350);
+        const onMove = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) { clearTimeout(timer); clean(); setArming(null); } };
+        const onUp = () => { clearTimeout(timer); clean(); setArming(null); };
+        function clean() {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+        }
+        window.addEventListener('pointermove', onMove, { passive: true });
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      },
+      style: { WebkitTouchCallout: 'none', userSelect: 'none' },
+    }),
+    zoneProps: (key) => ({ 'data-drop-key': String(key) }),
+    // The chip that follows the finger. Rendered once, anywhere in the screen's tree.
+    ghostNode: drag && ghost ? (
+      <div data-ghost="1" aria-hidden="true" className="pixel-box pf text-[11px] uppercase px-3 py-2"
+        style={{ position: 'fixed', left: ghost.x, top: ghost.y, transform: 'translate(-50%, -130%)', zIndex: 120, pointerEvents: 'none',
+          background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+        {drag.label}
+      </div>
+    ) : null,
+  };
+}

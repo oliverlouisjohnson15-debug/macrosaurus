@@ -3780,9 +3780,68 @@
     session.exercises = list;
     return list;
   }
-  // Move one movement up or down the session. Supersets travel as written: the pair is defined by
-  // being ADJACENT, so moving one leg out from beside the other has to break the pairing rather than
-  // leave two rows labelled A1 and A2 with a squat sitting between them.
+  /* ---- reordering, as units ----
+   * A superset is a run of ADJACENT rows sharing a group, and it only means anything while they stay
+   * adjacent. So the thing that moves is a UNIT: one row, or the whole run it belongs to. One pure
+   * function serves the session player (field `superset`) and the plan (field `supersetGroup`), so
+   * the two cannot disagree about where a drop is allowed to land. */
+  function unitRange(list, i, field) {
+    var g = list[i] && list[i][field];
+    var a = i, b = i;
+    if (g) {
+      while (a > 0 && list[a - 1] && list[a - 1][field] === g) a--;
+      while (b < list.length - 1 && list[b + 1] && list[b + 1][field] === g) b++;
+    }
+    return [a, b];
+  }
+  // Move the unit holding `itemId` so its FIRST row ends up at `toIndex` of the result. A target that
+  // falls between two halves of another pair snaps to the edge of that pair, in the direction of
+  // travel, so a drop can never split one. Returns a new array and never touches the input.
+  function reorderUnits(list, itemId, toIndex, field) {
+    var i = indexOfItem(list, itemId);
+    if (i < 0) return list.slice();
+    var r = unitRange(list, i, field);
+    var unit = list.slice(r[0], r[1] + 1);
+    var rest = list.slice(0, r[0]).concat(list.slice(r[1] + 1));
+    var p = Math.max(0, Math.min(rest.length, Math.round(+toIndex)));
+    if (p !== p) p = r[0];
+    var up = p <= r[0];
+    if (p > 0 && p < rest.length && rest[p - 1][field] && rest[p - 1][field] === rest[p][field]) {
+      var rr = unitRange(rest, p, field);
+      p = up ? rr[0] : rr[1] + 1;
+    }
+    return rest.slice(0, p).concat(unit, rest.slice(p));
+  }
+  // Clear any group whose members are no longer next to each other. Mutates the rows it is given.
+  function dropBrokenGroups(list, field) {
+    var seen = {};
+    list.forEach(function (e, i) {
+      var g = e && e[field];
+      if (!g) return;
+      (seen[g] = seen[g] || []).push(i);
+    });
+    Object.keys(seen).forEach(function (g) {
+      var at = seen[g];
+      var ok = at.length >= 2;
+      for (var i = 1; i < at.length; i++) if (at[i] !== at[i - 1] + 1) ok = false;
+      if (!ok) at.forEach(function (i) { list[i][field] = null; });
+    });
+    return list;
+  }
+  // Put one movement (with its superset partner, if it has one) at a position in the session.
+  function moveExerciseTo(session, itemId, toIndex) {
+    var list = sessionItems(session);
+    if (indexOfItem(list, itemId) < 0) return false;
+    var next = reorderUnits(list, itemId, toIndex, 'supersetGroup');
+    var same = next.every(function (e, k) { return e === list[k]; });
+    if (same) return false;
+    renumberSession(session, next);
+    dropBrokenSupersets(session);
+    return true;
+  }
+  // Move one movement a step up or down the session. Deliberately a ROW move, not a unit move: this
+  // is the fine adjustment, and moving one leg out from beside the other breaks the pairing rather
+  // than leaving two rows labelled A1 and A2 with a squat between them. Dragging is the unit move.
   function moveExercise(session, itemId, delta) {
     var list = sessionItems(session);
     var i = indexOfItem(list, itemId);
@@ -3794,24 +3853,58 @@
     dropBrokenSupersets(session);
     return true;
   }
+  /* The same move, on the PLAN: this line, in this session and in the same day of every week from
+     `fromWeek` on. Weeks already trained stay as they were (fromWeek null means a block that has not
+     started). A movement is found in another week by its slot, and placed before the slot that
+     followed it here, so the order lands the same even if the weeks differ in length.
+     Slot keys fall back to `order` for rows without a week suffix, so every key is read BEFORE the
+     session it belongs to is renumbered. Returns how many sessions changed. */
+  function moveSlotInBlock(block, sessionId, itemId, toIndex, fromWeek) {
+    var sess = (block && block.sessions) || [];
+    var from = sess.filter(function (s) { return s.id === sessionId; })[0];
+    if (!from) return 0;
+    var list = sessionItems(from);
+    var at = indexOfItem(list, itemId);
+    if (at < 0) return 0;
+    var moved = list[at];
+    var after = reorderUnits(list, itemId, toIndex, 'supersetGroup');
+    var r = unitRange(after, after.indexOf(moved), 'supersetGroup');
+    var anchor = after[r[1] + 1] || null;
+    var movedKey = slotKeyOf(from, moved);
+    var anchorKey = anchor ? slotKeyOf(from, anchor) : null;
+    var dayKey = dayKeyOf(from);
+    var changed = 0;
+    sess.forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      if (dayKeyOf(s) !== dayKey) return;
+      var lst = sessionItems(s);
+      var row = null, anchorRow = null;
+      lst.forEach(function (e) {
+        var k = slotKeyOf(s, e);
+        if (k === movedKey) row = e;
+        else if (anchorKey && k === anchorKey) anchorRow = e;
+      });
+      if (!row) return;
+      var ri = lst.indexOf(row);
+      var ur = unitRange(lst, ri, 'supersetGroup');
+      var rest = lst.slice(0, ur[0]).concat(lst.slice(ur[1] + 1));
+      var to = anchorRow ? rest.indexOf(anchorRow) : (anchorKey ? Math.min(+toIndex, rest.length) : rest.length);
+      if (to < 0) to = rest.length;
+      if (s === from) to = Math.max(0, Math.min(rest.length, Math.round(+toIndex)));
+      var next = reorderUnits(lst, row.id, to, 'supersetGroup');
+      if (next.every(function (e, k) { return e === lst[k]; })) return;
+      renumberSession(s, next);
+      dropBrokenSupersets(s);
+      changed++;
+    });
+    return changed;
+  }
   // A superset is a promise about ORDER: these two, back to back, no rest between. Once the two legs
   // are no longer next to each other the promise is not true any more, so the group goes rather than
   // the codes lying about it.
   function dropBrokenSupersets(session) {
     var list = sessionItems(session);
-    var seen = {};
-    list.forEach(function (e, i) {
-      var g = e.supersetGroup;
-      if (!g) return;
-      if (!seen[g]) seen[g] = [];
-      seen[g].push(i);
-    });
-    Object.keys(seen).forEach(function (g) {
-      var at = seen[g];
-      var contiguous = at.length >= 2;
-      for (var i = 1; i < at.length; i++) if (at[i] !== at[i - 1] + 1) contiguous = false;
-      if (!contiguous) at.forEach(function (i) { list[i].supersetGroup = null; });
-    });
+    dropBrokenGroups(list, 'supersetGroup');
     renumberSession(session, list);
     return session;
   }
@@ -7363,6 +7456,7 @@
     VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
     baseOf: baseOf, variantsOf: variantsOf,
     sessionItems: sessionItems, moveExercise: moveExercise, toggleSuperset: toggleSuperset,
+    moveExerciseTo: moveExerciseTo, moveSlotInBlock: moveSlotInBlock, reorderUnits: reorderUnits, dropBrokenGroups: dropBrokenGroups,
     addExerciseToSession: addExerciseToSession, removeExerciseFromSession: removeExerciseFromSession,
     setExerciseTarget: setExerciseTarget, setSessionDay: setSessionDay, sessionsOnDay: sessionsOnDay,
     SETS_MIN: SETS_MIN, SETS_MAX: SETS_MAX, REPS_MIN: REPS_MIN, REPS_MAX: REPS_MAX, RIR_MAX: RIR_MAX,

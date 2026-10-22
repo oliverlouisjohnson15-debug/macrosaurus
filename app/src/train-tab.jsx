@@ -301,6 +301,29 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   // are looking back at does, so the two are not the same case.
   const shownWeekPlan = viewingAhead ? weekPlan(block, shownWeek, t.logs) : thisWeek;
   const doneShown = shownWeekPlan.filter(x => x.log && !x.live).length;
+  /* Move a session to another day by dropping it there. THIS week only - every week carries its own
+     copy of the session, so next Thursday is not touched - which is the same thing the "move" on a
+     session's own screen does, and what somebody means when the gym is shut. A session with anything
+     logged against it is a record and stays put. */
+  function moveSessionDay(sessionId, key) {
+    const dow = +key;
+    const row = shownWeekPlan.filter(x => x.session.id === sessionId)[0];
+    if (!row || !(dow >= 0 && dow <= 6) || row.session.dayOfWeek === dow) return;
+    const was = row.session.dayOfWeek;
+    const apply = (to) => trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === block.id)[0];
+      const s = b && (b.sessions || []).filter(x => x.id === sessionId)[0];
+      if (s) Training.setSessionDay(s, to);
+    });
+    apply(dow);
+    if (showToast) showToast(row.session.name.split(' - ')[0] + ' moved to ' + WEEKDAYS_FULL[dow] + ' this week.', 'Undo', () => apply(was));
+  }
+  const zone = useDragToZone({
+    onDrop: moveSessionDay,
+    canDrag: (id) => { const r = shownWeekPlan.filter(x => x.session.id === id)[0]; return !!r && !r.log; },
+    label: (id) => { const r = shownWeekPlan.filter(x => x.session.id === id)[0]; return r ? r.session.name.split(' - ')[0] : ''; },
+    disabled: !block || !prog || prog.done,
+  });
   // A session started this morning and left half-way is NOT one of the week's done sessions, and
   // counting it as one was how walking out of the gym read as the week ticking itself off.
   // The next session is the one you are in the middle of, if there is one, and otherwise the first
@@ -558,29 +581,41 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   )}
                 </>
               );
+              const hot = zone.dragging != null && zone.over === String(dow);
               const style = {
                 borderRight: dow < 6 ? '2px solid var(--border)' : 'none',
                 padding: '9px 2px', textAlign: 'center', minHeight: 74,
-                background: done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
+                background: hot ? 'color-mix(in srgb, var(--accent) 30%, var(--card))'
+                  : done ? 'color-mix(in srgb, var(--good) 12%, var(--surface2))'
                   : inPlay || isNext ? 'color-mix(in srgb, var(--accent) 14%, var(--surface2))' : 'var(--card)',
+                // The held session leaves its column looking held, not deleted.
+                opacity: slot && zone.dragging === slot.session.id ? 0.5 : 1,
               };
+              const drop = zone.zoneProps(dow);
+              const grab = slot ? zone.cellProps(slot.session.id, String(dow)) : null;
               // A rest day is not a control. It was never one before either, and giving it a target
               // that does nothing is worse than leaving it plainly inert.
               return slot ? (
-                <button key={dow} style={style}
+                <button key={dow} style={Object.assign({}, style, grab.style)} {...drop} onPointerDown={grab.onPointerDown}
                   aria-label={slot.session.name.split(' - ')[0] + ', ' + (WEEKDAYS_FULL[dow] || '')
                     + (done ? ', done' : inPlay ? ', in progress' : isNext ? ', up next' : '')}
-                  onClick={() => (inPlay && onResume ? onResume(slot.session, block) : onOpen(slot.session, block))}>
+                  onClick={() => { if (zone.justDropped()) return; return inPlay && onResume ? onResume(slot.session, block) : onOpen(slot.session, block); }}>
                   {cell}
                 </button>
               ) : (
                 // A rest day is not a control, but it still has to say which day it is: the column
                 // header is a single letter, and "T" is Tuesday and Thursday alike to anything that
                 // cannot see the order.
-                <div key={dow} style={style} role="note" aria-label={(WEEKDAYS_FULL[dow] || '') + ', rest day'}>{cell}</div>
+                <div key={dow} style={style} {...drop} role="note" aria-label={(WEEKDAYS_FULL[dow] || '') + ', rest day'}>{cell}</div>
               );
             })}
           </div>
+          {zone.ghostNode}
+          {shownWeekPlan.some(x => !x.log) && (
+            <div className="text-[11px] px-3 pb-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+              Hold a session and drag it to another day to move it, this week only.
+            </div>
+          )}
           {/* ONE FOOTER, not two (design-plans/34-overhaul/05). How much of the week is left, and the
               way to change which days it falls on, used to be two ruled bands for one thought. */}
           {!viewingAhead && (
