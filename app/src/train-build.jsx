@@ -1059,6 +1059,19 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   const isNew = !saved;
 
   const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  /* Reordering a day is an edit to the PLAN, so it reaches this week and every week after it - the
+     same reach as replacing a movement here, and for the same reason: a running order that reverts
+     the moment the week turns over is not an answer to "I want legs to start with squats". Weeks
+     already trained stay as they were. Like every edit on this screen it waits in the buffer until
+     the button at the bottom writes it. */
+  const dragDay = sessions.filter(s => s.id === openDay)[0] || null;
+  const dragRows = dragDay ? dragDay.exercises.slice().sort((a, b) => a.order - b.order) : [];
+  const dnd = useDragList({
+    ids: dragRows.map(it => it.id),
+    onDrop: (id, to) => { if (dragDay) edit(b => { Training.moveSlotInBlock(b, dragDay.id, id, to, prog ? prog.week : null); }); },
+    unitOf: (id) => (dragRows.filter(x => x.id === id)[0] || {}).supersetGroup || null,
+    disabled: !!picking,
+  });
   const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
   // Movements the plan left open, e.g. "Squat (Your Choice)". Empty for anything the app generated,
   // which never leaves a slot open: it has already made the pick.
@@ -1665,7 +1678,11 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       </div>
 
       {sessions.filter(s => openDay === s.id).map(s => {
-        const ordered = s.exercises.slice().sort((a, b) => a.order - b.order);
+        const base = s.exercises.slice().sort((a, b) => a.order - b.order);
+        const byKey = {};
+        base.forEach(e => { byKey[e.id] = e; });
+        // The drag preview, so the day reshuffles under the finger. It is the saved order otherwise.
+        const ordered = dnd.order.map(k => byKey[k]).filter(Boolean);
         const codes = Training.sessionCodes(ordered.map(e => ({ superset: e.supersetGroup || null })));
         const log = logBySession[s.id];
         const open = true;
@@ -1685,9 +1702,12 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
 
             {open && (
               <div className="px-4 pb-4">
-                {ordered.map((it, ei) => (
-                  <div key={it.id} className="py-3" style={{ borderTop: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>
+                {ordered.map((it, ei) => { const rp = dnd.rowProps(it.id); return (
+                  <div key={it.id} ref={rp.ref} data-drag-id={rp['data-drag-id']} onPointerDown={rp.onPointerDown} className="py-3"
+                    style={Object.assign({ borderTop: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }, rp.style)}>
                     <div className="flex items-start gap-2">
+                      <DragHandle dnd={dnd} id={it.id} label={(Training.byId(it.exerciseId, t.custom) || {}).name}
+                        onTap={() => setPicking({ sessionId: s.id, itemId: it.id })} />
                       <span className="pf text-[11px] shrink-0 mt-0.5 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[ei]}</span>
                       <button onClick={() => setPicking({ sessionId: s.id, itemId: it.id })}
                         aria-label={'Replace ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement')}
@@ -1710,7 +1730,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                       </button>
                       <button onClick={() => removeItem(s.id, it.id)} aria-label="Remove" className="px-1 text-[15px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
                     </div>
-                    <div className="flex items-center gap-2 mt-2 pl-8">
+                    <div className="flex items-center gap-2 mt-2" style={{ paddingLeft: 84 }}>
                       <div className="flex items-center gap-1 shrink-0">
                         <button onClick={() => setSets(s.id, it.id, -1)} className="pixel-box w-7 h-7 text-[13px]" style={{ background: 'var(--surface2)' }}>-</button>
                         <div className="w-14 text-center text-[11px] tnum" style={{ color: 'var(--muted)' }}>{it.target.sets} sets</div>
@@ -1722,9 +1742,9 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
                       </div>
                     </div>
                   </div>
-                ))}
+                ); })}
                 <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
-                  Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
+                  Hold a movement and drag it to reorder it, in every week from this one. Tap a movement to replace it, wherever it appears in the block{prog && prog.week > 1 ? '. Weeks you have trained stay as they were' : ''}.
                 </div>
                 <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
                 {/* A session with a log against it used to lose this button altogether, which meant
@@ -1908,6 +1928,15 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     if (say && showToast) showToast(say);
   }
 
+  // Rows are picked up and put down where you want them. The order on screen is the order the session
+  // runs in, so what you drag is what you will do. A superset pair moves as one.
+  const dnd = useDragList({
+    ids: items.map(it => it.id),
+    onDrop: (id, to) => edit(s => Training.moveExerciseTo(s, id, to)),
+    unitOf: (id) => (items.filter(x => x.id === id)[0] || {}).supersetGroup || null,
+    disabled: !editable || !!menuFor || !!tuning || !!picking || !!swapScope || dayPick,
+  });
+
   function removeItem(itemId) {
     const row = items.filter(x => x.id === itemId)[0];
     const ex = row && Training.byId(row.exerciseId, t.custom);
@@ -1953,12 +1982,9 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const itemEx = item ? Training.byId(item.exerciseId, t.custom) : null;
   const tuneRow = tuning ? items.filter(x => x.id === tuning)[0] : null;
 
-  const mainItems = items.filter(it => Training.roleOf(Training.byId(it.exerciseId, t.custom)) !== 'accessory');
-  const accItems = items.filter(it => mainItems.indexOf(it) === -1);
-
   // One body, wherever a movement lives, so a main lift opened as a full card and an accessory read
   // as a single line still say the same things about themselves in the same words.
-  function movementBody(it) {
+  function movementBody(it, code) {
     const useId = Training.atGym(it.exerciseId, gymNow, t.custom);
     const ex = Training.byId(useId, t.custom);
     // A grip you have never used has no history of its own, and a blank row on the way into a
@@ -1969,7 +1995,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
     return (
       <>
-        <span className="pf text-[11px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[items.indexOf(it)]}</span>
+        <span className="pf text-[11px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{code}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
           <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
@@ -2055,42 +2081,46 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <Icon.play width="16" /> {openNow ? 'Carry on with it' : sameDay ? 'Open today\u2019s session' : log ? 'Do it again' : 'Start ' + live.name.split(' - ')[0]}
       </button>
 
-      {mainItems.length > 0 && (
-        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Main lifts</div>
-      )}
-      {mainItems.map((it, i) => {
-        const ex = Training.byId(it.exerciseId, t.custom);
-        if (!editable) return <Card key={it.id || i} className="p-4 mb-3"><div className="flex items-start gap-3">{movementBody(it)}</div></Card>;
+      {/* ONE list, in the order the session runs. It used to be split into main lifts and accessories,
+          which is a tidy picture of the session and not the session: an accessory you had put first
+          still sat under the heading for the heavy ones, so what you saw was not the order you were
+          trying to change. Heavy lifts keep their full row and accessories their one line, in
+          whatever order they actually fall. */}
+      {(() => {
+        const byId = {};
+        items.forEach(it => { byId[it.id] = it; });
+        const shown = dnd.order.map(id => byId[id]).filter(Boolean);
+        // Lettered by where the row is NOW, so the codes follow it as it moves under your finger.
+        const live = Training.sessionCodes(shown.map(it => ({ superset: it.supersetGroup || null })));
         return (
-          <button key={it.id || i} onClick={() => setMenuFor(it.id)}
-            aria-label={'Change ' + (ex ? ex.name : 'this movement')}
-            className="w-full text-left pixel-box p-4 mb-3 flex items-start gap-3" style={{ background: 'var(--card)' }}>
-            {movementBody(it)}
-            <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)' }}><Icon.chevron width="16" height="16" /></span>
-          </button>
-        );
-      })}
-
-      {accItems.length > 0 && (
-        <>
-          <div className="pf text-[11px] uppercase mb-2 mt-1" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>Accessories · {accItems.length}</div>
           <Card className="p-0 mb-3 overflow-hidden">
-            {accItems.map((it, i) => (
-              editable ? (
-                <button key={it.id || i} onClick={() => setMenuFor(it.id)}
-                  aria-label={'Change ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || 'this movement')}
-                  className="w-full text-left px-4 py-3 flex items-center gap-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
-                  {accessoryRow(it)}
-                </button>
-              ) : (
-                <div key={it.id || i} className="px-4 py-3 flex items-center gap-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
-                  {accessoryRow(it)}
+            {shown.map((it, i) => {
+              const ex = Training.byId(it.exerciseId, t.custom);
+              const acc = Training.roleOf(ex) === 'accessory';
+              const name = ex ? ex.name : 'this movement';
+              const body = acc
+                ? <><span className="pf text-[11px] shrink-0 w-6" style={{ color: 'var(--accent-ink)' }}>{live[i]}</span>{accessoryRow(it)}</>
+                : movementBody(it, live[i]);
+              const rule = i ? { borderTop: '2px solid var(--border)' } : null;
+              if (!editable) {
+                return <div key={it.id || i} className="px-4 py-3 flex items-start gap-3" style={rule}>{body}</div>;
+              }
+              const rp = dnd.rowProps(it.id);
+              return (
+                <div key={it.id || i} ref={rp.ref} data-drag-id={rp['data-drag-id']} onPointerDown={rp.onPointerDown}
+                  className="flex items-stretch" style={Object.assign({ background: 'var(--card)' }, rp.style, rule)}>
+                  <button onClick={() => { if (dnd.justDropped()) return; setMenuFor(it.id); }}
+                    aria-label={'Change ' + name}
+                    className={'flex-1 min-w-0 text-left pl-4 py-3 flex gap-3 ' + (acc ? 'items-center' : 'items-start')}>
+                    {body}
+                  </button>
+                  <DragHandle dnd={dnd} id={it.id} label={name} onTap={() => setMenuFor(it.id)} />
                 </div>
-              )
-            ))}
+              );
+            })}
           </Card>
-        </>
-      )}
+        );
+      })()}
 
       {editable && (
         <>
@@ -2109,8 +2139,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
               it", and the whole point of the screen is lost on somebody who does not tap a row. */}
           <div className="text-[11px] leading-snug mb-4 text-center" style={{ color: 'var(--muted)' }}>
             {log
-              ? 'Tap a movement to change it. You already logged this one, so edits change the plan for the week rather than what you did.'
-              : 'Tap a movement to replace it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.'}
+              ? 'Tap a movement to change it, or hold and drag to reorder. You already logged this one, so edits change the plan for the week rather than what you did.'
+              : 'Hold a movement and drag it to reorder, or grab the dots. Tap one to replace it, change its sets and reps or take it out. Everything saves as you go, applies to this week, and none of it starts a session.'}
           </div>
         </>
       )}
@@ -2136,6 +2166,8 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
               disabled: itemIndex <= 0, keepOpen: true, onClick: () => edit(s => Training.moveExercise(s, item.id, -1)) },
             { label: 'Move down', sub: itemIndex >= items.length - 1 ? 'Already last' : 'Below ' + ((Training.byId((items[itemIndex + 1] || {}).exerciseId, t.custom) || {}).name || 'the next one'),
               disabled: itemIndex < 0 || itemIndex >= items.length - 1, keepOpen: true, onClick: () => edit(s => Training.moveExercise(s, item.id, 1)) },
+            { label: 'Move to the top', disabled: itemIndex <= 0, keepOpen: true, onClick: () => edit(s => Training.moveExerciseTo(s, item.id, 0)) },
+            { label: 'Move to the bottom', disabled: itemIndex < 0 || itemIndex >= items.length - 1, keepOpen: true, onClick: () => edit(s => Training.moveExerciseTo(s, item.id, items.length)) },
             { label: 'Take it out', danger: true, sub: 'You can undo this', onClick: () => removeItem(item.id) },
           ]} />
       )}

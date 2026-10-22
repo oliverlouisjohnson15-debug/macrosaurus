@@ -3409,6 +3409,75 @@ test('moveExercise survives an import with duplicate order values', () => {
   assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2]);
 });
 
+function sixRows(group) {
+  const mk = (id, g) => ({ id, exerciseId: 'db_lateral', order: 0, supersetGroup: g || undefined, target: { sets: 3, repLow: 8, repHigh: 12, rir: 1, restSec: 90 } });
+  const s = { id: 's', exercises: [mk('a'), mk('b', group), mk('c', group), mk('d'), mk('e'), mk('f')] };
+  s.exercises.forEach((e, i) => { e.order = i; });
+  return s;
+}
+
+test('moveExerciseTo puts a movement anywhere, first or last included', () => {
+  const s = sixRows();
+  assert.equal(T.moveExerciseTo(s, 'f', 0), true);
+  assert.deepEqual(ids(s), ['f', 'a', 'b', 'c', 'd', 'e']);
+  assert.equal(T.moveExerciseTo(s, 'f', 99), true);
+  assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.equal(T.moveExerciseTo(s, 'f', 5), false, 'already there changes nothing');
+  assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2, 3, 4, 5]);
+});
+
+test('a superset pair travels as one unit and a drop never lands between its halves', () => {
+  const s = sixRows('g1');
+  T.moveExerciseTo(s, 'c', 3);            // grab the second half
+  assert.deepEqual(ids(s), ['a', 'd', 'e', 'b', 'c', 'f']);
+  assert.equal(s.exercises.filter(e => e.supersetGroup).length, 2, 'the pair is still a pair');
+  const t = sixRows('g1');
+  T.moveExerciseTo(t, 'e', 2);            // dropping into the middle of the pair going up
+  assert.deepEqual(ids(t), ['a', 'e', 'b', 'c', 'd', 'f']);
+  const u = sixRows('g1');
+  T.moveExerciseTo(u, 'a', 2);            // ...and going down snaps to after it
+  assert.deepEqual(ids(u), ['b', 'c', 'a', 'd', 'e', 'f']);
+});
+
+test('reorderUnits is pure and dropBrokenGroups clears a pair that was pulled apart', () => {
+  const list = T.sessionItems(sixRows('g1'));
+  const before = list.map(e => e.id).join();
+  const out = T.reorderUnits(list, 'a', 3, 'supersetGroup');
+  assert.equal(list.map(e => e.id).join(), before, 'input untouched');
+  assert.ok(out !== list);
+  const rows = [{ id: 'x', superset: 'p' }, { id: 'y' }, { id: 'z', superset: 'p' }];
+  T.dropBrokenGroups(rows, 'superset');
+  assert.ok(!rows[0].superset && !rows[2].superset);
+});
+
+function blockOf(weeks, plainIds) {
+  const sessions = [];
+  for (let w = 1; w <= weeks; w++) {
+    const sid = 'b_w' + w + 'd0';
+    const ex = ['a', 'b', 'c', 'd'].map((k, i) => ({ id: plainIds ? k : 'x' + k + '_w' + w, exerciseId: 'db_lateral', order: i, target: { sets: 3, repLow: 8, repHigh: 12, rir: 1 } }));
+    sessions.push({ id: sid, name: 'Day A', week: w, dayOfWeek: 0, exercises: ex });
+  }
+  return { id: 'b', sessions };
+}
+
+test('moveSlotInBlock reorders this week and the weeks ahead, never the weeks behind', () => {
+  const b = blockOf(4);
+  const n = T.moveSlotInBlock(b, 'b_w2d0', 'xd_w2', 0, 2);
+  assert.equal(n, 3);
+  const order = (w) => T.sessionItems(b.sessions[w - 1]).map(e => e.id.replace(/_w\d/, '')).join('');
+  assert.equal(order(1), 'xaxbxcxd', 'week 1 was trained and stays');
+  assert.equal(order(2), 'xdxaxbxc');
+  assert.equal(order(4), 'xdxaxbxc');
+});
+
+test('moveSlotInBlock works on rows that have no week suffix to match on', () => {
+  const b = blockOf(3, true);
+  b.sessions.forEach(s => s.exercises.forEach((e, i) => { e.id = 'k' + i + '_' + s.week; }));
+  const n = T.moveSlotInBlock(b, 'b_w1d0', 'k3_1', 1, null);
+  assert.equal(n, 3);
+  b.sessions.forEach(s => assert.deepEqual(T.sessionItems(s).map(e => e.id[1]), ['0', '3', '1', '2']));
+});
+
 test('toggleSuperset pairs a movement with the next one, and unpairs both', () => {
   const s = planned();
   assert.equal(T.toggleSuperset(s, 'i1'), true);

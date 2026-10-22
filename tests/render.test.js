@@ -216,7 +216,7 @@ test('the session screen names the gesture that changes a movement', () => {
   const r = render(A.SessionPreview, {
     db, update() {}, showToast() {}, session: block.sessions[0], block, onBack() {}, onStart() {},
   });
-  assert.ok(/Tap a movement to replace it/.test(r.text), 'a chevron never says how: ' + r.text.slice(-260));
+  assert.ok(/Hold a movement and drag it to reorder/.test(r.text) && /Tap one to replace it/.test(r.text), 'a chevron never says how: ' + r.text.slice(-260));
 });
 
 // ---- tapping a movement and replacing it, end to end ----------------------------------------------

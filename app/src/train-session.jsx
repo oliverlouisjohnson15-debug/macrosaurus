@@ -76,6 +76,15 @@ function nextUnfinished(items, from) {
    the record that you were mid-session, which is why walking out to check a macro felt identical to
    giving up on the workout. Everything that genuinely ends a session calls onFinish; everything
    that just leaves the screen calls onExit. */
+/* A key for every row that stays the same when the row moves. Rows were keyed by movement and POSITION,
+   so reordering remounted every card from the first change down: the open one lost its focus and its
+   half-typed weight, and a drag had nothing steady to hold on to. Ephemeral - never written to the
+   log, and the plan's own `id` (which ties a logged set to its line) is not touched. */
+function withKeys(rows) {
+  rows.forEach(it => { if (!it._k) it._k = trainUid(); });
+  return rows;
+}
+
 function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, openLogId, onExit, onFinish, onFocusMode, gym }) {
   const t = tdb(db);
   const today = Store.todayISO();
@@ -123,7 +132,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const past = dateISO !== today && !liveLog(existing, today);
   // A session you are standing in keeps the phone awake. Editing one from last week does not need to.
   useWakeLock(!past && t.prefs.keepAwake !== false);
-  const [items, setItems] = useState(() => {
+  const [items, setItems] = useState(() => withKeys((function () {
     if (existing) {
       // Reopening a session you already started. Two things used to go missing here, and both of
       // them read as "the app lost my plan".
@@ -243,7 +252,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         baseExerciseId: e.baseExerciseId || null, basePlanNote: e.basePlanNote || null,
         warmups: e.warmups == null ? null : e.warmups, superset: e.supersetGroup || null };
     });
-  });
+  })()));
   const [focus, setFocus] = useState(0);
   /* Two refs on the open movement, because "have I lost it" and "take me back to it" are different
      questions about different boxes. The rows are what you LOSE - the card's last hundred pixels are
@@ -396,7 +405,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // somebody replaced it. None of that is a property of the sets, and none of it should have
       // depended on whether you had touched them yet.
       const next = prev.map(it => ({
-        id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note,
+        _k: it._k, id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note,
         superset: it.superset, sets: it.sets.map(s => Object.assign({ id: 's' + trainUid() }, s)),
         alts: it.alts || null, choice: it.choice || null, technique: it.technique || null,
         planNote: it.planNote || null, warmups: it.warmups == null ? null : it.warmups,
@@ -404,6 +413,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         baseExerciseId: it.baseExerciseId || null, basePlanNote: it.basePlanNote || null,
       }));
       fn(next);
+      withKeys(next);
       persist(next);
       return next;
     });
@@ -684,7 +694,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   function replacedRow(old, exId) {
     const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: (old.sets || []).length, repLow: 8, repHigh: 12 } }, t.logs, t.custom, preFor(exId));
     const row = {
-      id: old.id || ('swap_' + trainUid()), exerciseId: old.exerciseId, target: old.target,
+      _k: old._k, id: old.id || ('swap_' + trainUid()), exerciseId: old.exerciseId, target: old.target,
       sets: pre.sets, note: coachNote(pre), superset: old.superset,
       alts: old.alts || null, choice: old.choice || null,
       // The technique and the warm-ups belong to the SLOT rather than to whatever is filling it: a
@@ -714,11 +724,79 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     const offer = gymOffer(gym, wasId, exId, t.custom);
     if (reach > 1 || offer) setSwapScope({ from: wasId, planId: items[ii].baseExerciseId || wasId, to: exId, week: session.week, reach: reach, itemId: itemId, offer: offer });
   }
+  /* ---- reordering ----
+     Everything that changes the order goes through applyOrder, given the new order as a list of row
+     keys. Focus and any open sheet are INDICES, so they are re-pointed at the row they were on rather
+     than the slot it used to occupy: moving a movement you are not doing must not move you off the
+     one you are. A pair pulled apart stops being a pair, because the A1 / A2 codes are a promise
+     about order. */
+  function applyOrder(keys) {
+    const openKey = items[focus] && items[focus]._k;
+    const menuKey = typeof menuOpen === 'number' && items[menuOpen] ? items[menuOpen]._k : null;
+    mutate(n => {
+      const by = {};
+      n.forEach(x => { by[x._k] = x; });
+      n.splice(0, n.length, ...keys.map(k => by[k]).filter(Boolean));
+      Training.dropBrokenGroups(n, 'superset');
+    });
+    if (openKey != null && keys.indexOf(openKey) >= 0) setFocus(keys.indexOf(openKey));
+    if (menuKey != null && keys.indexOf(menuKey) >= 0) setMenuOpen(keys.indexOf(menuKey));
+  }
+  // A row's order after moving the row (and its superset partner) so it starts at `to`.
+  function orderAfter(list, key, to) {
+    const rows = list.map(x => ({ id: x._k, superset: x.superset }));
+    return Training.reorderUnits(rows, key, to, 'superset').map(r => r.id);
+  }
+  // The fine adjustment, from the movement's menu: one step, a row at a time.
   function move(ii, delta) {
     const to = ii + delta;
     if (to < 0 || to >= items.length) return;
-    mutate(n => { const [row] = n.splice(ii, 1); n.splice(to, 0, row); });
-    setFocus(to);
+    const keys = items.map(x => x._k);
+    keys.splice(to, 0, keys.splice(ii, 1)[0]);
+    applyOrder(keys);
+  }
+  // Which movements can be dragged: the ones still to do, minus the one that is open.
+  const queueKeys = items.filter((it, ii) => {
+    if (ii === focus) return false;
+    const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+    return !(work.length > 0 && work.every(s => s.done));
+  }).map(it => it._k);
+  // A drop inside "Up next" reorders the queue only: the queued movements swap among the slots the
+  // queue already occupies, so everything finished, and the movement open, stays exactly where it is.
+  function dropQueued(key, toQ) {
+    const rows = queueKeys.map(k => ({ id: k, superset: (items.filter(x => x._k === k)[0] || {}).superset }));
+    const nextQ = Training.reorderUnits(rows, key, toQ, 'superset').map(r => r.id);
+    const out = items.map(x => x._k);
+    let j = 0;
+    out.forEach((k, i) => { if (queueKeys.indexOf(k) >= 0) out[i] = nextQ[j++]; });
+    applyOrder(out);
+  }
+  const dnd = useDragList({
+    ids: queueKeys,
+    onDrop: dropQueued,
+    unitOf: (k) => (items.filter(x => x._k === k)[0] || {}).superset || null,
+    // Every sheet below is holding an index into this list, and a reorder underneath one would point
+    // it at the wrong movement.
+    disabled: menuOpen != null || swapping != null || targetFor != null || plateFor != null || setupFor != null
+      || unitsFor != null || pastFor != null || setMenu != null || picking || sessionMenu || notesOpen || confirmEnd || !!help || !!pr || !!signOff,
+  });
+  // "The rack is taken, do this one now": the commonest reorder mid-session. The movement (with its
+  // superset partner) goes straight after the one you are on and becomes the one you are on. What you
+  // leave keeps its sets, and the app still comes back to it when everything else is done.
+  function doNow(ii) {
+    const key = items[ii] && items[ii]._k;
+    if (key == null) return;
+    const g = items[ii].superset;
+    let lo = ii, hi = ii;
+    while (g && lo > 0 && items[lo - 1].superset === g) lo--;
+    while (g && hi < items.length - 1 && items[hi + 1].superset === g) hi++;
+    const rest = items.filter((x, i) => i < lo || i > hi).map(x => x._k);
+    const open = focus >= 0 && items[focus] && (focus < lo || focus > hi) ? rest.indexOf(items[focus]._k) : -1;
+    // With nothing open, it goes in front of the first thing still to do.
+    const at = open >= 0 ? open + 1 : Math.max(0, rest.findIndex(k => queueKeys.indexOf(k) >= 0));
+    const next = orderAfter(items, items[lo]._k, at);
+    applyOrder(next);
+    goTo(next.indexOf(key));
   }
   // Pair with the next movement. Supersets are almost always adjacent, so "make a superset" needing
   // a multi-select picker would be ceremony for nothing.
@@ -1087,7 +1165,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           movements still to come are drawn as rows inside a shared "Up next" card rather than as
           their own boxes, and the row body - the open and closed headers, the whole working table,
           every handler - has to be identical either way. `grouped` changes nothing but the wrapper. */}
-      {(() => { function renderRow(it, ii, grouped) {
+      {(() => { function renderRow(it, ii, grouped, drag) {
         const ex = Training.byId(it.exerciseId, t.custom);
         const tgt = it.target;
         const open = ii === focus;
@@ -1096,11 +1174,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
         return (
-          <div key={it.exerciseId + '_' + ii}
-            ref={open ? openCardRef : null}
+          <div key={it._k || it.exerciseId + '_' + ii}
+            ref={drag ? drag.ref : (open ? openCardRef : null)}
+            data-drag-id={drag ? drag['data-drag-id'] : undefined}
+            onPointerDown={drag ? drag.onPointerDown : undefined}
             className={grouped ? '' : 'pixel-box mb-4'}
             style={Object.assign(
               grouped ? { borderTop: '2px solid var(--border)' } : { background: 'var(--card)' },
+              drag ? drag.style : null,
               // `scrollIntoView` aligns to the top of the SCROLLPORT, which is underneath 140px of
               // pinned bars, so without this the card is returned to with its header behind the
               // chrome. The browser owns this offset; doing it by hand means measuring the bars.
@@ -1111,8 +1192,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 panel in this design opens with. The others stay as light rows. That one difference
                 is what says "this is the exercise you are doing"; before, six identical cream cards
                 said it with nothing but a chevron rotation. */}
-            <button onClick={() => { setFocus(open ? -1 : ii); setPlateFor(null); setMenuOpen(false); }}
-              className={'w-full flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3')}
+            <div className="flex items-stretch">
+            <button onClick={() => { if (drag && dnd.justDropped()) return; setFocus(open ? -1 : ii); setPlateFor(null); setMenuOpen(false); }}
+              className={'flex-1 min-w-0 flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3')}
               style={open ? { background: 'var(--cardhead-bg)', borderBottom: '2px solid var(--border)' } : null}>
               <span className="pf text-[11px] shrink-0 flex items-center justify-center"
                 style={open
@@ -1152,6 +1234,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   ? <span className="shrink-0 w-6 h-6 flex items-center justify-center" style={{ background: 'var(--good)', color: '#fff' }}><Tick size={12} /></span>
                   : <span className="shrink-0" style={{ color: 'var(--muted2)' }}><Icon.chevron width="16" height="16" /></span>}
             </button>
+            {/* The way to pick a queued movement up. Only rows still to do can move: a finished one is a
+                receipt and the open one is where you are standing. Holding anywhere on the row works
+                too, this is the target for the person who did not know that. */}
+            {drag && <DragHandle dnd={dnd} id={it._k} label={ex ? ex.name : 'this movement'} onTap={() => setMenuOpen(ii)} />}
+            </div>
 
             {open && (
               <div className="px-3 pb-3 pt-3">
@@ -1481,7 +1568,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           {queueRows.length > 0 && (
             <div className="pixel-box mb-4 overflow-hidden" style={{ background: 'var(--card)' }}>
               <CardHead title="Up next" right={String(queueRows.length)} />
-              {queueRows.map(({ it, ii }) => renderRow(it, ii, true))}
+              {dnd.order.map(k => queueRows.filter(q => q.it._k === k)[0]).filter(Boolean)
+                .map(({ it, ii }) => renderRow(it, ii, true, dnd.rowProps(it._k)))}
             </div>
           )}
         </>
@@ -1638,8 +1726,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             items[menuOpen].superset
               ? { label: 'Break the superset', onClick: () => toggleSuperset(menuOpen) }
               : { label: 'Superset with the next', sub: 'No rest between them', disabled: !items[menuOpen + 1], onClick: () => toggleSuperset(menuOpen) },
-            { label: 'Move earlier', disabled: menuOpen === 0, onClick: () => move(menuOpen, -1) },
-            { label: 'Move later', disabled: menuOpen >= items.length - 1, onClick: () => move(menuOpen, 1) },
+            // Queued movements only: one you have finished is a record, and the one that is open is
+            // already the one you are doing.
+            menuOpen !== focus && queueKeys.indexOf(items[menuOpen]._k) >= 0
+              ? { label: 'Do this one now', sub: 'Goes next. Anything you leave is still waiting for you after.', onClick: () => doNow(menuOpen) }
+              : null,
+            // keepOpen: several steps in a row is the normal use, and the sheet follows the movement.
+            { label: 'Move earlier', disabled: menuOpen === 0, keepOpen: true, onClick: () => move(menuOpen, -1) },
+            { label: 'Move later', disabled: menuOpen >= items.length - 1, keepOpen: true, onClick: () => move(menuOpen, 1) },
             { label: 'Remove from session', danger: true, onClick: () => removeExercise(menuOpen) },
           ]} />
       )}
