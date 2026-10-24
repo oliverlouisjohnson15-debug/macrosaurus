@@ -42,15 +42,17 @@ const sandbox = new Function(`
   ${constant('CHECKIN_MOVE_MIN_DAYS')}
   ${constant('CHECKIN_MOVE_MAX_DAYS')}
   ${constant('CHECKIN_READ_MIN_DAYS')}
+  ${constant('CHECKIN_EARLY_MAX_DAYS')}
   ${body('cycleStartISO')}
   ${body('readStartISO')}
   ${body('checkinDayMovePending')}
   ${body('checkinReadyOn')}
   ${body('checkinStatus')}
   ${body('checkinWaitLabel')}
-  return { checkinStatus, checkinWaitLabel, readStartISO, CHECKIN_MIN_DAYS, CHECKIN_DAY_MIN_DAYS, CHECKIN_MOVE_MIN_DAYS };
+  ${body('checkinOpenable')}
+  return { checkinStatus, checkinWaitLabel, checkinOpenable, readStartISO, CHECKIN_MIN_DAYS, CHECKIN_DAY_MIN_DAYS, CHECKIN_MOVE_MIN_DAYS };
 `)();
-const { checkinStatus, checkinWaitLabel, readStartISO } = sandbox;
+const { checkinStatus, checkinWaitLabel, checkinOpenable, readStartISO } = sandbox;
 
 // 2026-08-10 is a Monday, so Monday is day 1 and the fixtures read as calendar dates.
 const MON = '2026-08-10', TUE = '2026-08-11', WED = '2026-08-12', SUN = '2026-08-09';
@@ -286,4 +288,28 @@ test('an ordinary cycle is read over itself, unchanged', () => {
   const db7 = { last_checkin: '2026-08-04', checkins: [{ date: '2026-08-04' }], profile: {} };
   assert.strictEqual(readStartISO(db7, '2026-08-11'), '2026-08-05');
   assert.strictEqual(readStartISO(db7, '2026-08-18'), '2026-08-05');
+});
+
+// ---- how early a check-in can be taken ----
+// An early check-in re-reads days the last one already read, so the door opens only in the last
+// two days before the due one: a check-in two days ago could otherwise be run again from the buddy's
+// chat or a ?action=checkin link and land a second read on the same week.
+test('a check-in can be taken up to two days early, and no sooner', () => {
+  // Friday is the day; last check-in the previous Friday. Next due Friday 2026-08-21.
+  const last = '2026-08-14';
+  const at = (n) => checkinStatus(db(last, 5), shiftDays(last, n));
+  assert.strictEqual(checkinOpenable(at(2)), false, 'two days in is far too early');
+  assert.strictEqual(checkinOpenable(at(4)), false, 'three days before the due one is still too early');
+  assert.strictEqual(checkinOpenable(at(5)), true, 'Wednesday, two days early, is allowed');
+  assert.strictEqual(checkinOpenable(at(6)), true, 'Thursday, one day early, is allowed');
+  assert.strictEqual(at(7).due, true);
+  assert.strictEqual(checkinOpenable(at(7)), true, 'due on the day');
+});
+
+test('the day after a check-in is never openable', () => {
+  assert.strictEqual(checkinOpenable(checkinStatus(db('2026-08-14', 5), '2026-08-15')), false);
+});
+
+test('a first check-in is always openable', () => {
+  assert.strictEqual(checkinOpenable(checkinStatus({ last_checkin: null, profile: { checkinDay: 5 } }, MON)), true);
 });

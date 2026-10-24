@@ -3700,6 +3700,10 @@ const CHECKIN_MOVE_MIN_DAYS = 2;
 // forgotten) can't hold a check-in open indefinitely. Any thirteen-day stretch contains every
 // weekday twice over, so this is a safety valve rather than something anyone meets.
 const CHECKIN_MOVE_MAX_DAYS = 13;
+// How far ahead of the due date a check-in can be taken early. Coming home a day early or wanting a
+// read before a weekend are real reasons, but anything earlier re-reads days the last check-in
+// already read, so the early door only opens in the last two days before the due one.
+const CHECKIN_EARLY_MAX_DAYS = 2;
 // Is a day change still waiting to land? The marker is stamped when the day actually CHANGES and
 // goes stale as soon as a check-in happens after it, so this reads "moved, and not yet honoured".
 function checkinDayMovePending(db) {
@@ -3751,6 +3755,11 @@ function nextCheckinDueISO(db) {
     if (checkinReadyOn(db, iso)) return iso;
   }
   return null;
+}
+// Can a check-in be taken today: due, or due within CHECKIN_EARLY_MAX_DAYS. Every way in reads this
+// (the buttons, the buddy's chat, a ?action=checkin link), so none of them can open one sooner.
+function checkinOpenable(st) {
+  return !!st && (st.due || (st.daysUntil != null && st.daysUntil <= CHECKIN_EARLY_MAX_DAYS));
 }
 // "tomorrow" / "in 3 days" / "in 3 days · Monday" - the phrase every surface uses for the wait.
 function checkinWaitLabel(st) {
@@ -16959,8 +16968,8 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
   const row = (k) => rows.find(r => r.key === k);
   const ICON = { goal: 'goal', macros: 'drop', coaching: 'chat', weekly: 'sliders', weekplans: 'star', checkins: 'clock' };
   const planRow = (k) => { const r = row(k); return r && <Row key={k} icon={<PixelGlyph kind={ICON[k]} size={24} />} title={r.label} sub={r.status} onClick={() => onOpenSetting && onOpenSetting(k)} />; };
-  // The check-in, as the row that says when. Due: one button. Not due: when, and - once a couple of
-  // mornings have passed - a way to go early, because the clock is a default and not a rule.
+  // The check-in, as the row that says when. Due: one button. Not due: when, and - in the last
+  // CHECKIN_EARLY_MAX_DAYS before it - a way to go early, because people have reasons to.
   const checkinRow = db.paused ? null : st.due
     ? <Row key="ci" icon={<Icon.calendar width="24" />} title="Weekly check-in" sub="Due now" chevron={false}
         trailing={<Btn kind="accent" className="shrink-0" onClick={onCheckIn}>Check in</Btn>} />
@@ -16968,7 +16977,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
         sub={st.daysSince < CHECKIN_MOVE_MIN_DAYS
           ? 'You checked in ' + (st.daysSince === 0 ? 'today' : 'yesterday') + '. Next ' + ((checkinWaitLabel(st) || 'soon').toLowerCase())
           : (checkinWaitLabel(st) || 'Not yet') + (st.nextISO ? ' \u00b7 ' + fmtShortDay(st.nextISO) : '')}
-        trailing={st.daysSince >= CHECKIN_MOVE_MIN_DAYS ? <button type="button" onClick={() => setForceCheckin(true)} className="shrink-0 px-2 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}>Check in early</button> : null} />;
+        trailing={!st.due && checkinOpenable(st) ? <button type="button" onClick={() => setForceCheckin(true)} className="shrink-0 px-2 text-[13px]" style={{ minHeight: 44, color: 'var(--link)', fontWeight: 600 }}>Check in early</button> : null} />;
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       {onBack && <div className="lg:hidden"><SubHeader back={onBack} backLabel={backLabel || 'You'} title="Progress" /></div>}
@@ -18117,7 +18126,7 @@ function CheckinsScreen({ db, update, onBack }) {
   const st = checkinStatus(db, Store.todayISO());
   return (<SubScreen title="Check-ins & weigh-ins" onBack={onBack} intro="When your plan gets read, and how often you step on the scale. Your check-in reads the trend either way.">
     <SavedFlash tick={tick} />
-    <Field label="Check-in day" hint={'Check-ins land on this day. Check in early or late and the next one still comes back to it, never sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last, because a cycle needs most of a week in it to read a trend.'}>
+    <Field label="Check-in day" hint={'Check-ins land on this day, and can be taken up to ' + CHECKIN_EARLY_MAX_DAYS + ' days early. Check in early or late and the next one still comes back to it, never sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last, because a cycle needs most of a week in it to read a trend.'}>
       {/* Stamping the day it MOVED is what lets the next check-in land on the new day instead of
           finishing out the old rhythm first. Only a real change stamps it: re-tapping the day you
           are already on is not a move, and would otherwise re-open the transition on every tap. */}
@@ -22347,6 +22356,18 @@ function App() {
   }, [session]);
 
   const dbRef = useRef(null); dbRef.current = db;
+  // The one way into a fresh check-in. It opens when one is due or within CHECKIN_EARLY_MAX_DAYS of
+  // it (checkinOpenable); sooner than that it is turned away with the date, whether it came from a
+  // button, the buddy's chat or a ?action=checkin link. Reopening a pending proposal ('review') is
+  // not a new check-in and is not gated.
+  function openCheckIn() {
+    const cur = dbRef.current;
+    const st = cur ? checkinStatus(cur, Store.todayISO()) : null;
+    if (!st || checkinOpenable(st)) { setCheckingIn(true); return true; }
+    const when = st.nextISO ? DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()] + ' ' + fmtShortDay(st.nextISO) : 'later in the week';
+    showToast('Your next check-in is ' + when + '. Keep weighing in until then.');
+    return false;
+  }
   useEffect(() => {
     function flush() { if (session && dbRef.current) cloudSave(session.user.id, dbRef.current); }
     window.addEventListener('online', flush);
@@ -22438,7 +22459,7 @@ function App() {
     // ?action=checkin is the overdue-check-in push for someone who weighs most mornings: their week
     // is already on record, so the notification opens the read rather than asking for a number they
     // have given six times. (The once-a-week push still sends ?action=weigh.)
-    else if (action === 'checkin') { setView('goals'); setCheckingIn(true); }
+    else if (action === 'checkin') { setView('goals'); openCheckIn(); }
     if (isShared) (async () => {
       try {
         const cache = await caches.open('share-incoming');
@@ -22878,7 +22899,7 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={openCheckIn} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} />}
       {view === 'recipes' && <Recipes onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}
@@ -22894,7 +22915,7 @@ function App() {
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
       {/* Progress is a tab (35-reset), so it is a root with no way back - except when You opened it,
           where Back returns there. */}
-      {view === 'goals' && <Goals onBack={goalsFrom === 'more' ? () => setView('more') : undefined} backLabel="You" db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
+      {view === 'goals' && <Goals onBack={goalsFrom === 'more' ? () => setView('more') : undefined} backLabel="You" db={db} update={update} showToast={showToast} onCheckIn={openCheckIn} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
       {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
         backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
@@ -22910,7 +22931,7 @@ function App() {
           onAddMeal={(mealId, items) => addMeal(tday, mealId, items)}
           onAddItems={(mealId, items) => addEstimateItems(tday, mealId, items)}
           onSaveWeight={(kg) => { update(d => { d.weight_entries = d.weight_entries || []; const ex = d.weight_entries.find(x => x.date === tday); if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: tday, scale_weight: +kg.toFixed(2) }); recomputeTrend(d); }); showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.'); }}
-          onOpenScreen={(view) => { setTalking(false); if (view === 'checkin') { setView('goals'); setCheckingIn(true); } else if (view === 'weigh') { setView('dashboard'); setWeighing(true); } else if (view === 'play') { setDexOpen(true); } else setView(view); }} />
+          onOpenScreen={(view) => { setTalking(false); if (view === 'checkin') { setView('goals'); openCheckIn(); } else if (view === 'weigh') { setView('dashboard'); setWeighing(true); } else if (view === 'play') { setDexOpen(true); } else setView(view); }} />
       ); })()}
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items, replaceIds) => addEstimateItems(adding.date, mealId, items, replaceIds)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
