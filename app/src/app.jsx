@@ -19298,6 +19298,129 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
     </Sheet>
   );
 }
+// Usage status per account, from admin-api's engagement summary (supabase/functions/admin-api/
+// engagement.ts). Activity there means a food log, weigh-in, check-in or workout; synced steps and
+// sleep never count. "Lapsed" rather than "Churned" so it is never confused with a cancelled sub.
+const ENGAGE_STATUS = {
+  active: { label: 'Active', color: 'var(--good-ink)' },
+  at_risk: { label: 'Slipping', color: 'var(--carb-ink)' },
+  churned: { label: 'Lapsed', color: 'var(--danger-ink)' },
+  never_logged: { label: 'Never logged', color: 'var(--fat-ink)' },
+  no_profile: { label: 'No setup', color: 'var(--fat-ink)' },
+  unconfirmed: { label: 'Unconfirmed', color: 'var(--muted)' },
+  new: { label: 'New', color: 'var(--accent-ink)' },
+};
+function engageMeta(e) { return ENGAGE_STATUS[(e && e.status) || 'no_profile'] || ENGAGE_STATUS.no_profile; }
+function engageLastLine(e) {
+  if (!e || !e.lastActive) return 'never logged';
+  const d = e.daysSinceActive;
+  return 'active ' + (d === 0 ? 'today' : d === 1 ? 'yesterday' : d + 'd ago');
+}
+function AdminRetention({ users, onOpen }) {
+  const [range, setRange] = useState('90'); // signup window for the funnel + drop-off lists
+  const [bucket, setBucket] = useState('never_logged');
+  const all = users.filter(u => !u.is_admin && u.engagement);
+  const within = (s, n) => s && (Date.now() - new Date(s).getTime()) <= n * 86400000;
+  const pool = range === 'all' ? all : all.filter(u => within(u.created_at, Number(range)));
+  const n = pool.length;
+  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+  const E = u => u.engagement;
+  const steps = [
+    ['Signed up', n],
+    ['Confirmed email', pool.filter(u => u.confirmed).length],
+    ['Finished setup', pool.filter(u => u.hasProfile || E(u).activeDays > 0).length],
+    ['Logged something', pool.filter(u => E(u).activeDays > 0).length],
+    ['Came back another day', pool.filter(u => E(u).activeDays >= 2).length],
+    ['Used it 5+ days', pool.filter(u => E(u).activeDays >= 5).length],
+  ];
+  const activeNow = all.filter(u => E(u).last7 > 0).length;
+  const activeMonth = all.filter(u => E(u).last30 > 0).length;
+  const logged = pool.filter(u => E(u).activeDays > 0);
+  const toFirst = logged.map(u => E(u).daysToFirst).filter(x => x != null).sort((a, b) => a - b);
+  const medianToFirst = toFirst.length ? toFirst[Math.floor(toFirst.length / 2)] : null;
+
+  // Weekly signup cohorts (Monday-start, UTC), newest first. Each retention cell is the share of the
+  // cohort that came back in that window, counting only accounts old enough for it to have closed.
+  const weekStart = s => { const d = new Date(s); const day = (d.getUTCDay() + 6) % 7; return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day)).toISOString().slice(0, 10); };
+  const byWeek = {};
+  all.forEach(u => { if (!u.created_at) return; const k = weekStart(u.created_at); (byWeek[k] = byWeek[k] || []).push(u); });
+  const cohorts = Object.keys(byWeek).sort().reverse().slice(0, 8).map(k => {
+    const c = byWeek[k];
+    const rate = key => { const el = c.filter(u => E(u)[key] != null); return el.length ? pct(el.filter(u => E(u)[key]).length, el.length) : '—'; };
+    return { k, size: c.length, setup: pct(c.filter(u => u.hasProfile || E(u).activeDays > 0).length, c.length), logged: pct(c.filter(u => E(u).activeDays > 0).length, c.length), wk1: rate('wk1'), wk2: rate('wk2'), wk4: rate('wk4') };
+  });
+
+  const buckets = ['never_logged', 'no_profile', 'unconfirmed', 'at_risk', 'churned', 'active', 'new'];
+  const counts = {}; buckets.forEach(b => { counts[b] = pool.filter(u => E(u).status === b).length; });
+  const list = pool.filter(u => E(u).status === bucket).sort((a, b) =>
+    (E(a).lastActive && E(b).lastActive) ? E(b).lastActive.localeCompare(E(a).lastActive) : new Date(b.created_at) - new Date(a.created_at));
+
+  return (
+    <div className="fade-in">
+      <div className="flex gap-1 overflow-x-auto">{[['30', 'Last 30 days'], ['90', 'Last 90 days'], ['all', 'All time']].map(([k, l]) => <button key={k} onClick={() => setRange(k)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${range === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+      <div className="text-[11px] text-[var(--muted)] mt-2">Signups in this window. Admin accounts are left out.</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3">
+        <AdminStat label="Signups" value={n} sub={medianToFirst == null ? 'none logged yet' : 'first log ' + (medianToFirst === 0 ? 'same day' : 'after ' + medianToFirst + 'd') + ' (median)'} />
+        <AdminStat label="Ever logged" value={pct(steps[3][1], n)} sub={steps[3][1] + ' of ' + n} />
+        <AdminStat label="Came back" value={pct(steps[4][1], n)} sub="active on 2+ days" />
+        <AdminStat label="Active · 7 days" value={activeNow} sub={activeMonth + ' in 30 days (all users)'} />
+      </div>
+
+      <Section title="Signup funnel" className="mt-6">
+        <div className="space-y-2.5">{steps.map(([label, c], i) => {
+          const drop = i ? steps[i - 1][1] - c : 0;
+          return (
+            <div key={label}>
+              <div className="flex justify-between items-baseline text-[12px]">
+                <span>{label}</span>
+                <span className="tnum"><span className="font-medium">{c}</span> <span className="text-[var(--muted)]">· {pct(c, n)}{drop > 0 ? ' · −' + drop : ''}</span></span>
+              </div>
+              <div className="h-2 mt-1 bg-[#0F0F12]"><div className="h-2" style={{ width: (n ? c / n * 100 : 0) + '%', background: 'var(--accent)' }} /></div>
+            </div>
+          );
+        })}</div>
+        <div className="text-[11px] text-[var(--muted)] mt-3">The biggest "−" is where people stop. Activity means a food log, weigh-in, check-in or workout; steps and sleep synced from Google Health don't count.</div>
+      </Section>
+
+      {cohorts.length > 0 && <Section title="Weekly cohorts" className="mt-6">
+        <div className="overflow-x-auto -mx-1">
+          <table className="w-full text-[12px] tnum">
+            <thead><tr className="text-[11px] text-[var(--muted)] text-right">
+              <th className="text-left font-normal px-1 pb-1.5">Week of</th><th className="font-normal px-1 pb-1.5">Users</th><th className="font-normal px-1 pb-1.5">Setup</th><th className="font-normal px-1 pb-1.5">Logged</th><th className="font-normal px-1 pb-1.5">Wk 1</th><th className="font-normal px-1 pb-1.5">Wk 2</th><th className="font-normal px-1 pb-1.5">Wk 4</th>
+            </tr></thead>
+            <tbody>{cohorts.map(c => (
+              <tr key={c.k} className="text-right border-t border-[var(--hairline)]">
+                <td className="text-left px-1 py-1.5">{adminFmtDate(c.k).replace(/ \d{4}$/, '')}</td><td className="px-1">{c.size}</td><td className="px-1">{c.setup}</td><td className="px-1">{c.logged}</td><td className="px-1">{c.wk1}</td><td className="px-1">{c.wk2}</td><td className="px-1">{c.wk4}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+        <div className="text-[11px] text-[var(--muted)] mt-3">Wk 1 = came back on days 1–6 after signing up, Wk 2 = days 7–13, Wk 4 = days 28–34. "—" until a cohort is old enough.</div>
+      </Section>}
+
+      <Section title="Who stopped where" className="mt-6">
+        <div className="flex gap-1 overflow-x-auto pb-1">{buckets.map(b => <button key={b} onClick={() => setBucket(b)} className={`pf text-[11px] uppercase px-2.5 py-1.5 shrink-0 ${bucket === b ? 'bg-white text-black' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ border: '2px solid var(--border)' }}>{ENGAGE_STATUS[b].label} · {counts[b]}</button>)}</div>
+        <div className="mt-3 space-y-2">
+          {list.map(u => { const e = E(u); return (
+            <button key={u.id} onClick={() => onOpen(u.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
+              <div className="flex justify-between items-center gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{u.email}</div>
+                  <div className="text-[11px] text-[var(--muted)] mt-0.5">joined {adminFmtDate(u.created_at)} · {engageLastLine(e)}</div>
+                </div>
+                <div className="text-right shrink-0 text-[11px] text-[var(--muted)] tnum">
+                  <div><span className="text-[12px] font-medium">{e.activeDays}</span> day{e.activeDays === 1 ? '' : 's'}</div>
+                  <div>{e.foodLogs} food · {e.weighIns} wt{e.workouts ? ' · ' + e.workouts + ' gym' : ''}</div>
+                </div>
+              </div>
+            </button>
+          ); })}
+          {!list.length && <div className="text-[12px] text-[var(--muted)]">Nobody here in this window.</div>}
+        </div>
+        <div className="text-[11px] text-[var(--muted)] mt-3">Slipping = nothing for 8–21 days. Lapsed = nothing for over 21 days. New = signed up in the last 48 hours and hasn't logged yet.</div>
+      </Section>
+    </div>
+  );
+}
 function AdminPanel({ onBack, adminEmail, update }) {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true); const [err, setErr] = useState('');
@@ -19342,7 +19465,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <button onClick={onBack} className="hit text-[12px] text-[var(--muted)] mb-2"><Icon.arrow_left width="16" /> Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
-      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 ">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[var(--muted)]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[11px] px-1 " style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
+      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 overflow-x-auto">{[['overview', 'Overview'], ['retention', 'Retention'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 shrink-0 px-2 whitespace-nowrap py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[var(--muted)]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[11px] px-1 " style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
       {loading ? <div className="mt-6"><DinoLoader label="Loading" /></div> : <>
         {tab === 'overview' && <div className="fade-in">
@@ -19390,7 +19513,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
                 <div className="flex justify-between items-center gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[11px] ml-1.5 px-1 " style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
-                    <div className="text-[11px] text-[var(--muted)] mt-0.5 flex items-center gap-1.5"><span className="pf text-[11px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
+                    <div className="text-[11px] text-[var(--muted)] mt-0.5 flex items-center gap-1.5"><span className="pf text-[11px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)} · {engageLastLine(u.engagement)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
@@ -19402,6 +19525,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
             {!filtered.length && <div className="text-[12px] text-[var(--muted)] mt-4">{q || planFilter !== 'all' ? 'No users match this filter.' : 'No users yet.'}</div>}
           </div>
         </div>}
+        {tab === 'retention' && <AdminRetention users={users} onOpen={openUser} />}
         {tab === 'support' && <AdminSupport />}
         {tab === 'ailogs' && <AdminAiLogs />}
         {tab === 'audit' && <AdminAudit />}
@@ -19467,6 +19591,22 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
         <Btn kind="accent" className="w-full mt-2" disabled={busy === 'pw' || newPw.length < 6} onClick={() => setConfirmKind('pw')}>{busy === 'pw' ? 'Saving…' : 'Set password'}</Btn>
         <div className="text-[11px] text-[var(--muted)] mt-1.5 leading-relaxed">Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.</div>
       </Section>
+
+      {detail.engagement && (() => { const e = detail.engagement; const em = engageMeta(e); const act = detail.activity; return (
+        <Section title="Usage">
+          <Row2 k="Status" v={<span style={{ color: em.color }}>{em.label}</span>} />
+          <Row2 k="Last active" v={e.lastActive ? adminFmtDate(e.lastActive) + ' (' + engageLastLine(e).replace('active ', '') + ')' : 'never'} />
+          <Row2 k="First log" v={e.firstActive ? (e.daysToFirst === 0 ? 'signup day' : e.daysToFirst + ' day' + (e.daysToFirst === 1 ? '' : 's') + ' after signup') : 'never'} />
+          <Row2 k="Days active" v={e.activeDays + ' total · ' + e.last7 + ' in last 7 · ' + e.last30 + ' in last 30'} />
+          <Row2 k="Logged" v={e.foodLogs + ' food · ' + e.weighIns + ' weigh-in' + (e.weighIns === 1 ? '' : 's') + ' · ' + e.checkins + ' check-in' + (e.checkins === 1 ? '' : 's') + ' · ' + e.workouts + ' workout' + (e.workouts === 1 ? '' : 's')} />
+          <Row2 k="Last synced" v={adminFmtWhen(detail.updated_at)} last />
+          {act && act.days && <>
+            <div className="text-[12px] text-[var(--muted)] mt-3 mb-1.5">Last {act.days.length} days</div>
+            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>{act.days.map((d, i) => <div key={i} title={new Date(Date.parse(act.start + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)} className="h-4" style={{ background: d ? 'var(--accent)' : '#0F0F12', border: '1px solid var(--hairline)' }} />)}</div>
+            <div className="text-[11px] text-[var(--muted)] mt-1.5">Oldest top-left, today bottom-right. Filled = logged food, weighed in, checked in or trained. "Last synced" is the last time their app saved, so a recent sync with no activity means they're opening the app but not logging.</div>
+          </>}
+        </Section>
+      ); })()}
 
       <Section title="AI usage this month">
         <Row2 k="Spent" v={'$' + Number(detail.spend_usd).toFixed(2)} />
