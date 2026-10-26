@@ -15373,6 +15373,8 @@ function offExtras(n) {
 function _macNums(v) { return Q.macNums(v); }
 function _macScale(m, f) { return Q.macScale(m, f); }
 function _macRound(m) { return Q.macRound(m); }
+// Grams for a readout checked against a pack: one decimal under 10 g (where 0.4 vs 1 matters), whole above.
+function fmtG(x) { const n = +x || 0; return (n < 10 ? Math.round(n * 10) / 10 : Math.round(n)) + 'g'; }
 function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onAddMore, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
   useBackClose(onCancel);
   const topRef = useScrolledToTop();
@@ -15409,7 +15411,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   // derived by the tested quantity module so this scaling has regression coverage.
   const { perGram, perServMac } = Q.deriveBases({ per100: per100, basisIsServing: basisIsServing, sg: sg, m: m });
   const servNounRaw = (servingLabel || '').trim().replace(/^[\d.]+\s*/, '').toLowerCase();
-  const servNoun = (!servNounRaw || /^(g|kg|mg|ml|cl|l|oz|fl oz|lb)$/.test(servNounRaw)) ? 'serving' : servNounRaw;
+  // Spelled-out units count too: Open Food Facts serves "100 gram", which made the serving a "gram"
+  // and offered "1 gram" worth 100 g of food beside a separate Grams option.
+  const servNoun = (!servNounRaw || /^(g|grams?|kg|mg|ml|millilit(?:re|er)s?|cl|l|lit(?:re|er)s?|oz|fl oz|lb)$/.test(servNounRaw)) ? 'serving' : servNounRaw;
   const complexNoun = /[\s(]/.test(servNoun);
   const servNounPlural = complexNoun ? servNoun : servNoun + (/s$/.test(servNoun) ? '' : 's');
   // Beside the +/- stepper there is room for a word, not a phrase. A serving label like
@@ -15497,6 +15501,17 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
     <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : shortNoun} step={step} onStep={stepBy} label="How much did you have?" />
+    {/* The macros for the amount being logged, and the food's own basis under them, so the numbers
+        can be checked against the pack without opening "Numbers look off?". */}
+    <div className="mt-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex items-baseline gap-1.5"><span className="num tnum" style={{ fontSize: 28, lineHeight: 1 }}>{final.kcal}</span><span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>kcal</span></span>
+        <span className="text-[15px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P {fmtG(final.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C {fmtG(final.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F {fmtG(final.fat)}</span></span>
+      </div>
+      <div className="text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+        {basisIsServing ? ('Per ' + servNoun + (sg ? ' (' + Math.round(sg) + ' g)' : '')) : (per100 ? 'Per 100 g' : 'Per serving')}: {Math.round(m.kcal)} kcal · P {fmtG(m.protein)} · C {fmtG(m.carbs)} · F {fmtG(m.fat)}{m.fiber > 0 ? ' · fibre ' + fmtG(m.fiber) : ''}
+      </div>
+    </div>
     <div className="my-3 flex flex-col gap-2.5">
       <DensityBadge nq={nq} estimating={estimating} onExplain={() => setExplain(true)} />
       <DayImpact rest={dayRest} target={dayTarget} add={final} label={'Logging ' + qtyLabel} verb="Adding" />
