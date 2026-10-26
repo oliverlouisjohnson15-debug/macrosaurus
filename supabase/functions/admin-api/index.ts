@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { summarise, recentStrip } from './engagement.ts';
 
 // Admin API. Every action is authorised SERVER-SIDE: the caller's JWT is decoded, then we confirm
 // they are in public.admins using the service-role key. Non-admins always get 403. The service-role
@@ -99,6 +100,7 @@ Deno.serve(async (req) => {
         const lMap = new Map((limits || []).map((r: any) => [r.user_id, r]));
         const aSet = new Set((admins || []).map((r: any) => r.user_id));
         const subMap = new Map((subs || []).map((r: any) => [r.user_id, r]));
+        const now = Date.now();
         const users = list.users.map((u: any) => {
           const st = sMap.get(u.id); const prof = st?.data?.profile || null;
           const sub = subMap.get(u.id) || null;
@@ -117,6 +119,9 @@ Deno.serve(async (req) => {
             sub_plan: sub?.plan ?? null,
             sub_comp: sub?.plan === 'comp',
             sub_cancel_at_period_end: !!sub?.cancel_at_period_end,
+            // Usage, for the Retention tab: dates and counts only, never the entries themselves.
+            last_synced_at: st?.updated_at ?? null,
+            engagement: summarise(st?.data, { created_at: u.created_at, confirmed: !!u.email_confirmed_at }, now),
           };
         });
         return json({ users, period: p, defaultCap: defCap });
@@ -142,6 +147,8 @@ Deno.serve(async (req) => {
           spend_usd: Number(usage?.spend_usd ?? 0), calls: Number(usage?.calls ?? 0),
           cap_usd: limit ? Number(limit.monthly_cap_usd) : defCap, period: p,
           is_admin: !!adminOf, notes: notes || [],
+          engagement: summarise(st?.data, { created_at: u.user.created_at, confirmed: !!u.user.email_confirmed_at }, Date.now()),
+          activity: recentStrip(st?.data, Date.now()),
         });
       }
 
