@@ -1185,6 +1185,25 @@
     return chosen || hs[0] || current || null;
   }
 
+  // The history is written in the order changes were MADE, and a change always says "from this
+  // day on". So an entry written later with an earlier date supersedes everything dated on or after
+  // it. Sorting alone cannot see that: a change saved while a phone's clock ran two days ahead dated
+  // itself the 31st, every edit after the clock was put right dated itself earlier, and the sorted
+  // history went on handing the 31st onward to the stale plan - an "Even" week showing a high
+  // Saturday and a low Sunday nobody had picked. Undated (open-start) entries never supersede.
+  // Returns a new array; entries are not copied.
+  function cyclingHistoryTidy(history) {
+    var kept = [];
+    (history || []).forEach(function (h) {
+      if (!h) return;
+      if (h.effective_date) {
+        kept = kept.filter(function (k) { return !k.effective_date || k.effective_date < h.effective_date; });
+      }
+      kept.push(h);
+    });
+    return kept;
+  }
+
   function weekdayOfISO(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
 
   // The base target in force ON a day. Targets are already a dated, append-only ledger, but reading
@@ -2613,7 +2632,7 @@
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     fiberReserveKcal: fiberReserveKcal,
-    cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, cyclingHistoryTidy: cyclingHistoryTidy, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     weekdayRhythm: weekdayRhythm,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,

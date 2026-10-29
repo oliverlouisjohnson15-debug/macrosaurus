@@ -77,6 +77,28 @@ test('migrate: a plan that has never been changed back-fills as having always be
   assert.deepStrictEqual(kept.profile.cyclingHistory[0].highDays, [3]);
 });
 
+test('migrate: a plan change dated ahead by a fast clock stops overriding the changes made after it', () => {
+  // The live shape: Weekly shape set to Even, but the week still drew a high Saturday and a low
+  // Sunday, because an edit saved while the phone's clock read the 31st outranked every later one.
+  const off = (d, extra) => Object.assign({ effective_date: d, enabled: false, highDays: [], lowDays: [], deltaPct: 0.21, spreadKcal: 0 }, extra);
+  const hist = [
+    off(null),
+    off('2026-10-24'),
+    off('2026-10-31', { enabled: true, highDays: [5, 6], lowDays: [0], lowPct: 0.17 }),
+    off('2026-10-24', { enabled: true, lowDays: [0], lowPct: 0.17 }),
+    off('2026-10-25'),
+    off('2026-10-29'),
+  ];
+  const s = Store.migrate({ profile: { goalType: 'cut', cycling: { enabled: false, highDays: [], lowDays: [], deltaPct: 0.21 }, cyclingHistory: hist } });
+  const h = s.profile.cyclingHistory;
+  assert.deepStrictEqual(h.map(x => x.effective_date), [null, '2026-10-24', '2026-10-25', '2026-10-29']);
+  assert.deepStrictEqual(h[1].lowDays, [0], 'the later edit of the same day wins');
+  for (const iso of ['2026-10-31', '2026-11-01', '2026-11-02']) {
+    assert.strictEqual(E.cyclingDeltaOn(s.profile.cycling, h, iso, 2095, 1500), 0, iso + ' is an even day');
+  }
+  assert.strictEqual(E.cyclingKindOn(s.profile.cycling, h, '2026-10-24'), 'normal', 'days already eaten keep their plan');
+});
+
 // The back-fill recovers the SHAPE of a plan change but not what that change owed the week it
 // landed in, so the entry it leaves is the only one the app can produce with no rebalance on it.
 // Left that way the window keeps the change's overshoot and never nets to the base target.

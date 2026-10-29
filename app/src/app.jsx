@@ -3808,7 +3808,8 @@ function pendingCyclingChange(db, next, todayISO, windowStart) {
   if (key(prev) === key(next)) return null;
   const snap = (c, from) => Object.assign({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), lowDays: (c.lowDays || []).slice(), deltaPct: +c.deltaPct || 0.15 },
     c.lowPct != null ? { lowPct: +c.lowPct } : null, c.lowFatShare ? { lowFatShare: +c.lowFatShare } : null);
-  const hist = (p.cyclingHistory || []).slice();
+  // A change made today supersedes anything dated after it (a clock that ran ahead).
+  const hist = E.cyclingHistoryTidy(p.cyclingHistory).filter(h => !h.effective_date || h.effective_date <= todayISO);
   // The first edit back-fills the outgoing plan with an open start (null = since the beginning),
   // which is the only honest reading of every day before we began dating changes.
   if (!hist.length) hist.push(snap(prev, null));
