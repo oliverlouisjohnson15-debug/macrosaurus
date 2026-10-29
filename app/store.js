@@ -139,6 +139,11 @@
         ? [{ effective_date: null, enabled: false, highDays: [], lowDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
     }
+    // A plan history carrying a change from a clock that ran ahead keeps that stale plan in force
+    // from its date onward, whatever was chosen since (see Engine.cyclingHistoryTidy).
+    if (s.profile && (s.profile.cyclingHistory || []).length && engine()) {
+      s.profile.cyclingHistory = engine().cyclingHistoryTidy(s.profile.cyclingHistory);
+    }
     /* Saved gyms with the same name are the same gym, as far as anybody reading the list can tell.
      *
      * Leaving "Call it" blank when you save a gym names it after its KIND, so a second unnamed
