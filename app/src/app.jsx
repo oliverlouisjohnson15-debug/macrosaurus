@@ -14383,7 +14383,9 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
   const [edit, setEdit] = useState(false);
   // Grams per serving, recorded when the food was logged. Without it the two units cannot be
   // converted, so entries logged before this was stored keep the single unit they came with.
-  const sg = +entry.serving_g || 0;
+  // The portion's weight. Entries logged with one tap (a recent, a saved food) may not have stored it,
+  // but the label usually says it: "portion (30 g)". Reading it back keeps the grams switch available.
+  const sg = +entry.serving_g || ((/\((\d+(?:\.\d+)?)\s*g\)/.exec(String(entry.unit_noun || '') + ' ' + String(entry.qty_label || '')) || [])[1] * 1) || (+entry.saved_serving_g || 0);
   const canSwitch = sg > 0 && unit !== 'oz';
   function switchUnit(u) {
     if (u === unit || !canSwitch) return;
@@ -22457,7 +22459,7 @@ function App() {
       const fibPending = E.needsFibre({ fiberUnknown: item.fiberUnknown, kcal: macros.kcal, carbs: macros.carbs, is_alcohol: item.is_alcohol });
       // serving_g rides along so the edit sheet can offer the grams/portions toggle later. Without
       // it the two units cannot be converted, and editing was stuck with whatever unit you logged in.
-      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, serving_label: item.savedServingLabel || undefined, computed_macros: macros, nq: nq, fiber_pending: fibPending || undefined, fiber_est: item.fiberEst || undefined, sort_order: d.log_entries.length });
+      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || (+(food && food.saved_serving_g) || undefined), serving_label: item.savedServingLabel || undefined, computed_macros: macros, nq: nq, fiber_pending: fibPending || undefined, fiber_est: item.fiberEst || undefined, sort_order: d.log_entries.length });
       // A saved food keeps the best record we have ever had for it: a fresh one replaces it, but
       // re-logging from a path that carries none must not wipe it.
       if (food) { food.macros = macros; food.last_qty = item.qtyLabel || food.last_qty; if (item.nq) food.nq = item.nq; food.updated_at = Date.now(); }

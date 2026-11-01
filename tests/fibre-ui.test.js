@@ -65,3 +65,11 @@ test('the week strip counts days that reached the fibre goal and leaves unlogged
   assert.match(html, /2\/7/, 'two of the three logged days reached 24 g: ' + html);
   assert.match(html, /2 of 3 logged days/);
 });
+
+test('the grams switch survives an entry that never stored its portion weight', () => {
+  const entry = { id: 'e1', name: 'Cheddar', qty_label: '1 portion (30 g)', amount: 1, unit: 'serv', unit_noun: 'portion (30 g)',
+    computed_macros: { kcal: 78, protein: 9, carbs: 0, fat: 5, fiber: 0 } };
+  const html = render(A.EditEntryModal, { entry, onSave() {}, onClose() {} }).text;
+  assert.match(html, /Measure in/, 'the unit switch should be offered: ' + html.slice(0, 300));
+  assert.match(html, /Grams/);
+});
