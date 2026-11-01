@@ -257,11 +257,11 @@
       ],
       day_meals: {},      // per-date meal lists overriding meal_templates: { 'YYYY-MM-DD': [{id,user_id,name,sort_order}] }
       foods: [],          // saved foods: favorites (is_favorite) + recents (updated_at); remembered serving
-      // Both foods and log_entries may carry `nq`: the nutrients behind the nutrient-density score
-      // ({ protein, fiber, fat, satfat, sugars, salt } in grams PER 100 KCAL, plus `ed`, the food's
-      // energy density in kcal per 100 g). Held per 100 kcal so it never needs rescaling when the
-      // portion changes, and left null when a food was logged without that data (see Engine.ndDay,
-      // which reports how much of a day it could score rather than assuming the rest was fine).
+      // Both foods and log_entries may carry `nq`: `{ ed }`, the food's energy density in kcal per
+      // 100 g (Engine.edStamp), which the estimate audit compares against measured foods. Older records
+      // also hold per-100-kcal nutrients from the retired Density Score; nothing reads them any more.
+      // Fibre nobody told us is `fiber_pending` on an entry (`fiber_unknown` on a saved food), and
+      // Premium's estimate of it is `fiber_est`. A pending 0 is "not known", never "none".
       log_entries: [],    // what was eaten, per date+meal
       weight_entries: [], // check-ins (weight + body fat)
       targets: [],        // history of targets; last is current

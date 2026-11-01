@@ -2413,7 +2413,7 @@ async function aiRequest(body, opts) {
     const e = j.error || {};
     // Route free-limit / premium-only / fair-use errors to the paywall (opener registered by App).
     // Still throw so the calling flow stops cleanly.
-    if (e.type === 'free_limit' || e.type === 'premium_required' || e.type === 'budget_exceeded' || e.type === 'quality') {
+    if (e.type === 'free_limit' || e.type === 'premium_required' || e.type === 'budget_exceeded' || e.type === 'fibre') {
       try { window.MPAYWALL && window.MPAYWALL(e); } catch (_) {}
     }
     const err = new Error(e.message || 'AI error'); err.aiError = e; throw err;
@@ -2646,30 +2646,6 @@ function stepsCoachLine(sc) {
       : `Before we touch your food: you averaged about ${k(sc.avg)} steps a day, under your ${k(sc.baseline)} baseline. Lifting them towards ${k(sc.suggestTarget)} is the first lever to pull, and easier to hold than eating less.`;
   }
   return `Your steps held up well this cycle (about ${k(sc.avg)} a day), so there is no easy activity left to add. That is why the small calorie change above is the right call this time.`;
-}
-// Deterministic food-quality line for the check-in result screen, in the same spirit as the steps
-// one: it names the lever rather than scolding. Only speaks when there is a week worth reading, and
-// stays quiet on a good week so it never becomes noise. Premium-only, like the score itself.
-function densityCoachLine(db) {
-  if (window.MISPREMIUM !== true) return null;
-  const today = Store.todayISO();
-  const dates = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
-  const t = E.ndTrend(dates.map(d => ({
-    date: d,
-    entries: entriesOn(db, d).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })),
-  })));
-  if (t.daysScored < 4) return null;   // too little of the week logged to say anything fair
-  if (t.average >= t.target) return null;
-  const prior = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(13 - i)));
-  const p = E.ndTrend(prior.map(d => ({
-    date: d,
-    entries: entriesOn(db, d).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })),
-  })));
-  const slipped = p.average != null && t.average < p.average - 5;
-  if (slipped) {
-    return `Something worth watching alongside the scale: your food quality slipped from about ${p.average} to ${t.average} this cycle. Same calories can carry a lot more when more of them come from veg, pulses, fruit and wholegrains.`;
-  }
-  return `Your calories are only half the story: food quality averaged ${t.average} this cycle, under the ${t.target} worth aiming for. Adding veg, pulses or a wholegrain swap to a couple of meals a day moves it faster than eating less does.`;
 }
 // AI rich moment: the buddy's first words when it hatches. A once-per-buddy emotional peak, so it's
 // the right place to spend an AI call. Guardrailed to a short warm welcome; metered/premium-gated by
@@ -3193,7 +3169,7 @@ async function importRecipeFromLink(url, say) {
   // Run one rung. A rung that simply fails to read anything is not fatal (the next one may do
   // better), but hitting the free-call limit or the fair-use ceiling stops the climb dead: every
   // further rung would be another refused call, and the paywall is already open.
-  const HARD_STOP = ['free_limit', 'premium_required', 'budget_exceeded', 'quality'];
+  const HARD_STOP = ['free_limit', 'premium_required', 'budget_exceeded', 'fibre'];
   const attempt = async (fn) => {
     try { draft = Rcp.bestDraft(draft, await fn()); }
     catch (e) { if (e && e.aiError && HARD_STOP.indexOf(e.aiError.type) >= 0) throw e; lastErr = e; }
@@ -3270,7 +3246,7 @@ async function scanFridgeItems(files) {
 // AI fallback for when the nutrition database is unavailable: one cheap Haiku call estimates the
 // macros for the AMOUNT in each ingredient line. Returns the same shape as the Edamam proxy.
 async function aiAnalyzeLines(lines) {
-  const prompt = 'For each UK recipe ingredient line below (each line includes an amount), estimate the nutrition FOR THAT AMOUNT using a typical UK product. Respond ONLY with compact JSON: {"items":[{"grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "fvl_pct": number, "is_drink": boolean}]}, one entry per line IN ORDER. grams = the weight of that amount. satfat_g, sugars_g and salt_g are the saturated fat, total sugars and salt for that same amount, and they decide how nutritious the dish is rated: butter, cream, cheese and fatty meat drive saturated fat; sugar, honey, juice and sauces drive sugars; stock, soy sauce, cured meat and cheese drive salt. Saturated fat can never exceed total fat, and sugars can never exceed carbohydrate. fvl_pct = the percentage of that ingredient BY WEIGHT that is fruit, vegetables, pulses or nuts (100 for plain veg or fruit, 0 for meat, dairy, flour or oil; potatoes do NOT count). is_drink = true only for things that are drunk rather than cooked into the dish. British English. Lines:\n' + lines.map((l, i) => (i + 1) + '. ' + l).join('\n');
+  const prompt = 'For each UK recipe ingredient line below (each line includes an amount), estimate the nutrition FOR THAT AMOUNT using a typical UK product. Respond ONLY with compact JSON: {"items":[{"grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}]}, one entry per line IN ORDER. grams = the weight of that amount. fiber_g is required for every line: UK AOAC dietary fibre in grams for that amount, 0 only for ingredients that truly have none (meat, fish, eggs, oils, butter, most dairy, sugar). British English. Lines:\n' + lines.map((l, i) => (i + 1) + '. ' + l).join('\n');
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 1600, messages: [{ role: 'user', content: prompt }] });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   const items = parseModelJSON(txt).items || [];
@@ -3278,80 +3254,54 @@ async function aiAnalyzeLines(lines) {
     const it = items[i] || {};
     const grams = +it.grams || 0;
     const macros = { kcal: Math.round(+it.kcal || 0), protein: +(+it.protein_g || 0).toFixed(1), carbs: +(+it.carbs_g || 0).toFixed(1), fat: +(+it.fat_g || 0).toFixed(1), fiber: +(+it.fiber_g || 0).toFixed(1) };
-    // Only scored when the model actually returned the extra nutrients, held to the macros by the
-    // same clamp every other estimate goes through.
-    const extra = (it.satfat_g != null || it.sugars_g != null || it.salt_g != null)
-      ? E.ndClampEstimate(Object.assign({ confident: true }, it), { kcal: macros.kcal, carbs: macros.carbs, fat: macros.fat })
-      : null;
-    const nq = extra ? E.ndPer100kcal(macros, Object.assign({}, extra, { grams: grams })) : null;
-    if (nq) nq.est = true;
+    const nq = E.edStamp(macros.kcal, grams);
     return { line, weight: grams, macros: macros, nq: nq };
   }) };
 }
-// The saturates, sugars and salt behind the nutrient-density score, for foods that arrive without
-// them: hand-typed entries, recipe ingredients, and the many Open Food Facts products that only
-// carry the headline macros. One cheap Haiku call, anchored to the macros we already know so the
-// answer has to be consistent with them. Premium-gated by the proxy like every other AI call.
-// Returns grams for THIS portion, on the same basis as the macros passed in, or null if unusable.
-async function aiEstimateNutrients(name, macros, grams) {
-  const basis = grams > 0 ? (grams + ' g of it') : 'that portion';
-  const prompt = 'For the UK food below, estimate the SATURATED FAT, TOTAL SUGARS and SALT for '
-    + basis + ', using a typical UK product or recipe. Respond ONLY with compact JSON: '
-    + '{"satfat_g": number, "sugars_g": number, "salt_g": number, "fvl_pct": number, "is_drink": boolean, "confident": boolean}. '
-    + 'These must be consistent with the nutrition given: saturated fat can never exceed the total fat, '
-    + 'and total sugars can never exceed the total carbohydrate. Total sugars INCLUDES the sugars found '
-    + 'naturally in fruit, milk and juice, not just added sugar. Salt is salt, not sodium (1 g sodium = '
-    + '2.5 g salt); most whole unprocessed foods carry almost none, while bread, cheese, cured meat, '
-    + 'sauces, ready meals and takeaways carry a lot. fvl_pct = the percentage of the food BY WEIGHT '
-    + 'that is fruit, vegetables, pulses or nuts: 100 for plain fruit or veg, roughly 30 for a '
-    + 'veg-heavy stew, 0 for meat, bread, dairy or confectionery. Potatoes and other starchy tubers do NOT count towards it, so chips and crisps are 0. '
-    + 'is_drink = true if this is drunk rather than eaten (juice, squash, fizzy drinks, milk, milkshakes, smoothies, tea and coffee), false for anything eaten with a spoon or fork, including soup and yoghurt. '
-    + 'Set confident false if the food is '
-    + 'too vague to judge. Food: ' + name + '\nNutrition for ' + basis + ': ' + Math.round(+macros.kcal || 0) + ' kcal, '
-    + (+macros.protein || 0) + ' g protein, ' + (+macros.carbs || 0) + ' g carbohydrate, '
-    + (+macros.fat || 0) + ' g fat, ' + (+macros.fiber || 0) + ' g fibre.';
-  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: prompt }] });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  // Held to the macros it was given by the tested clamp in the engine.
-  return E.ndClampEstimate(parseModelJSON(txt), macros);
+// ---- Fibre estimates (Premium) ---------------------------------------------------------------
+// Fibre that a source did not publish (a hand-typed food, a patchy barcode, a quick add) is stored as
+// "unknown", not zero, and Premium fills it in with one cheap Haiku call so the day's fibre is real.
+// Foods with no carbohydrate never get here (E.needsFibre), and a food is only ever asked about once:
+// the answer is remembered per kcal for the session and written back onto the saved food.
+// foods: [{ name, grams, macros }] -> fibre grams for each portion, or null where the model would not
+// commit. Premium-gated by the proxy like every other AI call.
+const FIBRE_CACHE = new Map();
+const FIBRE_BATCH_MAX = 12;
+function fibreCacheKey(f) {
+  const m = f.macros || {}, k = +m.kcal || 0;
+  if (k <= 0) return null;
+  // Name plus the food's macro make-up in tenths, so two foods called "porridge" with different
+  // recipes do not share an answer.
+  return String(f.name || '').trim().toLowerCase() + '|' + Math.round((+m.protein || 0) * 40 / k) + '|' + Math.round((+m.carbs || 0) * 40 / k);
 }
-// Real figures beat estimated ones, field by field, so a product that published its sugars but not
-// its salt keeps the published sugars. Flagged as estimated if any part of it was.
-function mergeNutrients(real, est) {
-  if (!real && !est) return null;
-  real = real || {}; est = est || {};
-  const pick = (k) => (real[k] != null ? real[k] : (est[k] != null ? est[k] : null));
-  const out = { satfat: pick('satfat'), sugars: pick('sugars'), salt: pick('salt') };
-  out.estimated = ['satfat', 'sugars', 'salt'].some(k => real[k] == null && est[k] != null);
+async function aiEstimateFibre(foods) {
+  const out = new Array(foods.length).fill(null);
+  const todo = [];
+  foods.forEach((f, i) => {
+    const key = fibreCacheKey(f), kcal = +(f.macros || {}).kcal || 0;
+    if (key && FIBRE_CACHE.has(key)) out[i] = E.clampFibre(FIBRE_CACHE.get(key) * kcal, { kcal: kcal, grams: f.grams });
+    else todo.push(i);
+  });
+  for (let c = 0; c < todo.length; c += FIBRE_BATCH_MAX) {
+    const idx = todo.slice(c, c + FIBRE_BATCH_MAX);
+    const lines = idx.map((i, n) => {
+      const f = foods[i], m = f.macros || {};
+      return (n + 1) + '. ' + f.name + ': ' + (f.grams > 0 ? Math.round(f.grams) + ' g, ' : '') + Math.round(+m.kcal || 0) + ' kcal, '
+        + (+m.protein || 0) + ' g protein, ' + (+m.carbs || 0) + ' g carbohydrate, ' + (+m.fat || 0) + ' g fat';
+    }).join('\n');
+    const prompt = 'Estimate the DIETARY FIBRE (UK AOAC, grams) for each UK food below, for the amount given. Reply ONLY with JSON {"f":[number|null,...]} in order; null if too vague to judge.\n' + lines;
+    const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 40 + 12 * idx.length, messages: [{ role: 'user', content: prompt }] });
+    const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+    const arr = parseModelJSON(txt).f || [];
+    idx.forEach((i, n) => {
+      const f = foods[i], kcal = +(f.macros || {}).kcal || 0;
+      const v = E.clampFibre(arr[n], { kcal: kcal, grams: f.grams });
+      out[i] = v;
+      const key = fibreCacheKey(f);
+      if (v != null && key && kcal > 0) FIBRE_CACHE.set(key, v / kcal);
+    });
+  }
   return out;
-}
-// The same estimate for a whole list of foods in ONE call, used to price a day's worth of entries
-// that arrived without the nutrients: recipe ingredients (the nutrition database has no saturates,
-// sugars or salt), and anything logged before this feature existed. Returns an array lined up with
-// the input, with nulls where the model would not commit.
-async function aiEstimateNutrientsBatch(foods) {
-  if (!foods.length) return [];
-  const lines = foods.map((f, i) => (i + 1) + '. ' + f.name + ': ' + (f.grams > 0 ? f.grams + ' g, ' : '')
-    + Math.round(+f.macros.kcal || 0) + ' kcal, ' + (+f.macros.protein || 0) + ' g protein, '
-    + (+f.macros.carbs || 0) + ' g carbohydrate, ' + (+f.macros.fat || 0) + ' g fat, '
-    + (+f.macros.fiber || 0) + ' g fibre').join('\n');
-  const prompt = 'For each UK food below, estimate the SATURATED FAT, TOTAL SUGARS and SALT for the '
-    + 'portion described, using a typical UK product or recipe. Respond ONLY with compact JSON: '
-    + '{"items":[{"satfat_g": number, "sugars_g": number, "salt_g": number, "fvl_pct": number, "is_drink": boolean, "confident": boolean}]}, '
-    + 'one entry per food IN ORDER. Each estimate must be consistent with the nutrition given: saturated '
-    + 'fat can never exceed the total fat, and total sugars can never exceed the total carbohydrate. '
-    + 'Total sugars INCLUDES the sugars naturally in fruit, milk and juice. Salt is salt, not sodium '
-    + '(1 g sodium = 2.5 g salt); whole unprocessed foods carry almost none, while bread, cheese, cured '
-    + 'meat, sauces, ready meals and takeaways carry a lot. fvl_pct = the percentage of that food BY '
-    + 'WEIGHT that is fruit, vegetables, pulses or nuts: 100 for plain fruit or veg, roughly 30 for a '
-    + 'veg-heavy stew, 0 for meat, bread, dairy or confectionery. Potatoes and other starchy tubers do NOT count, so chips and crisps are 0. '
-    + 'is_drink = true if it is drunk rather than eaten (juice, squash, fizzy drinks, milk, milkshakes, smoothies, tea and coffee), false for anything eaten with a spoon or fork, including soup and yoghurt. '
-    + 'Set confident false for anything too '
-    + 'vague to judge. Foods:\n' + lines;
-  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 1200, messages: [{ role: 'user', content: prompt }] });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  const items = parseModelJSON(txt).items || [];
-  return foods.map((f, i) => E.ndClampEstimate(items[i], f.macros));
 }
 // ---- Shared recipe library (Discover) --------------------------------------------------------
 // Contribute a recipe to the anonymised shared pool (fire-and-forget). Only priced, attributable
@@ -3412,13 +3362,7 @@ async function analyzeRecipe(title, lines) {
       const best = Rcp.bestOffMatch(name, await offSearchByName(name));
       if (best) {
         const m = Rcp.macrosFromPer100(best.per100, grams);
-        // The database gave us this ingredient's real saturates/sugars/salt per 100 g, so scale them
-        // to the amount used and the ingredient carries its own quality rather than waiting for the
-        // day's backfill to guess it.
-        const x = best.extra, sc = grams / 100;
-        const nq = (x && (x.satfat != null || x.sugars != null || x.salt != null))
-          ? E.ndPer100kcal(m, { satfat: (x.satfat || 0) * sc, sugars: (x.sugars || 0) * sc, salt: (x.salt || 0) * sc, fvl: x.fvl, beverage: x.beverage, water: x.water, grams: grams })
-          : null;
+        const nq = E.edStamp(m.kcal, grams);
         per[i] = { line, weight: grams, macros: m, nq: nq, source: 'off' };
       }
     } catch (e) { /* fall to AI */ }
@@ -3607,8 +3551,8 @@ function parsedFromCommunity(c, barcode) {
 function parsedFromSaved(sc, note) {
   const b = sc.saved_base || {};
   const num = { kcal: Math.round(+b.kcal || 0), protein: +b.protein || 0, carbs: +b.carbs || 0, fat: +b.fat || 0, fiber: +b.fiber || 0 };
-  if (sc.saved_kind === 'serving') return { perServing: num, source: sc.source || 'custom', branded: true, servingG: +sc.saved_serving_g || 0, servingLabel: sc.saved_serving_label || null, saved: true, note: note, initial: { name: sc.name } };
-  return { per100: true, source: sc.source || 'off', branded: true, servingG: +sc.saved_serving_g || 0, servingLabel: sc.saved_serving_label || null, saved: true, note: note, initial: Object.assign({ name: sc.name }, num) };
+  if (sc.saved_kind === 'serving') return { perServing: num, source: sc.source || 'custom', branded: true, servingG: +sc.saved_serving_g || 0, servingLabel: sc.saved_serving_label || null, saved: true, fiberUnknown: !!sc.fiber_unknown, note: note, initial: { name: sc.name } };
+  return { per100: true, source: sc.source || 'off', branded: true, fiberUnknown: !!sc.fiber_unknown, servingG: +sc.saved_serving_g || 0, servingLabel: sc.saved_serving_label || null, saved: true, note: note, initial: Object.assign({ name: sc.name }, num) };
 }
 // Average scale weight across a date range, inclusive.
 function avgWeight(entries, startISO, endISO) {
@@ -4786,15 +4730,70 @@ function PipLine({ pct, color = 'var(--good)', height = 10, cells = 10, classNam
    the change from the four-row table this replaces. Four meters each carrying "75g / 131g" put
    fifteen numbers in a block whose job is to be glanced at, and every one of them was the day rather
    than the food - which the sentence underneath already says, in words, once. */
-/* What this entry does to the rest of today, said once (35-reset). The entry's own calories and macros
-   are already the sheet's headline, so this is one line: what is left after it. */
-function DayImpact({ rest, target, add, label, verb = 'Saving' }) {
-  const canSay = rest && target && target.kcal > 0;
-  if (!canSay) return label ? <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{label}</div> : null;
-  const leftK = Math.round(target.kcal - (rest.kcal || 0) - (add.kcal || 0));
-  const leftP = target.protein > 0 ? Math.round(target.protein - (rest.protein || 0) - (add.protein || 0)) : null;
-  return <Row icon={<Icon.goal width="24" />} title={label || 'After this'}
-    sub={<span className="tnum">{leftK < 0 ? Math.abs(leftK).toLocaleString('en-GB') + ' kcal over' : leftK.toLocaleString('en-GB') + ' kcal left'}{leftP != null ? ' · ' + Math.max(0, leftP) + ' g protein left' : ''}</span>} />;
+/* The macros of one item, in the colours the rest of the app gives them: P32 · C4 · F6 · Fib 3.
+   Fibre says how well it is known. `fibre` is { state: 'known'|'est'|'pending'|'unknown' } (default
+   'known'): an estimate wears a tilde, one on its way an ellipsis, and one nobody knows a question
+   mark, because a bare 0 would claim the food has none. `plain` drops the colours, for dense rows. */
+function MacroStrip({ m, fibre, plain, noFibre, className = '' }) {
+  m = m || {};
+  const st = (fibre && fibre.state) || 'known';
+  const f = Math.round((+m.fiber || 0) * 10) / 10;
+  const fv = st === 'pending' ? '…' : st === 'unknown' ? '?' : (st === 'est' ? '~' : '') + (f % 1 === 0 ? f : f.toFixed(1));
+  const c = (ink) => plain ? undefined : { color: ink };
+  return <span className={'tnum ' + className} style={{ fontWeight: 600 }}>
+    <span style={c('var(--pro-ink)')}>P{Math.round(+m.protein || 0)}</span>{' · '}
+    <span style={c('var(--carb-ink)')}>C{Math.round(+m.carbs || 0)}</span>{' · '}
+    <span style={c('var(--fat-ink)')}>F{Math.round(+m.fat || 0)}</span>
+    {!noFibre && <>{' · '}<span style={st === 'unknown' ? { color: 'var(--muted)' } : c('var(--fib-ink)')} title={st === 'est' ? 'Estimated fibre' : st === 'unknown' ? 'Fibre not known' : 'Fibre'}>Fib {fv}</span></>}
+  </span>;
+}
+/* WHAT ADDING THIS DOES, in one framed block. It answers the two questions an add sheet is asked, in
+   the order they get asked: what IS this (calories and the macros, fibre included), and where does it
+   leave today (kcal, protein, carbs, fat and fibre, each as the day's meter with this item laid on top
+   in the lighter "not yours yet" fill). PipMeter's `addValue` is that fill, so it is the same
+   instrument as the day card with nothing new to learn.
+   Fibre is a goal to reach, never a limit: it reads "to go" and then "hit", and never turns red. With
+   no day to compare against (no targets yet) only the item line is drawn. */
+function AddImpact({ add, rest, target, label, verb = 'Adding', fibre, onFibrePaywall, noFibre, dayOnly }) {
+  add = add || {};
+  const st = (fibre && fibre.state) || 'known';
+  const hasDay = !!(rest && target && target.kcal > 0);
+  const kcal = Math.round(+add.kcal || 0);
+  if (dayOnly && !hasDay) return null;
+  const rows = hasDay ? [
+    ['kcal', 'kcal', 'var(--cal)', false],
+    ['Protein', 'protein', 'var(--pro)', false],
+    ['Carbs', 'carbs', 'var(--carb)', false],
+    ['Fat', 'fat', 'var(--fat)', false],
+  ].concat(target.fiber > 0 && !noFibre ? [['Fibre', 'fiber', 'var(--fib)', true]] : []) : [];
+  return (
+    <div className="px-3 py-2.5" style={{ background: 'var(--sunk)' }}>
+      {!dayOnly && <>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[13px] min-w-0 truncate" style={{ color: 'var(--muted)', fontWeight: 600 }}>{label || verb}</span>
+          <span className="tnum shrink-0"><span className="num text-[16px]">{kcal.toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: 'var(--muted)' }}>kcal</span></span>
+        </div>
+        <div className="text-[13px] mt-0.5"><MacroStrip m={add} fibre={fibre} noFibre={noFibre} /></div>
+      </>}
+      {st === 'unknown' && onFibrePaywall && <button type="button" onClick={onFibrePaywall} className="text-[12px] mt-1 text-left" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 32 }}>Fibre not known. Premium fills it in</button>}
+      {hasDay && <div className={dayOnly ? '' : 'mt-2 pt-2'} style={dayOnly ? null : { borderTop: '1px solid var(--hairline)' }}>
+        <div className="text-[11px] mb-1" style={{ color: 'var(--muted)', fontWeight: 600 }}>Today after this</div>
+        {rows.map(([l, k, fill, isFib]) => {
+          const day = +rest[k] || 0, added = +add[k] || 0, tg = +target[k] || 0;
+          const left = Math.round(tg - day - added);
+          const over = !isFib && left < 0;
+          const hit = isFib && left <= 0;
+          const unit = k === 'kcal' ? ' kcal' : ' g';
+          const txt = hit ? 'hit' : isFib ? Math.abs(left) + ' g to go' : over ? Math.abs(left).toLocaleString('en-GB') + unit + ' over' : left.toLocaleString('en-GB') + unit + ' left';
+          return <div key={k} className="flex items-center gap-2.5" style={{ minHeight: 24 }}>
+            <span className="text-[12px] shrink-0" style={{ width: 48, fontWeight: 600, color: 'var(--text2)' }}>{l}</span>
+            <div className="flex-1 min-w-0"><PipMeter value={day} addValue={added} target={tg} color={over ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
+            <span className="text-[12px] tnum shrink-0 text-right" style={{ minWidth: 76, fontWeight: 600, color: over ? 'var(--danger-ink)' : hit ? 'var(--good-ink)' : 'var(--text2)' }}>{txt}</span>
+          </div>;
+        })}
+      </div>}
+    </div>
+  );
 }
 // The amount is the sheet's headline, and its own keypad: tap it and type.
 // Steppers are for small adjustments around a common default (Nielsen Norman Group's guidance is
@@ -4859,52 +4858,13 @@ function MeterRow({ label, value, target, color, mode, unit = 'g', small, overIs
 }
 // One shared macro summary body used by BOTH the Dashboard macro card and the Food log day card,
 // so Consumed/Remaining behaviour and the range feedback are identical everywhere.
-// The quality bar. Unlike the macro bars this one is not a running total you fill up: it is a score
-// out of 100 that moves as you eat, so the track is the whole scale and the marker sits at the
-// target. Eating more of something good pulls it up, a treat pulls it down, and the day settles
-// wherever your calories actually came from.
-function QualityBar({ nd, onExplain }) {
-  // Premium feature. Free users never see a score, only the locked row that explains what it is and
-  // opens the paywall, so the upgrade path is visible without giving the thing away.
-  if (window.MISPREMIUM !== true) {
-    return (
-      <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'quality' }); } catch (_) {} }}
-        className="w-full text-left mb-2.5 active:scale-[.99] transition">
-        <div className="flex justify-between items-baseline mb-1">
-          <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>Density</span>
-          <span className="pf text-[11px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
-        </div>
-        <PipMeter value={0} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine />
-      </button>
-    );
-  }
-  const has = nd.score != null;
-  const band = E.ndBand(nd.score);
-  const color = densityColor(nd.score);
-  // Anything we could not score is shown as the shortfall it is, rather than left out silently.
-  const partial = has && nd.coverage < 0.9;
-  return (
-    <div className="mb-2.5">
-      <div className="flex justify-between items-baseline mb-1">
-        <button onClick={onExplain} className="hit pf text-[11px] active:opacity-70" style={{ color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></button>
-        <span className="tnum text-[12px]" style={{ color: has ? (nd.hit ? 'var(--good-ink)' : 'var(--text2)') : 'var(--muted)' }}>
-          {has ? band.label : 'not scored yet'}
-        </span>
-      </div>
-      {/* The score is a position on a fixed 0-100 scale, not a total you fill up, so the meter runs
-          the whole scale and the notch sits on the target rather than at the end. */}
-      <PipMeter value={has ? nd.score : 0} target={nd.target} cells={10} scale={100 / nd.target} color={color} overIsFine />
-      {partial && <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{nd.uncovered} kcal couldn't be scored</div>}
-    </div>
-  );
-}
 /* The colour vocabulary for the day's one open loop. The buddy owns the loop now (see buddyCoach);
    this is what paints the meter on its line, in the colour of the macro that line names - exactly
    as the MeterRow siblings on the macro card do.
    Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
    same value as --fat, directly above a PROT bar in red: the same number in two colours, one of
    them the wrong macro's. See design-plans/10-one-thing-macro-colour.md. */
-const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--weight)', fuel: 'var(--hero)' };
+const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--fib)', fuel: 'var(--hero)' };
 /* ---------- Today's plan, band by band (the imported design's own construction) ----------
    These four live next to MacroSummaryCard rather than replacing it: the Food log's day card and the
    edit sheet still want the old stacked summary, where a compact list of five identical rows is the
@@ -4938,91 +4898,20 @@ function EnergyBand({ et, tot, mode }) {
    up. `hero` is the first row only - it gets the taller bar and the larger figure, because protein
    is the macro the app actually coaches on. */
 /* One macro in the day's detail (35-reset): its name, eaten of target, then a full-width HP meter. */
-function MacroRow({ label, value, target, color, ink, unit = 'g' }) {
-  const over = target > 0 && value > target;
+function MacroRow({ label, value, target, color, ink, unit = 'g', overIsFine, note }) {
+  const over = target > 0 && value > target && !overIsFine;
   return (
     <div className="py-2" style={{ borderBottom: '1px solid var(--hairline)' }}>
       <div className="flex items-baseline justify-between gap-2 mb-2">
         <span className="text-[15px]" style={{ fontWeight: 600 }}>{label}</span>
         <span className="text-[13px] tnum" style={{ color: 'var(--muted)' }}><span className="num text-[15px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.round(value).toLocaleString('en-GB')}</span> / {Math.round(target).toLocaleString('en-GB')} {unit}</span>
       </div>
-      <PipMeter value={value} target={target} color={color} cells={PLAN_CELLS} small />
+      <PipMeter value={value} target={target} color={color} cells={PLAN_CELLS} small overIsFine={overIsFine} />
+      {note && <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{note}</div>}
     </div>
   );
 }
 
-function FibreCell({ tot, et, mode }) {
-  const ft = E.fiberTarget(et.eff.kcal);
-  const left = Math.max(0, Math.round(ft.min - tot.fiber));
-  return (<>
-    <div className="flex justify-between items-baseline gap-2">
-      <span className="text-[15px]" style={{ fontWeight: 600 }}>Fibre</span>
-      <span className="tnum" style={{ fontSize: 11, fontWeight: 600 }}>
-        {mode === 'remaining' ? left + 'g left' : Math.round(tot.fiber) + 'g of ' + Math.round(ft.min) + 'g'}
-      </span>
-    </div>
-    <PipMeter value={tot.fiber} target={ft.min} color={'var(--weight)'} cells={PLAN_CELLS} small overIsFine />
-  </>);
-}
-
-/* The density half of the split. Same premium gate as QualityBar - a free account sees the label and
-   a dimmed track that opens the paywall, never a score. */
-function DensityCell({ entries, onExplain }) {
-  const nd = E.ndDay((entries || []).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
-  if (window.MISPREMIUM !== true) {
-    return (
-      <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'quality' }); } catch (_) {} }}
-        className="w-full text-left flex flex-col gap-1.5 active:opacity-70">
-        <div className="flex justify-between items-baseline gap-2">
-          <span className="pf uppercase" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--muted)' }}>Density</span>
-          <span className="pf uppercase" style={{ fontSize: 11, color: 'var(--accent-ink)' }}>Premium ›</span>
-        </div>
-        <PipMeter value={0} target={E.ND_TARGET} cells={PLAN_CELLS} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine small />
-      </button>
-    );
-  }
-  const has = nd.score != null;
-  const band = E.ndBand(nd.score);
-  return (<>
-    <div className="flex justify-between items-baseline gap-2">
-      <button onClick={onExplain} className="hit pf uppercase active:opacity-70 shrink-0" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></button>
-      <span className="truncate text-right" style={{ fontSize: 11, fontWeight: 600, color: has ? densityColor(nd.score) : 'var(--muted)' }}>{has ? band.label : 'not scored'}</span>
-    </div>
-    <PipMeter value={has ? nd.score : 0} target={nd.target} cells={PLAN_CELLS} scale={100 / nd.target} color={densityColor(nd.score)} overIsFine small />
-  </>);
-}
-
-function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
-  const remaining = et.eff.kcal - tot.kcal;
-  const ft = E.fiberTarget(et.eff.kcal);
-  const isRem = mode === 'remaining';
-  const over = remaining < 0;
-  const heroColor = over ? 'var(--danger)' : 'var(--hero)';
-  const nd = E.ndDay((entries || []).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
-  return (<>
-    {/* THE NUMBER, DEMOTED. This was 48px, from when it was the one figure on Today and the whole
-        reason the card wore the accent ring. The buddy box's status strip now carries kcal left in
-        the first glance, so a second 48px copy of the same number 200px lower was the page saying
-        its most important thing twice. At 30px it is still the largest thing on this card and reads
-        instantly - it has just stopped competing with the box above for the top of the page.
-        The label moved into the card's nameplate row, so this line is the figure and its context
-        and nothing else. The blinking cursor stays: it is the one bit of hardware voice here. */}
-    <div className="flex items-baseline gap-1 mb-3">
-      <span className="text-3xl tnum" style={{ color: heroColor }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
-      <span className="text-3xl tnum blink" style={{ color: heroColor }}>_</span>
-      <span className="pf text-[11px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
-        {isRem ? (over ? 'over' : 'kcal left') : 'kcal eaten'}{avg ? ' (avg)' : ''} · of {et.eff.kcal}
-      </span>
-    </div>
-    <MeterRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} mode={mode} />
-    <MeterRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} mode={mode} />
-    <MeterRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} mode={mode} />
-    {/* Fibre was a sentence of its own among the meters; as a meter it costs less room and reads in
-        the same glance as the rest. */}
-    <MeterRow label="FIBRE" value={tot.fiber} target={ft.min} color={'var(--weight)'} mode={mode} small overIsFine />
-    {entries && <QualityBar nd={nd} onExplain={onExplain} />}
-  </>);
-}
 // Little backstory tidbits shown on the buddy's own screen. A rotating myth or fun fact to make the
 // creature feel like it has a history, so you get attached to it rather than a stat readout.
 const BUDDY_LORE = [
@@ -6812,7 +6701,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           <Say>{result.reason}</Say>
           {(() => {
             const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
-            const body = (coach && coach.text) ? coach.text : steps || densityCoachLine(db) || null;
+            const body = (coach && coach.text) ? coach.text : steps || null;
             if (coach && coach.loading) return <div className="text-[12px] text-[var(--muted)] mb-4">Reading your week…</div>;
             return body ? <Say plain>{body}</Say> : null;
           })()}
@@ -7031,54 +6920,48 @@ function fmtShortDay(dateISO) { return new Date(dateISO + 'T00:00:00').toLocaleD
 // "+ Add" tucked inside the Daily tab, so putting a weight in meant Progress → Daily → + Add → a
 // modal with a date picker; three of those four steps were navigation. The tabs are for reading your
 // history, the button is for adding to it.
-// The week's Density Scores. The average is the number that matters: quality of eating is a pattern,
-// and one heavy Saturday inside a good week is not a bad week. Days with nothing to score are shown
-// as gaps rather than as zeroes, so an unlogged day never reads as a bad one.
-/* Whether there is a week of Density Scores to draw at all. It is a free-standing question because
-   a caller that hosts this strip INLINE has to know the answer before it draws the rule above it: a
-   JSX element is truthy whether or not the component renders anything, so `q ? <rule/> : null` drew
-   a divider with nothing under it on every free account. */
-function densityWeekTrend(db) {
-  if (window.MISPREMIUM !== true) return null;
+// The week's fibre, day by day. Fibre is the quality measure the app leans on: a goal with a number,
+// the same for every account. Days with nothing logged are gaps, never zeroes, so an unlogged day
+// cannot read as a bad one.
+function fibreWeek(db) {
   const today = Store.todayISO();
-  const dates = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
-  const trend = E.ndTrend(dates.map(d => ({
-    date: d,
-    entries: entriesOn(db, d).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })),
-  })));
-  return trend.daysScored ? trend : null;
+  const days = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i))).map(d => {
+    const ents = entriesOn(db, d);
+    if (!ents.length) return { date: d, g: null, target: 0, hit: false };
+    const et = effectiveTarget(db, d);
+    const target = et && et.eff ? E.fiberTarget(et.eff.kcal).min : 0;
+    const g = sumMacros(ents).fiber;
+    return { date: d, g, target, hit: target > 0 && g >= target };
+  });
+  const logged = days.filter(d => d.g != null);
+  if (!logged.length) return null;
+  return {
+    days, logged: logged.length, hit: logged.filter(d => d.hit).length,
+    average: Math.round(logged.reduce((n, d) => n + d.g, 0) / logged.length),
+    target: logged[logged.length - 1].target,
+  };
 }
-function DensityWeekCard({ db, inline }) {
-  const [help, setHelp] = useState(false);
-  const trend = densityWeekTrend(db);
+function FibreWeekCard({ db, inline }) {
+  const trend = fibreWeek(db);
   if (!trend) return null;
   const dayLetter = (iso) => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(iso + 'T00:00:00').getDay()];
   const body = (<>
-      {help && <DensityExplainer onClose={() => setHelp(false)} />}
       <div className="flex items-center justify-between mb-1">
-        <div className={inline ? 'pf text-[11px] uppercase text-[var(--muted)]' : 'text-lg font-bold'}>Food quality</div>
-        <button onClick={() => setHelp(true)} className="hit text-[11px] text-[var(--muted)] active:opacity-70">Density Score ⓘ</button>
+        <div className={inline ? 'pf text-[11px] uppercase text-[var(--muted)]' : 'text-lg font-bold'}>Fibre</div>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
-        <span className={(inline ? 'text-[19px]' : 'text-4xl') + ' tnum font-bold'} style={{ color: densityColor(trend.average) }}>{trend.average}</span>
-        <span className="text-[12px] text-[var(--muted)]">average this week · aim for {trend.target}</span>
+        <span className={(inline ? 'text-[19px]' : 'text-4xl') + ' tnum font-bold'} style={{ color: 'var(--fib-ink)' }}>{trend.hit}/7</span>
+        <span className="text-[12px] text-[var(--muted)]">days hit your fibre goal · averaging {trend.average} g{trend.target ? ' against ' + trend.target + ' g' : ''}</span>
       </div>
-      {/* The week is the same meter stood on its end: ten blocks per day, so a day here and the day
-          on Today are the same picture rotated, and the count of lit blocks is comparable across
-          the row without reading seven numbers. */}
       <div className="flex items-end gap-1.5 mb-2" style={{ height: 78 }}>
         {trend.days.map((d, i) => {
-          const has = d.score != null;
-          const lit = has ? Math.round(d.score / 100 * 10) : 0;
-          const goalCell = Math.round(trend.target / 100 * 10);
+          const has = d.g != null;
+          const lit = has && d.target > 0 ? Math.min(10, Math.round(d.g / d.target * 10)) : 0;
           return (
             <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
               <div className="pip-col w-full" style={{ height: 58 }}>
                 {Array.from({ length: 10 }, (_, c) => (
-                  <i key={c} style={{
-                    background: c < lit ? densityColor(d.score) : undefined,
-                    boxShadow: c === goalCell - 1 ? 'inset 0 -1px 0 0 var(--text)' : undefined,
-                  }} />
+                  <i key={c} style={{ background: c < lit ? 'var(--fib)' : undefined, boxShadow: c === 9 ? 'inset 0 -1px 0 0 var(--text)' : undefined }} />
                 ))}
               </div>
               <div className="text-[11px] mt-1.5" style={{ color: has && d.hit ? 'var(--good-ink)' : 'var(--muted)' }}>{dayLetter(d.date)}</div>
@@ -7087,11 +6970,11 @@ function DensityWeekCard({ db, inline }) {
         })}
       </div>
       <div className="text-[12px] text-[var(--muted)] leading-snug">
-        {trend.daysHit === trend.daysScored
-          ? `Every day you logged this week cleared ${trend.target}. That is a genuinely good run of eating.`
-          : trend.daysHit === 0
-            ? `No days over ${trend.target} this week. More veg, pulses, fruit and wholegrains is the quickest way to move it.`
-            : `${trend.daysHit} of ${trend.daysScored} logged days cleared ${trend.target}.`}
+        {trend.hit === trend.logged
+          ? 'Every day you logged this week reached your fibre goal. That is a genuinely good run.'
+          : trend.hit === 0
+            ? 'No days at your fibre goal yet. Beans, lentils, oats, fruit and veg are the quickest way up.'
+            : trend.hit + ' of ' + trend.logged + ' logged days reached your fibre goal.'}
       </div>
   </>);
   if (inline) return body;
@@ -7230,7 +7113,7 @@ function behaviourStats(db, days, endISO) {
   if (first && first > start) start = first;
   const dates = [];
   for (let d = start; d <= end; d = shiftISO(d, 1)) dates.push(d);
-  let proteinHit = 0, complete = 0, ndSum = 0, ndDays = 0;
+  let proteinHit = 0, complete = 0, fibreDays = 0;
   dates.forEach(dt => {
     const ents = entriesOn(db, dt);
     if (!ents.length) return;
@@ -7238,14 +7121,14 @@ function behaviourStats(db, days, endISO) {
     const t = E.targetOn(db.targets, dt) || currentTargets(db);
     if (t && t.protein_g > 0 && tot.protein >= t.protein_g * 0.9) proteinHit++;
     if (isCompleteDayOn(db, dt)) complete++;
-    const nd = E.ndDay(ents.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
-    if (nd && nd.score != null) { ndSum += nd.score; ndDays++; }
+    const dq = dayQuality(db, dt);
+    if (dq && dq.fiberHit) fibreDays++;
   });
   const loggedDays = dates.filter(dt => entriesOn(db, dt).length > 0).length;
   return {
     days: dates.length,
     proteinHit, complete, loggedDays,
-    density: ndDays ? Math.round(ndSum / ndDays) : null,
+    fibreDays,
     steps: Math.round(E.avgStepsInRange(db.steps, start, end) || 0)
   };
 }
@@ -7287,15 +7170,14 @@ function BehaviourCard({ db }) {
         trend={arrow('protein')} tone={now.loggedDays && now.proteinHit >= now.loggedDays * 0.7 ? 'good' : null} />
       <StatTile label="Days logged" value={now.complete} unit={'of ' + now.days} sub="a full day's food"
         trend={arrow('complete')} tone={now.complete >= now.days * 0.7 ? 'good' : null} />
-      {/* Density is NOT here. The Food quality card directly above owns it, with a day-by-day strip
-          this tile could not carry, and 77 twice on one screen is the repetition this whole pass has
-          been removing. */}
+      <StatTile label="Fibre" value={now.fibreDays} unit={'of ' + now.loggedDays + ' logged'} sub="hit your fibre goal"
+        tone={now.loggedDays && now.fibreDays >= now.loggedDays * 0.7 ? 'good' : null} />
       {now.steps > 0 && <StatTile label="Steps" value={now.steps.toLocaleString()} unit="a day" sub={stepGoal ? 'target ' + stepGoal.toLocaleString() : 'average'}
         trend={stepArrow} tone={stepGoal && now.steps >= stepGoal ? 'good' : null} />}
     </div>
     {/* The week's eating, in the card about what you have been doing. The strip stays a WEEK whatever
         the tiles are set to, because it is seven labelled days and not a rolling average. */}
-    {densityWeekTrend(db) && <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--surface2)' }}><DensityWeekCard db={db} inline /></div>}
+    {fibreWeek(db) && <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--surface2)' }}><FibreWeekCard db={db} inline /></div>}
     </div>
   </Card>);
 }
@@ -8507,19 +8389,12 @@ function buddyCoach(db, today, streak) {
       return { text: one.remaining + 'g more fibre and I’d be properly sorted. Veg, pulses or fruit does it.', cta: 'Find something', action: 'cook', key: k, meter };
     return { text: 'Room for ' + one.remaining + ' more kcal today. No rush, but I’ll take them.', cta: 'Log it', action: 'log', key: k, meter };
   }
-  // Food quality: the buddy notices a genuinely good day, since the whole point of growing on quality
-  // days is that the growing should be SEEN. Praise carries no key, so there is nothing to dismiss;
-  // the nudge does. Both need a real day's worth of food logged before they mean anything, and both
-  // are silent for free accounts, which have no score.
-  if (window.MISPREMIUM === true && logged.length >= 2 && hour >= 13) {
-    const dq = densityDay(db, today);
-    if (dq.score != null && dq.coverage >= 0.6) {
-      if (dq.hit && !snoozed('coach_density_good', 20)) {
-        return { text: 'Today is scoring ' + dq.score + ' on food quality, over the ' + dq.target + ' worth aiming for. That is the eating that actually grows me.', key: 'coach_density_good' };
-      }
-      if (dq.score < 50 && hour >= 16 && !snoozed('coach_density_low', 20)) {
-        return { text: 'Food quality is sitting at ' + dq.score + ' today. Veg, pulses or fruit with dinner is the quickest way to pull it up, no calorie change needed.', cta: 'Find something', action: 'cook', key: 'coach_density_low' };
-      }
+  // Fibre: the evening nudge. The open loop above already names fibre when it is the biggest gap in
+  // the day; this is the late reminder for a day that is still well short, once a real day's food is in.
+  if (et && logged.length >= 2 && hour >= 17 && !snoozed('coach_fibre_low', 20)) {
+    const ftg = E.fiberTarget(et.eff.kcal).min, fgot = Math.round(sumMacros(logged).fiber);
+    if (fgot < ftg * 0.5) {
+      return { text: 'Fibre is at ' + fgot + ' g of ' + ftg + ' g. Beans, lentils, oats or a pile of veg would sort it.', cta: 'Find something', action: 'cook', key: 'coach_fibre_low' };
     }
   }
   // Protein nudge only makes sense once something's been logged (a gap against zero intake is just the
@@ -9470,23 +9345,13 @@ function crHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h 
 function loggedDatesSet(db) { const s = new Set(); (db.log_entries || []).forEach(e => s.add(e.date)); return s; }
 function streakEndingOn(db, dateISO) { const s = loggedDatesSet(db); let d = dateISO, n = 0; while (s.has(d) && n < 400) { n++; d = shiftISO(d, -1); } return n; }
 function perfectDaysIn(db, endISO, span) { let n = 0; for (let i = 0; i < span; i++) { const q = dayQuality(db, shiftISO(endISO, -i)); if (q && q.perfect) n++; } return n; }
-// The day's Density Score, or null when there is nothing scoreable. One place, so the Today card,
-// the week view, the buddy and the check-in can never disagree about what a day scored.
-function densityDay(db, date) {
-  return E.ndDay(entriesOn(db, date).map(e => ({
-    kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol,
-  })));
-}
-// A day where you ate genuinely well, by the Density Score rather than by hitting numbers.
-function isDensityDay(db, date) { return densityDay(db, date).hit; }
 // A "quality" day is what the buddy grows on: you logged, hit your protein target and landed your
-// calories. Eating well counts too, which is the point of the Density Score: a day built out of
-// good food feeds your buddy even if the macro split was not perfect. Free accounts have no density
-// data at all, so for them this is exactly the rule it has always been.
+// calories. A day that landed its calories AND its fibre goal counts too, so eating the fibre the app
+// keeps asking for feeds your buddy even if the macro split was not perfect.
 function isQualityDay(db, date) {
   const q = dayQuality(db, date);
   if (q && q.proteinHit && q.kcalIn) return true;
-  return !!q && isDensityDay(db, date);
+  return !!q && q.fiberHit && q.kcalIn;
 }
 // Quality days strictly after `afterISO` up to and including `throughISO` (an egg's "distance").
 function qualityDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
@@ -12673,55 +12538,58 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
-// Fills in the day's unscored entries so the quality score covers everything you actually ate, not
-// just the foods that happened to arrive with a full nutrition panel. That is recipe ingredients
-// (priced by the nutrition database, which carries no saturates, sugars or salt) and anything logged
-// before this feature existed. One batched call for the whole day, once, quietly: it never blocks
-// the UI, and a failure just leaves those calories reported as unscored rather than guessed at.
-// Foods below 5 kcal are skipped, being where the per-100-kcal maths stops meaning anything.
+// Fills in the day's entries whose fibre nobody knew (logged with `fiber_pending`), so the day's fibre
+// total is real rather than a quiet undercount. One batched Haiku call for the whole day, once,
+// quietly: it never blocks the UI, and a failure just leaves those entries as they were (fibre 0,
+// still pending) rather than guessed at. Estimated fibre NEVER changes the entry's calories: a UK
+// label's kcal already includes its fibre, so this is information, not a correction.
 // Only days from the subscription onwards are filled in: food logged as a free user stays as it was
 // logged, and a new subscriber's AI allowance is not spent rewriting their history.
-const NQ_BACKFILL_MAX = 12;
-function useNutrientBackfill(db, update, date, isPremium) {
+function useFibreBackfill(db, update, date, isPremium) {
   const tried = useRef({});
   const premiumSince = (db.profile || {}).premiumSince || null;
   // The trigger is the SET of entries needing work, not the array holding them. update() deep-clones
   // state, so db.log_entries has a fresh identity after every change anywhere in the app; keying the
   // effect on that identity made it restart on every unrelated write.
-  const pending = E.pendingNqIds(db.log_entries, date);
+  const pending = E.pendingFibreIds(db.log_entries, date);
   useEffect(() => {
     if (!isPremium || !premiumSince || date < premiumSince) return;
     const todo = (db.log_entries || []).filter(e =>
-      e.date === date && !e.nq && !e.is_alcohol
-      && ((e.computed_macros || {}).kcal || 0) >= 5
-      && !tried.current[e.id]);
+      e.date === date && e.fiber_pending && !e.is_alcohol && !tried.current[e.id]);
     if (!todo.length) return;
-    const batch = todo.slice(0, NQ_BACKFILL_MAX);
+    const batch = todo.slice(0, FIBRE_BATCH_MAX);
     // Marked before the call, so a refusal or an error is not retried on every render.
     batch.forEach(e => { tried.current[e.id] = true; });
     (async () => {
       try {
-        const out = await aiEstimateNutrientsBatch(batch.map(e => ({
-          name: e.name, grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0, macros: e.computed_macros,
+        const out = await aiEstimateFibre(batch.map(e => ({
+          name: e.name, grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : (+e.amount > 0 && +e.serving_g > 0 ? +e.amount * +e.serving_g : 0), macros: e.computed_macros,
         })));
         const patch = {};
-        batch.forEach((e, i) => {
-          const x = out[i]; if (!x) return;
-          const nq = E.ndPer100kcal(e.computed_macros,
-            Object.assign({}, x, { grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0 }));
-          if (nq) { nq.est = true; patch[e.id] = nq; }
-        });
+        batch.forEach((e, i) => { if (out[i] != null) patch[e.id] = out[i]; });
         if (!Object.keys(patch).length) return;
-        // Deliberately NOT guarded by an "is this effect still current" flag. It used to be, and that
-        // is what stopped this working at all: the answer came back, an unrelated state write had
-        // already torn the effect down, and a call we had paid for was binned. The write below is
-        // idempotent (it only fills entries that are still unscored), so applying it late is always
-        // better than throwing it away.
-        update(d => { (d.log_entries || []).forEach(e => { if (patch[e.id] && !e.nq) e.nq = patch[e.id]; }); });
+        // Deliberately NOT guarded by an "is this effect still current" flag: the answer is paid for,
+        // and the write is idempotent (it only fills entries still waiting), so applying it late is
+        // always better than binning it.
+        update(d => {
+          (d.log_entries || []).forEach(e => {
+            if (patch[e.id] == null || !e.fiber_pending) return;
+            e.computed_macros = Object.assign({}, e.computed_macros, { fiber: patch[e.id] });
+            e.fiber_est = true;
+            delete e.fiber_pending;
+            // The saved food learns it too, so this food never costs another call.
+            const key = String(e.name || '').trim().toLowerCase();
+            const food = (d.foods || []).find(f => String(f.name || '').trim().toLowerCase() === key && !f.is_alcohol);
+            const ek = +(e.computed_macros || {}).kcal || 0;
+            if (food && food.fiber_unknown && food.macros && ek > 0) {
+              food.macros = Object.assign({}, food.macros, { fiber: Math.round(patch[e.id] / ek * (+food.macros.kcal || 0) * 10) / 10 });
+              food.fiber_est = true;
+              delete food.fiber_unknown;
+            }
+          });
+        });
       } catch (e) {
-        // Leave them unscored (the card says so honestly), but do not leave it unreported: this is
-        // the call that quietly stops a paying user's day from ever being scored.
-        try { window.MTRACK && MTRACK('density_backfill_failed', { items: batch.length, message: String((e && e.message) || e).slice(0, 120) }); } catch (_) {}
+        try { window.MTRACK && MTRACK('fibre_backfill_failed', { items: batch.length, message: String((e && e.message) || e).slice(0, 120) }); } catch (_) {}
       }
     })();
   }, [pending, date, isPremium, premiumSince]);
@@ -12839,7 +12707,7 @@ function journeyBand(db, today, eggIncubating) {
    line under it, one prompt row at most, then a section of three rows that each lead somewhere.
    ===================================================================== */
 /* The hero. Tapping the figures flips left <-> eaten (the LEFT/EATEN switch it replaced). Everything
-   that used to stack under it in the plan card - fibre, density, the drinks note, balance, the
+   that used to stack under it in the plan card - fibre, the drinks note, balance, the
    carryover breakdown - is one tap away on `onDetails`; what stays on the card is what is acted on
    daily (`footer`: the target adjustment and Done for today). */
 function TodayHero({ et, tot, onDetails, footer }) {
@@ -12847,7 +12715,7 @@ function TodayHero({ et, tot, onDetails, footer }) {
   // switch and the "Details ›" link - one way to see the day).
   const remaining = et.eff.kcal - tot.kcal;
   const over = remaining < 0;
-  const MAC = [['Protein', tot.protein, et.eff.protein_g, PRO, 'pro'], ['Carbs', tot.carbs, et.eff.carbs_g, CARB, 'carb'], ['Fat', tot.fat, et.eff.fat_g, FAT, 'fat']];
+  const MAC = [['Protein', tot.protein, et.eff.protein_g, PRO, 'pro'], ['Carbs', tot.carbs, et.eff.carbs_g, CARB, 'carb'], ['Fat', tot.fat, et.eff.fat_g, FAT, 'fat'], ['Fibre', tot.fiber, E.fiberTarget(et.eff.kcal).min, 'var(--fib)', 'fib']];
   return (
     <Hero className="mb-2">
       <button onClick={onDetails} aria-label="Open today in detail" className="block w-full text-left px-4 pt-4 pb-4">
@@ -12860,14 +12728,20 @@ function TodayHero({ et, tot, onDetails, footer }) {
         </span>
         <span className="block text-[13px] mt-1.5 mb-2.5 tnum" style={{ color: 'var(--muted)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')} eaten of {Math.round(et.eff.kcal).toLocaleString('en-GB')}</span>
         <PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} />
-        <span className="grid grid-cols-3 gap-3.5 mt-4">
+        <span className="grid grid-cols-4 gap-2.5 mt-4">
           {MAC.map(([l, v, tg, c, k]) => {
-            const o = tg > 0 && v > tg;
+            const isFib = k === 'fib';
+            // Fibre is a goal to reach, never a limit: past the target it says "hit", not "over".
+            const o = !isFib && tg > 0 && v > tg;
+            const hit = isFib && tg > 0 && v >= tg;
             const n = o ? Math.round(v - tg) : Math.max(0, Math.round(tg - v));
             return (<span key={l} className="min-w-0 block">
               <span className="block text-[12px]" style={{ color: 'var(--' + k + '-ink)', fontWeight: 600 }}>{l}</span>
-              <span className="flex items-baseline gap-1 mt-0.5 mb-1.5"><span className="num text-[16px]" style={{ color: o ? 'var(--danger-ink)' : 'var(--text)' }}>{n}</span><span className="text-[13px] truncate" style={{ color: 'var(--muted)', fontWeight: 600 }}>g {o ? 'over' : 'left'}</span></span>
-              <PipMeter value={v} target={tg} color={c} cells={10} small />
+              <span className="flex items-baseline gap-1 mt-0.5 mb-1.5">
+                {hit ? <span className="num text-[16px]" style={{ color: 'var(--good-ink)' }}>hit</span>
+                  : <><span className="num text-[16px]" style={{ color: o ? 'var(--danger-ink)' : 'var(--text)' }}>{n}</span><span className="text-[13px] truncate" style={{ color: 'var(--muted)', fontWeight: 600 }}>g {o ? 'over' : 'left'}</span></>}
+              </span>
+              <PipMeter value={v} target={tg} color={c} cells={10} small overIsFine={isFib} />
             </span>);
           })}
         </span>
@@ -12877,7 +12751,7 @@ function TodayHero({ et, tot, onDetails, footer }) {
   );
 }
 /* Everything the plan card used to carry under the macros, in one sheet (Today's "Details ›"). */
-function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, remCarbs, remFat, onCarry, onExplainDensity, onClose }) {
+function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, remCarbs, remFat, onCarry, onClose }) {
   const today = Store.todayISO();
   const drinks = entriesOn(db, today).filter(e => e.is_alcohol);
   const dk = Math.round(drinks.reduce((s, e) => s + ((e.computed_macros || {}).kcal || 0), 0));
@@ -12888,10 +12762,10 @@ function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, re
         <MacroRow label="Protein" value={tot.protein} target={et.eff.protein_g} color={PRO} />
         <MacroRow label="Carbs" value={tot.carbs} target={et.eff.carbs_g} color={CARB} />
         <MacroRow label="Fat" value={tot.fat} target={et.eff.fat_g} color={FAT} />
+        <MacroRow label="Fibre" value={tot.fiber} target={E.fiberTarget(et.eff.kcal).min} color="var(--fib)" overIsFine
+          note={entriesOn(db, today).some(e => e.fiber_est) ? 'includes estimated fibre' : null} />
         {drinks.length > 0 && <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {dk} kcal of drinks, split across carbs and fat.</div>}
       </div>
-      <div className="flex flex-col gap-1.5"><FibreCell tot={tot} et={et} mode={mode} /></div>
-      {isPremium && <div className="flex flex-col gap-1.5"><DensityCell entries={entriesOn(db, today)} onExplain={onExplainDensity} /></div>}
       <Section title="Balance carbs & fat" className="!mb-0">
         <div className="py-3">
           <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
@@ -13215,13 +13089,12 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
-  const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
-  const [detailOpen, setDetailOpen] = useState(false); // Today's numbers: fibre, density, balance (35-reset)
+  const [detailOpen, setDetailOpen] = useState(false); // Today's numbers: fibre, balance (35-reset)
   const [recoveryOpen, setRecoveryOpen] = useState(false); // the Recovery row's sheet
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
   const todayTot = sumMacros(entriesOn(db, today));
-  useNutrientBackfill(db, update, today, isPremium);
+  useFibreBackfill(db, update, today, isPremium);
   const last30 = Array.from({ length: 30 }, (_, i) => shiftISO(today, -(29 - i)));
   const weighSet = new Set(db.weight_entries.map(w => w.date));
   const logSet = new Set(db.log_entries.map(e => e.date));
@@ -13604,7 +13477,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, d.buddy.stage || 0); d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
-      {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       {(() => {
         // The hero's footer: the two things on the plan card that are acted on, not just read.
@@ -13678,7 +13550,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         return todayOrder.map(k => BLOCKS[k] ? <div key={k} data-block={k}>{BLOCKS[k]}</div> : null);
       })()}
       {detailOpen && <TodayDetailSheet db={db} et={et} tot={tot} mode={mode} isPremium={isPremium} override={override} setShift={setShift} remCarbs={remCarbs} remFat={remFat}
-        onCarry={() => { setDetailOpen(false); setShowCarry(true); }} onExplainDensity={() => setDensityHelp(true)} onClose={() => setDetailOpen(false)} />}
+        onCarry={() => { setDetailOpen(false); setShowCarry(true); }} onClose={() => setDetailOpen(false)} />}
       {recoveryOpen && <Sheet title="Recovery" onClose={() => setRecoveryOpen(false)} wide><StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} /></Sheet>}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
@@ -13809,7 +13681,6 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
   const swipe = useRef(null); // swipe-between-days: touchstart point, consumed on touchend
   const [editMeal, setEditMeal] = useState(null); const [mealName, setMealName] = useState('');
   const [nameSheet, setNameSheet] = useState(null); // { meal, entries } for "Save as meal"
-  const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the day card
   const [showCal, setShowCal] = useState(false);
   const [copyTo, setCopyTo] = useState(null);
   const [photoUp, setPhotoUp] = useState(null); // the entry being re-estimated from a photo taken later
@@ -14077,7 +13948,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
        hue - a fifth thing competing for the left edge on a card that now has an ink frame and an ink
        title bar - and it separated rows with a 1px hairline in the surface colour. Rows are divided
        by the card's own 2px rule instead, and the stripe is gone: the tile already carries colour,
-       and it carries a colour that MEANS something (the Density Score) rather than the meal's index. */
+       and it carries a colour that means something (the food's type) rather than the meal's index. */
     <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="grid items-center gap-2.5 relative" style={{ gridTemplateColumns: 'auto 1fr auto auto', padding: '10px 12px', borderBottom: '2px solid var(--border)', opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging || armed ? 'var(--surface2)' : undefined, transition: 'background .18s linear' }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: 'none' }} />}
       {/* The food tile: a pixel glyph of what this is, in the colour of how good it is.
@@ -14085,11 +13956,8 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           at 36px in an arbitrary per-meal hue it stole the name's width and coloured nothing
           meaningful. But a list of names in one weight is slow AND joyless, and the research is
           blunt about the cost: people find an item about 37% faster when rows differ by colour AND
-          icon rather than text alone. So the tile is back at 28px, and its colour is the Density
-          Score, which makes the fun and the information the same pixel: a green tile is a good
-          choice, an amber one is middling, and you read that before you read a word.
-          A food we could not score keeps its glyph on a plain outlined tile, so an unscored row
-          still has a face rather than being a hole in the list. */}
+          icon rather than text alone. So the tile is back at 28px, in the colour of what the food is.
+          Alcohol keeps its glyph on a plain outlined tile. */}
       {/* The row itself is the control: tap to edit, press and hold to move it. Editing used to be
           two taps behind the ⋯ menu, which is not where anyone looks for it, and is not what the
           rest of the category does. */}
@@ -14099,7 +13967,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         className="contents text-left"
         style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
         title="Tap to edit, press and hold to move">
-      <FoodTile name={e.name} isAlcohol={e.is_alcohol} nq={e.nq} />
+      <FoodTile name={e.name} isAlcohol={e.is_alcohol} />
       {/* The food's NAME is the thing you scan for, so it gets the row's width and the only real
           type weight. Everything else is support, on one quiet line beneath in text ink. */}
       <div className="min-w-0 flex-1">
@@ -14130,10 +13998,9 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             16px the line was over by, and the colour change already does a separator's job. */}
         <div className="flex items-center gap-1.5 mt-[3px] min-w-0">
           <span className="text-[13px] tnum truncate min-w-0" style={{ color: 'var(--muted)' }}>{e.qty_label || ''}</span>
-          {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
-              say the same thing twice in one row. The number stays because colour alone is not a
-              channel everyone has, and a phone has no hover to fall back on. */}
-          <DensityScoreText nq={e.nq} className="shrink-0" />
+          {/* Fibre, when the entry has any: the quality number the app asks for every day, so it sits
+              where the eye already is. A tilde marks an estimate. */}
+          {(e.computed_macros.fiber || 0) >= 0.5 && <span className="text-[13px] tnum shrink-0" style={{ color: 'var(--fib-ink)' }} title={e.fiber_est ? 'Estimated fibre' : 'Fibre'}>{e.fiber_est ? '~' : ''}{Math.round(e.computed_macros.fiber)} g fibre</span>}
         </div>
       </div>
       {/* THE NUMBERS, in a column of their own on the right: the calories in the pixel face over the
@@ -14163,7 +14030,6 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
       onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); if (dayMenu) setDayMenu(false); }}
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
       onTouchEnd={(e) => { if (!swipe.current || drag || Date.now() - draggedAt.current < 500) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
-      {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       {/* 35-reset: Food holds two views, the diary and recipes (Cook stopped being a tab). The app bar
           already says Food, so the switch is the first thing on the page. */}
       {onSwitch && <FoodSwitch value="diary" onChange={onSwitch} />}
@@ -14215,10 +14081,9 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
         const over = rem < 0;
         {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
             carrying the target, then one row per instrument. */}
-        const dnd = window.MISPREMIUM === true ? E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol }))) : null;
         const isPast = date < today;
         const word = isPast ? 'under' : 'left';
-        const macroRows = [['P', 'protein', 'protein_g', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'carbs_g', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'fat_g', 'var(--fat)', 'var(--fat-ink)']];
+        const macroRows = [['P', 'protein', et.eff.protein_g, 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', et.eff.carbs_g, 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', et.eff.fat_g, 'var(--fat)', 'var(--fat-ink)'], ['Fi', 'fiber', E.fiberTarget(et.eff.kcal).min, 'var(--fib)', 'var(--fib-ink)']];
         return <div className="mb-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{Math.abs(Math.round(rem)).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)', fontWeight: 600 }}>kcal {over ? 'over' : word}</span></span>
@@ -14226,19 +14091,18 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           </div>
           <div className="mt-2"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} small /></div>
           <div className="mt-2">
-            {macroRows.map(([l, k, tk, fill, ink]) => {
-              const left = Math.round(et.eff[tk] - tot[k]); const mOver = left < 0;
+            {macroRows.map(([l, k, tgt, fill, ink]) => {
+              // Fibre is a goal to reach, not a limit: it reads "to go" and then "hit", never "over".
+              const isFib = k === 'fiber';
+              const left = Math.round(tgt - tot[k]); const mOver = !isFib && left < 0;
+              const fibHit = isFib && left <= 0;
               return <div key={k} className="flex items-center gap-3" style={{ minHeight: 24 }}>
-                <span className="text-[13px] w-4 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
-                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={et.eff[tk]} color={mOver ? 'var(--danger)' : fill} cells={10} small /></div>
-                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : 'var(--text2)', fontWeight: 600 }}>{Math.abs(left)} g {mOver ? 'over' : word}</span>
+                <span className="text-[13px] w-5 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
+                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={tgt} color={mOver ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
+                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : fibHit ? 'var(--good-ink)' : 'var(--text2)', fontWeight: 600 }}>{fibHit ? 'hit' : Math.abs(left) + ' g ' + (mOver ? 'over' : isFib ? 'to go' : word)}</span>
               </div>;
             })}
           </div>
-          {dnd && <button onClick={() => setDensityHelp(true)} className="w-full flex items-center justify-between text-[13px] mt-1" style={{ minHeight: 44 }}>
-            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Density</span>
-            <span className="tnum" style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)'), fontWeight: 600 }}>{dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}</span>
-          </button>}
         </div>;
       })()}
 
@@ -14348,7 +14212,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
       {photoUp && <PhotoUpdateSheet db={db} entry={photoUp} onSave={(item) => savePhotoUpdate(photoUp, item)} onClose={() => setPhotoUp(null)} />}
       {nameSheet && <NameSheet title="Save as meal" hint="Save this meal for one-tap logging. Name it:" initial={nameSheet.meal.name} saveLabel="Save meal" onSave={(name) => {
-        const items = nameSheet.entries.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros }));
+        const items = nameSheet.entries.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros, fiberUnknown: !!e.fiber_pending, fiberEst: !!e.fiber_est }));
         update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
         setNameSheet(null); toast('Saved "' + name + '", find it under Meals when logging');
       }} onClose={() => setNameSheet(null)} />}
@@ -14418,6 +14282,7 @@ function applyEntryPatch(update, id, patch) {
     if (patch.serving_g != null) x.serving_g = patch.serving_g; // keeps the grams/portions toggle available next time
     if (patch.alcohol_split !== undefined) x.alcohol_split = patch.alcohol_split;
     if (patch.meal_id) x.meal_id = patch.meal_id;
+    if (patch.fiberTouched) { delete x.fiber_pending; delete x.fiber_est; }
     const key = patch.name.trim().toLowerCase(); const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
     if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); if (patch.alcohol_split !== undefined) food.alcohol_split = patch.alcohol_split; }
   });
@@ -14453,9 +14318,9 @@ function applyPhotoEstimate(update, id, item) {
     x.amount = item.amount; x.unit = item.unit; x.unit_noun = item.unitNoun;
     x.serving_g = undefined;
     x.source = 'ai_estimate';
-    // The nutrient record is what the Density Score reads. A re-estimate that came back without the
-    // extra nutrients must not leave the OLD meal's score attached to the new numbers, so an
-    // unscored estimate clears it and the day's backfill picks it up like any other unscored entry.
+    // A re-estimate describes a new meal, so it carries its own energy-density stamp (or none), and
+    // its own fibre: the old meal's fibre status must not stay attached to the new numbers.
+    delete x.fiber_est; delete x.fiber_pending;
     x.nq = item.nq || null;
     x.photo_updated_at = Date.now();
     const key = (x.name || '').trim().toLowerCase();
@@ -14476,8 +14341,18 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
     </Sheet>
   );
 }
+// How well an entry's fibre is known, for display: logged by a source that did not say (`fiber_pending`,
+// which Premium is filling in and a free account will not see filled), estimated (`fiber_est`), or
+// simply known. Never infer "unknown" from a zero.
+function entryFibreState(e) {
+  if (!e) return 'known';
+  if (e.fiber_pending) return window.MISPREMIUM === true ? 'pending' : 'unknown';
+  return e.fiber_est ? 'est' : 'known';
+}
+// The upgrade path for unknown fibre, from the one line that says it is unknown.
+function fibrePaywall() { try { window.MPAYWALL && window.MPAYWALL({ type: 'fibre' }); } catch (_) {} }
 /* Editing a logged food. This screen used to be strictly weaker than the confirm screen you get when
-   ADDING one: no grams/portions toggle, no Density Score, no calorie sanity check, no way to delete
+   ADDING one: no grams/portions toggle, no day meter, no calorie sanity check, no way to delete
    the thing you were looking at. That is backwards, because the diary entry is the record that has
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
@@ -14521,7 +14396,9 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
   const total = { protein: +(base.protein * a).toFixed(1), carbs: +(base.carbs * a).toFixed(1), fat: +(base.fat * a).toFixed(1), fiber: +(base.fiber * a).toFixed(1), kcal: Math.round(base.kcal * a) };
   const step = unit === 'g' ? gramStep(a) : (a < 2 ? 0.25 : 1);
   const bump = (d) => setAmount(x => String(Math.max(0, +(((+x || 0) + d)).toFixed(2))));
-  const setTotalField = (k, val) => { const v = +val || 0; setBase(b => Object.assign({}, b, { [k]: a > 0 ? v / a : v })); };
+  // Typing a fibre figure yourself settles it: the entry is no longer waiting on an estimate.
+  const [fiberTouched, setFiberTouched] = useState(false);
+  const setTotalField = (k, val) => { if (k === 'fiber') setFiberTouched(true); const v = +val || 0; setBase(b => Object.assign({}, b, { [k]: a > 0 ? v / a : v })); };
   const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
   // A serving label can be a whole phrase ("portion (56 g)"). Beside a stepper there is room for a
   // word, so keep the head noun there and let the full phrase live on the unit toggle.
@@ -14533,7 +14410,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
   const isAlc = !!entry.is_alcohol;
   const [carbPct, setCarbPct] = useState(() => (m.kcal > 0 ? Math.max(0, Math.min(100, Math.round(((m.carbs || 0) * 4 / m.kcal) * 10) * 10)) : 50));
   function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
-  function save() { onSave({ meal_id: (meals && mealId && mealId !== entry.meal_id) ? mealId : undefined, name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
+  function save() { onSave({ meal_id: (meals && mealId && mealId !== entry.meal_id) ? mealId : undefined, name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, fiberTouched: fiberTouched || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (
     <Sheet title={name || title || 'Edit food'} onClose={onClose} wide z={50}>
       {/* 35-reset: the food's name is the sheet's title; the entry's calories are its one big figure,
@@ -14542,7 +14419,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
         {contextLine && <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>{contextLine}</div>}
         <div className="flex items-baseline justify-between gap-3">
           <span className="flex items-baseline gap-2"><span className="num tnum" style={{ fontSize: 48, lineHeight: 1 }}>{total.kcal}</span><span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>kcal</span></span>
-          <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(total.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(total.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(total.fat)}</span></span>
+          <span className="text-[13px] tnum" style={{ fontWeight: 600 }}><span style={{ color: 'var(--pro-ink)' }}>P{Math.round(total.protein)}</span> · <span style={{ color: 'var(--carb-ink)' }}>C{Math.round(total.carbs)}</span> · <span style={{ color: 'var(--fat-ink)' }}>F{Math.round(total.fat)}</span>{!isAlc && <> · <span style={{ color: entryFibreState(entry) === 'unknown' ? 'var(--muted)' : 'var(--fib-ink)' }}>Fib {entryFibreState(entry) === 'unknown' ? '?' : entryFibreState(entry) === 'pending' ? '…' : (entryFibreState(entry) === 'est' ? '~' : '') + Math.round(total.fiber)}</span></>}</span>
         </div>
         {renaming
           ? <div className="mt-3"><TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
@@ -14554,10 +14431,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
       <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun}
         step={step} onStep={bump} base={amt0} onSetAmount={setAmount} />
-      {/* The Density Score is invariant to how much you had (it is scored per 100 kcal), so the
-          food's own score sits with the food rather than inside the entry's own totals. */}
-      {entry.nq && <DensityBadge nq={entry.nq} />}
-      <DayImpact rest={dayRest} target={dayTarget} add={total} verb={saveVerb === 'Add' ? 'Adding' : 'Saving'} />
+      <AddImpact rest={dayRest} target={dayTarget} add={total} label={label} verb={saveVerb === 'Add' ? 'Adding' : 'Saving'} fibre={{ state: entryFibreState(entry) }} noFibre={isAlc} onFibrePaywall={entryFibreState(entry) === 'unknown' ? fibrePaywall : null} />
       {isAlc && <div>
         <SheetLabel className="block mb-2">Split these calories</SheetLabel>
         <Field label={`${carbPct}% carbs · ${100 - carbPct}% fat`}>
@@ -14669,8 +14543,8 @@ function dayContextFor(db, dateISO, excludeId) {
   if (!et || !et.eff) return null;
   const t = sumMacros(entriesOn(db, dateISO).filter(e => !excludeId || e.id !== excludeId));
   return {
-    rest: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat },
-    target: { kcal: et.eff.kcal, protein: et.eff.protein_g, carbs: et.eff.carbs_g, fat: et.eff.fat_g }
+    rest: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat, fiber: t.fiber },
+    target: { kcal: et.eff.kcal, protein: et.eff.protein_g, carbs: et.eff.carbs_g, fat: et.eff.fat_g, fiber: E.fiberTarget(et.eff.kcal).min }
   };
 }
 /* ---------- UK food tables (CoFID) ----------------------------------------------------------
@@ -14679,7 +14553,7 @@ function dayContextFor(db, dateISO, excludeId) {
    and anyone cooking from scratch was pushed to the AI estimator for a plain grilled chicken
    breast. This is CoFID (McCance & Widdowson's Composition of Foods Integrated Dataset, OHID,
    Open Government Licence v3.0), the UK reference for unpackaged food: 2,854 generic foods, half
-   of them carrying the saturates, sugars and salt the Density Score needs, so a home-cooked meal
+   of them carrying fibre, so a home-cooked meal
    can be scored from measured figures instead of an estimate. Regenerate with
    tools/build-generic-foods.py.
    Fetched on first use rather than inlined into the bundle: it is 219 KB (58 KB over the wire),
@@ -14700,11 +14574,8 @@ function loadGenericFoods() {
           return {
             name: f[0],
             per100: { kcal: lab.kcal, protein: lab.protein, carbs: lab.carbs, fat: lab.fat, fiber: lab.fiber },
-            // Only hand over the density inputs when the food carries ALL of them, fibre included.
-            // A null here means nobody measured it, which is not the same as none, and scoring an
-            // unmeasured value as a virtuous zero is exactly how a food gets rated better than it is.
-            extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null)
-              ? { satfat: f[6], sugars: lab.sugars, salt: f[8] } : null,
+            // A null fibre column means nobody measured it, which is not the same as none.
+            fiberUnknown: f[5] == null,
             lc: f[0].toLowerCase()
           };
         });
@@ -14825,7 +14696,7 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
         let data;
         try { data = await get(); } catch (e1) { if (cancel) return; await new Promise(res => setTimeout(res, 1200)); if (cancel) return; data = await get(); }
         if (cancel) return;
-        const items = (data.products || []).map(p => { const n = p.nutriments || {}; const k = n['energy-kcal_100g']; if (!p.product_name || k == null) return null; return { name: p.product_name, brand: p.brands || '', serving: p.serving_size || null, servingG: +p.serving_quantity || null, per100: { kcal: +k, protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, extra: offWithKind(offExtras(n), p) }; }).filter(Boolean);
+        const items = (data.products || []).map(p => { const n = p.nutriments || {}; const k = n['energy-kcal_100g']; if (!p.product_name || k == null) return null; return { name: p.product_name, brand: p.brands || '', serving: p.serving_size || null, servingG: +p.serving_quantity || null, per100: { kcal: +k, protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, fiberUnknown: n.fiber_100g == null }; }).filter(Boolean);
         // Rows that cannot be food: over 900 kcal or over 105 g of macros per 100 g is a kJ figure
         // stored as kcal, or a typo. One offered "Add 1900 kcal" for a rice cake.
         setDbResults(items.filter(it => it.per100.kcal <= 900 && (it.per100.protein + it.per100.carbs + it.per100.fat) <= 105));
@@ -14843,31 +14714,33 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
   const star = (food) => update(d => { const x = d.foods.find(y => y.id === food.id); if (x) x.is_favorite = !x.is_favorite; });
   // If a saved food carries per-unit values (a smart food or a remembered AI estimate), open the
   // gram-scalable confirm so it can be re-logged at any weight; otherwise one-tap log the last amount.
-  const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }); };
+  const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty, fiberUnknown: !!f.fiber_unknown, fiberEst: !!f.fiber_est }); };
   if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onAddMore={addMore} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-    if (sel.generic) { const tp = typicalPortion(sel.generic.name); return <ConfirmFood note="Standard figures for this food, unbranded." per100 source="cofid" extra={sel.generic.extra}
+    if (sel.generic) { const tp = typicalPortion(sel.generic.name); return <ConfirmFood note="Standard figures for this food, unbranded." per100 source="cofid" fiberUnknown={sel.generic.fiberUnknown}
       servingG={tp ? tp.g : undefined} servingLabel={tp ? tp.label : undefined}
       initial={{ name: sel.generic.name, kcal: sel.generic.per100.kcal, protein: sel.generic.per100.protein, carbs: sel.generic.per100.carbs, fat: sel.generic.per100.fat, fiber: sel.generic.per100.fiber }}
       onAdd={onPick} onAddMore={addMore} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
-    return <ConfirmFood note="Check it looks right before logging." per100 source="off" onAddMore={addMore} branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
+    return <ConfirmFood note="Check it looks right before logging." per100 source="off" onAddMore={addMore} branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} fiberUnknown={sel.fiberUnknown} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   // One-tap: a row's + logs the food's usual amount (35-reset N5) and the sheet stays open. Your own
   // foods log their last amount, exactly as tapping a recent always did; a UK basic food logs the
   // amount its confirm screen would have filled in, scored the same way. Branded results open the
   // confirm screen, because that is where a dodgy label gets caught.
-  const quickMine = (f) => { const it = { name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }; (onPickMore || onPick)(it); };
+  const quickMine = (f) => { const it = { name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty, fiberUnknown: !!f.fiber_unknown, fiberEst: !!f.fiber_est }; (onPickMore || onPick)(it); };
   const quickGeneric = (g) => {
     const tp = typicalPortion(g.name); const grams = tp ? tp.g : 100; const k = grams / 100;
     const macros = { kcal: Math.round(g.per100.kcal * k), protein: Math.round(g.per100.protein * k * 10) / 10, carbs: Math.round(g.per100.carbs * k * 10) / 10, fat: Math.round(g.per100.fat * k * 10) / 10, fiber: Math.round((g.per100.fiber || 0) * k * 10) / 10 };
-    const ex = g.extra;
-    const nq = (ex && ex.satfat != null && ex.sugars != null && ex.salt != null) ? E.ndPer100kcal({ kcal: g.per100.kcal, protein: g.per100.protein, fiber: g.per100.fiber, fat: g.per100.fat }, Object.assign({}, ex, { grams: 100 })) : null;
-    (onPickMore || onPick)({ name: g.name, source: 'cofid', qtyLabel: grams + ' g', macros, unit: 'g', amount: grams, unitNoun: 'g', edited: false, baseMacros: g.per100, baseKind: 'per100', savedServingG: tp ? tp.g : 0, savedServingLabel: tp ? tp.label : '', barcode: null, is_alcohol: false, nq });
+    const nq = E.edStamp(macros.kcal, grams);
+    (onPickMore || onPick)({ name: g.name, source: 'cofid', qtyLabel: grams + ' g', macros, unit: 'g', amount: grams, unitNoun: 'g', edited: false, baseMacros: g.per100, baseKind: 'per100', savedServingG: tp ? tp.g : 0, savedServingLabel: tp ? tp.label : '', barcode: null, is_alcohol: false, nq, fiberUnknown: !!g.fiberUnknown });
   };
   const AddBtn = ({ label, onClick }) => <button onClick={onClick} aria-label={'Add ' + label} className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}>
     <span className="flex items-center justify-center" style={{ width: 28, height: 28, boxShadow: '0 -2px 0 0 currentColor, 0 2px 0 0 currentColor, -2px 0 0 0 currentColor, 2px 0 0 0 currentColor' }}><Icon.plus width="16" /></span></button>;
-  const kcalLine = (mac, extra) => <span className="tnum">{extra ? extra + ' · ' : ''}{Math.round(mac.kcal)} kcal</span>;
-  const MyRow = (f) => (<Row key={f.id} title={f.name} sub={kcalLine(f.macros, f.last_qty)} onClick={() => (f.corrected && f.saved_base) ? pickMine(f) : setQtyFor(f)} chevron={false}
-    trailing={<><DensityChip nq={f.nq} /><AddBtn label={f.name} onClick={(ev) => { ev && ev.stopPropagation && ev.stopPropagation(); (f.corrected && f.saved_base) ? pickMine(f) : quickMine(f); }} /></>} />);
+  // A row says what is in the food before you tap +: calories, then P / C / F and fibre. Fibre that
+  // nobody measured reads "?" (Premium fills it in once logged), an estimate wears a tilde.
+  const foodFibre = (f) => ({ state: entryFibreState({ fiber_pending: f.fiber_unknown, fiber_est: f.fiber_est }) });
+  const kcalLine = (mac, extra, fibre) => <span className="tnum">{extra ? extra + ' · ' : ''}{Math.round(mac.kcal)} kcal · <MacroStrip m={mac} fibre={fibre} plain /></span>;
+  const MyRow = (f) => (<Row key={f.id} title={f.name} sub={kcalLine(f.macros, f.last_qty, foodFibre(f))} onClick={() => (f.corrected && f.saved_base) ? pickMine(f) : setQtyFor(f)} chevron={false}
+    trailing={<><AddBtn label={f.name} onClick={(ev) => { ev && ev.stopPropagation && ev.stopPropagation(); (f.corrected && f.saved_base) ? pickMine(f) : quickMine(f); }} /></>} />);
   const usual = mealName ? 'Usual for ' + mealName.toLowerCase() : 'Recent';
   return (<div>
     {/* Focused on open: searching is what this sheet is for. The barcode button sits INSIDE the
@@ -14896,20 +14769,20 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
       {/* Generic foods sit ABOVE the branded database: if you cooked it yourself, the plain entry is
           the answer you want. */}
       {generic.length > 0 && <Section title="UK basic foods" className="mt-5 !mb-0">{generic.map((g, idx) => (
-        <Row key={'gen' + idx} title={g.name} sub={<span className="tnum">{Math.round(g.per100.kcal)} kcal · {Math.round(g.per100.protein)} g protein / 100 g</span>} onClick={() => setSel({ generic: g })} chevron={false}
+        <Row key={'gen' + idx} title={g.name} sub={<span className="tnum">100 g · {Math.round(g.per100.kcal)} kcal · <MacroStrip m={g.per100} plain fibre={{ state: g.fiberUnknown ? 'unknown' : 'known' }} /></span>} onClick={() => setSel({ generic: g })} chevron={false}
           trailing={<AddBtn label={g.name} onClick={(ev) => { ev.stopPropagation(); quickGeneric(g); }} />} />))}</Section>}
       <Section title="Brands and packets" className="mt-5 !mb-0">
         {dbLoading && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>Searching…</div>}
-        {!dbLoading && dbResults.map((r, idx) => (<Row key={'db' + idx} title={r.name} sub={<span className="tnum">{r.brand ? r.brand.split(',')[0] + ' · ' : ''}{Math.round(r.per100.kcal)} kcal / 100 g</span>} onClick={() => setSel(r)} />))}
+        {!dbLoading && dbResults.map((r, idx) => (<Row key={'db' + idx} title={r.name} sub={<span className="tnum">{r.brand ? r.brand.split(',')[0] + ' · ' : ''}100 g · {Math.round(r.per100.kcal)} kcal · <MacroStrip m={r.per100} plain fibre={{ state: r.fiberUnknown ? 'unknown' : 'known' }} /></span>} onClick={() => setSel(r)} />))}
         {!dbLoading && !dbResults.length && !dbErr && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>No matches in the brands database.</div>}
         {dbErr && <div className="text-[13px] py-2 flex items-center justify-between gap-3" style={{ color: 'var(--fat-ink)' }}><span>{dbErr}</span><button onClick={() => setDbTry(n => n + 1)} className="text-[13px] shrink-0 px-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44, minWidth: 44 }}>Retry</button></div>}
         {genericErr && <div className="text-[13px] py-2" style={{ color: 'var(--muted)' }}>Only branded products are showing just now.</div>}
       </Section>
     </>}
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
-    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }}
+    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros, fiber_pending: qtyFor.fiber_unknown, fiber_est: qtyFor.fiber_est }}
       favourite={!!qtyFor.is_favorite} onFavourite={() => { star(qtyFor); setQtyFor(Object.assign({}, qtyFor, { is_favorite: !qtyFor.is_favorite })); }}
-      onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
+      onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun, fiberUnknown: !!qtyFor.fiber_unknown && !patch.fiberTouched, fiberEst: !!qtyFor.fiber_est && !patch.fiberTouched }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
 // Store.uid() is Date.now().toString(36) + 5 random chars, so a log entry's id encodes the exact time
@@ -14991,8 +14864,17 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const meal = meals.find(m => m.id === mealId) || {};
   const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
   // A + keeps the sheet open; everything else closes it as it always did.
-  const addKeep = (item) => { onAdd(mealId, Object.assign({}, item, { keepOpen: true })); setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0) }])); };
-  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat) } : null;
+  // What the last + added, shown for a moment under each column of the day panel, so the effect of a
+  // one-tap add on today is visible without opening anything.
+  const [flash, setFlash] = useState(null);
+  useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(null), 1800); return () => clearTimeout(t); }, [flash]);
+  const addKeep = (item) => {
+    onAdd(mealId, Object.assign({}, item, { keepOpen: true }));
+    setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0), macros: item.macros || {} }]));
+    setFlash({ m: item.macros || {}, n: Date.now() });
+  };
+  const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat), fiber: Math.round(day.target.fiber - day.rest.fiber) } : null;
+  const addedTotal = added.reduce((t, x) => ({ kcal: t.kcal + (+x.macros.kcal || 0), protein: t.protein + (+x.macros.protein || 0), carbs: t.carbs + (+x.macros.carbs || 0), fat: t.fat + (+x.macros.fat || 0), fiber: t.fiber + (+x.macros.fiber || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   const aiNote = !isPremium && (mode === 'scan' || mode === 'describe') && (() => {
     const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
     return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
@@ -15010,12 +14892,16 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
             <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
             <span className="tnum"><span className="num text-[16px]" style={{ color: left.kcal < 0 ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.abs(left.kcal).toLocaleString('en-GB')}</span> kcal</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 mt-2">
-            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)']].map(([l, k, fill, ink]) => {
-              const over = left[k] < 0;
+          <div className="grid grid-cols-4 gap-2.5 mt-2">
+            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)'], ['Fib', 'fiber', 'var(--fib)', 'var(--fib-ink)']].map(([l, k, fill, ink]) => {
+              // Fibre is a goal, not a limit: it reads "to go", then "hit", and is never an overshoot.
+              const isFib = k === 'fiber';
+              const over = !isFib && left[k] < 0;
+              const hit = isFib && left[k] <= 0;
               return <div key={k} className="min-w-0">
-                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {Math.abs(left[k])} g{over ? ' over' : ''}</div>
-                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small /></div>
+                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {hit ? 'hit' : Math.abs(left[k]) + ' g' + (over ? ' over' : '')}</div>
+                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
+                <div className="text-[11px] tnum mt-0.5 fade-in" style={{ height: 14, color: ink, fontWeight: 600 }}>{flash && (+flash.m[k] || 0) > 0 ? '+' + (Math.round((+flash.m[k]) * 10) / 10) + ' g' : ''}</div>
               </div>;
             })}
           </div>
@@ -15028,7 +14914,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
         {mode === 'quick' && <QuickAddTab onPick={i => onAdd(mealId, i)} day={day} mealName={meal.name} />}
         {mode === 'describe' && <>
           <div className="mb-3"><Seg value={aiTab} onChange={setAiTab} options={[{ v: 'describe', l: 'Describe' }, { v: 'label', l: 'Label photo' }, { v: 'menu', l: 'Menu' }]} /></div>
-          {aiTab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onScan={() => setAiTab('label')} />}
+          {aiTab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onScan={() => setAiTab('label')} day={day} />}
           {aiTab === 'label' && <PhotoTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setAiTab('describe')} day={day} />}
           {aiTab === 'menu' && <MenuTab db={db} day={day} mealName={meal.name} planned={planned} onPick={i => onAdd(mealId, i)} onAddItems={(its, replaceIds) => onAddItems(mealId, its, replaceIds)} onScan={() => setAiTab('describe')} />}
         </>}
@@ -15036,14 +14922,15 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
         {mode === 'drink' && <>
           <div className="mb-3"><Seg value={drinkTab} onChange={setDrinkTab} options={[{ v: 'recent', l: 'Your drinks' }, { v: 'manual', l: 'New drink' }, { v: 'photo', l: 'Scan' }]} /></div>
           {drinkTab === 'recent' && <RecentTab db={db} update={update} isAlc mealName={meal.name} onPick={i => onAdd(mealId, i)} day={day} />}
-          {drinkTab === 'manual' && <AlcoholTab onPick={i => onAdd(mealId, i)} />}
+          {drinkTab === 'manual' && <AlcoholTab onPick={i => onAdd(mealId, i)} day={day} />}
           {drinkTab === 'photo' && <PhotoTab db={db} asAlcohol onPick={i => onAdd(mealId, i)} onAskAI={() => setMode('describe')} day={day} />}
         </>}
       </div>
       {added.length > 0 && <div className="flex-none flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--hairline)', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] truncate" style={{ fontWeight: 600 }}>Added {added.length} to {(meal.name || 'this meal').toLowerCase()} · <span className="num">{added.reduce((n, x) => n + x.kcal, 0)}</span> kcal</div>
-          <div className="text-[13px] truncate" style={{ color: 'var(--muted)' }}>{added.map(x => x.name).join(', ')}</div>
+          <div className="text-[13px] truncate"><MacroStrip m={addedTotal} /></div>
+          <div className="text-[12px] truncate" style={{ color: 'var(--muted)' }}>{added.map(x => x.name).join(', ')}</div>
         </div>
         <Btn onClick={onClose}>Done</Btn>
       </div>}
@@ -15053,19 +14940,24 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
 /* Quick add (35-reset, N6): calories and, if you like, the macros and a name - one serving, logged as it
    is, no amount step. The per-100 g form that scales with the amount is one tap away underneath. */
 function QuickAddTab({ onPick, day, mealName }) {
-  const [v, setV] = useState({ kcal: '', protein: '', carbs: '', fat: '', name: '' });
+  const [v, setV] = useState({ kcal: '', protein: '', carbs: '', fat: '', fiber: '', name: '' });
   const [full, setFull] = useState(false);
   const set = (k, x) => setV(p => Object.assign({}, p, { [k]: x }));
   if (full) return <ManualTab onPick={onPick} onCancel={() => setFull(false)} day={day} />;
   const kcal = Math.round(+v.kcal || 0);
-  const macros = { kcal, protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: 0 };
-  const log = () => { if (kcal <= 0) return; onPick({ name: (v.name || '').trim() || 'Quick add', source: 'manual', qtyLabel: '1 serving', macros, unit: 'serv', amount: 1, unitNoun: 'serving' }); };
+  const macros = { kcal, protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: +v.fiber || 0 };
+  // A blank fibre box is "I don't know" (Premium fills it in later), not a claim that there is none.
+  const fiberUnknown = String(v.fiber).trim() === '';
+  const needsFibre = fiberUnknown && E.needsFibre({ fiberUnknown: true, kcal, carbs: macros.carbs });
+  const fibreState = needsFibre ? (window.MISPREMIUM === true ? 'pending' : 'unknown') : 'known';
+  const log = () => { if (kcal <= 0) return; onPick({ name: (v.name || '').trim() || 'Quick add', source: 'manual', qtyLabel: '1 serving', macros, unit: 'serv', amount: 1, unitNoun: 'serving', fiberUnknown }); };
   return (<div>
     <Field label="Calories"><div className="relative"><NumInput autoFocus value={v.kcal} onChange={e => set('kcal', e.target.value)} className={inputCls + ' pr-12'} aria-label="Calories" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>kcal</span></div></Field>
-    <div className="grid grid-cols-3 gap-3">
-      {[['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat']].map(([k, l]) => <Field key={k} label={l}><div className="relative"><NumInput value={v[k]} onChange={e => set(k, e.target.value)} className={inputCls + ' pr-7'} aria-label={l + ' in grams'} /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>)}
+    <div className="grid grid-cols-2 gap-x-3">
+      {[['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat'], ['fiber', 'Fibre']].map(([k, l]) => <Field key={k} label={l}><div className="relative"><NumInput value={v[k]} onChange={e => set(k, e.target.value)} className={inputCls + ' pr-7'} aria-label={l + ' in grams'} /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>)}
     </div>
     <Field label="Name (optional)"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder={'Meal deal' + (mealName ? ', ' + mealName.toLowerCase() : '')} /></Field>
+    {kcal > 0 && <div className="mb-3"><AddImpact rest={day && day.rest} target={day && day.target} add={macros} label="Adding 1 serving" fibre={{ state: fibreState }} onFibrePaywall={fibreState === 'unknown' ? fibrePaywall : null} /></div>}
     <SheetBtn onClick={log} disabled={kcal <= 0} style={{ opacity: kcal <= 0 ? 0.5 : 1 }}>{kcal > 0 ? 'Log ' + kcal + ' kcal' : 'Log'}</SheetBtn>
     <button onClick={() => setFull(true)} className="w-full mt-2 text-[13px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Enter per 100 g instead</button>
   </div>);
@@ -15094,7 +14986,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const allRecents = nonFav.slice().sort((a, b) => q ? (b.updated_at - a.updated_at) : ((score(b) - score(a)) || (b.updated_at - a.updated_at)));
   const CAP = 25; const recents = q ? allRecents : allRecents.slice(0, CAP); const moreCount = q ? 0 : allRecents.length - recents.length;
   const star = (food) => update(d => { const x = d.foods.find(y => y.id === food.id); if (x) x.is_favorite = !x.is_favorite; });
-  const pick = (f) => onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty });
+  const pick = (f) => onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty, fiberUnknown: !!f.fiber_unknown, fiberEst: !!f.fiber_est });
   const Row = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] px-3 py-2.5">
     <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[var(--muted)]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[var(--muted)] tnum">{Math.round(f.macros.kcal)} kcal · P{Math.round(f.macros.protein || 0)} C{Math.round(f.macros.carbs || 0)} F{Math.round(f.macros.fat || 0)}</div></button>
     <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
@@ -15104,7 +14996,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
     {!foods.length && <div className="text-center text-[var(--muted)] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
     {favs.length > 0 && <><div className="text-[11px] uppercase text-[var(--muted)] mb-2">Favourites</div><div className="space-y-2 mb-4">{favs.map(Row)}</div></>}
     {recents.length > 0 && <><div className="text-[11px] uppercase text-[var(--muted)] mb-2">Recent</div><div className="space-y-2">{recents.map(Row)}</div>{moreCount > 0 && <div className="text-[11px] text-[var(--muted)] mt-3 text-center">+ {moreCount} more, type above to search all your foods.</div>}</>}
-    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
+    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros, fiber_pending: qtyFor.fiber_unknown, fiber_est: qtyFor.fiber_est }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun, fiberUnknown: !!qtyFor.fiber_unknown && !patch.fiberTouched, fiberEst: !!qtyFor.fiber_est && !patch.fiberTouched }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
 // Manual entry: capture the food's nutrition on a clear basis (per 100 g, or per serving), then hand
@@ -15117,8 +15009,10 @@ function ManualTab({ onPick, onCancel, day }) {
   function next() {
     if (!v.name.trim()) return;
     const macros = { kcal: Math.round(+v.kcal || autoKcal), protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: +v.fiber || 0 };
-    if (v.basis === '100g') setParsed({ per100: true, source: 'custom', branded: false, servingG: 0, servingLabel: null, initial: Object.assign({ name: v.name.trim() }, macros) });
-    else { const sn = v.servName.trim(); const sgv = +v.servG || 0; setParsed({ perServing: macros, source: 'custom', branded: true, servingG: sgv, servingLabel: sn ? ('1 ' + sn) : (sgv ? ('1 serving (' + sgv + ' g)') : '1 serving'), initial: { name: v.name.trim() } }); }
+    // A blank fibre box is "I don't know", which is not the same as typing 0.
+    const fiberUnknown = String(v.fiber).trim() === '';
+    if (v.basis === '100g') setParsed({ per100: true, source: 'custom', branded: false, fiberUnknown, servingG: 0, servingLabel: null, initial: Object.assign({ name: v.name.trim() }, macros) });
+    else { const sn = v.servName.trim(); const sgv = +v.servG || 0; setParsed({ perServing: macros, source: 'custom', branded: true, fiberUnknown, servingG: sgv, servingLabel: sn ? ('1 ' + sn) : (sgv ? ('1 serving (' + sgv + ' g)') : '1 serving'), initial: { name: v.name.trim() } }); }
   }
   if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} dayRest={day && day.rest} dayTarget={day && day.target} />;
   return (<div>
@@ -15160,221 +15054,35 @@ function FractionChips({ value, onPick }) {
   return (<div className="flex gap-1.5 mb-3 flex-wrap">{PORTION_FRACTIONS.map(([l, val]) =>
     <button key={l} type="button" onClick={() => onPick(val)} className={`pixel-box px-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[12px] ${Math.abs((+value || 0) - val) < 0.01 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`} style={{ boxShadow: 'none' }}>{l}</button>)}</div>);
 }
-// The nutrients beyond the headline macros that the nutrient-density score needs. Open Food Facts
-// keys them per 100 g and often leaves them blank, so anything missing stays 0 and simply earns the
-// food no penalty. Salt and sodium are the same fact twice over; UK labels print salt, so prefer it
-// and fall back to converting sodium (1 g sodium = 2.5 g salt).
-// How nutritious this food is, shown before you log it so the choice is informed rather than the
-// verdict arriving afterwards. Quiet by design: it rates the food, it never blocks logging it, and
-// a food we cannot score says so instead of guessing.
-// Colour for a Density Score, shared by the food badge, the day bar and the week view so the same
-// number always looks the same wherever it appears.
-// Quality is a STATE, so it wears the status ramp (good / warn / danger) and never a macro's
-// identity colour. Using --fat for "middling" put food quality in the same magenta the fat meter
-// owns two rows above it, which reads as a relationship that does not exist.
-// Marks, not type: the colour a density bar, tile or meter block is painted. Validated as a trio
-// for colour-vision separation, which the previous set failed on the middling/poor pair.
-const TONE_VAR = { good: 'var(--tone-good)', warn: 'var(--tone-warn)', danger: 'var(--tone-bad)', muted: 'var(--muted)' };
-function densityColor(score) { return TONE_VAR[E.densityTone(score)]; }
-// The compact form of a food's Density Score, for lists: the diary, saved foods, anywhere a food is
-// named in a row. Deliberately just the number, since a row is not the place to explain it, and it
-// carries a tooltip for anyone who hovers. Silent when we could not score the food, so a list never
-// fills up with dashes.
-// Five blocks and a number, in the same block language as every meter in the app. A filled colour
-// chip was the wrong instrument here: it put a saturated block against the food's own name and made
-// a quiet piece of context shout louder than the thing it describes. Blocks sit beside the name at
-// the weight of a rating, the number stays in text ink, and the row still reads name-first.
-// A food's tile: what it is (the pixel glyph) in the colour of how good it is (the Density Score).
-// One mark doing both jobs, which is why the colour is allowed to be loud here when it is not
-// allowed to be loud on the digits: it is carrying meaning, not decoration.
-//
-// Unscored is a designed state, not an absence. A food we could not score, or a free account that
-// does not get scores at all, still gets its glyph on an outlined tile, so the row keeps its face
-// and the list keeps its rhythm. Alcohol is never graded, so it always takes that neutral form.
+// Both readers leave a nutrient NULL when the source did not have it, never 0. The difference
+// matters: 0 says "this food contains none", null says "we do not know".
+function nutrientOr(v) { return v == null || v === '' || isNaN(+v) ? null : Math.max(0, +v); }
+// Colour for a food's tile: its type, or neutral for alcohol (never graded).
 const FOOD_TONE = {
   meat: 'var(--food-meat)', plant: 'var(--food-plant)', drink: 'var(--food-drink)',
   egg: 'var(--food-egg)', grain: 'var(--food-grain)', sweet: 'var(--food-sweet)', dino: 'var(--food-other)',
 };
-function FoodTile({ name, isAlcohol, nq, size = 28 }) {
-  const premium = window.MISPREMIUM === true;
-  const ns = (!isAlcohol && nq && premium) ? E.nsFromNq(nq) : null;
+// A food's tile: what it is (the pixel glyph) in the colour of its type. Alcohol is never graded or
+// coloured as a food, so it always takes the neutral outlined form.
+function FoodTile({ name, isAlcohol, size = 28 }) {
   const kind = foodKind(name, isAlcohol);
-  const tone = E.foodTileTone({ premium, scored: !!ns, isAlcohol });
-  const bg = tone === 'score' ? densityColor(ns.score)
-    : tone === 'kind' ? FOOD_TONE[kind]
-      : 'var(--surface2)';
+  const tone = E.foodTileTone({ isAlcohol });
+  const bg = tone === 'kind' ? FOOD_TONE[kind] : 'var(--surface2)';
   // Ink is dark on a colour and muted on the neutral tile, so the glyph reads either way.
   const ink = tone === 'neutral' ? 'var(--muted)' : 'rgba(0,0,0,0.75)';
-  const label = tone === 'score' ? name + ' · Density Score ' + ns.score
-    : tone === 'kind' ? name
-      : name + ' · not scored';
   return (
     <div className="pixel-box flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, background: bg, boxShadow: 'none' }} title={label}>
+      style={{ width: size, height: size, background: bg, boxShadow: 'none' }} title={name}>
       <PixelGlyph kind={kind} color={ink} size={size >= 44 ? 48 : 24} />
     </div>
   );
-}
-function DensityScoreText({ nq, className = '' }) {
-  if (window.MISPREMIUM !== true) return null;
-  const ns = nq ? E.nsFromNq(nq) : null;
-  if (!ns) return null;
-  // Framed, because sitting bare at the end of "425 kcal · 360 g" it read as a third item in that
-  // list rather than a different kind of thing. The border says "this is a score", the tile beside
-  // it says how good, and the number itself stays quiet.
-  return (
-    <span className={'tnum text-[11px] px-1 leading-[1.4] ' + className}
-      style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}
-      title={'Density Score ' + ns.score + ' out of 100 (' + ns.band.label.toLowerCase() + ')'}>{ns.score}</span>
-  );
-}
-function DensityChip({ nq, className = '', showNumber = true }) {
-  if (window.MISPREMIUM !== true) return null;
-  const ns = nq ? E.nsFromNq(nq) : null;
-  if (!ns) return null;
-  const color = densityColor(ns.score);
-  const lit = Math.max(1, Math.round(ns.score / 20));   // 5 blocks, so a scored food always shows one
-  return (
-    <span className={'inline-flex items-center gap-1 shrink-0 ' + className}
-      title={'Density Score ' + ns.score + ' out of 100 (' + ns.band.label.toLowerCase() + ')'}>
-      <span className="inline-flex" style={{ gap: 1 }}>
-        {Array.from({ length: 5 }, (_, i) => (
-          <i key={i} style={{ width: 3, height: 10, display: 'block', background: i < lit ? color : 'var(--surface2)' }} />
-        ))}
-      </span>
-      {/* The number always shows. Blocks plus colour alone would leave the score readable only to
-          someone who can both see the hue and hover for a tooltip, and a phone has no hover: on
-          touch there was no way to get the value at all. `showNumber` now only chooses how loud it
-          is, never whether it exists. */}
-      <span className={'tnum ' + (showNumber ? 'text-[11px]' : 'text-[11px]')} style={{ color: 'var(--muted)' }}>{ns.score}</span>
-    </span>
-  );
-}
-// A single food's Density Score, shown before you log it. Judged per 100 g rather than per calorie,
-// because per calorie flatters anything calorie-dense (a bag of crisps reads as barely salty once
-// you divide its salt by its many calories).
-function DensityBadge({ nq, estimating, onExplain }) {
-  if (window.MISPREMIUM !== true) return null;
-  if (estimating) return <div className="text-[11px] text-[var(--muted)] mt-1.5">Working out how nutritious this is…</div>;
-  const ns = nq ? E.nsFromNq(nq) : null;
-  if (!ns) return null;
-  const color = densityColor(ns.score);
-  const reasons = E.dsReasons(nq).slice(0, 2);
-  return (
-    <button onClick={onExplain} className="w-full text-left mt-2.5 pt-2.5 border-t border-[var(--hairline)] active:opacity-80">
-      <div className="flex justify-between items-baseline mb-1">
-        <span className="pf text-[11px]" style={{ color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></span>
-        <span className="tnum text-[12px]" style={{ color: ns.score >= E.ND_TARGET ? 'var(--good-ink)' : 'var(--text2)' }}>
-          {ns.band.label}{nq.est ? ' · estimated' : ''}
-        </span>
-      </div>
-      {/* Same meter as the day's, on the same 0-100 scale with the notch on the same target, so a
-          food and a day are read with one instrument rather than two. */}
-      <PipMeter value={ns.score} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={color} small overIsFine />
-      {/* "+ a good bit of protein" and "- calorie dense · - high in sugar" spent two symbols saying
-          what the words say on their own. The wording carries the meaning and the colour repeats it,
-          so the plus and minus signs were only ever texture. */}
-      {!!reasons.length && <div className="text-[11px] mt-1">
-        {reasons.map((r, i) => <React.Fragment key={i}>
-          {i > 0 && <span style={{ color: 'var(--muted)' }}>{' · '}</span>}
-          <span style={{ color: r.good ? 'var(--good-ink)' : 'var(--muted)' }}>{r.text}</span>
-        </React.Fragment>)}
-      </div>}
-    </button>
-  );
-}
-// The full explanation, for anyone who wants to know what the number actually means. Written to be
-// read once and trusted afterwards: what it measures, how a food differs from a day, and where it
-// is weakest, because a score that hides its limits is not one worth believing.
-function DensityExplainer({ onClose }) {
-  // `Sheet` arms the back layer for us.
-  const Row = ({ h, children }) => (
-    <div className="mb-4">
-      <div className="text-[13px] font-bold mb-1">{h}</div>
-      <div className="text-[12px] text-[var(--muted)] leading-relaxed">{children}</div>
-    </div>
-  );
-  return (
-    <Sheet title="Density Score" onClose={onClose} wide z={95}>
-        <div>
-          <h2 className="text-xl font-bold mb-1">How well you ate, not just how much</h2>
-          <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-4">
-            Calories and macros tell you the quantity of your food. The Density Score tells you the quality of it, out of 100, where higher is better.
-          </div>
-          <Row h="What a good number looks like">
-            <b style={{ color: 'var(--good-ink)' }}>{E.ND_TARGET} or above</b> is a genuinely good day. That is not an arbitrary bar: it is the cut-off the US government's Healthy Eating Index uses for a high quality diet. A typical Western diet scores about <b>{E.ND_POPULATION_AVERAGE}</b>, which is the fainter mark on your bar, so landing in the fifties is ordinary rather than a failure.
-          </Row>
-          <Row h="How a single food is scored">
-            Per 100 g, so a food is judged on what it is rather than on how much of it you had. Protein, fibre, and the share that is fruit, veg, pulses or nuts push the score up. Saturated fat, sugar, salt and sheer calorie density push it down. This follows Nutri-Score, the front-of-pack system used across Europe, converted onto our 0 to 100 scale so it reads the same way as your daily number.
-          </Row>
-          <Row h="How a day is scored">
-            Your whole day is scored in one go, on everything you ate together, rather than by averaging your foods. That matters: a biscuit inside a good day costs you very little, while the same biscuit on a thin day of eating counts for a lot more. It is the same idea as the Healthy Eating Index, which measures a pattern of eating rather than a shopping list.
-          </Row>
-          <Row h="Where alcohol fits">
-            A drink brings calories and essentially no nutrients, so it thins out the day's quality rather than being quietly ignored. Nothing is banned and there is no telling off, the number simply reflects it.
-          </Row>
-          <Row h="Where it is weakest">
-            Labels print total sugars, not added sugars, so a food gets no way of proving its sugar came from fruit or milk. We soften that using fibre, but it is the least exact part of the score. Drinks are scored like solid food, which is gentle on sugary ones. And where a food arrived without full nutrition, the missing parts are estimated by AI and marked as estimated. Anything we could not work out at all is shown as calories that could not be scored, never quietly counted as good.
-          </Row>
-          <Row h="What it is not">
-            A judgement of you, or medical advice. There are no banned foods here. It is a nudge towards food that carries more for the calories, nothing more.
-          </Row>
-          <SheetBtn onClick={onClose}>Got it</SheetBtn>
-        </div>
-    </Sheet>
-  );
-}
-// The same three nutrients as read off a printed label or estimated for a meal, on whatever basis
-// (per 100 g or per serving) the column they came from used.
-// Both readers leave a nutrient NULL when the source did not have it, never 0. The difference
-// matters: 0 says "this food contains no salt", null says "we do not know yet", and only the second
-// one asks the AI to fill it in. Returns null when nothing at all came through.
-function nutrientOr(v) { return v == null || v === '' || isNaN(+v) ? null : Math.max(0, +v); }
-function someKnown(o) { return o.satfat != null || o.sugars != null || o.salt != null; }
-function labelExtras(c) {
-  c = c || {};
-  const o = { satfat: nutrientOr(c.satfat_g), sugars: nutrientOr(c.sugars_g), salt: nutrientOr(c.salt_g) };
-  return someKnown(o) ? o : null;
-}
-// Open Food Facts tags its own categories, so for a packaged product we can read whether it is a
-// drink rather than ask a model to judge it. Alcohol is excluded here because it is never graded as
-// a food at all.
-function offIsBeverage(p) {
-  const tags = (p && p.categories_tags) || [];
-  return tags.some(t => /beverages|drinks|waters|sodas|juices/.test(String(t)))
-    && !tags.some(t => /alcoholic/.test(String(t)));
-}
-function offIsWater(p) {
-  const tags = (p && p.categories_tags) || [];
-  return tags.some(t => /(^|:)(waters|spring-waters|mineral-waters)$/.test(String(t)));
-}
-// Attach what kind of thing it is to the nutrients we read. Kept separate from offExtras because
-// the category lives on the product, not in its nutriments.
-function offWithKind(extra, product) {
-  if (!offIsBeverage(product)) return extra;
-  const o = extra || { satfat: null, sugars: null, salt: null };
-  o.beverage = true;
-  if (offIsWater(product)) o.water = true;
-  return o;
-}
-function offExtras(n) {
-  n = n || {};
-  const salt = n.salt_100g != null ? nutrientOr(n.salt_100g)
-    : (n.sodium_100g != null ? nutrientOr(+n.sodium_100g * 2.5) : null);
-  const o = { satfat: nutrientOr(n['saturated-fat_100g']), sugars: nutrientOr(n.sugars_100g), salt: salt };
-  // Open Food Facts publishes the fruit/vegetable/nut share for many products, which is the exact
-  // figure Nutri-Score wants. Where it exists it beats asking the AI to guess it.
-  const fvl = nutrientOr(n['fruits-vegetables-nuts_100g'] != null
-    ? n['fruits-vegetables-nuts_100g'] : n['fruits-vegetables-nuts-estimate-from-ingredients_100g']);
-  if (fvl != null) o.fvl = Math.min(100, fvl);
-  return someKnown(o) ? o : null;
 }
 // --- macro maths helpers for the confirm screen (one gram / one serving bases) ---
 // Thin delegates to the tested quantity module (app/quantity.js), kept so existing call sites are unchanged.
 function _macNums(v) { return Q.macNums(v); }
 function _macScale(m, f) { return Q.macScale(m, f); }
 function _macRound(m) { return Q.macRound(m); }
-function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onAddMore, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
+function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, fiberUnknown, onAdd, onAddMore, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
   useBackClose(onCancel);
   const topRef = useScrolledToTop();
   const basisIsServing = !!perServing;
@@ -15391,16 +15099,54 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const setKcal = (x) => { setKcalTouched(true); set('kcal', x); };
   const applyAtwater = () => { setKcalTouched(false); setV(p => Object.assign({}, p, { kcal: String(_atw(p)) })); };
   const sg = +servingG || 0;
-  const m = _macNums(v);
+  const m0 = _macNums(v);
+  // FIBRE WE MAY NOT KNOW. A source that did not publish fibre (a hand-typed food, a patchy barcode)
+  // arrives with `fiberUnknown`, which is not the same as none. Premium fills it in with one cheap
+  // model call, shown with a tilde and carried through to the diary as an estimate; a free account
+  // sees "?" rather than a confident 0. Typing a fibre figure yourself settles it either way. The
+  // estimate never touches the calories (a UK label's kcal already include fibre) and is kept out of
+  // `editedNums`, so it never counts as you correcting the food.
+  const basisGrams = basisIsServing ? sg : (per100 ? 100 : 0);
+  const [fibreTouched, setFibreTouched] = useState(false);
+  const [fibreEst, setFibreEst] = useState(null);
+  const [fibreStatus, setFibreStatus] = useState('idle');
+  const isPrem = window.MISPREMIUM === true;
+  const needsFibre = !!fiberUnknown && !fibreTouched
+    && E.needsFibre({ fiberUnknown: true, kcal: m0.kcal, carbs: m0.carbs, is_alcohol: !!asAlcohol || source === 'alcohol' });
+  const wantFibre = needsFibre && isPrem && !!(v.name || '').trim();
+  useEffect(() => {
+    if (!wantFibre) { setFibreEst(null); setFibreStatus('idle'); return; }
+    // Wait for the numbers to settle so editing a macro does not fire a call per keystroke. A repeat
+    // of the same food is answered from the session cache without a call at all.
+    let dead = false;
+    const t = setTimeout(async () => {
+      setFibreStatus('loading');
+      try {
+        const r = await aiEstimateFibre([{ name: v.name, grams: basisGrams, macros: m0 }]);
+        if (dead) return;
+        setFibreEst(r[0]); setFibreStatus(r[0] == null ? 'failed' : 'idle');
+        if (r[0] == null) { try { window.MTRACK && MTRACK('fibre_estimate_declined', { source: source || 'unknown' }); } catch (_) {} }
+      } catch (e) {
+        if (dead) return;
+        setFibreEst(null); setFibreStatus('failed');
+        // Silence is this feature's failure mode: report it so a broken path shows up as a spike.
+        try { window.MTRACK && MTRACK('fibre_estimate_failed', { source: source || 'unknown', message: String((e && e.message) || e).slice(0, 120) }); } catch (_) {}
+      }
+    }, 700);
+    return () => { dead = true; clearTimeout(t); };
+  }, [wantFibre, v.name, m0.kcal, m0.protein, m0.carbs, m0.fat, basisGrams]);
+  const estActive = wantFibre && fibreEst != null;
+  const m = estActive ? Object.assign({}, m0, { fiber: fibreEst }) : m0;
+  const fibreState = estActive ? 'est' : (needsFibre ? ((wantFibre && fibreStatus !== 'failed') ? 'pending' : 'unknown') : 'known');
   // Did the user change the food's nutrition from what came in? If so we remember it as a correction.
   const _b0 = _macNums(base0);
-  const editedNums = Math.round(m.kcal) !== Math.round(_b0.kcal) || m.protein !== _b0.protein || m.carbs !== _b0.carbs || m.fat !== _b0.fat || m.fiber !== _b0.fiber;
+  const editedNums = Math.round(m0.kcal) !== Math.round(_b0.kcal) || m0.protein !== _b0.protein || m0.carbs !== _b0.carbs || m0.fat !== _b0.fat || m0.fiber !== _b0.fiber;
   // AI-backup nudge for database/barcode entries: missing numbers, or calories that don't match macros.
-  const _kc = m.kcal; const _dk = Q.atwaterRaw(m);
-  const _missing = _kc <= 0 || (m.protein <= 0 && m.carbs <= 0 && m.fat <= 0);
+  const _kc = m0.kcal; const _dk = Q.atwaterRaw(m0);
+  const _missing = _kc <= 0 || (m0.protein <= 0 && m0.carbs <= 0 && m0.fat <= 0);
   // Two-sided, so it measures against the plausible BAND rather than a single figure: a high-fibre
   // entry whose carbs already include its fibre is consistent, not dodgy, and must not be flagged.
-  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(Q.atwaterMiss(_kc, m)) / _kc > 0.3;
+  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(Q.atwaterMiss(_kc, m0)) / _kc > 0.3;
   const dodgy = (!!onRescan || !!onAskAI) && (_missing || _mismatch);
   // Calories run clearly higher than the macros can account for: the classic scan/entry-slip signature.
   // Skipped for alcohol (7 kcal/g) and when the dodgy card already covers it with scan/AI options.
@@ -15433,56 +15179,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const stepBy = (d) => setAmount(String(Math.max(0, r1((+amount || 0) + d))));
   const final = _macRound(_macScale(unit === 'g' ? perGram : perServMac, a) || { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   const qtyLabel = unit === 'g' ? (fmtCount(a) + ' g') : (complexNoun ? portionPhrase(a, servingLabel) : (fmtCount(a) + ' ' + (a === 1 ? servNoun : servNounPlural)));
-  // Nutrient density, worked out on the food's OWN basis (per 100 g, or per serving) rather than the
-  // chosen portion, so it is the same number whatever amount you log. It follows any edit you make to
-  // the macros above, since those are the numbers you have told us are right.
-  // Only scored when the saturates/sugars/salt actually came with the food. Typing your own macros
-  // in tells us nothing about those three, and scoring their absence as zero would quietly rate a
-  // hand-entered food as if it contained no sugar and no salt at all. Where the food arrived without
-  // them, Premium fills the gap with one cheap AI estimate rather than leaving the day unscored.
-  const basisGrams = basisIsServing ? sg : (per100 ? 100 : 0);
-  const [aiExtra, setAiExtra] = useState(null);
-  const [explain, setExplain] = useState(false);
-  const [estimating, setEstimating] = useState(false);
-  // Partly-known counts as missing: plenty of database products carry sugars but no salt, and half a
-  // record would score the missing half as a virtuous zero.
-  const gaps = !extra || extra.satfat == null || extra.sugars == null || extra.salt == null;
-  const wantEstimate = gaps && window.MISPREMIUM === true && m.kcal >= 5 && !!(v.name || '').trim();
-  useEffect(() => {
-    if (!wantEstimate) return;
-    // Wait for the numbers to settle so editing a macro does not fire a call per keystroke, and key
-    // the request off the food as it stands, so a correction is re-estimated rather than left stale.
-    let dead = false;
-    const t = setTimeout(async () => {
-      setEstimating(true);
-      try {
-        const r = await aiEstimateNutrients(v.name, m, basisGrams);
-        if (!dead) setAiExtra(r);
-        // A confident refusal is a legitimate answer, but it is worth knowing how often it happens:
-        // if the model declines on ordinary foods, the prompt is wrong and nobody would ever hear.
-        if (!r) { try { window.MTRACK && MTRACK('density_estimate_declined', { source: source || 'unknown' }); } catch (_) {} }
-      } catch (e) {
-        if (!dead) setAiExtra(null);
-        // Silence is this feature's failure mode: the badge simply never appears. Report it, so a
-        // broken estimate path shows up as a spike rather than as nothing at all.
-        try { window.MTRACK && MTRACK('density_estimate_failed', { source: source || 'unknown', message: String((e && e.message) || e).slice(0, 120) }); } catch (_) {}
-      }
-      if (!dead) setEstimating(false);
-    }, 700);
-    return () => { dead = true; clearTimeout(t); setEstimating(false); };
-  }, [wantEstimate, v.name, m.kcal, m.protein, m.carbs, m.fat, m.fiber, basisGrams]);
-  // Real figures always win; the estimate only fills the holes in them.
-  const ndExtra = mergeNutrients(extra, aiExtra);
-  const nq = (ndExtra && ndExtra.satfat != null && ndExtra.sugars != null && ndExtra.salt != null)
-    ? E.ndPer100kcal(
-      { kcal: m.kcal, protein: m.protein, fiber: m.fiber, fat: m.fat },
-      Object.assign({}, ndExtra, { grams: basisGrams })
-    ) : null;
-  if (nq && ndExtra.estimated) nq.est = true;
   const implausible = final.kcal > 4000;
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   return (<div className="fade-in" ref={topRef}>
-    {explain && <DensityExplainer onClose={() => setExplain(false)} />}
     <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="16" /> Back</TextBtn>
     {estimated
       ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[11px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>Estimate</span>{note}</div>
@@ -15499,8 +15198,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
     <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : shortNoun} step={step} onStep={stepBy} label="How much did you have?" />
     <div className="my-3 flex flex-col gap-2.5">
-      <DensityBadge nq={nq} estimating={estimating} onExplain={() => setExplain(true)} />
-      <DayImpact rest={dayRest} target={dayTarget} add={final} label={'Logging ' + qtyLabel} verb="Adding" />
+      <AddImpact rest={dayRest} target={dayTarget} add={final} label={'Adding ' + qtyLabel} verb="Adding" fibre={{ state: fibreState }} onFibrePaywall={fibreState === 'unknown' && !isPrem ? fibrePaywall : null} />
       {implausible && <div className="text-[11px]" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the quantity.</div>}
     </div>
     {/* The app already had ONE disclosure component, used everywhere else; this panel was rolling
@@ -15510,7 +15208,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <div className="mb-2">
       <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
       <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => setMacro('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => setMacro('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => setMacro('fat', e.target.value)} /></Field></div>
-      <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={v.fiber} onChange={e => setMacro('fiber', e.target.value)} /></Field><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field></div>
+      <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)" hint={needsFibre ? 'Not known yet' : undefined}><NumInput value={v.fiber} onChange={e => { setFibreTouched(true); setMacro('fiber', e.target.value); }} /></Field><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field></div>
       {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <TextBtn onClick={applyAtwater} className="mt-1.5">Calculate calories from the macros ({atwaterK} kcal)</TextBtn>}
     </div>
     </Collapsible>
@@ -15522,7 +15220,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     {/* The commit sits ABOVE "Not the right food?". Below it, the gold button was under the fold behind
         a card offering the AI, on the very screen whose job is to say yes to this food. */}
     {(() => {
-      const payload = { name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq };
+      const payload = { name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: E.edStamp(final.kcal, unit === 'g' ? a : (sg > 0 ? a * sg : 0)), fiberUnknown: needsFibre && !estActive, fiberEst: estActive };
       return <>
         <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd(payload)}>{(kcalHigh || dodgy) ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
         {onAddMore && <Btn kind="ghost" className="w-full mt-2" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAddMore(payload)}>Add and log another</Btn>}
@@ -15546,7 +15244,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
    one and had scrolled off the top entirely by the time the commit button was reachable, so the
    decision was being taken with only one of the two numbers on screen. Both left unset, an add
    flow renders exactly as it did. */
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare, preferOne, db }) {
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare, preferOne, db, dayRest, dayTarget }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -15560,8 +15258,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const [items, setItems] = useState(() => (src.items || []).map(it => {
     const grams = +it.grams || 0;
     const kcal = +it.kcal || 0, protein = +it.protein_g || 0, carbs = +it.carbs_g || 0, fat = +it.fat_g || 0, fiber = +it.fiber_g || 0;
-    const satfat = +it.satfat_g || 0, sugars = +it.sugars_g || 0, salt = +it.salt_g || 0;
-    return { name: it.name || 'Item', grams: grams, kcal: kcal, protein: protein, carbs: carbs, fat: fat, fiber: fiber, satfat: satfat, sugars: sugars, salt: salt, assumption: it.assumption || '', userSpecified: !!it.user_specified, per: grams > 0 ? { kcal: kcal / grams, protein: protein / grams, carbs: carbs / grams, fat: fat / grams, fiber: fiber / grams, satfat: satfat / grams, sugars: sugars / grams, salt: salt / grams } : null };
+    return { name: it.name || 'Item', grams: grams, kcal: kcal, protein: protein, carbs: carbs, fat: fat, fiber: fiber, fiberUnknown: it.fiber_g == null, assumption: it.assumption || '', userSpecified: !!it.user_specified, per: grams > 0 ? { kcal: kcal / grams, protein: protein / grams, carbs: carbs / grams, fat: fat / grams, fiber: fiber / grams } : null };
   }));
   function setGrams(i, val) {
     setEdited(true);
@@ -15569,7 +15266,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       if (idx !== i) return it;
       if (val === '') return Object.assign({}, it, { grams: '' });
       const g = +val;
-      if (it.per && !isNaN(g)) return Object.assign({}, it, { grams: g, kcal: Math.round(it.per.kcal * g), protein: +(it.per.protein * g).toFixed(1), carbs: +(it.per.carbs * g).toFixed(1), fat: +(it.per.fat * g).toFixed(1), fiber: +(it.per.fiber * g).toFixed(1), satfat: +(it.per.satfat * g).toFixed(1), sugars: +(it.per.sugars * g).toFixed(1), salt: +(it.per.salt * g).toFixed(2) });
+      if (it.per && !isNaN(g)) return Object.assign({}, it, { grams: g, kcal: Math.round(it.per.kcal * g), protein: +(it.per.protein * g).toFixed(1), carbs: +(it.per.carbs * g).toFixed(1), fat: +(it.per.fat * g).toFixed(1), fiber: +(it.per.fiber * g).toFixed(1) });
       return Object.assign({}, it, { grams: g });
     }));
   }
@@ -15602,12 +15299,8 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
     setItems(arr => arr.map((it, idx) => {
       if (idx !== c.i) return it;
       const g = +it.grams || 0, p = c.profile;
-      const per = Object.assign({}, p, {
-        satfat: p.satfat == null ? (it.per ? it.per.satfat : 0) : p.satfat,
-        sugars: p.sugars == null ? (it.per ? it.per.sugars : 0) : p.sugars,
-        salt: p.salt == null ? (it.per ? it.per.salt : 0) : p.salt
-      });
-      return Object.assign({}, it, { per: per, kcal: Math.round(per.kcal * g), protein: +(per.protein * g).toFixed(1), carbs: +(per.carbs * g).toFixed(1), fat: +(per.fat * g).toFixed(1), fiber: +(per.fiber * g).toFixed(1), satfat: +(per.satfat * g).toFixed(1), sugars: +(per.sugars * g).toFixed(1), salt: +(per.salt * g).toFixed(2), assumption: 'Using ' + c.ref.split(',')[0].toLowerCase() });
+      const per = Object.assign({}, p);
+      return Object.assign({}, it, { per: per, kcal: Math.round(per.kcal * g), protein: +(per.protein * g).toFixed(1), carbs: +(per.carbs * g).toFixed(1), fat: +(per.fat * g).toFixed(1), fiber: +(per.fiber * g).toFixed(1), assumption: 'Using ' + c.ref.split(',')[0].toLowerCase() });
     }));
   }
   // Base total = the full meal the AI estimated (summed live from the possibly-edited breakdown, so
@@ -15620,18 +15313,17 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const only = single ? items[0] : null;
   const gStep = gramStep; // shared adaptive stepper
   const base = hadItems
-    ? items.reduce((a, it) => ({ kcal: a.kcal + (+it.kcal || 0), protein: a.protein + (+it.protein || 0), carbs: a.carbs + (+it.carbs || 0), fat: a.fat + (+it.fat || 0), fiber: a.fiber + (+it.fiber || 0), satfat: a.satfat + (+it.satfat || 0), sugars: a.sugars + (+it.sugars || 0), salt: a.salt + (+it.salt || 0), grams: a.grams + (+it.grams || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, satfat: 0, sugars: 0, salt: 0, grams: 0 })
-    : { kcal: +src.kcal || 0, protein: +src.protein_g || 0, carbs: +src.carbs_g || 0, fat: +src.fat_g || 0, fiber: +src.fiber_g || 0, satfat: +src.satfat_g || 0, sugars: +src.sugars_g || 0, salt: +src.salt_g || 0, grams: 0 };
+    ? items.reduce((a, it) => ({ kcal: a.kcal + (+it.kcal || 0), protein: a.protein + (+it.protein || 0), carbs: a.carbs + (+it.carbs || 0), fat: a.fat + (+it.fat || 0), fiber: a.fiber + (+it.fiber || 0), grams: a.grams + (+it.grams || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, grams: 0 })
+    : { kcal: +src.kcal || 0, protein: +src.protein_g || 0, carbs: +src.carbs_g || 0, fat: +src.fat_g || 0, fiber: +src.fiber_g || 0, grams: 0 };
   const p = Math.max(0, +portion || 0);
   const final = { kcal: Math.round(base.kcal * p), protein: +(base.protein * p).toFixed(1), carbs: +(base.carbs * p).toFixed(1), fat: +(base.fat * p).toFixed(1), fiber: +(base.fiber * p).toFixed(1) };
-  // Quality is judged on the whole meal as estimated, not on the portion of it you ate, so it reads
-  // the same whether you had half or all of it. The portion multiplier cancels out anyway. Scored
-  // only when the estimate actually returned the extra nutrients: an older or truncated reply that
-  // omitted them must read as unknown, not as a meal with no saturates, sugar or salt in it.
-  const gotExtras = hadItems
-    ? (src.items || []).some(it => it.satfat_g != null || it.sugars_g != null || it.salt_g != null)
-    : (src.satfat_g != null || src.sugars_g != null || src.salt_g != null);
-  const nq = gotExtras ? E.ndPer100kcal(base, { satfat: base.satfat, sugars: base.sugars, salt: base.salt, grams: base.grams }) : null;
+  // The energy density of the whole meal as estimated (the same figure whatever portion you had), kept
+  // so the estimate audit can compare it with something measured later.
+  const nq = E.edStamp(base.kcal, base.grams);
+  // Fibre is a required part of the estimate. If the reply omitted it, it is unknown rather than none,
+  // and Premium fills it in once the food is logged.
+  const fiberUnknown = hadItems ? items.some(it => it.fiberUnknown) : src.fiber_g == null;
+  const fibreState = (fiberUnknown && E.needsFibre({ fiberUnknown: true, kcal: final.kcal, carbs: final.carbs })) ? (window.MISPREMIUM === true ? 'pending' : 'unknown') : 'known';
   // -ink variants, not the raw accent hues: measured at 9px the accent shades came out 3.79:1,
   // under the 4.5:1 WCAG AA floor for text this size.
   const confColor = conf === 'high' ? 'var(--good-ink)' : conf === 'medium' ? 'var(--fat-ink)' : 'var(--danger-ink)';
@@ -15672,7 +15364,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const askOpts = (Array.isArray(src.question_options) ? src.question_options : []).map(o => String(o || '').trim()).filter(Boolean).slice(0, 4);
   const logItems = items
     .filter(it => (+it.grams) > 0 && (+it.kcal) > 0)
-    .map(it => ({ name: it.name, grams: Math.round((+it.grams) * p), nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null,
+    .map(it => ({ name: it.name, grams: Math.round((+it.grams) * p), nq: E.edStamp(it.kcal, it.grams), fiberUnknown: !!it.fiberUnknown,
       macros: { kcal: Math.round((+it.kcal) * p), protein: +((+it.protein || 0) * p).toFixed(1), carbs: +((+it.carbs || 0) * p).toFixed(1), fat: +((+it.fat || 0) * p).toFixed(1), fiber: +((+it.fiber || 0) * p).toFixed(1) } }));
   // Only worth splitting when there is genuinely more than one thing: a single-food estimate already
   // logs by grams, and a one-item "meal" would just be the same entry under a different code path.
@@ -15712,9 +15404,9 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
     </div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[var(--muted)] mb-0.5">Logging {portionLabel}</div>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[var(--muted)]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
+      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[var(--muted)]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span> · <span style={{ color: fibreState === 'unknown' ? 'var(--muted)' : 'var(--fib-ink)' }}>{fibreState === 'unknown' ? '?' : fibreState === 'pending' ? '…' : final.fiber}g Fib</span></div>
       {/* What this replaces, in the SAME box as what replaces it, because two numbers 443px apart
-          are not a comparison. Divider borrowed from the edit sheet's density row, which splits a
+          are not a comparison. Divider borrowed from the day meter's rule, which splits a
           surface3 block the same way. The delta is deliberately NOT coloured good/bad: more
           calories than you planned is a fact about a plate, not a verdict on you, and the app does
           not moralise food anywhere else either. */}
@@ -15729,6 +15421,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the portion.</div>}
       {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
     </div>
+    {!compare && <div className="mb-3"><AddImpact dayOnly rest={dayRest} target={dayTarget} add={final} fibre={{ state: fibreState }} onFibrePaywall={fibreState === 'unknown' ? fibrePaywall : null} /></div>}
     {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Could be {low}–{high} kcal</div>}
     {src.assumptions && <div className="text-[11px] text-[var(--muted)] mb-2 leading-relaxed">{src.assumptions}</div>}
     {/* One targeted question beats a generic "add more detail" nudge, and it lands AFTER a real
@@ -15780,13 +15473,13 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[var(--muted)] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => E.aiGramsOk(it.grams, it.kcal) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = E.aiGramsOk(only.grams, only.kcal); onAdd(g > 0 ? { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: fmtCount(g) + ' g', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq } : { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: '1 portion', macros: final, rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => E.aiGramsOk(it.grams, it.kcal) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: E.edStamp(it.kcal, it.grams) })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = E.aiGramsOk(only.grams, only.kcal); onAdd(g > 0 ? { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: fmtCount(g) + ' g', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq, fiberUnknown: fiberUnknown } : { name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: '1 portion', macros: final, rememberItems: remember, nq: nq, fiberUnknown: fiberUnknown }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq, fiberUnknown: fiberUnknown }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
     {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[var(--muted)] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
-function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
+function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles, day }) {
   const [text, setText] = useState('');
   // initialFiles arrives from the share sheet (a photo shared into the app) and from the Scan tab's
   // "describe it instead" route, both of which used to land on a second, near-identical estimator.
@@ -15844,7 +15537,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} db={db} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} db={db} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} dayRest={day && day.rest} dayTarget={day && day.target} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
   return (<div>
@@ -16139,7 +15832,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       verb={hasPlan && swap ? 'Swap in' : 'Add'}
       onAdd={it => onPick(Object.assign({}, it, { replaceIds: replacing }))}
       onAddItems={its => onAddItems(its, replacing)}
-      onCancel={() => { setEst(null); setPicked(null); }} />
+      onCancel={() => { setEst(null); setPicked(null); }} dayRest={day && day.rest} dayTarget={day && day.target} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
   if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish'
@@ -16785,12 +16478,12 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
         setParsed({ source: 'label', branded: true, servingG: sg, servingLabel: label, estimated,
           note: estimated ? ('Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat for one ' + label + '. Check them below and edit anything that\'s off.') : (srcNote + ' One ' + label + '. Change the amount below if you had more or less.'),
           perServing: { kcal: Math.round(+ps.kcal || 0), protein: +ps.protein_g || 0, carbs: +ps.carbs_g || 0, fat: +ps.fat_g || 0, fiber: +ps.fiber_g || 0 },
-          extra: labelExtras(ps),
+          fiberUnknown: ps.fiber_g == null,
           initial: { name: est.name || 'Scanned food' } });
       } else {
         setParsed({ per100: true, source: 'label', branded: true, servingG: sg, servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null), estimated,
           note: estimated ? ('Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat. Check them below and edit anything that\'s off.') : (srcNote + ' Pick the amount below.'),
-          extra: labelExtras(p100),
+          fiberUnknown: p100.fiber_g == null,
           initial: { name: est.name || 'Scanned food', kcal: Math.round(+p100.kcal || 0), protein: +p100.protein_g, carbs: +p100.carbs_g, fat: +p100.fat_g, fiber: +p100.fiber_g } });
       }
     } catch (e) { setErr('Label read failed: ' + e.message); } setBusy(''); }
@@ -16809,7 +16502,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
       }
       if (!j.product) { setNotFound(true); setBusy(''); return; }
       const n = j.product.nutriments || {};
-      setParsed({ per100: true, source: 'off', branded: true, barcode: code, note: 'From the Open Food Facts database. Check it looks right before logging.', servingG: +j.product.serving_quantity || null, servingLabel: j.product.serving_size || null, extra: offWithKind(offExtras(n), j.product), initial: { name: pname, kcal: Math.round(n['energy-kcal_100g'] || 0), protein: n.proteins_100g, carbs: n.carbohydrates_100g, fat: n.fat_100g, fiber: n.fiber_100g } });
+      setParsed({ per100: true, source: 'off', branded: true, barcode: code, note: 'From the Open Food Facts database. Check it looks right before logging.', servingG: +j.product.serving_quantity || null, servingLabel: j.product.serving_size || null, fiberUnknown: n.fiber_100g == null, initial: { name: pname, kcal: Math.round(n['energy-kcal_100g'] || 0), protein: n.proteins_100g, carbs: n.carbohydrates_100g, fat: n.fat_100g, fiber: n.fiber_100g } });
     } catch (e) { setErr('Lookup failed. Please try again.'); }
     setBusy('');
   }
@@ -16855,7 +16548,7 @@ const DRINK_CATS = {
 // [label, kcal] for a typical ~150ml mixer serving.
 const MIXERS = [['No mixer', 0], ['Cola', 63], ['Diet / slimline', 1], ['Tonic', 52], ['Slimline tonic', 4], ['Lemonade', 38], ['Soda / water', 0], ['Orange juice', 63]];
 const ETHANOL_G_PER_ML = 0.789, KCAL_PER_G_ALC = 7;
-function AlcoholTab({ onPick }) {
+function AlcoholTab({ onPick, day }) {
   const [cat, setCat] = useState('beer');
   const [styleIdx, setStyleIdx] = useState(0);
   const [abv, setAbv] = useState(DRINK_CATS.beer.styles[0][1]);
@@ -16918,9 +16611,9 @@ function AlcoholTab({ onPick }) {
       <button onClick={() => setCount(c => (+c || 1) + 1)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
       <div className="text-[12px] text-[var(--muted)] shrink-0 w-16 text-center">drink{n > 1 ? 's' : ''}</div>
     </div>
-    <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{totalKcal}</span> <span className="text-[12px] text-[var(--muted)]">kcal</span>{n > 1 && <span className="text-[11px] text-[var(--muted)]"> · {perDrink} each</span>}</div>
-    </div>
+    <div className="mb-3"><AddImpact rest={day && day.rest} target={day && day.target} noFibre
+      add={manual ? { kcal: totalKcal, protein: (+mc.protein || 0) * n, carbs: (+mc.carbs || 0) * n, fat: (+mc.fat || 0) * n } : { kcal: totalKcal, protein: 0, carbs: autoCarbs, fat: autoFat }}
+      label={(n > 1 ? n + ' drinks' : '1 drink') + (n > 1 ? ' · ' + perDrink + ' each' : '')} verb="Adding" /></div>
     <div className="mb-3"><Seg value={manual ? 'manual' : 'auto'} onChange={v => setManual(v === 'manual')} options={[{ v: 'auto', l: 'Auto split' }, { v: 'manual', l: 'Enter macros' }]} /></div>
     {!manual ? (<Field label={`Split: ${carbPct}% carbs · ${100 - carbPct}% fat`}><input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setCarbPct(+e.target.value)} className="w-full accent-[#4A9EEB]" /><div className="text-sm text-[var(--muted)] mt-2 tnum">= {autoCarbs.toFixed(1)}g carbs · {autoFat.toFixed(1)}g fat</div></Field>) : (<div className="grid grid-cols-3 gap-3"><Field label="Protein"><NumInput value={mc.protein} onChange={e => setMc(p => Object.assign({}, p, { protein: e.target.value }))} /></Field><Field label="Carbs"><NumInput value={mc.carbs} onChange={e => setMc(p => Object.assign({}, p, { carbs: e.target.value }))} /></Field><Field label="Fat"><NumInput value={mc.fat} onChange={e => setMc(p => Object.assign({}, p, { fat: e.target.value }))} /></Field></div>)}
     <Btn kind="accent" className="w-full mt-1" disabled={totalKcal <= 0} style={{ opacity: totalKcal <= 0 ? 0.5 : 1 }} onClick={add}>Add {n > 1 ? n + ' drinks' : 'drink'}</Btn>
@@ -19983,7 +19676,7 @@ function demoStateBuild() {
   // `nd` = [saturates, sugars, salt, portion grams] for the whole portion, which is what the real
   // logging paths capture; it feeds the quality bar. One entry deliberately has none, so the demo
   // also shows the partial-coverage state a real day full of older entries would be in.
-  // A week of real meals, priced from real UK nutrition per 100 g so the Density Score in the demo is
+  // A week of real meals, priced from real UK nutrition per 100 g so the fibre in the demo is
   // the genuine article rather than numbers picked to look good. Columns: kcal, protein, carbs, fat,
   // fibre, saturated fat, sugars, salt, and the fruit/veg/pulse share by weight.
   const DEMO_FOODS = {
@@ -20004,14 +19697,13 @@ function demoStateBuild() {
     'Sausage & bacon fry-up': [248, 13.6, 12.4, 16.2, 1.2, 5.8, 1.4, 1.85, 5],
     'Pizza (half a large)': [266, 11, 30.2, 10, 2.3, 4.4, 3.6, 1.2, 15],
   };
-  // grams of it, on that date, in that meal slot. `nq` is worked out the same way the real logging
-  // paths do it, so the demo exercises the actual scoring rather than a shortcut.
+  // grams of it, on that date, in that meal slot. `nq` is stamped the same way the real logging paths do it.
   const mk = (dateISO, meal, name, grams) => {
     const f = DEMO_FOODS[name], sc = grams / 100;
     const m = { kcal: Math.round(f[0] * sc), protein: +(f[1] * sc).toFixed(1), carbs: +(f[2] * sc).toFixed(1), fat: +(f[3] * sc).toFixed(1), fiber: +(f[4] * sc).toFixed(1) };
     return {
       id: Store.uid(), date: dateISO, meal_id: meal, name, qty_label: grams + ' g', computed_macros: m,
-      nq: E.ndPer100kcal(m, { satfat: f[5] * sc, sugars: f[6] * sc, salt: f[7] * sc, fvl: f[8], grams: grams }),
+      nq: E.edStamp(m.kcal, grams),
     };
   };
   const booze = (dateISO, name, kcal) => ({
@@ -20020,11 +19712,10 @@ function demoStateBuild() {
   });
   const D = (ago) => shiftISO(today, -ago);
   s.log_entries = [
-    // Today: a good day in progress, with one older entry left unscored so the "couldn't be scored"
-    // state is visible too.
+    // Today: a good day in progress.
     mk(today, 'm_1', 'Porridge, banana & whey', 360),
     mk(today, 'm_2', 'Chicken & rice bowl', 470),
-    Object.assign(mk(today, 'm_s', 'Apple', 180), { nq: null }),
+    mk(today, 'm_s', 'Apple', 180),
     // Yesterday: strong.
     mk(D(1), 'm_1', 'Eggs on wholemeal toast', 250), mk(D(1), 'm_2', 'Chicken salad wrap', 260),
     mk(D(1), 'm_3', 'Lentil & veg dhal', 450), mk(D(1), 'm_s', 'Greek yoghurt & berries', 200),
@@ -20742,7 +20433,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
    Function pulls the public text -> ai-proxy structures it into ingredients + steps + per-serving
    macros -> save it, tick what you have (the rest rolls up into a shopping list), and log a cooked
    serving straight into the food diary via the same addEntry path everything else uses. */
-const MACRO_KEYS = [['kcal', 'kcal', CAL], ['protein', 'P', PRO], ['carbs', 'C', CARB], ['fat', 'F', FAT], ['fiber', 'Fibre', 'var(--good)']];
+const MACRO_KEYS = [['kcal', 'kcal', CAL], ['protein', 'P', PRO], ['carbs', 'C', CARB], ['fat', 'F', FAT], ['fiber', 'Fibre', 'var(--fib)']];
 function RecipeMacroStrip({ macros, per }) {
   return (<div className="flex flex-wrap gap-x-4 gap-y-1">
     {MACRO_KEYS.map(([k, l, c]) => (
@@ -20993,7 +20684,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
 async function offSearchByName(query) {
   const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,nutriments,categories_tags';
   const j = await (await fetch(url)).json();
-  return (j.products || []).map(p => { const n = p.nutriments || {}; const k = +n['energy-kcal_100g']; if (!p.product_name || !k) return null; return { name: p.product_name, brand: p.brands || '', code: p.code || '', per100: { kcal: Math.round(k), protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, extra: offWithKind(offExtras(n), p) }; }).filter(Boolean).slice(0, 12);
+  return (j.products || []).map(p => { const n = p.nutriments || {}; const k = +n['energy-kcal_100g']; if (!p.product_name || !k) return null; return { name: p.product_name, brand: p.brands || '', code: p.code || '', per100: { kcal: Math.round(k), protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, fiberUnknown: n.fiber_100g == null }; }).filter(Boolean).slice(0, 12);
 }
 // Override one ingredient's macros by any method. Calls onResolve(macros, meta) with the macros for
 // this whole ingredient. AI estimates the line; Manual takes your own numbers; Search finds a UK brand
@@ -22138,19 +21829,19 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
 function Paywall({ reason, onCheckout, onClose }) {
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
-  const headline = reason === 'quality' ? 'Food quality is Premium'
+  const headline = reason === 'fibre' ? 'Fibre on every food is Premium'
     : reason === 'premium_required' ? 'Body-fat scans are Premium'
     : reason === 'free_limit' ? "You've used your free AI logs"
     : 'Unlock Macrosaurus Premium';
   const blurb = reason === 'free_limit'
     ? `That's your ${FREE_AI_MONTHLY} free AI logs for this month. Go Premium for unlimited AI logging.`
-    : reason === 'quality'
-    ? 'Premium scores the nutrient density of everything you log, so you can see how well you ate, not just how much.'
+    : reason === 'fibre'
+    ? 'Premium fills in the fibre your foods are missing, so your daily fibre is real rather than an undercount.'
     : reason === 'premium_required'
     ? 'AI body-fat estimates from a progress photo are a Premium feature.'
     : 'More AI, more insight, same honest coaching.';
   const benefits = [
-    ['Food quality scoring', 'Every food rated on nutrient density, and a daily quality score on Today'],
+    ['Fibre on every food', 'Missing fibre filled in automatically, so your daily fibre is real'],
     ['Unlimited AI logging', 'Snap a meal, scan a label, or describe it, with no monthly limit'],
     ['Body-fat photo scans', 'Estimate your body fat from a progress photo'],
     ['Everything in Free', 'Barcode, database, manual entry, the adaptive engine and the whole game'],
@@ -22761,13 +22452,20 @@ function App() {
       // nq is portion-independent, so one-tap re-logging a food you have logged before inherits the
       // nutrient record it already carries instead of landing in the log as unscored.
       const nq = item.nq || (food && food.nq) || null;
+      // Fibre nobody told us is `fiber_pending` (Premium fills it in; a free account sees "?"), never a
+      // quiet 0. Foods with no carbohydrate are settled at once: they have no fibre to find.
+      const fibPending = E.needsFibre({ fiberUnknown: item.fiberUnknown, kcal: macros.kcal, carbs: macros.carbs, is_alcohol: item.is_alcohol });
       // serving_g rides along so the edit sheet can offer the grams/portions toggle later. Without
       // it the two units cannot be converted, and editing was stuck with whatever unit you logged in.
-      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, serving_label: item.savedServingLabel || undefined, computed_macros: macros, nq: nq, sort_order: d.log_entries.length });
+      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, serving_label: item.savedServingLabel || undefined, computed_macros: macros, nq: nq, fiber_pending: fibPending || undefined, fiber_est: item.fiberEst || undefined, sort_order: d.log_entries.length });
       // A saved food keeps the best record we have ever had for it: a fresh one replaces it, but
       // re-logging from a path that carries none must not wipe it.
       if (food) { food.macros = macros; food.last_qty = item.qtyLabel || food.last_qty; if (item.nq) food.nq = item.nq; food.updated_at = Date.now(); }
       else { food = { id: Store.uid(), name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, is_favorite: false, last_qty: item.qtyLabel || '', macros: macros, nq: item.nq || null, alcohol_split: item.alcohol_split, updated_at: Date.now() }; d.foods.push(food); }
+      // The saved food remembers whether its fibre is known, so re-logging it one tap later carries
+      // the same status, and an estimate that arrives later can settle it for good.
+      if (fibPending) food.fiber_unknown = true; else delete food.fiber_unknown;
+      if (item.fiberEst) food.fiber_est = true; else if (!fibPending && item.fiberUnknown !== undefined) delete food.fiber_est;
       // Smart foods: if the user corrected the numbers, remember the per-unit values so the next scan or
       // database pick of this food starts from THEIR figures. Barcode kept as the strongest match key.
       if (food && item.edited && item.baseMacros) {
@@ -22804,7 +22502,7 @@ function App() {
       const macros = normalizeMacros(it.macros, false);
       const rk = (it.name || '').trim().toLowerCase(); const g = +it.grams || 0;
       let rf = rk ? d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol) : null;
-      d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: 'food', name: it.name, source: source, is_alcohol: false, qty_label: g > 0 ? g + ' g' : '', computed_macros: macros, nq: it.nq || (rf && rf.nq) || null, sort_order: d.log_entries.length + i });
+      d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: 'food', name: it.name, source: source, is_alcohol: false, qty_label: g > 0 ? g + ' g' : '', computed_macros: macros, nq: it.nq || (rf && rf.nq) || null, fiber_pending: E.needsFibre({ fiberUnknown: it.fiberUnknown, kcal: macros.kcal, carbs: macros.carbs }) || undefined, sort_order: d.log_entries.length + i });
       if (!rk) return;
       if (!rf) { rf = { id: Store.uid(), name: it.name, source: source, is_alcohol: false, is_favorite: false, last_qty: g > 0 ? g + ' g' : '', macros: macros, updated_at: Date.now() }; d.foods.push(rf); }
       else { rf.macros = macros; rf.last_qty = g > 0 ? g + ' g' : rf.last_qty; rf.updated_at = Date.now(); }
@@ -22839,7 +22537,7 @@ function App() {
     update(d => {
       items.forEach((item, i) => {
         const f = d.foods.find(x => x.name.trim().toLowerCase() === (item.name || '').trim().toLowerCase() && !!x.is_alcohol === !!item.is_alcohol);
-        d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), nq: item.nq || (f && f.nq) || null, sort_order: d.log_entries.length + i });
+        d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), nq: item.nq || (f && f.nq) || null, fiber_pending: E.needsFibre({ fiberUnknown: item.fiberUnknown || (f && f.fiber_unknown), kcal: (item.macros || {}).kcal, carbs: (item.macros || {}).carbs, is_alcohol: item.is_alcohol }) || undefined, fiber_est: item.fiberEst || undefined, sort_order: d.log_entries.length + i });
       });
     });
     setAdding(null);

@@ -293,226 +293,45 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Nutrient density / food quality
+  // Energy density stamp
   //
-  // Modelled on the USDA's Healthy Eating Index (HEI-2020), the validated 0-100 diet quality score,
-  // rather than on thresholds of our own invention. Three things are taken from it directly:
-  //
-  //  1. DENSITY, not amount. HEI scores nutrients per 1,000 kcal, so the measure asks what each
-  //     calorie buys you. We work per 100 kcal, which is the same idea: a small portion and a large
-  //     one of the same food score identically, and eating more can never inflate the score.
-  //  2. PROPORTIONAL components. Each component earns its points on a sliding scale between a
-  //     minimum standard (0 points) and a maximum (full points), rather than being clamped at a
-  //     single cutoff. This is what stops every whole food pinning at the top of the scale.
-  //  3. The published STANDARDS themselves, where we hold the same data HEI does:
-  //       fatty acids   (PUFA+MUFA)/SFA  <=1.2 scores 0, >=2.5 scores full   [HEI-2020, 10 pts]
-  //       saturated fat  <=8% of energy scores full, >=16% scores 0          [HEI-2020, 10 pts]
-  //       sodium         <=1.1 g/1000 kcal full, >=2.0 g/1000 kcal zero      [HEI-2020, 10 pts]
-  //       protein foods  >=2.5 oz-equivalents per 1,000 kcal for full marks  [HEI-2020, 5 pts]
-  //     Sodium is converted to the salt figure UK labels print (salt = sodium x 2.5), and protein
-  //     oz-equivalents to grams at the standard 7 g of protein per ounce-equivalent.
-  //
-  // Three deliberate departures, each forced by the data a UK label actually carries:
-  //
-  //  a. HEI's adequacy side is built on FOOD GROUPS (greens, whole grains, dairy), which we cannot
-  //     compute from a nutrition panel. Fibre stands in for them, scored against the Institute of
-  //     Medicine's Adequate Intake of 14 g per 1,000 kcal. Fibre tracks the same foods those groups
-  //     are trying to capture.
-  //  b. HEI limits ADDED sugars; a label only prints TOTAL sugars, which also counts the sugar in
-  //     fruit and milk. Scoring total sugars against HEI's added-sugar standard would punish an
-  //     apple as though it were a biscuit, so the standard is loosened (10% to 30% of energy rather
-  //     than 6.5% to 26%) and fibre discounts the figure, on the reasoning that sugar arriving with
-  //     fibre is the intrinsic kind. This is the least exact part of the score.
-  //  c. HEI has no energy-density component and does not need one, because it can see food groups.
-  //     Without them, foods whose value is micronutrients (fruit, veg, milk, soup) look empty, so
-  //     low energy density earns points as a proxy for whole plant foods. It is GATED on the food
-  //     carrying some protein or fibre, otherwise beer and squash would score well for being mostly
-  //     water.
-  //
-  // Alcohol follows HEI-2015 and later: it is not scored as a component, but its calories still
-  // count towards the day's total, so a heavy night dilutes the day rather than being ignored.
-  // See ndDay.
-  var ND_PROTEIN_FULL = 17.5;              // g per 1000 kcal (2.5 oz-eq x 7 g), HEI total protein foods
-  var ND_FIBER_FULL = 14;                  // g per 1000 kcal, Institute of Medicine Adequate Intake
-  var ND_FAT_RATIO_MIN = 1.2, ND_FAT_RATIO_MAX = 2.5;   // (PUFA+MUFA)/SFA, HEI fatty acids
-  var ND_SATFAT_BEST = 8, ND_SATFAT_WORST = 16;         // % of energy, HEI saturated fats
-  var ND_SUGAR_BEST = 10, ND_SUGAR_WORST = 30;          // % of energy, HEI added-sugar standard loosened for total sugars
-  var ND_SALT_BEST = 2.75, ND_SALT_WORST = 5.0;         // g salt per 1000 kcal (HEI sodium 1.1-2.0 g x 2.5)
-  var ND_ED_BEST = 50, ND_ED_WORST = 350;               // kcal per 100 g, the whole-food proxy
-  var ND_VOLUME_GATE = 0.30;               // share of the protein+fibre marks needed to earn it in full
-  var ND_SUGAR_FIBER_OFFSET = 2;           // g of sugar forgiven per g of fibre, per 100 kcal
-  // Points per component, in HEI's own proportions: the things you eat more of are worth less
-  // individually than the things you are trying to limit.
-  var ND_POINTS = { protein: 5, fiber: 10, fatRatio: 10, satfat: 10, sugars: 10, salt: 10, volume: 10 };
-  var ND_MAX_POINTS = 65;
-  // Bands follow the published HEI-2020 cut points, so "good" means what it means in the literature
-  // rather than what felt right: high >=70, marginal 60-70, low 50-60, very low <=50. The US
-  // population averages 58, which is the honest benchmark for a typical day.
-  var ND_TARGET = 70;
-  var ND_POPULATION_AVERAGE = 58;
-
-  function ndClampPct(x) { return clamp(x, 0, 1); }
-  // Points earned on a sliding scale between a zero-point standard and a full-point one, in either
-  // direction (more is better for fibre, less is better for salt).
-  function ndBetween(value, zeroAt, fullAt, points) {
-    if (!isFinite(value)) return 0;
-    return ndClampPct((value - zeroAt) / (fullAt - zeroAt)) * points;
+  // Every logged food carries `nq.ed`: its kcal per 100 g. The estimate audit below reads it to tell
+  // whether an AI figure disagrees with something measured, so it outlives the Density Score that
+  // used to share the record. Null below 5 kcal or with no weight, where the division means nothing.
+  function edStamp(kcal, grams) {
+    kcal = +kcal || 0; grams = +grams || 0;
+    if (kcal < 5 || !(grams > 0)) return null;
+    return { ed: kcal / grams * 100 };
   }
 
-  // n = grams PER 100 KCAL: { protein, fiber, satfat, sugars, salt, fat }, plus `ed` = the food's
-  // energy density in kcal per 100 g. Missing values are treated as absent rather than guessed, so
-  // callers should only score foods they have data for (see ndDay, which reports coverage instead
-  // of quietly inventing numbers). A food with no `ed` simply forgoes the volume points.
-  function ndScore(n) { return Math.round(ndBreakdown(n).score); }
-
-  // The same score with its components exposed, so the app can say WHY a food or a day scored what
-  // it did instead of showing a bare number.
-  function ndBreakdown(n) {
-    n = n || {};
-    var protein = Math.max(0, +n.protein || 0);
-    var fiber = Math.max(0, +n.fiber || 0);
-    var satfat = Math.max(0, +n.satfat || 0);
-    var salt = Math.max(0, +n.salt || 0);
-    var fat = Math.max(0, +n.fat || 0);
-    var unsat = Math.max(0, fat - satfat);
-    // Sugar arriving with fibre is treated as the intrinsic kind, per the note above.
-    var sugars = Math.max(0, (+n.sugars || 0) - fiber * ND_SUGAR_FIBER_OFFSET);
-
-    // Everything below is per 100 kcal, so a "per 1000 kcal" standard is a tenth of its stated value
-    // and a "% of energy" standard converts through the 9 and 4 kcal per gram of fat and sugar.
-    var pProtein = ndBetween(protein, 0, ND_PROTEIN_FULL / 10, ND_POINTS.protein);
-    var pFiber = ndBetween(fiber, 0, ND_FIBER_FULL / 10, ND_POINTS.fiber);
-    // A food with fat but none of it saturated is at the top of the ratio scale, not undefined.
-    var ratio = satfat > 0 ? unsat / satfat : (unsat > 0 ? ND_FAT_RATIO_MAX : null);
-    var pRatio = ratio == null ? ND_POINTS.fatRatio / 2   // no fat at all is neither good nor bad here
-      : ndBetween(ratio, ND_FAT_RATIO_MIN, ND_FAT_RATIO_MAX, ND_POINTS.fatRatio);
-    var pSatfat = ndBetween(satfat * 9, ND_SATFAT_WORST, ND_SATFAT_BEST, ND_POINTS.satfat);
-    var pSugars = ndBetween(sugars * 4, ND_SUGAR_WORST, ND_SUGAR_BEST, ND_POINTS.sugars);
-    var pSalt = ndBetween(salt * 10, ND_SALT_WORST, ND_SALT_BEST, ND_POINTS.salt);
-
-    var gate = ndClampPct((pProtein / ND_POINTS.protein + pFiber / ND_POINTS.fiber) / 2 / ND_VOLUME_GATE);
-    var ed = +n.ed;
-    var pVolume = (isFinite(ed) && ed > 0)
-      ? ndBetween(ed, ND_ED_WORST, ND_ED_BEST, ND_POINTS.volume) * gate
-      : 0;
-
-    var total = pProtein + pFiber + pRatio + pSatfat + pSugars + pSalt + pVolume;
-    return {
-      score: clamp(total / ND_MAX_POINTS * 100, 0, 100),
-      parts: { protein: pProtein, fiber: pFiber, fatRatio: pRatio, satfat: pSatfat, sugars: pSugars, salt: pSalt, volume: pVolume },
-      max: ND_POINTS,
-    };
-  }
-
-  // Convert a logged portion (absolute grams for that portion) to the per-100-kcal basis ndScore
-  // wants. `extra.grams` is the portion weight, used only for energy density; without it the food
-  // still scores, just without the volume credit. Returns null below 5 kcal, where the division
-  // stops meaning anything (a squirt of sauce, a black coffee) and rounding would swing the score.
-  function ndPer100kcal(macros, extra) {
-    macros = macros || {}; extra = extra || {};
-    var kcal = +macros.kcal || 0;
-    if (kcal < 5) return null;
-    var f = 100 / kcal;
-    var grams = +extra.grams || 0;
-    var out = {
-      protein: (+macros.protein || 0) * f,
-      fiber: (+macros.fiber || 0) * f,
-      fat: (+macros.fat || 0) * f,
-      satfat: (+extra.satfat || 0) * f,
-      sugars: (+extra.sugars || 0) * f,
-      salt: (+extra.salt || 0) * f,
-    };
-    // A share of the food's weight, not an amount, so it does not scale with the portion.
-    if (extra.fvl != null) out.fvl = clamp(+extra.fvl || 0, 0, 100);
-    // Whether this is a drink decides which Nutri-Score table applies, so it travels with the food.
-    if (extra.beverage) out.bev = true;
-    if (extra.water) out.water = true;
-    if (grams > 0) out.ed = kcal / grams * 100;
-    return out;
-  }
-
-  // The day's score. HEI scores a whole day's eating in one pass rather than averaging the foods in
-  // it, and that is what we do here: add up everything eaten, work out the day's nutrient density,
-  // then score that once. Scoring the aggregate matters, because a food eaten alongside others is
-  // judged in their company. It is also what makes ALCOHOL behave correctly with no special case
-  // (HEI-2015 onwards): a drink brings calories and no nutrients, so it dilutes the day's density
-  // and drags the score down, exactly as a night out should.
+  // ---------------------------------------------------------------------------
+  // Fibre we do not know yet
   //
-  // Entries are { kcal, nq, alcohol } where nq is the stored per-100-kcal record. Entries with no
-  // nq are counted in `uncovered` and left out entirely, rather than assumed good or bad.
-  function ndDay(entries) {
-    var sum = { protein: 0, fiber: 0, fat: 0, satfat: 0, sugars: 0, salt: 0, grams: 0 };
-    var kcalScored = 0, kcalTotal = 0, gramsKnown = true;
-    (entries || []).forEach(function (e) {
-      var kcal = Math.max(0, +(e && e.kcal) || 0);
-      if (!e || kcal <= 0) return;
-      kcalTotal += kcal;
-      // Alcohol counts towards the day's calories but contributes no nutrients, so it dilutes rather
-      // than being quietly excused. It is never "uncovered": we know exactly what it brings, nothing.
-      if (e.alcohol) { kcalScored += kcal; gramsKnown = false; return; }
-      if (!e.nq) return;
-      kcalScored += kcal;
-      var f = kcal / 100;   // nq is per 100 kcal, so this converts back to absolute grams
-      sum.protein += (+e.nq.protein || 0) * f;
-      sum.fiber += (+e.nq.fiber || 0) * f;
-      sum.fat += (+e.nq.fat || 0) * f;
-      sum.satfat += (+e.nq.satfat || 0) * f;
-      sum.sugars += (+e.nq.sugars || 0) * f;
-      sum.salt += (+e.nq.salt || 0) * f;
-      if (e.nq.ed > 0) sum.grams += kcal / e.nq.ed * 100; else gramsKnown = false;
-    });
-    var day = null;
-    if (kcalScored > 0) {
-      day = ndPer100kcal({ kcal: kcalScored, protein: sum.protein, fiber: sum.fiber, fat: sum.fat },
-        { satfat: sum.satfat, sugars: sum.sugars, salt: sum.salt, grams: gramsKnown ? sum.grams : 0 });
-    }
-    var score = day ? ndScore(day) : null;
-    return {
-      score: score,
-      breakdown: day ? ndBreakdown(day) : null,
-      target: ND_TARGET,
-      average: ND_POPULATION_AVERAGE,
-      hit: score != null && score >= ND_TARGET,
-      kcalScored: Math.round(kcalScored),
-      kcalTotal: Math.round(kcalTotal),
-      coverage: kcalTotal > 0 ? kcalScored / kcalTotal : 0,
-      uncovered: Math.round(Math.max(0, kcalTotal - kcalScored)),
-    };
+  // Missing fibre used to be stored as 0, which is a claim ("this food has none") nobody made. An
+  // item now carries `fiberUnknown` when its source simply did not say, and Premium fills it in with
+  // one cheap model call. Zero-carb foods (meat, fish, eggs, oils, most cheese) have no fibre to
+  // find, so they are settled for free and never reach the model.
+  function needsFibre(o) {
+    o = o || {};
+    if (!o.fiberUnknown || o.is_alcohol) return false;
+    return (+o.kcal || 0) >= 20 && (+o.carbs || 0) >= 2;
   }
-
-  // A run of days, for the trend. `days` is [{ date, entries }]. Days with nothing scoreable are
-  // reported but left out of the average, so a day you did not log cannot read as a bad one.
-  // The average is what actually matters: HEI is a measure of a dietary PATTERN, and one heavy
-  // Saturday inside a good week is not the same thing as a bad week.
-  function ndTrend(days) {
-    var scored = [], total = 0;
-    (days || []).forEach(function (d) {
-      var r = ndDay(d.entries);
-      scored.push({ date: d.date, score: r.score, hit: r.hit });
-      if (r.score != null) total += r.score;
-    });
-    var withScore = scored.filter(function (d) { return d.score != null; });
-    return {
-      days: scored,
-      average: withScore.length ? Math.round(total / withScore.length) : null,
-      daysScored: withScore.length,
-      daysHit: withScore.filter(function (d) { return d.hit; }).length,
-      target: ND_TARGET,
-    };
+  // Hold a model's fibre figure to what the food can plausibly carry. Fibre is 2 kcal/g, so more than
+  // 20% of the portion's energy as fibre is implausible outside bran, and it can never outweigh the
+  // food itself. Returns null for anything unusable so the caller leaves the food unestimated.
+  function clampFibre(f, o) {
+    o = o || {};
+    if (f == null || f === '' || !isFinite(+f) || +f < 0) return null;
+    var v = +f, kcal = +o.kcal || 0, grams = +o.grams || 0;
+    if (kcal > 0) v = Math.min(v, kcal * 0.1);
+    if (grams > 0) v = Math.min(v, grams * 0.45);
+    return Math.round(v * 10) / 10;
   }
-
-  // Which of a day's entries still need a nutrient estimate, as a STABLE key.
-  //
-  // This exists because the app's update() deep-clones state, so `db.log_entries` has a new array
-  // identity after every change anywhere in the app. An effect that depends on that identity re-runs
-  // constantly, and if it cancels its in-flight work on cleanup it will never finish anything. The
-  // key changes only when the actual set of unscored entries changes, which is the real trigger.
-  function pendingNqIds(entries, date) {
+  // Which of a day's entries are waiting on a fibre estimate, as a STABLE key (update() deep-clones state, so the array identity changes on
+  // every write and only the set of ids is a real trigger).
+  function pendingFibreIds(entries, date) {
     return (entries || [])
-      .filter(function (e) {
-        return e && e.date === date && !e.nq && !e.is_alcohol
-          && Math.max(0, +((e.computed_macros || {}).kcal) || 0) >= 5;
-      })
+      .filter(function (e) { return e && e.date === date && e.fiber_pending && !e.is_alcohol; })
       .map(function (e) { return e.id; })
       .sort()
       .join(',');
@@ -577,7 +396,7 @@
   // same dish should not come out at 166 kcal one day and 173 the next.
   //
   // Everything keys on kcal per 100 g, which every entry carries as `nq.ed` (the same figure the
-  // Density Score reads), so a gram weight does not have to be parsed back out of a free-text
+  // fibre and portion maths read), so a gram weight does not have to be parsed back out of a free-text
   // quantity label such as "1 burger bun (65 g)". Where it is missing the old grams/amount fields
   // are the fallback; where neither is there the entry simply takes no part.
 
@@ -625,6 +444,8 @@
     if (ed > 0) return ed;
     var k = e.computed_macros ? +e.computed_macros.kcal : 0;
     if (e.unit === 'g' && +e.amount > 0 && k > 0) return k / +e.amount * 100;
+    // Logged by the portion: the grams per portion that rode along when it was logged give the weight.
+    if (e.unit === 'serv' && +e.amount > 0 && +e.serving_g > 0 && k > 0) return k / (+e.amount * +e.serving_g) * 100;
     return 0;
   }
   // A logged entry as a per-100 g profile. Macros ride on the entry's own kcal-to-density ratio, so
@@ -809,17 +630,10 @@
     return 'dino';
   }
 
-  // How a food's tile should be coloured. Two palettes that must never share a screen:
-  //   'score'   - premium, scored: the tile wears the Density Score, so colour carries meaning
-  //   'neutral' - premium, unscored (or alcohol): plainly "not scored", never a status colour
-  //   'kind'    - free: the tile wears its food type, which is decoration and nothing more
-  // A free account never sees a status colour here, so its green cannot be misread as "good"; a
-  // premium account never sees a type colour, so its amber cannot be misread as "grain".
+  // How a food's tile is coloured: its food type, or plainly neutral for alcohol (never graded).
   function foodTileTone(opts) {
     opts = opts || {};
-    if (!opts.premium) return 'kind';
-    if (opts.isAlcohol || !opts.scored) return 'neutral';
-    return 'score';
+    return opts.isAlcohol ? 'neutral' : 'kind';
   }
 
   // ---------------------------------------------------------------------------
@@ -846,220 +660,6 @@
     var lit = denom > 0 ? Math.round(clamp(v, 0, denom) / denom * cells) : 0;
     var over = (!opts.overIsFine && t > 0 && v > t) ? Math.max(0, lit - goal) : 0;
     return { cells: cells, lit: lit, goal: goal, over: over };
-  }
-
-  // The status band a quality score sits in, as a token name rather than a colour. The UI maps the
-  // token to a variable; keeping the decision here is what stops a macro's identity hue being
-  // reused for a state, which is exactly what went wrong when "middling" wore the fat colour.
-  function densityTone(score) {
-    if (score == null) return 'muted';
-    if (score >= ND_TARGET) return 'good';
-    if (score >= 50) return 'warn';
-    return 'danger';
-  }
-
-  // ---------------------------------------------------------------------------
-  // Per-food grade (Nutri-Score 2023)
-  //
-  // The day score above is a dietary-pattern measure, and applying it to a single food goes wrong in
-  // both directions: a food with nothing in it earns full marks for containing no saturated fat, and
-  // a calorie-dense salty snack looks unsalted once you divide its salt by its calories. Nutri-Score
-  // is the validated model built for the other job, judging one food per 100 g, with energy itself
-  // as a penalty. So each measure is used where it holds: HEI for the day, Nutri-Score for the food.
-  //
-  // 2023 algorithm, general (solid) foods. The fruit/vegetable/legume share is supplied as a
-  // percentage by weight (`fvl`), which the food database sometimes publishes and the AI estimator
-  // otherwise judges; without it whole fruit and nuts land a grade low, since their virtue is
-  // exactly what that component measures. One knowing gap remains: drinks are scored on the
-  // solid-food table, because nothing in our data says a food is a drink, which is gentler on sugary
-  // drinks than the real beverage table. Alcohol is not graded at all, as in Nutri-Score itself.
-  var NS_GRADES = [['A', 1], ['B', 3], ['C', 11], ['D', 19]];   // upper bounds; anything above is E
-  // Drinks are scored on their own, stricter table, because a liquid's calories are swallowed
-  // without registering as food: 390 kJ per 100 ml is the worst band for a drink where a solid food
-  // is allowed 3,350. Without this a sugary drink scored like a mild snack. Nutri-Score reserves A
-  // for water alone, so the best any other drink can reach is B.
-  var NS_BEV_GRADES = [['B', 3], ['C', 7], ['D', 10]];          // upper bounds; anything above is E
-  var NS_BEV_PROTEIN = [1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0];     // g per 100 ml, one point each
-  function nsBevFvlPoints(pct) {
-    if (!(pct > 40)) return 0;
-    if (pct > 80) return 6;
-    if (pct > 60) return 4;
-    return 2;
-  }
-  // Fruit, vegetable and legume share by weight, and the points it earns.
-  function nsFvlPoints(pct) {
-    if (!(pct > 40)) return 0;
-    if (pct > 80) return 5;
-    if (pct > 60) return 2;
-    return 1;
-  }
-  function nsSteps(value, first, step, max) {
-    if (!(value > 0) || value < first) return 0;
-    return Math.min(max, Math.floor((value - first) / step) + 1);
-  }
-  // The drinks table. Energy runs 30 to 390 kJ per 100 ml and sugars 0.5 to 11 g, both far tighter
-  // than the solid-food scale, and protein always counts (there is no "too negative to earn it"
-  // rule here). Plain water is the only drink that can reach A, which the caller flags.
-  function nutriScoreBeverage(p100ml, kcal) {
-    var kJ = kcal * 4.184;
-    var neg = nsSteps(kJ, 30, 36, 10)
-      + nsSteps(+p100ml.sugars || 0, 0.5, 1.05, 10)
-      + Math.min(10, Math.floor(Math.max(0, +p100ml.satfat || 0)))
-      + Math.min(20, Math.floor(Math.max(0, +p100ml.salt || 0) / 0.2));
-    var proteinPts = 0, protein = Math.max(0, +p100ml.protein || 0);
-    for (var i = 0; i < NS_BEV_PROTEIN.length; i++) { if (protein >= NS_BEV_PROTEIN[i]) proteinPts = i + 1; }
-    var fvlPts = nsBevFvlPoints(+p100ml.fvl || 0);
-    var points = neg - (proteinPts + fvlPts);
-    var grade = 'E';
-    if (p100ml.water) grade = 'A';
-    else {
-      for (var g = 0; g < NS_BEV_GRADES.length; g++) { if (points < NS_BEV_GRADES[g][1]) { grade = NS_BEV_GRADES[g][0]; break; } }
-    }
-    return { points: points, grade: grade, negative: neg, positive: proteinPts + fvlPts, beverage: true };
-  }
-  // p100g = per 100 g (or per 100 ml for a drink):
-  //   { kcal, protein, fiber, fat, satfat, sugars, salt, fvl, beverage, water }
-  function nutriScore(p100g) {
-    if (!p100g) return null;
-    var kcal = Math.max(0, +p100g.kcal || 0);
-    if (p100g.beverage) return nutriScoreBeverage(p100g, kcal);
-    if (kcal <= 0) return null;
-    var kJ = kcal * 4.184;
-    // Negative: energy 0-10 in 335 kJ steps; sugars 0-15 from 3.4 g in 3.4 g steps; saturated fat
-    // 0-10 at a point per gram; salt 0-20 in 0.2 g steps.
-    var neg = Math.min(10, Math.floor(kJ / 335))
-      + nsSteps(+p100g.sugars || 0, 3.4, 3.4, 15)
-      + Math.min(10, Math.floor(Math.max(0, +p100g.satfat || 0)))
-      + Math.min(20, Math.floor(Math.max(0, +p100g.salt || 0) / 0.2));
-    // Positive: fibre 0-5 from 3.0 g in 1.1 g steps; protein 0-7 from 2.4 g in 2.433 g steps;
-    // fruit/veg/legumes by share of weight.
-    var fiberPts = nsSteps(+p100g.fiber || 0, 3.0, 1.1, 5);
-    var proteinPts = nsSteps(+p100g.protein || 0, 2.4, (17 - 2.4) / 6, 7);
-    var fvlPts = nsFvlPoints(+p100g.fvl || 0);
-    // Protein stops counting once a food is far enough into the negative, so a salty, fatty product
-    // cannot buy its way back with protein alone. Fibre and the plant share always count.
-    var points = neg >= 11 ? neg - (fiberPts + fvlPts) : neg - (fiberPts + proteinPts + fvlPts);
-    var grade = 'E';
-    for (var i = 0; i < NS_GRADES.length; i++) { if (points < NS_GRADES[i][1]) { grade = NS_GRADES[i][0]; break; } }
-    return { points: points, grade: grade, negative: neg, positive: fiberPts + proteinPts + fvlPts };
-  }
-
-  // ---------------------------------------------------------------------------
-  // The Density Score
-  //
-  // Nutri-Score's own output is a letter and a points total that runs BACKWARDS (fewer points is
-  // better, and it goes negative), which is no good to show anyone. We publish our own 0-100
-  // Density Score instead: same direction as the day score, same meaning at the same numbers, so 70
-  // means "good" whether you are looking at one food or a whole day.
-  //
-  // The conversion is a straight line between Nutri-Score's OWN published grade boundaries, so the
-  // validated thresholds still decide where the bands fall; only the presentation is ours.
-  //   points -15 (the best a food can do) -> 100
-  //   points   1 (the A/B boundary)       -> 75
-  //   points   3 (B/C)                    -> 65
-  //   points  11 (C/D)                    -> 50
-  //   points  19 (D/E)                    -> 35
-  //   points  40 (the worst)              -> 0
-  var DS_ANCHORS = [[-15, 100], [1, 75], [3, 65], [11, 50], [19, 35], [40, 0]];
-  // Drinks have their own grade boundaries, so they get their own anchors through the same band
-  // meanings. Sharing the solid-food line would have read a cola's points against thresholds set for
-  // biscuits and flattered it, which is the whole failure this table exists to fix.
-  var DS_BEV_ANCHORS = [[-6, 100], [3, 70], [7, 50], [10, 35], [25, 0]];
-  function densityScore(points, beverage) {
-    if (points == null || !isFinite(points)) return null;
-    var anchors = beverage ? DS_BEV_ANCHORS : DS_ANCHORS;
-    if (points <= anchors[0][0]) return 100;
-    for (var i = 1; i < anchors.length; i++) {
-      var a = anchors[i - 1], b = anchors[i];
-      if (points <= b[0]) {
-        return Math.round(a[1] + (points - a[0]) / (b[0] - a[0]) * (b[1] - a[1]));
-      }
-    }
-    return 0;
-  }
-  // Bands for a single food, lined up with the day's target so 70 reads the same on both screens.
-  function dsBand(score) {
-    if (score == null) return { key: 'none', label: 'Not scored' };
-    if (score >= 75) return { key: 'excellent', label: 'Excellent' };
-    if (score >= ND_TARGET) return { key: 'good', label: 'Good' };
-    if (score >= 50) return { key: 'ok', label: 'Middling' };
-    if (score >= 35) return { key: 'low', label: 'Once in a while' };
-    return { key: 'treat', label: 'Treat' };
-  }
-
-  // Convert a stored per-100-kcal record into the per-100-g basis the food score needs. Needs `ed`
-  // (energy density), so a food logged without a known weight cannot be scored.
-  function nsFromNq(nq) {
-    if (!nq || !(nq.ed > 0)) return null;
-    var f = nq.ed / 100;   // grams per 100 kcal -> grams per 100 g
-    var ns = nutriScore({
-      kcal: nq.ed,
-      protein: (+nq.protein || 0) * f, fiber: (+nq.fiber || 0) * f, fat: (+nq.fat || 0) * f,
-      satfat: (+nq.satfat || 0) * f, sugars: (+nq.sugars || 0) * f, salt: (+nq.salt || 0) * f,
-      fvl: +nq.fvl || 0, beverage: !!nq.bev, water: !!nq.water,
-    });
-    if (!ns) return null;
-    // Plain water is the one drink Nutri-Score lets reach A, and it is the ideal by definition, so
-    // it takes the top of the scale rather than whatever its (zero) points happen to interpolate to.
-    ns.score = nq.water ? 100 : densityScore(ns.points, !!nq.bev);
-    ns.band = dsBand(ns.score);
-    return ns;
-  }
-
-  // What drove a food's score, worst offender first, so the app can say why in plain words rather
-  // than showing a bare number. Thresholds are the Nutri-Score point steps themselves.
-  function dsReasons(nq) {
-    if (!nq || !(nq.ed > 0)) return [];
-    var f = nq.ed / 100;
-    var out = [];
-    var sugars = (+nq.sugars || 0) * f, satfat = (+nq.satfat || 0) * f, salt = (+nq.salt || 0) * f;
-    var fiber = (+nq.fiber || 0) * f, protein = (+nq.protein || 0) * f, fvl = +nq.fvl || 0;
-    if (nq.ed >= 480) out.push({ good: false, key: 'energy', text: 'very calorie dense' });
-    else if (nq.ed >= 320) out.push({ good: false, key: 'energy', text: 'calorie dense' });
-    if (sugars >= 22.5) out.push({ good: false, key: 'sugars', text: 'high in sugar' });
-    else if (sugars >= 10) out.push({ good: false, key: 'sugars', text: 'fairly sugary' });
-    if (satfat >= 5) out.push({ good: false, key: 'satfat', text: 'high in saturated fat' });
-    else if (satfat >= 1.5) out.push({ good: false, key: 'satfat', text: 'some saturated fat' });
-    if (salt >= 1.5) out.push({ good: false, key: 'salt', text: 'high in salt' });
-    else if (salt >= 0.6) out.push({ good: false, key: 'salt', text: 'fairly salty' });
-    if (protein >= 12) out.push({ good: true, key: 'protein', text: 'high in protein' });
-    else if (protein >= 5) out.push({ good: true, key: 'protein', text: 'a good bit of protein' });
-    if (fiber >= 6) out.push({ good: true, key: 'fiber', text: 'high in fibre' });
-    else if (fiber >= 3) out.push({ good: true, key: 'fiber', text: 'a good bit of fibre' });
-    if (fvl > 80) out.push({ good: true, key: 'fvl', text: 'mostly fruit, veg or pulses' });
-    else if (fvl > 40) out.push({ good: true, key: 'fvl', text: 'plenty of fruit, veg or pulses' });
-    return out;
-  }
-
-  // Take an AI estimate of the three limit nutrients and hold it to the macros we already know.
-  // A model that claims more saturated fat than there is fat, or more sugar than carbohydrate, has
-  // contradicted the food in front of it, and an estimate that does that is worse than none. Returns
-  // null when the model declined or gave us nothing, so the caller leaves the food unscored.
-  function ndClampEstimate(raw, macros) {
-    if (!raw || raw.confident === false) return null;
-    var sf = raw.satfat_g, sg = raw.sugars_g, sa = raw.salt_g;
-    if (sf == null && sg == null && sa == null) return null;
-    macros = macros || {};
-    var out = {
-      satfat: Math.min(Math.max(0, +sf || 0), Math.max(0, +macros.fat || 0)),
-      sugars: Math.min(Math.max(0, +sg || 0), Math.max(0, +macros.carbs || 0)),
-      salt: Math.max(0, +sa || 0),
-      estimated: true,
-    };
-    if (raw.fvl_pct != null && isFinite(+raw.fvl_pct)) out.fvl = clamp(+raw.fvl_pct, 0, 100);
-    if (raw.is_drink === true) out.beverage = true;
-    if (raw.is_water === true) { out.beverage = true; out.water = true; }
-    return out;
-  }
-
-  // Plain-English band for a day, on the published HEI-2020 cut points: high >=70, marginal 60-70,
-  // low 50-60, very low <=50. Worded for someone looking at their own day, not for a journal.
-  function ndBand(score) {
-    if (score == null) return { key: 'none', label: 'No data' };
-    if (score >= ND_TARGET) return { key: 'good', label: 'Good' };
-    if (score >= 60) return { key: 'ok', label: 'Nearly there' };
-    if (score >= 50) return { key: 'low', label: 'Room to improve' };
-    return { key: 'poor', label: 'Worth a look' };
   }
 
   // opts.priorTdee: a recent, adaptively learned TDEE. When provided it replaces the formula TDEE,
@@ -2639,11 +2239,8 @@
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
-    ndScore: ndScore, ndPer100kcal: ndPer100kcal, ndDay: ndDay, ndBand: ndBand, ND_TARGET: ND_TARGET,
-    ndClampEstimate: ndClampEstimate, ndBreakdown: ndBreakdown, ndTrend: ndTrend,
-    ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
-    nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
-    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
+    meterCells: meterCells, foodKind: foodKind, foodTileTone: foodTileTone, edStamp: edStamp,
+    needsFibre: needsFibre, clampFibre: clampFibre, pendingFibreIds: pendingFibreIds,
     cycleStripState: cycleStripState,
     photoUpdatable: photoUpdatable, priorEstimateBrief: priorEstimateBrief,
     ownRefs: ownRefs, ownCheck: ownCheck, estimateAudit: estimateAudit, estimateShare: estimateShare, estimateNote: estimateNote, aiGramsOk: aiGramsOk,

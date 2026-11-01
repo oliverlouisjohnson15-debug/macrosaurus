@@ -40,10 +40,9 @@
   --fat: #E0A21B;           /* amber */
   --cal: #2E7D6B;           /* green */
   --weight: #5B4FA6;        /* purple */
-  /* Food-type colours. Worn by the diary tiles on a FREE account, where there is no Density Score
-     for colour to mean, so it may as well say what the food is. A premium account never sees these
-     (its tiles carry the score instead), which is what keeps a green tile from being ambiguous
-     between "a vegetable" and "a good choice". Pigments, to sit with the rest of the paper theme -
+  --fib: #7A8B1F;           /* olive: fibre has its own colour, apart from calories' green */
+  /* Food-type colours. Worn by the diary tiles, saying what the food is (a tile's colour is
+     decoration, never a verdict). Pigments, to sit with the rest of the paper theme -
      each one carries a black pixel glyph on top, so they stay light enough to draw ink on. */
   --food-meat: #E08A7A;
   --food-plant: #7FBFA6;
@@ -123,6 +122,7 @@
   --pro-ink: #A93826;
   --carb-ink: #2F5E9E;
   --fat-ink: #7a5600;
+  --fib-ink: #55640F;        /* fibre as type on paper */
   /* The same three hues again, for type on a card's TITLE BAR. The bar is the one dark ground in
      the paper theme, and the ink tokens above are the dark-on-light pass: measured on
      --cardhead-bg, the protein red comes out at 2.0:1 and the carb blue at 2.5:1, which is not dim,
@@ -178,6 +178,7 @@
   --fat: #FF4FD0;
   --cal: #3DFF62;
   --weight: #9B7BFF;
+  --fib: #B7F03C;
   /* The food-type set, back on the neon palette the dark theme has always used. */
   --food-meat: #FF6B6B;
   --food-plant: #3DFF62;
@@ -242,6 +243,7 @@
   --pro-ink: #3DFF62;
   --carb-ink: #35E0E8;
   --fat-ink: #FF4FD0;
+  --fib-ink: #B7F03C;
   /* On a #15151c title bar the neon trio already runs 12:1 and up, so after dark the on-bar set is
      just the fills again. Only paper needed the lift. */
   --pro-on-head: #3DFF62;
