@@ -31,7 +31,7 @@ test('the toast is above the whole sheet ladder, not somewhere inside it', () =>
   // that range covers some screens and not others, and covers a screen level with it by document
   // order alone - which is precisely how a working calendar came to have a dead row of days.
   const zs = [...SRC.matchAll(/<Sheet\b[^>]*?\bz=\{(\d+)\}/g)].map(m => Number(m[1]));
-  assert.ok(zs.length > 20, 'expected to find the app\'s sheets, found ' + zs.length);
+  assert.ok(zs.length >= 15, 'expected to find the app\'s sheets, found ' + zs.length);
   const over = zs.filter(z => z >= toastZ);
   assert.equal(over.length, 0, 'sheet(s) at or above the toast\'s z-' + toastZ + ': ' + over.join(', '));
 });

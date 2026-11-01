@@ -115,11 +115,11 @@ function featureOf(prompt: string): string {
   // Signature must stay in step with aiParseTrainingWish() in app/src/train.jsx.
   if (p.includes('You turn a sentence about training into JSON')) return 'workout_import';
   if (p.includes('You are Macrosaurus')) return 'coach';
-  // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
-  // to gate them as Premium here rather than trusting the client flag, and so their spend is
-  // attributable per feature in ai_logs instead of disappearing into 'other'.
-  // Signatures must stay in step with aiEstimateNutrients/aiEstimateNutrientsBatch in app/src/app.jsx.
-  if (p.includes('estimate the SATURATED FAT, TOTAL SUGARS and SALT')) return 'density';
+  // Fibre estimates for foods whose source did not publish it (one food, or a day's batch). Classified
+  // for two reasons: to gate them as Premium here rather than trusting the client flag, and so their
+  // spend is attributable per feature in ai_logs instead of disappearing into 'other'.
+  // Signature must stay in step with aiEstimateFibre() in app/src/app.jsx.
+  if (p.includes('Estimate the DIETARY FIBRE')) return 'fibre';
   return 'other';
 }
 
@@ -258,13 +258,13 @@ Deno.serve(async (req) => {
             message: 'The end-of-block write-up is a Premium feature.',
           } }, 402);
         }
-        // Food quality is Premium, and the client flag that hides it (window.MISPREMIUM) is only a
-        // display decision. Without this a free account could spend its free monthly allowance on
-        // nutrient estimates for a score it is never shown, which costs money and helps nobody.
-        if (feature === 'density') {
+        // Fibre estimates are Premium, and the client flag that gates them (window.MISPREMIUM) is only
+        // a display decision. Without this a free account could spend its free monthly allowance on
+        // estimates it is never shown, which costs money and helps nobody.
+        if (feature === 'fibre') {
           return json({ error: {
-            type: 'quality', feature: 'density',
-            message: 'Food quality scoring is a Premium feature.',
+            type: 'fibre', feature: 'fibre',
+            message: 'Fibre estimates are a Premium feature.',
           } }, 402);
         }
         const freeLimit = Number(cfg?.free_ai_monthly ?? FALLBACK_FREE_MONTHLY);
