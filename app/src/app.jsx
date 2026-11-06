@@ -3605,15 +3605,22 @@ function cycleStartISO(db, todayISO) {
 // overlap the last check-in have been read before - weeklyAdjust is told so, via confScale, and
 // discounts them rather than moving the targets on them twice.
 const CHECKIN_READ_MIN_DAYS = 7;
-// ...unless the cycle it would reach into was one you said was off plan. That check-in was held
-// precisely so those days wouldn't move your targets; widening into them handed the next check-in a
-// Halloween-sized day anyway. A short cycle read on its own is noisier, but it's clean.
+// ...but never into a cycle you said was off plan. Those check-ins were held precisely so their days
+// wouldn't move your targets; widening into them handed the next check-in a Halloween-sized day
+// anyway. So the widening stops at the day after the most recent off-plan check-in, wherever it
+// falls (the last one, or an earlier one a short cycle could still reach). A short cycle read on its
+// own is noisier, but it's clean.
 function readStartISO(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
-  const lastCi = db.last_checkin ? (db.checkins || []).find(c => c && c.date === db.last_checkin) : null;
-  if (lastCi && lastCi.adhered === false) return cs;
   const week = shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1));
-  return cs < week ? cs : week;
+  let start = cs < week ? cs : week;
+  const offPlan = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
+    .reduce((m, c) => (c.date > m ? c.date : m), '');
+  if (offPlan) {
+    const floor = shiftISO(offPlan, 1);
+    if (start < floor) start = floor < cs ? floor : cs;
+  }
+  return start;
 }
 // ---- when the next check-in is, in one place ----
 // Every surface that offers a check-in (Progress, the buddy's ask, the Progress teaser, the

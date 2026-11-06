@@ -292,6 +292,16 @@ test('a short cycle after an OFF-PLAN check-in is read on its own, not widened i
   assert.strictEqual(on, cs, 'an on-plan check-in still widens as before');
 });
 
+test('an EARLIER off-plan check-in a short cycle could still reach is also left out', () => {
+  // Off plan on Saturday, on plan Tuesday (3 days), then check in Thursday (2 days): a week back from
+  // Thursday is the previous Friday, which would reach through Tuesday into the held cycle.
+  const SAT = shiftDays(TUE, -3), THU = shiftDays(TUE, 2);
+  const rs = readStartISO({ last_checkin: TUE, checkins: [{ date: SAT, adhered: false }, { date: TUE, adhered: true }], profile: {} }, THU);
+  assert.strictEqual(rs, shiftDays(SAT, 1), 'widens back to the day after the off-plan check-in, no further');
+  const clean = readStartISO({ last_checkin: TUE, checkins: [{ date: SAT, adhered: true }, { date: TUE, adhered: true }], profile: {} }, THU);
+  assert.strictEqual(clean, shiftDays(THU, -6), 'with no off-plan cycle in reach it still widens to a week');
+});
+
 test('an ordinary cycle is read over itself, unchanged', () => {
   // The widening is a floor, not a rewrite: a full week (or a stretched one) reads from its own
   // start, and cycleMeans goes on trimming the long ones back to whole weeks itself.
