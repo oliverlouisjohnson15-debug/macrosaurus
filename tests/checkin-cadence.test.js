@@ -280,6 +280,28 @@ test('a cycle shorter than a week is read back over a whole week', () => {
   assert.strictEqual(Math.round((new Date(fri) - new Date(rs)) / 86400000) + 1, 7);
 });
 
+// The 1 Nov / 6 Nov case: a check-in held as "didn't follow the plan" must not be read back into
+// the next one. Widening a five-day cycle reached back into it and fed a 3761 kcal day into the burn.
+test('a short cycle after an OFF-PLAN check-in is read on its own, not widened into the held week', () => {
+  const fri = shiftDays(TUE, 3);
+  const cs = readStartISO({ last_checkin: TUE, checkins: [{ date: TUE }], profile: {} }, fri);
+  const off = readStartISO({ last_checkin: TUE, checkins: [{ date: TUE, adhered: false }], profile: {} }, fri);
+  assert.ok(off > cs, 'off-plan days must not be pulled in');
+  assert.ok(off >= TUE, 'reads from the cycle start, not before the last check-in');
+  const on = readStartISO({ last_checkin: TUE, checkins: [{ date: TUE, adhered: true }], profile: {} }, fri);
+  assert.strictEqual(on, cs, 'an on-plan check-in still widens as before');
+});
+
+test('an EARLIER off-plan check-in a short cycle could still reach is also left out', () => {
+  // Off plan on Saturday, on plan Tuesday (3 days), then check in Thursday (2 days): a week back from
+  // Thursday is the previous Friday, which would reach through Tuesday into the held cycle.
+  const SAT = shiftDays(TUE, -3), THU = shiftDays(TUE, 2);
+  const rs = readStartISO({ last_checkin: TUE, checkins: [{ date: SAT, adhered: false }, { date: TUE, adhered: true }], profile: {} }, THU);
+  assert.strictEqual(rs, shiftDays(SAT, 1), 'widens back to the day after the off-plan check-in, no further');
+  const clean = readStartISO({ last_checkin: TUE, checkins: [{ date: SAT, adhered: true }, { date: TUE, adhered: true }], profile: {} }, THU);
+  assert.strictEqual(clean, shiftDays(THU, -6), 'with no off-plan cycle in reach it still widens to a week');
+});
+
 test('an ordinary cycle is read over itself, unchanged', () => {
   // The widening is a floor, not a rewrite: a full week (or a stretched one) reads from its own
   // start, and cycleMeans goes on trimming the long ones back to whole weeks itself.

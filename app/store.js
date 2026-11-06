@@ -271,7 +271,7 @@
       last_checkin: null, // ISO date of last completed weekly check-in (gates cadence)
       checkins: [],       // history: [{ date, weightKg, onTrack, changed, weeklyChangeKg?, deltaKcal?, tdee? }]
       pending_adjustment: null, // an un-actioned check-in proposal: { date, result } (survives reloads until approved/rejected)
-      expenditure: null,  // smoothed adaptive TDEE: { kcal, n, updated } (null until the first check-in learns it)
+      expenditure: null,  // smoothed adaptive TDEE: { kcal, n, q, updated } (null until the first check-in learns it)
       // What the user told the buddy is coming up: declared windows with four dials
       // ({ id, start, end, kind, label, intent, eating, moving, data, acceptRateKgPerWeek,
       // createdAt, outcome }). Append-only and unioned by id, like meal_templates and targets.

@@ -956,15 +956,36 @@
   // n=0) and n counts absorbed check-ins. estimate: this cycle's raw TDEE estimate. conf: 0..1 data
   // quality. The gain ramps with n so early cycles lean on the formula prior and, after ~3-4 cycles,
   // the observed data dominates; low-confidence cycles always move the estimate less.
-  function updateExpenditure(prior, estimate, conf) {
+  // `quality` (optional) is how well this cycle was TRACKED (logging and weigh-in coverage), kept apart
+  // from `conf` because conf also carries deliberate discounts that say nothing about tracking: the
+  // first-cycle water discount and the overlap discount on a widened read. Recording those as quality
+  // would make the next ordinary cycle look like a leap in tracking and hand it the maximum weight.
+  // Omitted, it defaults to conf; null leaves the stored quality untouched.
+  function updateExpenditure(prior, estimate, conf, quality) {
     var est = +estimate;
     if (!isFinite(est)) return prior || null;
     var c = clamp(conf == null ? 0.5 : +conf, 0, 1);
     var pk = (prior && isFinite(+prior.kcal)) ? +prior.kcal : null;
     var n = (prior && isFinite(+prior.n)) ? Math.max(0, +prior.n) : 0;
-    if (pk == null) return { kcal: round(est), n: 1, k: 1 };
-    var k = c * clamp((n + 1) / 5, 0.2, 0.6);
-    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3) };
+    var qc = quality === undefined ? c : (quality === null ? null : clamp(+quality, 0, 1));
+    if (pk == null) return { kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) };
+    var ramp = clamp((n + 1) / 5, 0.2, 0.6);
+    // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
+    // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log cleanly.
+    //  - quality lift: `q` is the running confidence of the cycles that BUILT the estimate. A cycle
+    //    read with more confidence than that earns the difference as extra weight.
+    //  - stale lift: held weeks (off plan, too few logs, diet break) don't update the estimate, so
+    //    after a run of them it describes how you were eating weeks ago. Past a week old, it yields
+    //    a little more each week, up to +0.25 at five weeks.
+    // Both are capped at 0.85 so a single cycle can never wholly overwrite what's been learned.
+    // Priors without q (state saved before this existed) get no quality lift; q is seeded from here.
+    var q = (prior && prior.q != null && isFinite(+prior.q)) ? clamp(+prior.q, 0, 1) : null;
+    var age = (prior && prior.ageDays != null && isFinite(+prior.ageDays)) ? +prior.ageDays : 0;
+    var qualityLift = (q == null || qc == null) ? 0 : Math.max(0, qc - q);
+    var staleLift = clamp((age - 7) / 28, 0, 0.25);
+    var k = c * Math.min(0.85, ramp + Math.max(qualityLift, staleLift));
+    var qNew = qc == null ? q : (q == null ? qc : q + 0.5 * (qc - q));
+    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
   }
 
   // ---- plateau detection ----
@@ -1056,6 +1077,7 @@
       : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
     var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    var trackQuality = conf; // before the overlap discount below: how well this cycle was tracked
     // A read window that reaches back PAST the last check-in is mostly evidence that has already
     // been acted on once. Re-reading it is right - a window has to be whole weeks or a weekly eating
     // rhythm tilts it - but treating it as a full cycle's worth of new proof is not: the same days
@@ -1068,7 +1090,7 @@
     // not the noisy single-cycle read. Without a prior (legacy callers), use the raw estimate.
     var smoothed = null, burnRef = opts.estimate.tdee;
     if (opts.expenditure && isFinite(+opts.expenditure.kcal)) {
-      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf);
+      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf, trackQuality);
       burnRef = smoothed.kcal;
     }
     var desiredKcal = burnRef + goalDelta;
@@ -1115,17 +1137,41 @@
       if (goal === 'maintain') reason = 'You\'re ' + actualStr + '. Steady, exactly the plan. Keeping you at ' + newKcalR + ' kcal. No change, nice work.';
       else reason = 'Your goal is to ' + (goal === 'cut' ? 'lose' : 'gain') + ' ' + rt(expected) + '/wk and you\'re ' + actualStr + '. Bang on target. No change: keep doing exactly what you\'re doing.';
     } else {
+      // The sentence has to come from comparing the actual RATE with the goal rate, not from which way
+      // the calories moved. The two usually agree, but not always: the new target is built on the
+      // smoothed burn (burnRef + goalDelta), so a cycle that ran slower than target while eating above
+      // it reads a HIGHER burn and can still move calories up. Saying "faster than your target" there
+      // is the app contradicting its own numbers, so name the real driver (the burn) instead.
+      var RATE_TOL = 0.05; // kg/wk: inside this the rate is "about on" target, not faster or slower
+      var gap = actual - expected; // +ve = heavier than plan (slower cut / faster gain)
+      var rateCmp = Math.abs(gap) <= RATE_TOL ? 'on' : goal === 'gain' ? (gap > 0 ? 'faster' : 'slower') : (gap > 0 ? 'slower' : 'faster');
+      var cmpWord = rateCmp === 'on' ? 'about on' : rateCmp === 'faster' ? 'faster than' : 'slower than';
+      var avgK = opts.estimate.avgKcal;
+      var verb = dir === 'up' ? (goal === 'cut' ? 'giving you back ' : 'adding ') : (goal === 'gain' ? 'trimming ' : 'dropping you ');
+      function burnWhy() {
+        var eatClause = '';
+        if (!wOnly && isFinite(+avgK)) {
+          if (dir === 'up' && avgK > currentKcal + 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, above your ' + currentKcal + ' target';
+          if (dir === 'down' && avgK < currentKcal - 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, under your ' + currentKcal + ' target';
+        }
+        var goalWord = goal === 'maintain' ? 'holding steady' : (goal === 'cut' ? 'losing ' : 'gaining ') + rt(expected) + '/wk';
+        return (goal === 'maintain' ? 'That\'s ' + (Math.abs(actual) <= 0.02 ? 'about steady' : 'a little off steady') : 'That\'s ' + cmpWord + ' your ' + rt(expected) + '/wk target')
+          + eatClause + ', which puts your burn ' + (dir === 'up' ? 'higher' : 'lower') + ' than your targets were built on. '
+          + ucfirst(goalWord) + ' from that burn means eating ' + (dir === 'up' ? 'a little more' : 'a little less') + ', so I\'m ' + verb;
+      }
       var why;
       if (goal === 'cut') {
-        why = dir === 'down'
-          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' (you actually went up)' : '') + ', so to get fat loss moving again I\'m dropping you '
-          : 'That\'s faster than your ' + rt(expected) + '/wk target. Great going, but to protect muscle and keep it sustainable I\'m giving you back ';
+        if (dir === 'down' && rateCmp === 'slower') why = 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' (you actually went up)' : '') + ', so to get fat loss moving again I\'m dropping you ';
+        else if (dir === 'up' && rateCmp === 'faster') why = 'That\'s faster than your ' + rt(expected) + '/wk target. Great going, but to protect muscle and keep it sustainable I\'m giving you back ';
+        else why = burnWhy();
       } else if (goal === 'gain') {
-        why = dir === 'up'
-          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual <= 0 ? ' (you didn\'t gain)' : '') + ', so to keep the muscle coming I\'m adding '
-          : 'That\'s faster than your ' + rt(expected) + '/wk target, and extra gain that quick is mostly fat, so I\'m trimming ';
+        if (dir === 'up' && rateCmp === 'slower') why = 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual <= 0 ? ' (you didn\'t gain)' : '') + ', so to keep the muscle coming I\'m adding ';
+        else if (dir === 'down' && rateCmp === 'faster') why = 'That\'s faster than your ' + rt(expected) + '/wk target, and extra gain that quick is mostly fat, so I\'m trimming ';
+        else why = burnWhy();
       } else {
-        why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
+        if (dir === 'up' && actual < -0.02) why = 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ';
+        else if (dir === 'down' && actual > 0.02) why = 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
+        else why = burnWhy();
       }
       reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and ' + proteinClause(opts.currentTargets, newTargets) + '.';
     }
@@ -1874,7 +1920,7 @@
       var est = { tdee: round(avgKcal - (weeklyChangeKg * KCAL_PER_KG) / 7), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: cycleDays };
       result = earlyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, earlyCap: opts.earlyCap || 150, waterHigh: opts.waterHigh });
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
-      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
+      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null);
     } else {
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
       result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale });
