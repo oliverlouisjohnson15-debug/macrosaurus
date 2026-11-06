@@ -543,7 +543,11 @@ test('detectPlateau: flags a stalled, adherent cut after >=2 consecutive down-st
 test('detectPlateau: no flag for gains/maintains, off-plan weeks, real movement, or old state shapes', () => {
   const stall = [{ adhered: true, weeklyChangeKg: -0.05, deltaKcal: -150 }, { adhered: true, weeklyChangeKg: -0.1, deltaKcal: -200 }];
   assert.strictEqual(E.detectPlateau(stall, 'gain').plateau, false);
-  assert.strictEqual(E.detectPlateau(stall.concat([{ adhered: false, weeklyChangeKg: -0.05, deltaKcal: -150 }]), 'cut').plateau, false);
+  // An off-plan week is disregarded: it neither breaks a plateau nor counts towards one.
+  const withOff = E.detectPlateau(stall.concat([{ adhered: false, weeklyChangeKg: 0.4, deltaKcal: 0 }]), 'cut');
+  assert.strictEqual(withOff.plateau, E.detectPlateau(stall, 'cut').plateau);
+  assert.strictEqual(withOff.cycles, E.detectPlateau(stall, 'cut').cycles);
+  assert.strictEqual(E.detectPlateau([stall[0], { adhered: false, weeklyChangeKg: -0.05, deltaKcal: -150 }], 'cut').plateau, false, 'and one real flat week plus an off-plan one is still only one');
   assert.strictEqual(E.detectPlateau([{ adhered: true, weeklyChangeKg: -0.5, deltaKcal: -150 }, { adhered: true, weeklyChangeKg: -0.45, deltaKcal: -150 }], 'cut').plateau, false);
   // Old persisted check-ins without the new fields must not crash or flag.
   assert.strictEqual(E.detectPlateau([{ date: '2026-01-01', onTrack: true }, { date: '2026-01-08' }], 'cut').plateau, false);

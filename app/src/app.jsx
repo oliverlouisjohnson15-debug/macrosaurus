@@ -3610,16 +3610,20 @@ const CHECKIN_READ_MIN_DAYS = 7;
 // anyway. So the widening stops at the day after the most recent off-plan check-in, wherever it
 // falls (the last one, or an earlier one a short cycle could still reach). A short cycle read on its
 // own is noisier, but it's clean.
+// The first day after the most recent check-in you said was off plan, or null. Nothing that reads
+// your burn looks before it: "I didn't stick to the plan" means the log can't be trusted even where
+// it looks complete (eating that never made it in), so those days are disregarded outright.
+function offPlanFloorISO(db, todayISO) {
+  const last = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
+    .reduce((m, c) => (c.date > m ? c.date : m), '');
+  return last ? shiftISO(last, 1) : null;
+}
 function readStartISO(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
   const week = shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1));
   let start = cs < week ? cs : week;
-  const offPlan = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
-    .reduce((m, c) => (c.date > m ? c.date : m), '');
-  if (offPlan) {
-    const floor = shiftISO(offPlan, 1);
-    if (start < floor) start = floor < cs ? floor : cs;
-  }
+  const floor = offPlanFloorISO(db, todayISO);
+  if (floor && start < floor) start = floor < cs ? floor : cs;
   return start;
 }
 // ---- when the next check-in is, in one place ----
@@ -7744,14 +7748,19 @@ function burnEstimate(db) {
   // Floored at the fresh-start line: this panel counts the days behind the burn estimate, and the
   // estimate itself begins again at the line. Counting kept history here read "enough data" off days
   // the engine is no longer allowed to use, so the readiness meter and the engine disagreed.
-  db.log_entries.forEach(e => { if (afterFloor(db, e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
+  // Off-plan weeks are floored out the same way: a week you said you didn't stick to has a log that
+  // can't be trusted, so neither its food nor its weigh-ins feed the burn shown here.
+  const offFloor = offPlanFloorISO(db, today);
+  const usable = (iso) => afterFloor(db, iso) && (!offFloor || iso >= offFloor);
+  db.log_entries.forEach(e => { if (usable(e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
   const targetByDate = {}; // lets the engine drop incomplete (abandoned) logging days from the intake average
   Object.keys(kcalByDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
-  const weights = db.weight_entries.filter(w => afterFloor(db, w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
+  const weights = db.weight_entries.filter(w => usable(w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
   const bmr = E.mifflinBMR(withActivity(db.profile));
   // The window is a fortnight, or the account's age if younger (never under the week the estimate needs):
   // days before the account existed were being scored as unlogged, which alone kept confidence "low".
-  const expFirst = accountStartISO(db);
+  const acctFirst = accountStartISO(db);
+  const expFirst = (offFloor && (!acctFirst || offFloor > acctFirst)) ? offFloor : acctFirst;
   const expWindow = expFirst ? Math.max(7, Math.min(14, daysBetween(expFirst, today) + 1)) : 14;
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   return est;

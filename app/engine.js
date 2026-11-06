@@ -1026,7 +1026,8 @@
     var run = 0;
     for (var i = checkins.length - 1; i >= 0; i--) {
       var c = checkins[i] || {};
-      if (c.adhered === false) break;
+      // A week you said was off plan is disregarded: it neither proves nor breaks a plateau.
+      if (c.adhered === false) continue;
       if (c.weeklyChangeKg == null || c.deltaKcal == null) break;
       if (Math.abs(+c.weeklyChangeKg) < thresh && +c.deltaKcal < 0) run++;
       else break;

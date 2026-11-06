@@ -43,6 +43,7 @@ const sandbox = new Function(`
   ${constant('CHECKIN_MOVE_MAX_DAYS')}
   ${constant('CHECKIN_READ_MIN_DAYS')}
   ${body('cycleStartISO')}
+  ${body('offPlanFloorISO')}
   ${body('readStartISO')}
   ${body('checkinDayMovePending')}
   ${body('checkinReadyOn')}
