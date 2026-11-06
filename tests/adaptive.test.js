@@ -95,6 +95,34 @@ test('updateExpenditure: blends from the prior toward the estimate, gain ramps w
   assert.strictEqual(E.updateExpenditure({ kcal: 2500, n: 2 }, NaN, 1).kcal, 2500); // bad estimate ignored
 });
 
+// Recent, better data earns more say: people improve at tracking, and an estimate that held weeks
+// left untouched for a month describes how they were eating back then.
+test('updateExpenditure: a cleaner cycle than the ones that built the estimate gets extra weight', () => {
+  const plain = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 1);
+  near(plain.kcal, 2500 + 0.6 * 500, 1); // no improvement over the history: unchanged behaviour
+  const better = E.updateExpenditure({ kcal: 2500, n: 10, q: 0.6 }, 3000, 1);
+  near(better.kcal, 2500 + 0.85 * 500, 1); // 0.6 ramp + 0.4 lift, capped at 0.85
+  assert.ok(better.q > 0.6 && better.q < 1, 'quality history moves toward the new cycle');
+  const worse = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 0.5);
+  near(worse.kcal, 2500 + 0.3 * 500, 1); // a patchier cycle never earns a lift
+  const legacy = E.updateExpenditure({ kcal: 2500, n: 10 }, 3000, 1);
+  near(legacy.kcal, 2500 + 0.6 * 500, 1); // old saved state without q: no lift, q seeded
+  assert.strictEqual(legacy.q, 1);
+});
+
+test('updateExpenditure: an estimate left stale by held weeks yields faster, capped', () => {
+  const fresh = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 7 }, 3000, 1);
+  near(fresh.kcal, 2500 + 0.6 * 500, 1);
+  const threeWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 21 }, 3000, 1);
+  near(threeWeeks.kcal, 2500 + 0.85 * 500, 1); // 0.6 + min(0.25, 14/28)
+  const twoWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 14 }, 3000, 1);
+  near(twoWeeks.kcal, 2500 + 0.85 * 500, 1); // 0.6 + 0.25 cap
+  const tenDays = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 10 }, 3000, 1);
+  near(tenDays.kcal, 2500 + (0.6 + 3 / 28) * 500, 1);
+  const lowConf = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 35 }, 3000, 0.5);
+  near(lowConf.kcal, 2500 + 0.5 * 0.85 * 500, 1); // still scaled by this cycle's confidence
+});
+
 test('weeklyAdjust: builds desired on the SMOOTHED expenditure when a prior is supplied', () => {
   const r = E.weeklyAdjust({
     profile: maleProfile, currentTargets: { kcal: 2300 },

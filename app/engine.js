@@ -962,9 +962,24 @@
     var c = clamp(conf == null ? 0.5 : +conf, 0, 1);
     var pk = (prior && isFinite(+prior.kcal)) ? +prior.kcal : null;
     var n = (prior && isFinite(+prior.n)) ? Math.max(0, +prior.n) : 0;
-    if (pk == null) return { kcal: round(est), n: 1, k: 1 };
-    var k = c * clamp((n + 1) / 5, 0.2, 0.6);
-    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3) };
+    if (pk == null) return { kcal: round(est), n: 1, k: 1, q: round(c, 3) };
+    var ramp = clamp((n + 1) / 5, 0.2, 0.6);
+    // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
+    // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log cleanly.
+    //  - quality lift: `q` is the running confidence of the cycles that BUILT the estimate. A cycle
+    //    read with more confidence than that earns the difference as extra weight.
+    //  - stale lift: held weeks (off plan, too few logs, diet break) don't update the estimate, so
+    //    after a run of them it describes how you were eating weeks ago. Past a week old, it yields
+    //    a little more each week, up to +0.25 at five weeks.
+    // Both are capped at 0.85 so a single cycle can never wholly overwrite what's been learned.
+    // Priors without q (state saved before this existed) get no quality lift; q is seeded from here.
+    var q = (prior && prior.q != null && isFinite(+prior.q)) ? clamp(+prior.q, 0, 1) : null;
+    var age = (prior && prior.ageDays != null && isFinite(+prior.ageDays)) ? +prior.ageDays : 0;
+    var qualityLift = q == null ? 0 : Math.max(0, c - q);
+    var staleLift = clamp((age - 7) / 28, 0, 0.25);
+    var k = c * Math.min(0.85, ramp + Math.max(qualityLift, staleLift));
+    var qNew = q == null ? c : q + 0.5 * (c - q);
+    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: round(qNew, 3) };
   }
 
   // ---- plateau detection ----

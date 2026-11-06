@@ -3605,8 +3605,13 @@ function cycleStartISO(db, todayISO) {
 // overlap the last check-in have been read before - weeklyAdjust is told so, via confScale, and
 // discounts them rather than moving the targets on them twice.
 const CHECKIN_READ_MIN_DAYS = 7;
+// ...unless the cycle it would reach into was one you said was off plan. That check-in was held
+// precisely so those days wouldn't move your targets; widening into them handed the next check-in a
+// Halloween-sized day anyway. A short cycle read on its own is noisier, but it's clean.
 function readStartISO(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
+  const lastCi = db.last_checkin ? (db.checkins || []).find(c => c && c.date === db.last_checkin) : null;
+  if (lastCi && lastCi.adhered === false) return cs;
   const week = shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1));
   return cs < week ? cs : week;
 }
@@ -3950,7 +3955,10 @@ function learnedTdee(db, todayISO) {
 // so the first few cycles blend from Mifflin toward observed data.
 function expenditurePrior(db, prof) {
   const ex = db.expenditure;
-  if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0 };
+  // q (confidence of the cycles that built it) and its age let a cleaner or much newer cycle outweigh
+  // it faster; see Engine.updateExpenditure.
+  if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0, q: ex.q != null ? +ex.q : null,
+    ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO())) : 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
 }
 function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[var(--muted)] mt-0.5">{label}</div></div>); }
@@ -6502,7 +6510,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       // Persist what this cycle taught us (regardless of whether the target change is approved):
       // the smoothed expenditure, and the trend/step data plateau detection reads next time.
       update(d => {
-        if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = { kcal: res.expenditure.kcal, n: res.expenditure.n, updated: today };
+        if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = Object.assign({ kcal: res.expenditure.kcal, n: res.expenditure.n, updated: today }, res.expenditure.q != null ? { q: res.expenditure.q } : {});
         const ci = (d.checkins || [])[(d.checkins || []).length - 1];
         if (ci && ci.date === today && res.estimate) { ci.weeklyChangeKg = res.estimate.weeklyChangeKg; ci.deltaKcal = 0; ci.tdee = Math.round((res.expenditure && res.expenditure.kcal) || res.estimate.tdee || 0) || null; }
         // Whether the food log reconciled with the scale this cycle. The engine reads it back next
