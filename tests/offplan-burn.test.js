@@ -8,6 +8,7 @@ const { app } = require('./helpers/app.js');
 
 const A = app();
 const S = A.Store;
+A.MISPREMIUM = true; // the balance block is Premium
 
 // Three weeks at a true burn of 2800. The middle week looks fully logged at target, but the person
 // said they went off plan: really they ate 800 more a day that never reached the log.
@@ -40,7 +41,19 @@ test('Energy burn: a week you said was off plan is left out, so its hidden eatin
   assert.ok(trusted && trusted.tdee, 'reads a burn when the week is taken at face value');
   // Taken at face value, the off-plan week's weight gain on a "2140" log reads as a far lower burn.
   assert.ok(trusted.tdee < 2650, 'face value reads low: ' + trusted.tdee);
-  // Disregarded, only the clean week after it is read, which sits near the true 2800.
-  assert.ok(disregarded && disregarded.tdee, 'still reads a burn from the clean days');
+  // Disregarded, only the on-plan week after it is read, which sits near the true 2800.
+  assert.ok(disregarded && disregarded.tdee, 'still reads a burn from the on-plan days');
   assert.ok(Math.abs(disregarded.tdee - 2800) < 100, 'disregarded reads ' + disregarded.tdee);
+});
+
+test('Energy card says the off-plan week was left out, and counts only the days the burn rests on', () => {
+  const { mount } = require('./helpers/app.js');
+  const db = account(true);
+  const ui = mount(A.ExpenditureCard, { db, plan: null });
+  try {
+    ui.click('How your burn was worked out');
+    assert.ok(ui.has('(your off-plan week is left out)'), ui.text.slice(0, 900));
+    assert.ok(/7 off-plan days are greyed out and left out of this/.test(ui.text), ui.text.slice(0, 900));
+    assert.ok(!/of 14 days fully logged/.test(ui.text), 'still resting on the off-plan fortnight: ' + ui.text.slice(-200));
+  } finally { ui.unmount(); }
 });

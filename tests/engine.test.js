@@ -781,3 +781,16 @@ test('weeklyAdjust rationale: matching cases keep the plain faster/slower wordin
   assert.strictEqual(down.direction, 'down');
   assert.ok(/slower than the 0\.60 kg\/wk you're aiming for/.test(down.reason), down.reason);
 });
+
+test('weeklyAdjust deadband: "spot on" only when the rate really is on target', () => {
+  const p = Object.assign({}, baseProfile, { goalType: 'cut', rateKgPerWeek: 0.6, weight_unit: 'kg' });
+  const on = E.weeklyAdjust({ profile: p, currentTargets: { kcal: 2100 }, estimate: { tdee: 2770, weeklyChangeKg: -0.62, days: 7, avgKcal: 2100 },
+    expenditure: { kcal: 2760, n: 6 }, adherenceDays: 7, weighDays: 7, periodDays: 7 });
+  assert.strictEqual(on.holdWithinNoise, true);
+  assert.ok(/spot on/.test(on.reason), on.reason);
+  // Rate well off target, but the smoothed burn already makes 2100 right: the hold must say so.
+  const off = E.weeklyAdjust({ profile: p, currentTargets: { kcal: 2100 }, estimate: { tdee: 2760, weeklyChangeKg: -0.3, days: 7, avgKcal: 2430 },
+    expenditure: { kcal: 2780, n: 9 }, adherenceDays: 5, weighDays: 5, periodDays: 7 });
+  assert.strictEqual(off.holdWithinNoise, true, JSON.stringify(off));
+  assert.ok(!/spot on/.test(off.reason) && /losing 0\.30 kg\/wk against a plan of losing 0\.60 kg\/wk/.test(off.reason) && /burn reads about/.test(off.reason), off.reason);
+});

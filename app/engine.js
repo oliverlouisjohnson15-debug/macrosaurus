@@ -971,7 +971,7 @@
     if (pk == null) return { kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) };
     var ramp = clamp((n + 1) / 5, 0.2, 0.6);
     // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
-    // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log cleanly.
+    // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log fully.
     //  - quality lift: `q` is the running confidence of the cycles that BUILT the estimate. A cycle
     //    read with more confidence than that earns the difference as extra weight.
     //  - stale lift: held weeks (off plan, too few logs, diet break) don't update the estimate, so
@@ -990,9 +990,9 @@
 
   // A check-in held as TOO PATCHY TO READ says the weeks since the estimate was learned are not
   // ones it describes. The estimate itself stays put, since nothing measured it wrong, but its
-  // quality drops, so the next CLEAN cycle reads as the leap in reliability it is and sets most of
-  // the burn (see the quality lift above). Someone who tracks cleanly week after week keeps the
-  // ordinary weighting: the scenario tests show that pushing every clean week harder only overshoots,
+  // quality drops, so the next on-plan, fully tracked week reads as the leap in reliability it is and
+  // sets most of the burn (see the quality lift above). Someone who tracks fully week after week keeps
+  // the ordinary weighting: the scenario tests show that pushing every such week harder only overshoots,
   // because the weight trend lags the eating that moved it.
   //
   // An OFF-PLAN week is different and gets expenditureAfterOffPlan instead: you told the app it
@@ -1093,7 +1093,7 @@
     }
     // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
     // bigger allowed step; ~10% of TDEE, 150-350 kcal), THEN scale that by how confident this cycle's
-    // data is, coverage of logging and weigh-ins, and cycle length. A clean, complete cycle earns
+    // data is, coverage of logging and weigh-ins, and cycle length. A complete cycle earns
     // the full step; a sparser one moves more cautiously so noise can't drive a big swing. Follows
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
@@ -1103,17 +1103,17 @@
       ? ((opts.weighDays || 0) >= 1 ? 0.7 : 0)
       : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
-    // A clean cycle: on plan (an off-plan one never gets here, it is held upstream), food logged on
-    // at least 90% of the days that could be finished, and weighed on at least 75% of mornings (the
-    // trend smooths over a missed one, so one gap in five days still reads cleanly). The log window
-    // leaves out an unfinished check-in day: you check in in the morning, and counting that day as
-    // unlogged was marking every fully logged week as 6 of 7. A clean cycle is trusted in full, and a
-    // short one (five or six days) is not marked down for its length.
+    // An on-plan week (an off-plan one never gets here, it is held upstream) that is FULLY TRACKED:
+    // food logged on at least 90% of the days that could be finished, and weighed on at least 75% of
+    // mornings (the trend smooths over a missed one, so one gap in five days still reads fine). The
+    // log window leaves out an unfinished check-in day: you check in in the morning, and counting that
+    // day as unlogged was marking every fully logged week as 6 of 7. A fully tracked week is trusted in
+    // full, and a short one (five or six days) is not marked down for its length.
     var logDen = (opts.logWindow != null && +opts.logWindow > 0) ? +opts.logWindow : periodDays;
-    var clean = !wOnly && opts.weighCadence !== 'single' && periodDays >= 5
+    var fullyTracked = !wOnly && opts.weighCadence !== 'single' && periodDays >= 5
       && (opts.adherenceDays || 0) >= 4 && (opts.adherenceDays || 0) / logDen >= 0.9
       && (opts.weighDays || 0) >= 4 && (opts.weighDays || 0) / periodDays >= 0.75;
-    var conf = clean ? 1 : clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    var conf = fullyTracked ? 1 : clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var trackQuality = conf; // before the overlap discount below: how well this cycle was tracked
     // A read window that reaches back PAST the last check-in is mostly evidence that has already
     // been acted on once. Re-reading it is right - a window has to be whole weeks or a weekly eating
@@ -1133,13 +1133,26 @@
     var desiredKcal = burnRef + goalDelta;
     // Deadband: a difference smaller than measurement noise is not worth chasing. Hold instead of
     // proposing a token change. Uses the estimate's uncertainty band when one is available.
+    // The hold is decided on CALORIES (the target is already within noise of what the burn says), not
+    // on the rate. Usually the two agree. When they don't, "spot on" would contradict the rate shown
+    // right above it, so name what is actually holding the number: the burn.
+    function deadbandReason(actualRate) {
+      var expRate = profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
+      var kg = function (v) { return profile.weight_unit === 'st_lb' ? (Math.abs(v) * 2.20462).toFixed(1) + ' lb' : Math.abs(v).toFixed(2) + ' kg'; };
+      if (!isFinite(+actualRate) || Math.abs(actualRate - expRate) <= 0.1)
+        return 'That\'s near enough spot on. Nudging your ' + currentKcal + ' either way would be chasing noise rather than fat, so I\'m leaving it exactly where it is.';
+      var rateStr = actualRate < -0.02 ? 'losing ' + kg(actualRate) + '/wk' : actualRate > 0.02 ? 'gaining ' + kg(actualRate) + '/wk' : 'holding steady';
+      var goalStr = profile.goalType === 'maintain' ? 'holding steady' : (profile.goalType === 'cut' ? 'losing ' : 'gaining ') + kg(expRate) + '/wk';
+      return 'You\'re ' + rateStr + ' against a plan of ' + goalStr + ', but your burn reads about ' + round(burnRef) + ' a day, and from that your ' + currentKcal
+        + ' is already within noise of what the plan needs, so I\'m holding. If the scale keeps telling a different story, your next check-in will move it.';
+    }
     var noiseKcal = (opts.estimate.band != null && isFinite(+opts.estimate.band)) ? clamp(+opts.estimate.band, 50, 150) : 50;
     if (Math.abs(desiredKcal - currentKcal) < noiseKcal) {
       var actual0 = opts.estimate.weeklyChangeKg;
       return { changed: false, direction: 'unchanged', holdWithinNoise: true, deltaKcal: 0, confidence: confidence,
         expectedKgPerWeek: round(profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0, 2),
-        actualKgPerWeek: round(actual0, 3), expenditure: smoothed, cleanCycle: clean,
-        reason: 'That\'s near enough spot on. Nudging your ' + currentKcal + ' either way would be chasing noise rather than fat, so I\'m leaving it exactly where it is.', estimate: opts.estimate };
+        actualKgPerWeek: round(actual0, 3), expenditure: smoothed, fullyTracked: fullyTracked,
+        reason: deadbandReason(actual0), estimate: opts.estimate };
     }
     var fullCap = clamp(round(0.10 * (burnRef || currentKcal)), 150, 350);
     var adjCap = clamp(round(fullCap * (0.5 + 0.5 * conf)), 100, 350);
@@ -1156,7 +1169,7 @@
     if (opts.waterHigh && dir === 'down') {
       var expW = profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
       return { changed: false, direction: 'unchanged', deltaKcal: 0, confidence: confidence, waterHeld: true,
-        expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed, cleanCycle: clean,
+        expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed, fullyTracked: fullyTracked,
         reason: 'This cycle overlaps the water-weight rise around your period (it peaks on day one of your period and can look like a stall). Rather than cut on what\'s most likely water, not fat, I\'m holding you at ' + currentKcal + ' kcal. A check-in in the week after your period reads cleanest.', estimate: opts.estimate };
     }
 
@@ -1212,7 +1225,7 @@
       }
       reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and ' + proteinClause(opts.currentTargets, newTargets) + '.';
     }
-    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed, cleanCycle: clean };
+    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed, fullyTracked: fullyTracked };
   }
 
   // First-cycle (no prior baseline) adjustment. Early rapid weight change is largely water and glycogen,
