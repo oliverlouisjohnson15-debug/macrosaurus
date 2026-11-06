@@ -2630,7 +2630,7 @@ async function claudeVision(files, prompt, opts) {
 // medical/extreme advice, and it degrades gracefully offline. Returns text.
 async function coachNarrative(payload) {
   const who = (payload && payload.buddy_name) || 'Your buddy';
-  const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
+  const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. If selfReportedOffPlan is true, the week is set aside: there is no calorie change and nothing from it counts towards their burn, so never read anything into their rate or burn, just reassure and point at next week. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nYour take (one or two short sentences):';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 140, messages: [{ role: 'user', content: prompt }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
@@ -3610,16 +3610,34 @@ const CHECKIN_READ_MIN_DAYS = 7;
 // anyway. So the widening stops at the day after the most recent off-plan check-in, wherever it
 // falls (the last one, or an earlier one a short cycle could still reach). A short cycle read on its
 // own is noisier, but it's clean.
+// The first day after the most recent check-in you said was off plan, or null. Nothing that reads
+// your burn looks before it: "I didn't stick to the plan" means the log can't be trusted even where
+// it looks complete (eating that never made it in), so those days are disregarded outright.
+function offPlanFloorISO(db, todayISO) {
+  const last = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
+    .reduce((m, c) => (c.date > m ? c.date : m), '');
+  return last ? shiftISO(last, 1) : null;
+}
+// Every day that belongs to a cycle you checked in as off plan: from the day after the check-in
+// before it (a week back for a first check-in) up to and including that check-in's own day, which is
+// how cycleStartISO assigns days to cycles. Display surfaces use it to leave those logs out.
+function offPlanDateSet(db) {
+  const cis = (db.checkins || []).filter(c => c && c.date).map(c => c.date).sort();
+  const out = new Set();
+  (db.checkins || []).forEach(c => {
+    if (!c || c.adhered !== false || !c.date) return;
+    const prev = cis.filter(d => d < c.date).pop();
+    let d = prev ? shiftISO(prev, 1) : shiftISO(c.date, -6);
+    while (d <= c.date) { out.add(d); d = shiftISO(d, 1); }
+  });
+  return out;
+}
 function readStartISO(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
   const week = shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1));
   let start = cs < week ? cs : week;
-  const offPlan = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
-    .reduce((m, c) => (c.date > m ? c.date : m), '');
-  if (offPlan) {
-    const floor = shiftISO(offPlan, 1);
-    if (start < floor) start = floor < cs ? floor : cs;
-  }
+  const floor = offPlanFloorISO(db, todayISO);
+  if (floor && start < floor) start = floor < cs ? floor : cs;
   return start;
 }
 // ---- when the next check-in is, in one place ----
@@ -3924,6 +3942,10 @@ function cycleCoverage(db, todayISO, opts) {
     // `widened` is the flag the copy hangs off: it means the window reaches back past your last
     // check-in, which is worth a sentence rather than leaving the dates looking wrong.
     anchor: anchor, newDays: newDays, widened: anchor !== cs,
+    // A short cycle that would have been read over a whole week but was stopped at an off-plan week
+    // (see offPlanFloorISO), so the copy can say why it reads fewer days than usual.
+    offPlanTrimmed: !!(opts && opts.read) && daysBetween(anchor, todayISO) + 1 < CHECKIN_READ_MIN_DAYS
+      && cs > shiftISO(todayISO, -(CHECKIN_READ_MIN_DAYS - 1)),
     confScale: Math.max(0, Math.min(1, newDays / days)),
     logged: completeLoggedDates(db, cs, todayISO).length,
     weighed: countWeighIns(db.weight_entries || [], cs, todayISO),
@@ -3965,7 +3987,8 @@ function expenditurePrior(db, prof) {
   // q (confidence of the cycles that built it) and its age let a cleaner or much newer cycle outweigh
   // it faster; see Engine.updateExpenditure.
   if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0, q: ex.q != null ? +ex.q : null,
-    ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO())) : 0 };
+    // Off-plan weeks since it was learned don't count towards its age (see Engine.expenditureAfterOffPlan).
+    ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO()) - (+ex.heldDays || 0)) : 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
 }
 function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[var(--muted)] mt-0.5">{label}</div></div>); }
@@ -4940,9 +4963,9 @@ const BUDDY_LORE = [
 // Motivating (not scolding) lines when a user reports an off-plan week, keeps the dino on their side.
 const DINO_OFFPLAN = [
   'One off week won\'t undo you, the Macrosaurus has outlasted ice ages. Back on the hunt next cycle.',
-  'No extinction here. Shake it off, line up a clean week, and we\'re roaring again.',
+  'No extinction here. Shake it off, line up an on-plan week, and we\'re roaring again.',
   'Even T-rex had off days (and tiny arms). Momentum\'s paused, not lost, go get the next one.',
-  'The Macrosaurus dusts you off: one wobble, no drama. Clean cycle next and we retune properly.',
+  'The Macrosaurus dusts you off: one wobble, no drama. On plan next week and we retune properly.',
   'Head up, protein up. One honest reset and you\'re back to dino-mite.',
 ];
 function MiniSpark({ points, color }) {
@@ -6322,7 +6345,11 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       goal: p.goalType,
       targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0)),
       actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
-      outcome: result.status === 'proposed' ? (result.changed ? (result.direction === 'up' ? 'calories increased' : 'calories decreased') : 'no change (on target') : result.status === 'held' ? (result.offPlan ? 'held) user said this was an off-plan week' : 'held, not enough tracking or on a diet break') : 'not enough history yet',
+      outcome: result.status === 'proposed' ? (result.changed ? (result.direction === 'up' ? 'calories increased' : 'calories decreased') : 'no change (on target)')
+        : result.status === 'held' ? (result.offPlan ? 'held: user said this week was off plan, so it is set aside and none of its food counts towards their burn'
+          : result.patchy ? 'held: not enough logging or weigh-ins to read this week' : result.dietBreak ? 'held: on a diet break at maintenance'
+          : result.tooShort ? 'held: weight swings too much between mornings to read a trend from this short a cycle' : 'held')
+        : 'not enough history yet',
       selfReportedOffPlan: !!result.offPlan,
       currentKcal: base ? base.kcal : null,
       newKcal: result.newTargets ? result.newTargets.kcal : (base ? base.kcal : null),
@@ -6422,11 +6449,19 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     const summary = { avgNow: read.now, avgPrev: read.prev, weighCount: read.count, prevDate: read.prevDate, single: singleWeigh, bfNew: bfVal, bfSource: bfVal != null ? bfSrc : null, curAvg: curAvg,
       bfTrend: bfNowT ? bfNowT.pct : null, bfTrendPrev: bfBefore ? bfBefore.pct : null, leanNow: leanNow, leanPrev: leanPrev };
     const out = (r) => Object.assign({}, summary, r);
-    if (dietBreakActive(db, today)) return out({ status: 'held', reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` });
-    if (adhered === 'no') return out({ status: 'held', offPlan: true, reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.` });
-    if (!readyToAdjust) return out({ status: 'held', reason: laneMode === 'weightOnly'
-      ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan. Weigh in a bit more and your next check-in can adjust.`
-      : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.` });
+    // The burn the app has learned so far, quoted by the holds below so "it stays at" names a number.
+    const burnKnown = (db.expenditure && db.expenditure.kcal > 0) ? Math.round(db.expenditure.kcal) : null;
+    const burnStays = burnKnown ? ` Your burn stays at about ${burnKnown} kcal a day.` : '';
+    if (dietBreakActive(db, today)) return out({ status: 'held', dietBreak: true, reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` });
+    // Off plan: the answer is what counts, not how full the log looks, because an off-plan week is
+    // usually one where eating didn't all make it in. Say exactly what happens to it: the food is set
+    // aside completely, and the weigh-in is kept, since it is where next week's change is measured from.
+    if (adhered === 'no') return out({ status: 'held', offPlan: true, reason: `Macros held. You said this week was off plan, so I've set it aside: nothing you ate counts towards your burn.${burnStays} Your weigh-in is saved, and next week's change is measured from it. Your next check-in reads only the days from tomorrow.` });
+    // Too thin to read. Unlike an off-plan week this says nothing against the log, so the burn keeps
+    // its number, but the next fully tracked week counts for more (Engine.expenditureAfterHold).
+    if (!readyToAdjust) return out({ status: 'held', patchy: true, reason: laneMode === 'weightOnly'
+      ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan.${burnStays} Weigh in most mornings and your next check-in can adjust.`
+      : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan.${burnStays} Log and weigh in most days and your next check-in will count for more.` });
     // Everything from here is the pure engine pipeline: complete-day filtering, gap-aware trend
     // cycle means, early vs normal adjustment, expenditure smoothing and plateau detection.
     const byDate = {}; db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
@@ -6486,6 +6521,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     if (!res) { setWErr(singleWeigh ? "Enter this week's weigh-in to check in, it's the only reading I've got to read." : "Enter today's weight to check in, or weigh in a couple more days this cycle."); return; }
     const curAvg = res.curAvg;
     if (res.offPlan) res.dinoLine = DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)];
+    // How long the cycle being closed ran, taken BEFORE the update below moves last_checkin to today.
+    const closingDays = db.last_checkin ? Math.max(0, daysBetween(db.last_checkin, today)) : cycleDays;
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
       if (ex) { if (weightKg) ex.scale_weight = +weightKg.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } }
@@ -6500,6 +6537,15 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
+      // An OFF-PLAN week is disregarded completely: the learned burn keeps its number, its standing and
+      // its age, as if the week never happened. A week held as too patchy to read keeps the number but
+      // is marked less reliable, so the next fully tracked week resets most of it.
+      // Only those two holds touch it: a diet break, or a week too noisy to read a trend from, says
+      // nothing about how well the week was tracked.
+      if (res.status === 'held' && d.expenditure) {
+        if (res.offPlan) d.expenditure = E.expenditureAfterOffPlan(d.expenditure, closingDays);
+        else if (res.patchy) d.expenditure = E.expenditureAfterHold(d.expenditure);
+      }
       // One record per date: re-running a check-in the same day (a resumed sheet, a second device)
       // replaces that day's record rather than stacking a second one the history then shows twice.
       d.checkins = (d.checkins || []).filter(c => !c || c.date !== today).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
@@ -6650,7 +6696,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
         {phase === 'hello' && <div className="fade-in">
           <Say sub={[
             // Why the dates reach back past your last check-in, said before you can wonder.
-            cov.widened ? 'Your check-in day moved, so this one reads the last full week rather than the ' + (cov.newDays === 1 ? 'day' : cov.newDays + ' days') + ' since ' + fmtShortDay(cov.anchor) + '. A whole week keeps your heavier mornings from landing on one end of it, and I’ll go gently on the days I’ve already read.' : null,
+            cov.widened ? 'This cycle is short, so I’m reading the last ' + (cov.days >= CHECKIN_READ_MIN_DAYS ? 'full week' : cov.days + ' days') + ' rather than the ' + (cov.newDays === 1 ? 'day' : cov.newDays + ' days') + ' since ' + fmtShortDay(cov.anchor) + '. ' + (cov.days >= CHECKIN_READ_MIN_DAYS ? 'A whole week keeps your heavier mornings from landing on one end of it, and ' : '') + 'I’ll go gently on the days I’ve already read.' + (cov.offPlanTrimmed ? ' I’m not reaching back into your off-plan week.' : '') : null,
+            (!cov.widened && cov.offPlanTrimmed) ? 'Your last week was off plan, so I’m reading just these ' + cov.days + ' days and not reaching back into it.' : null,
             cov.planned > 0 ? cov.planned + ' of those days you were away, so I only counted the days you were back.' : null,
             // Thin logging switches the read to the scale alone. That used to happen silently, behind
             // a disclosure two screens on, and the person then got a full-size change built on the
@@ -6691,9 +6738,9 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
 
         {/* 4. The honesty question, which is the only thing the buddy really needs from you. */}
         {phase === 'adherence' && <div className="fade-in">
-          <Say sub="Be honest. If it was a write-off I will hold your macros rather than chase a misleading week.">Did you stick to it this cycle?</Say>
+          <Say sub="Be honest. If it was off plan, I'll set the week aside: your macros stay put and nothing you ate counts towards your burn.">Were you on plan this cycle?</Say>
           <div className="grid gap-2 mb-4">
-            {[['yes', 'Yes, pretty much', 'A couple of guesses, nothing large.'], ['no', 'Not really', 'Meals out, plenty estimated.']].map(([v, l, s]) => (
+            {[['yes', 'On plan', 'Ate to plan and logged it. A few guesses at most.'], ['no', 'Off plan', 'Ate off plan, or more went in than made it into the log.']].map(([v, l, s]) => (
               <ChoiceRow key={v} selected={adhered === v} onClick={() => setAdhered(v)} title={l} sub={s} />
             ))}
           </div>
@@ -6745,7 +6792,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
             </div>}
             {!result.earlyPhase && result.burnNow ? <div className="py-3">
               <div className="text-[12px] text-[var(--muted)]">Your burn now reads</div>
-              <div className="text-[13px] tnum font-semibold">{result.burnNow} kcal/day{result.burnPrev != null && result.burnNow !== result.burnPrev ? <span className="text-[11px] text-[var(--muted)]"> ({result.burnNow > result.burnPrev ? '+' : '−'}{Math.abs(result.burnNow - result.burnPrev)} on last cycle)</span> : null}</div>
+              <div className="text-[13px] tnum font-semibold">{result.burnNow} kcal/day{result.burnPrev != null && result.burnNow !== result.burnPrev ? <span className="text-[11px] text-[var(--muted)]"> ({result.burnNow > result.burnPrev ? '+' : '−'}{Math.abs(result.burnNow - result.burnPrev)}, was {result.burnPrev})</span> : null}</div>
             </div> : <div className="text-[11px] text-[var(--muted)] leading-snug">Early read from a short trend, so plenty of this is still water weight.</div>}
           </Collapsible>
           {result.laneSwitched === 'weightOnly' && <div className="py-3 mb-4" style={{ color: 'var(--fat-ink)' }}>
@@ -7712,7 +7759,10 @@ function FullSheet({ title, onClose, children }) {
 function energyBalance(db, tdee, days) {
   const today = Store.todayISO();
   const out = [];
-  let ate = 0, tgt = 0, n = 0;
+  let ate = 0, tgt = 0, n = 0, offN = 0;
+  // Days from a week you said was off plan are drawn but never averaged: their log is the one you
+  // told the app not to trust, so a "deficit" built on it would be the chart inventing one.
+  const off = offPlanDateSet(db);
   for (let i = days - 1; i >= 0; i--) {
     const d = shiftISO(today, -i);
     const ents = entriesOn(db, d);
@@ -7722,10 +7772,12 @@ function energyBalance(db, tdee, days) {
     const target = plannedKcalOn(db, d);
     // Today is still being logged, so it is shown but never counted into the averages.
     const partial = d === today;
-    if (kcal != null && !partial) { ate += kcal; tgt += target || 0; n++; }
-    out.push({ date: d, kcal, target, partial, vsBurn: kcal == null ? null : kcal - tdee, vsTarget: (kcal == null || !target) ? null : kcal - target });
+    const offPlan = off.has(d);
+    if (kcal != null && !partial && !offPlan) { ate += kcal; tgt += target || 0; n++; }
+    if (kcal != null && offPlan) offN++;
+    out.push({ date: d, kcal, target, partial, offPlan, vsBurn: kcal == null ? null : kcal - tdee, vsTarget: (kcal == null || !target) ? null : kcal - target });
   }
-  return { days: out, avgAte: n ? Math.round(ate / n) : null, avgTarget: n ? Math.round(tgt / n) : null, loggedDays: n };
+  return { days: out, avgAte: n ? Math.round(ate / n) : null, avgTarget: n ? Math.round(tgt / n) : null, loggedDays: n, offPlanDays: offN };
 }
 /* The live burn, read the same way wherever it is shown: the Energy page and the row that opens it. */
 function burnEstimate(db) {
@@ -7735,16 +7787,25 @@ function burnEstimate(db) {
   // Floored at the fresh-start line: this panel counts the days behind the burn estimate, and the
   // estimate itself begins again at the line. Counting kept history here read "enough data" off days
   // the engine is no longer allowed to use, so the readiness meter and the engine disagreed.
-  db.log_entries.forEach(e => { if (afterFloor(db, e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
+  // Off-plan weeks are floored out the same way: a week you said you didn't stick to has a log that
+  // can't be trusted, so neither its food nor its weigh-ins feed the burn shown here.
+  const offFloor = offPlanFloorISO(db, today);
+  const usable = (iso) => afterFloor(db, iso) && (!offFloor || iso >= offFloor);
+  db.log_entries.forEach(e => { if (usable(e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
   const targetByDate = {}; // lets the engine drop incomplete (abandoned) logging days from the intake average
   Object.keys(kcalByDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
-  const weights = db.weight_entries.filter(w => afterFloor(db, w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
+  const weights = db.weight_entries.filter(w => usable(w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
   const bmr = E.mifflinBMR(withActivity(db.profile));
   // The window is a fortnight, or the account's age if younger (never under the week the estimate needs):
   // days before the account existed were being scored as unlogged, which alone kept confidence "low".
-  const expFirst = accountStartISO(db);
+  const acctFirst = accountStartISO(db);
+  const expFirst = (offFloor && (!acctFirst || offFloor > acctFirst)) ? offFloor : acctFirst;
   const expWindow = expFirst ? Math.max(7, Math.min(14, daysBetween(expFirst, today) + 1)) : 14;
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: expWindow, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
+  // When an off-plan week cut into the window, the copy says "since <day>" rather than "the last 14 days".
+  // Set whenever the usual fortnight would have reached into one, even if the window happens to start
+  // exactly after it, so the card can always say the week was left out.
+  if (est && offFloor && offFloor > shiftISO(today, -13)) est.offPlanFrom = offFloor;
   return est;
 }
 function ExpenditureCard({ db, plan, title = 'Energy' }) {
@@ -7781,7 +7842,7 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
       <Card className="p-0 mb-4 overflow-hidden">
         <CardHead title={title} right={left > 0 ? (left === 1 ? '1 day to go' : left + ' days to go') : 'Almost there'} rightTone="muted" />
         <div className="p-4">
-        <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves.</div>
+        <div className="text-[12px] text-[var(--muted)] leading-relaxed mb-3">A fortnight of weigh-ins and logged days and I can work out what you actually burn, from what you eat against how your weight moves. Weeks you checked in as off plan are left out.</div>
         {/* Capped at what is being asked for: a counter reading 6/4 is a sum nobody wants, and the
             question here is whether a requirement is MET, not by how far it was passed. */}
         <div className="grid grid-cols-3 gap-2">
@@ -7790,7 +7851,7 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
         {/* Explicitly the 14-day window, not this cycle: unlabelled it read as another version of
             your weekly coverage. The date is the earliest this can land, not a promise. */}
         <div className="tnum text-[11px] mt-2" style={{ color: 'var(--muted)' }}>
-          last 14 days{left > 0 ? ' · first read from ' + fmtShortDay(shiftISO(today, left)) : ' · one more day of either will do it'}
+          {est.offPlanFrom ? 'since ' + fmtShortDay(est.offPlanFrom) + ', after your off-plan week' : 'last 14 days'}{left > 0 ? ' · first read from ' + fmtShortDay(shiftISO(today, left)) : ' · one more day of either will do it'}
         </div>
         {typeof plan === 'function' ? plan(null) : plan}
         </div>
@@ -7853,7 +7914,7 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
                 : perWeek < wanted * 0.8 ? ' That is less than the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.'
                 : ' Which is the ' + fmtWeightDelta(wanted, unit).replace(/^[+\u2212]/, '') + ' a week you asked for.') : '';
             return <div className="text-[12px] text-[var(--muted)] leading-snug mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
-              You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}
+              You ran a <span style={{ color: gap < 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }} className="tnum font-semibold">{Math.abs(Math.round(gap)).toLocaleString()} kcal</span> {dir} a day across {bal.loggedDays} logged day{bal.loggedDays === 1 ? '' : 's'}, worth about <span className="tnum font-semibold" style={{ color: 'var(--text)' }}>{fmtWeightDelta(perWeek, unit).replace(/^[+\u2212]/, '')}</span> a week.{cmp}{bal.offPlanDays ? ' ' + bal.offPlanDays + ' off-plan day' + (bal.offPlanDays === 1 ? ' is' : 's are') + ' greyed out and left out of this.' : ''}
             </div>;
           })()}
         </> : <PremiumTease headline="See the deficit you actually ran, day by day" />}
@@ -7874,7 +7935,7 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
                 <span className="tnum text-[11px] text-[var(--muted)] shrink-0">{est.low.toLocaleString()}–{est.high.toLocaleString()}</span>
               </div>
               {showMath && <div className="fade-in text-[11px] text-[var(--muted)] leading-relaxed mt-2 space-y-1.5">
-                <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
+                <div>{est.offPlanFrom ? 'Since ' + fmtShortDay(est.offPlanFrom) + ' (your off-plan week is left out)' : 'Over the last ' + est.windowDays + ' days'} you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
                 {est.direction === 'flat'
                   ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
                   : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtRateKg(est.weeklyChangeKg, unit)}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
@@ -7905,7 +7966,8 @@ function ExpenditureCard({ db, plan, title = 'Energy' }) {
         {/* How much of the above rests on real days. It used to be two stat tiles in a card of their
             own, printing two different denominators, which is a report card rather than a caveat. */}
         {(() => {
-          const b = behaviourStats(db, 14);
+          // The same days the burn rests on: after an off-plan week, only the days since it.
+          const b = behaviourStats(db, est.offPlanFrom ? Math.max(1, daysBetween(est.offPlanFrom, today) + 1) : 14);
           if (!b.loggedDays) return null;
           return <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
             Resting on {b.complete} of {b.days} day{b.days === 1 ? '' : 's'} fully logged{b.loggedDays ? ', protein on ' + b.proteinHit + ' of ' + b.loggedDays : ''}.
@@ -7934,7 +7996,7 @@ function BalanceBars({ days, lens }) {
         const n = v == null ? 0 : Math.max(1, Math.round(Math.abs(v) / perCell));
         const over = v != null && v > 0;
         const cells = Array.from({ length: Math.min(ROWS, n) }, (_, c) => (
-          <i key={c} style={{ display: 'block', height: CELL, marginBottom: GAP, background: ghost ? 'var(--track)' : over ? 'var(--warn)' : 'var(--good)', opacity: d.partial ? 0.45 : 1 }} />
+          <i key={c} style={{ display: 'block', height: CELL, marginBottom: GAP, background: ghost || d.offPlan ? 'var(--track)' : over ? 'var(--warn)' : 'var(--good)', opacity: d.partial ? 0.45 : 1 }} />
         ));
         return (<div key={d.date} className="flex-1 min-w-0">
           <div style={{ height: H, display: 'flex', flexDirection: 'column-reverse', justifyContent: 'flex-start' }}>{over ? cells : null}</div>
@@ -16724,7 +16786,18 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onOpenSetting, onBac
               <div className="text-[11px] text-[var(--muted)] mt-1.5 leading-snug">
                 {/* The rate and the goal weight are the verdict's story, told at the top of the page.
                     This line only has to explain where the target came from. */}
-                {gap ? <>{gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn'}, {p.goalType === 'maintain' ? 'which is roughly maintenance' : 'which is what ' + p.rateKgPerWeek + ' kg a week costs'}.</> : null}{db.paused ? ' Currently paused.' : ''}
+                {gap ? (() => {
+                  // Only say the gap IS the goal's cost when it is. This card shows the live 14-day burn,
+                  // and the target was set from the check-in's smoothed one, so the two can sit apart for
+                  // a week; saying "which is what 0.6 kg a week costs" over a 300 kcal gap was untrue.
+                  const want = p.goalType === 'maintain' ? 0 : Math.round(Math.abs(p.rateKgPerWeek || 0) * E.KCAL_PER_KG / 7) * (p.goalType === 'gain' ? 1 : -1);
+                  const lead = gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn';
+                  const matches = Math.abs(gap - want) <= 75;
+                  const tail = p.goalType === 'maintain'
+                    ? (matches ? 'which is roughly maintenance' : 'and maintenance is level with it, so your next check-in will square the two')
+                    : (matches ? 'which is what ' + p.rateKgPerWeek + ' kg a week costs' : 'and ' + p.rateKgPerWeek + ' kg a week wants about ' + Math.abs(want) + ' ' + (want < 0 ? 'below' : 'above') + ', so your next check-in will square the two');
+                  return <>{lead}, {tail}.</>;
+                })() : null}{db.paused ? ' Currently paused.' : ''}
               </div>
               {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
             </div>;

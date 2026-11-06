@@ -97,7 +97,7 @@ test('updateExpenditure: blends from the prior toward the estimate, gain ramps w
 
 // Recent, better data earns more say: people improve at tracking, and an estimate that held weeks
 // left untouched for a month describes how they were eating back then.
-test('updateExpenditure: a cleaner cycle than the ones that built the estimate gets extra weight', () => {
+test('updateExpenditure: a better-tracked cycle than the ones that built the estimate gets extra weight', () => {
   const plain = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 1);
   near(plain.kcal, 2500 + 0.6 * 500, 1); // no improvement over the history: unchanged behaviour
   const better = E.updateExpenditure({ kcal: 2500, n: 10, q: 0.6 }, 3000, 1);
@@ -543,7 +543,11 @@ test('detectPlateau: flags a stalled, adherent cut after >=2 consecutive down-st
 test('detectPlateau: no flag for gains/maintains, off-plan weeks, real movement, or old state shapes', () => {
   const stall = [{ adhered: true, weeklyChangeKg: -0.05, deltaKcal: -150 }, { adhered: true, weeklyChangeKg: -0.1, deltaKcal: -200 }];
   assert.strictEqual(E.detectPlateau(stall, 'gain').plateau, false);
-  assert.strictEqual(E.detectPlateau(stall.concat([{ adhered: false, weeklyChangeKg: -0.05, deltaKcal: -150 }]), 'cut').plateau, false);
+  // An off-plan week is disregarded: it neither breaks a plateau nor counts towards one.
+  const withOff = E.detectPlateau(stall.concat([{ adhered: false, weeklyChangeKg: 0.4, deltaKcal: 0 }]), 'cut');
+  assert.strictEqual(withOff.plateau, E.detectPlateau(stall, 'cut').plateau);
+  assert.strictEqual(withOff.cycles, E.detectPlateau(stall, 'cut').cycles);
+  assert.strictEqual(E.detectPlateau([stall[0], { adhered: false, weeklyChangeKg: -0.05, deltaKcal: -150 }], 'cut').plateau, false, 'and one real flat week plus an off-plan one is still only one');
   assert.strictEqual(E.detectPlateau([{ adhered: true, weeklyChangeKg: -0.5, deltaKcal: -150 }, { adhered: true, weeklyChangeKg: -0.45, deltaKcal: -150 }], 'cut').plateau, false);
   // Old persisted check-ins without the new fields must not crash or flag.
   assert.strictEqual(E.detectPlateau([{ date: '2026-01-01', onTrack: true }, { date: '2026-01-08' }], 'cut').plateau, false);
@@ -906,4 +910,75 @@ test('composeDayTarget: raising the target mid-cycle leaves the days already eat
     cycling, cyclingHistory: hist, carryover: null, cycleStart: ws,
   });
   assert.strictEqual(flat.base.kcal, 2200);
+});
+
+// ---- on-plan, fully tracked weeks ----
+// A week that's on plan, logged and weighed nearly every day is trusted in full, and a five-day one is
+// not marked down for being short. After a week too patchy to read, such a week sets most of the
+// burn. Built from the real 2-6 Nov cycle that prompted it: four logged days (check-in morning not yet
+// finished), four weigh-ins over five mornings.
+const onPlanProfile = Object.assign({}, maleProfile, { rateKgPerWeek: 0.6 });
+function onPlanOpts(extra) {
+  return Object.assign({
+    profile: onPlanProfile, currentTargets: { kcal: 2095 },
+    estimate: { tdee: 2809, weeklyChangeKg: -0.64, days: 5.5, avgKcal: 2105 },
+    expenditure: { kcal: 2755, n: 6, q: 1, ageDays: 7 },
+    adherenceDays: 4, logWindow: 4, weighDays: 4, periodDays: 5, minDays: 4,
+  }, extra || {});
+}
+test('weeklyAdjust: a fully tracked five-day cycle is trusted in full, not marked down for length', () => {
+  const r = E.weeklyAdjust(onPlanOpts());
+  assert.strictEqual(r.fullyTracked, true);
+  assert.strictEqual(r.confidence, 'high');
+  const patchy = E.weeklyAdjust(onPlanOpts({ weighDays: 3 })); // 3 of 5 mornings
+  assert.strictEqual(patchy.fullyTracked, false);
+  assert.notStrictEqual(patchy.confidence, 'high');
+});
+test('weeklyAdjust: the unfinished check-in day does not stop a fully logged week counting as fully tracked', () => {
+  // 6 of 7 by the old count; 6 of the 6 finishable days is 100%.
+  const r = E.weeklyAdjust(onPlanOpts({ adherenceDays: 6, logWindow: 6, weighDays: 7, periodDays: 7 }));
+  assert.strictEqual(r.fullyTracked, true);
+});
+test('weeklyAdjust: patchy logging or weighing is not fully tracked and keeps the ordinary weighting', () => {
+  const logs = E.weeklyAdjust(onPlanOpts({ adherenceDays: 5, logWindow: 6, weighDays: 7, periodDays: 7 })); // 83%
+  assert.strictEqual(logs.fullyTracked, false);
+  const weigh = E.weeklyAdjust(onPlanOpts({ adherenceDays: 6, logWindow: 6, weighDays: 4, periodDays: 7 })); // 57%
+  assert.strictEqual(weigh.fullyTracked, false);
+  assert.ok(Math.abs(weigh.expenditure.kcal - 2755) < 0.85 * (2809 - 2755), 'moves less than a fully tracked week');
+  const wOnly = E.weeklyAdjust(onPlanOpts({ mode: 'weightOnly' }));
+  assert.strictEqual(wOnly.fullyTracked, false, 'weight-only never counts as fully tracked: intake is assumed');
+});
+test('expenditureAfterHold: a held week keeps the burn but marks it less reliable', () => {
+  const ex = { kcal: 2755, n: 6, q: 1, updated: '2026-10-16' };
+  const held = E.expenditureAfterHold(ex);
+  assert.strictEqual(held.kcal, 2755);
+  assert.strictEqual(held.updated, '2026-10-16', 'age is untouched, so staleness still counts');
+  assert.strictEqual(held.q, 0.4);
+  assert.strictEqual(E.expenditureAfterHold({ kcal: 2755, n: 6 }).q, 0.4, 'old saved state without q');
+  assert.strictEqual(E.expenditureAfterHold(null), null);
+});
+
+test('a fully tracked week after a PATCHY one sets most of the burn; tracked after tracked stays steady', () => {
+  const afterHold = E.weeklyAdjust(onPlanOpts({ expenditure: Object.assign(E.expenditureAfterHold({ kcal: 2755, n: 6, q: 1 }), { ageDays: 7 }) }));
+  near(afterHold.expenditure.kcal, 2755 + 0.85 * (2809 - 2755), 1);
+  // Someone who has tracked fully all along keeps the ordinary, stable 0.6.
+  const steady = E.weeklyAdjust(onPlanOpts());
+  near(steady.expenditure.kcal, 2755 + 0.6 * (2809 - 2755), 1);
+  // The lift fades as fully tracked weeks rebuild the estimate's standing.
+  const again = E.updateExpenditure({ kcal: 2800, n: 7, q: afterHold.expenditure.q }, 2900, 1, 1);
+  assert.ok(again.q > afterHold.expenditure.q && again.q <= 1);
+});
+
+test('an OFF-PLAN week leaves the burn exactly as it was: number, standing and age', () => {
+  const ex = { kcal: 2755, n: 6, q: 1, updated: '2026-10-16' };
+  const off = E.expenditureAfterOffPlan(E.expenditureAfterOffPlan(ex, 7), 6);
+  assert.strictEqual(off.kcal, 2755);
+  assert.strictEqual(off.q, 1, 'standing untouched');
+  assert.strictEqual(off.updated, '2026-10-16');
+  assert.strictEqual(off.heldDays, 13, 'thirteen off-plan days to take off its age');
+  // The next on-plan week after two off-plan weeks weighs exactly what it would have with none.
+  const after = E.weeklyAdjust(onPlanOpts({ expenditure: { kcal: 2755, n: 6, q: 1, ageDays: 20 - 13 } }));
+  const never = E.weeklyAdjust(onPlanOpts({ expenditure: { kcal: 2755, n: 6, q: 1, ageDays: 7 } }));
+  assert.strictEqual(after.expenditure.kcal, never.expenditure.kcal);
+  assert.strictEqual(E.expenditureAfterOffPlan(null, 7), null);
 });

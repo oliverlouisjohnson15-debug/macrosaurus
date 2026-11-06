@@ -86,7 +86,7 @@ function checkIn(db, { kg, stuckToIt = true, today = TODAY } = {}) {
     ui.click(ui.has('Right, let’s see') ? 'Right, let’s see' : 'Carry on anyway');
     if (kg != null) ui.type(ui.host.ownerDocument.querySelector('input[inputmode], input[type="number"], input'), kg);
     ui.click('Continue');
-    ui.click(stuckToIt ? 'Yes, pretty much' : 'Not really');
+    ui.click(stuckToIt ? 'On plan' : 'Off plan');
     ui.click('See what it means');
     return ui;
   });
@@ -176,6 +176,10 @@ test('a week that was not stuck to: it holds and says why, whatever the scale di
   assert.strictEqual(ci.adhered, false, 'the answer is recorded, so the history is honest');
   // ...but the weigh-in itself is kept, so next week's read has it.
   assert.ok(db.weight_entries.some(w => w.date === TODAY), 'the morning weight was thrown away');
+  // Set aside completely: the burn keeps its number and standing, and the off-plan days don't age it.
+  assert.strictEqual(db.expenditure.kcal, BURN);
+  assert.strictEqual(db.expenditure.q, undefined, 'no reliability mark from an off-plan week');
+  assert.strictEqual(db.expenditure.heldDays, 7, 'the seven off-plan days are taken off its age');
 });
 
 test('barely logged this week: it goes on the scale alone, and says so before acting on it', () => {
