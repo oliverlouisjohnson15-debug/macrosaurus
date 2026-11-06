@@ -954,8 +954,7 @@ test('expenditureAfterHold: a held week keeps the burn but marks it less reliabl
   assert.strictEqual(E.expenditureAfterHold(null), null);
 });
 
-test('a clean week after an off-plan one sets most of the burn; clean after clean stays steady', () => {
-  // The 6 Nov case: off-plan weeks, then a clean five days.
+test('a clean week after a PATCHY one sets most of the burn; clean after clean stays steady', () => {
   const afterHold = E.weeklyAdjust(cleanOpts({ expenditure: Object.assign(E.expenditureAfterHold({ kcal: 2755, n: 6, q: 1 }), { ageDays: 7 }) }));
   near(afterHold.expenditure.kcal, 2755 + 0.85 * (2809 - 2755), 1);
   // Someone who has been clean all along keeps the ordinary, stable 0.6.
@@ -964,4 +963,18 @@ test('a clean week after an off-plan one sets most of the burn; clean after clea
   // The lift fades as clean weeks rebuild the estimate's standing.
   const again = E.updateExpenditure({ kcal: 2800, n: 7, q: afterHold.expenditure.q }, 2900, 1, 1);
   assert.ok(again.q > afterHold.expenditure.q && again.q <= 1);
+});
+
+test('an OFF-PLAN week leaves the burn exactly as it was: number, standing and age', () => {
+  const ex = { kcal: 2755, n: 6, q: 1, updated: '2026-10-16' };
+  const off = E.expenditureAfterOffPlan(E.expenditureAfterOffPlan(ex, 7), 6);
+  assert.strictEqual(off.kcal, 2755);
+  assert.strictEqual(off.q, 1, 'standing untouched');
+  assert.strictEqual(off.updated, '2026-10-16');
+  assert.strictEqual(off.heldDays, 13, 'thirteen off-plan days to take off its age');
+  // The next clean week after two off-plan weeks weighs exactly what it would have with none.
+  const clean = E.weeklyAdjust(cleanOpts({ expenditure: { kcal: 2755, n: 6, q: 1, ageDays: 20 - 13 } }));
+  const never = E.weeklyAdjust(cleanOpts({ expenditure: { kcal: 2755, n: 6, q: 1, ageDays: 7 } }));
+  assert.strictEqual(clean.expenditure.kcal, never.expenditure.kcal);
+  assert.strictEqual(E.expenditureAfterOffPlan(null, 7), null);
 });

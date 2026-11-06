@@ -988,17 +988,30 @@
     return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
   }
 
-  // A held check-in (off plan, or too patchy to read) says the weeks since the estimate was learned
-  // are not ones it describes. The estimate itself stays put, since nothing measured it wrong, but its
+  // A check-in held as TOO PATCHY TO READ says the weeks since the estimate was learned are not
+  // ones it describes. The estimate itself stays put, since nothing measured it wrong, but its
   // quality drops, so the next CLEAN cycle reads as the leap in reliability it is and sets most of
   // the burn (see the quality lift above). Someone who tracks cleanly week after week keeps the
   // ordinary weighting: the scenario tests show that pushing every clean week harder only overshoots,
   // because the weight trend lags the eating that moved it.
+  //
+  // An OFF-PLAN week is different and gets expenditureAfterOffPlan instead: you told the app it
+  // doesn't represent what you set out to do, and its log is the least likely to be complete, so it
+  // must not touch the burn in any way. Not its number, not its standing, not even its age.
   var HELD_QUALITY = 0.4;
   function expenditureAfterHold(ex) {
     if (!ex || !(ex.kcal > 0)) return ex || null;
     var q = (ex.q != null && isFinite(+ex.q)) ? +ex.q : 1;
     return Object.assign({}, ex, { q: Math.min(q, HELD_QUALITY) });
+  }
+
+  // Off-plan weeks don't age the estimate either. Without this, a run of them would make the next
+  // week lean harder on fresh data (the stale lift), which is still the off-plan weeks steering the
+  // burn. heldDays is subtracted from the estimate's age and goes when the next check-in replaces it.
+  function expenditureAfterOffPlan(ex, days) {
+    if (!ex || !(ex.kcal > 0)) return ex || null;
+    var d = Math.max(0, Math.round(+days || 0));
+    return Object.assign({}, ex, { heldDays: (+ex.heldDays || 0) + d });
   }
 
   // ---- plateau detection ----
@@ -2307,7 +2320,7 @@
     cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, cyclingHistoryTidy: cyclingHistoryTidy, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     weekdayRhythm: weekdayRhythm,
-    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, expenditureAfterHold: expenditureAfterHold, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
+    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, expenditureAfterHold: expenditureAfterHold, expenditureAfterOffPlan: expenditureAfterOffPlan, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,

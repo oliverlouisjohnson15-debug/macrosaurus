@@ -3965,7 +3965,8 @@ function expenditurePrior(db, prof) {
   // q (confidence of the cycles that built it) and its age let a cleaner or much newer cycle outweigh
   // it faster; see Engine.updateExpenditure.
   if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0, q: ex.q != null ? +ex.q : null,
-    ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO())) : 0 };
+    // Off-plan weeks since it was learned don't count towards its age (see Engine.expenditureAfterOffPlan).
+    ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO()) - (+ex.heldDays || 0)) : 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
 }
 function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[var(--muted)] mt-0.5">{label}</div></div>); }
@@ -6500,10 +6501,14 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
-      // A week held as off plan, or too patchy to read, is one the learned burn doesn't describe: keep
-      // the number but mark it less reliable, so the next clean week resets most of it. A diet break is
-      // a deliberate, on-plan maintenance phase, so it leaves the estimate's standing alone.
-      if (res.status === 'held' && !dietBreakActive(db, today) && d.expenditure) d.expenditure = E.expenditureAfterHold(d.expenditure);
+      // An OFF-PLAN week is disregarded completely: the learned burn keeps its number, its standing and
+      // its age, as if the week never happened. A week held as too patchy to read keeps the number but
+      // is marked less reliable, so the next clean week resets most of it. A diet break is a deliberate,
+      // on-plan maintenance phase, so it leaves the estimate alone.
+      if (res.status === 'held' && d.expenditure) {
+        if (res.offPlan) d.expenditure = E.expenditureAfterOffPlan(d.expenditure, db.last_checkin ? daysBetween(db.last_checkin, today) : cycleDays);
+        else if (!dietBreakActive(db, today)) d.expenditure = E.expenditureAfterHold(d.expenditure);
+      }
       // One record per date: re-running a check-in the same day (a resumed sheet, a second device)
       // replaces that day's record rather than stacking a second one the history then shows twice.
       d.checkins = (d.checkins || []).filter(c => !c || c.date !== today).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
