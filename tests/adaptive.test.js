@@ -110,6 +110,19 @@ test('updateExpenditure: a cleaner cycle than the ones that built the estimate g
   assert.strictEqual(legacy.q, 1);
 });
 
+test('updateExpenditure: deliberate discounts are not recorded as tracking quality', () => {
+  // First-cycle water discount: conf 0.3 must not seed q = 0.3, or the next ordinary cycle would
+  // look like a leap in tracking and take the maximum weight.
+  const early = E.updateExpenditure({ kcal: 2500, n: 0 }, 3000, 0.3, null);
+  assert.strictEqual(early.q, null);
+  const next = E.updateExpenditure(early, 3000, 1);
+  near(next.kcal, early.kcal + 0.4 * (3000 - early.kcal), 1); // plain ramp, no lift
+  // Overlap discount: conf lowered, tracking quality full. Quality history follows tracking.
+  const overlap = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 0.7, 1);
+  near(overlap.kcal, 2500 + 0.7 * 0.6 * 500, 1);
+  assert.strictEqual(overlap.q, 1);
+});
+
 test('updateExpenditure: an estimate left stale by held weeks yields faster, capped', () => {
   const fresh = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 7 }, 3000, 1);
   near(fresh.kcal, 2500 + 0.6 * 500, 1);

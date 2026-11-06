@@ -956,13 +956,19 @@
   // n=0) and n counts absorbed check-ins. estimate: this cycle's raw TDEE estimate. conf: 0..1 data
   // quality. The gain ramps with n so early cycles lean on the formula prior and, after ~3-4 cycles,
   // the observed data dominates; low-confidence cycles always move the estimate less.
-  function updateExpenditure(prior, estimate, conf) {
+  // `quality` (optional) is how well this cycle was TRACKED (logging and weigh-in coverage), kept apart
+  // from `conf` because conf also carries deliberate discounts that say nothing about tracking: the
+  // first-cycle water discount and the overlap discount on a widened read. Recording those as quality
+  // would make the next ordinary cycle look like a leap in tracking and hand it the maximum weight.
+  // Omitted, it defaults to conf; null leaves the stored quality untouched.
+  function updateExpenditure(prior, estimate, conf, quality) {
     var est = +estimate;
     if (!isFinite(est)) return prior || null;
     var c = clamp(conf == null ? 0.5 : +conf, 0, 1);
     var pk = (prior && isFinite(+prior.kcal)) ? +prior.kcal : null;
     var n = (prior && isFinite(+prior.n)) ? Math.max(0, +prior.n) : 0;
-    if (pk == null) return { kcal: round(est), n: 1, k: 1, q: round(c, 3) };
+    var qc = quality === undefined ? c : (quality === null ? null : clamp(+quality, 0, 1));
+    if (pk == null) return { kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) };
     var ramp = clamp((n + 1) / 5, 0.2, 0.6);
     // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
     // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log cleanly.
@@ -975,11 +981,11 @@
     // Priors without q (state saved before this existed) get no quality lift; q is seeded from here.
     var q = (prior && prior.q != null && isFinite(+prior.q)) ? clamp(+prior.q, 0, 1) : null;
     var age = (prior && prior.ageDays != null && isFinite(+prior.ageDays)) ? +prior.ageDays : 0;
-    var qualityLift = q == null ? 0 : Math.max(0, c - q);
+    var qualityLift = (q == null || qc == null) ? 0 : Math.max(0, qc - q);
     var staleLift = clamp((age - 7) / 28, 0, 0.25);
     var k = c * Math.min(0.85, ramp + Math.max(qualityLift, staleLift));
-    var qNew = q == null ? c : q + 0.5 * (c - q);
-    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: round(qNew, 3) };
+    var qNew = qc == null ? q : (q == null ? qc : q + 0.5 * (qc - q));
+    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
   }
 
   // ---- plateau detection ----
@@ -1071,6 +1077,7 @@
       : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
     var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    var trackQuality = conf; // before the overlap discount below: how well this cycle was tracked
     // A read window that reaches back PAST the last check-in is mostly evidence that has already
     // been acted on once. Re-reading it is right - a window has to be whole weeks or a weekly eating
     // rhythm tilts it - but treating it as a full cycle's worth of new proof is not: the same days
@@ -1083,7 +1090,7 @@
     // not the noisy single-cycle read. Without a prior (legacy callers), use the raw estimate.
     var smoothed = null, burnRef = opts.estimate.tdee;
     if (opts.expenditure && isFinite(+opts.expenditure.kcal)) {
-      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf);
+      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf, trackQuality);
       burnRef = smoothed.kcal;
     }
     var desiredKcal = burnRef + goalDelta;
@@ -1913,7 +1920,7 @@
       var est = { tdee: round(avgKcal - (weeklyChangeKg * KCAL_PER_KG) / 7), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: cycleDays };
       result = earlyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, earlyCap: opts.earlyCap || 150, waterHigh: opts.waterHigh });
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
-      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
+      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null);
     } else {
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
       result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale });
