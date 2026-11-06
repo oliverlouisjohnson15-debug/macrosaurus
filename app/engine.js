@@ -1115,17 +1115,41 @@
       if (goal === 'maintain') reason = 'You\'re ' + actualStr + '. Steady, exactly the plan. Keeping you at ' + newKcalR + ' kcal. No change, nice work.';
       else reason = 'Your goal is to ' + (goal === 'cut' ? 'lose' : 'gain') + ' ' + rt(expected) + '/wk and you\'re ' + actualStr + '. Bang on target. No change: keep doing exactly what you\'re doing.';
     } else {
+      // The sentence has to come from comparing the actual RATE with the goal rate, not from which way
+      // the calories moved. The two usually agree, but not always: the new target is built on the
+      // smoothed burn (burnRef + goalDelta), so a cycle that ran slower than target while eating above
+      // it reads a HIGHER burn and can still move calories up. Saying "faster than your target" there
+      // is the app contradicting its own numbers, so name the real driver (the burn) instead.
+      var RATE_TOL = 0.05; // kg/wk: inside this the rate is "about on" target, not faster or slower
+      var gap = actual - expected; // +ve = heavier than plan (slower cut / faster gain)
+      var rateCmp = Math.abs(gap) <= RATE_TOL ? 'on' : goal === 'gain' ? (gap > 0 ? 'faster' : 'slower') : (gap > 0 ? 'slower' : 'faster');
+      var cmpWord = rateCmp === 'on' ? 'about on' : rateCmp === 'faster' ? 'faster than' : 'slower than';
+      var avgK = opts.estimate.avgKcal;
+      var verb = dir === 'up' ? (goal === 'cut' ? 'giving you back ' : 'adding ') : (goal === 'gain' ? 'trimming ' : 'dropping you ');
+      function burnWhy() {
+        var eatClause = '';
+        if (!wOnly && isFinite(+avgK)) {
+          if (dir === 'up' && avgK > currentKcal + 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, above your ' + currentKcal + ' target';
+          if (dir === 'down' && avgK < currentKcal - 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, under your ' + currentKcal + ' target';
+        }
+        var goalWord = goal === 'maintain' ? 'holding steady' : (goal === 'cut' ? 'losing ' : 'gaining ') + rt(expected) + '/wk';
+        return (goal === 'maintain' ? 'That\'s ' + (Math.abs(actual) <= 0.02 ? 'about steady' : 'a little off steady') : 'That\'s ' + cmpWord + ' your ' + rt(expected) + '/wk target')
+          + eatClause + ', which puts your burn ' + (dir === 'up' ? 'higher' : 'lower') + ' than your targets were built on. '
+          + ucfirst(goalWord) + ' from that burn means eating ' + (dir === 'up' ? 'a little more' : 'a little less') + ', so I\'m ' + verb;
+      }
       var why;
       if (goal === 'cut') {
-        why = dir === 'down'
-          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' (you actually went up)' : '') + ', so to get fat loss moving again I\'m dropping you '
-          : 'That\'s faster than your ' + rt(expected) + '/wk target. Great going, but to protect muscle and keep it sustainable I\'m giving you back ';
+        if (dir === 'down' && rateCmp === 'slower') why = 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' (you actually went up)' : '') + ', so to get fat loss moving again I\'m dropping you ';
+        else if (dir === 'up' && rateCmp === 'faster') why = 'That\'s faster than your ' + rt(expected) + '/wk target. Great going, but to protect muscle and keep it sustainable I\'m giving you back ';
+        else why = burnWhy();
       } else if (goal === 'gain') {
-        why = dir === 'up'
-          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual <= 0 ? ' (you didn\'t gain)' : '') + ', so to keep the muscle coming I\'m adding '
-          : 'That\'s faster than your ' + rt(expected) + '/wk target, and extra gain that quick is mostly fat, so I\'m trimming ';
+        if (dir === 'up' && rateCmp === 'slower') why = 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual <= 0 ? ' (you didn\'t gain)' : '') + ', so to keep the muscle coming I\'m adding ';
+        else if (dir === 'down' && rateCmp === 'faster') why = 'That\'s faster than your ' + rt(expected) + '/wk target, and extra gain that quick is mostly fat, so I\'m trimming ';
+        else why = burnWhy();
       } else {
-        why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
+        if (dir === 'up' && actual < -0.02) why = 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ';
+        else if (dir === 'down' && actual > 0.02) why = 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
+        else why = burnWhy();
       }
       reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and ' + proteinClause(opts.currentTargets, newTargets) + '.';
     }

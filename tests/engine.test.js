@@ -735,3 +735,49 @@ test('readReliability: says nothing it cannot support, on thin data or a weekly 
   // Maintenance has no target movement, so there is no noise floor to speak to.
   assert.strictEqual(E.readReliability({ weights: thin, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7, targetRatePerWeek: 0, weighCadence: 'daily' }).readable, true);
 });
+
+// The explanation must compare the actual RATE with the goal rate, not infer it from which way the
+// calories moved. Real case: losing 0.51 kg/wk against a 0.60 target, but a higher smoothed burn
+// (2819) moved calories UP; the old text called 0.51 "faster than your 0.60 kg/wk target".
+const cutProfile060 = Object.assign({}, baseProfile, { goalType: 'cut', rateKgPerWeek: 0.6, weight_unit: 'kg' });
+test('weeklyAdjust rationale: slower-than-target cut whose burn moves calories UP never says "faster"', () => {
+  const r = E.weeklyAdjust({
+    profile: cutProfile060, currentTargets: { kcal: 2095 },
+    estimate: { tdee: 2911, weeklyChangeKg: -0.511, days: 7, avgKcal: 2349 },
+    expenditure: { kcal: 2755, n: 6 },
+    adherenceDays: 6, weighDays: 7, periodDays: 7,
+  });
+  assert.strictEqual(r.direction, 'up');
+  assert.ok(!/faster than/i.test(r.reason), r.reason);
+  assert.ok(/slower than your 0\.60 kg\/wk target/.test(r.reason), r.reason);
+  assert.ok(/burn higher/.test(r.reason) && /above your 2095 target/.test(r.reason), r.reason);
+});
+
+test('weeklyAdjust rationale: faster-than-target cut whose burn moves calories DOWN never says "slower"', () => {
+  const r = E.weeklyAdjust({
+    profile: cutProfile060, currentTargets: { kcal: 2200 },
+    estimate: { tdee: 2400, weeklyChangeKg: -0.8, days: 7, avgKcal: 1700 },
+    expenditure: { kcal: 2500, n: 6 },
+    adherenceDays: 7, weighDays: 7, periodDays: 7,
+  });
+  assert.strictEqual(r.direction, 'down');
+  assert.ok(!/slower than/i.test(r.reason), r.reason);
+  assert.ok(/faster than your 0\.60 kg\/wk target/.test(r.reason) && /burn lower/.test(r.reason), r.reason);
+});
+
+test('weeklyAdjust rationale: matching cases keep the plain faster/slower wording', () => {
+  const up = E.weeklyAdjust({
+    profile: cutProfile060, currentTargets: { kcal: 2000 },
+    estimate: { tdee: 3100, weeklyChangeKg: -1.0, days: 7, avgKcal: 2000 },
+    expenditure: { kcal: 3000, n: 6 }, adherenceDays: 7, weighDays: 7, periodDays: 7,
+  });
+  assert.strictEqual(up.direction, 'up');
+  assert.ok(/faster than your 0\.60 kg\/wk target\. Great going/.test(up.reason), up.reason);
+  const down = E.weeklyAdjust({
+    profile: cutProfile060, currentTargets: { kcal: 2300 },
+    estimate: { tdee: 2500, weeklyChangeKg: -0.2, days: 7, avgKcal: 2300 },
+    expenditure: { kcal: 2600, n: 6 }, adherenceDays: 7, weighDays: 7, periodDays: 7,
+  });
+  assert.strictEqual(down.direction, 'down');
+  assert.ok(/slower than the 0\.60 kg\/wk you're aiming for/.test(down.reason), down.reason);
+});
