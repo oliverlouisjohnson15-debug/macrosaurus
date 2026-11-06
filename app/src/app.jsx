@@ -6500,6 +6500,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
+      // A week held as off plan, or too patchy to read, is one the learned burn doesn't describe: keep
+      // the number but mark it less reliable, so the next clean week resets most of it. A diet break is
+      // a deliberate, on-plan maintenance phase, so it leaves the estimate's standing alone.
+      if (res.status === 'held' && !dietBreakActive(db, today) && d.expenditure) d.expenditure = E.expenditureAfterHold(d.expenditure);
       // One record per date: re-running a check-in the same day (a resumed sheet, a second device)
       // replaces that day's record rather than stacking a second one the history then shows twice.
       d.checkins = (d.checkins || []).filter(c => !c || c.date !== today).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);

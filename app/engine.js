@@ -988,6 +988,19 @@
     return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
   }
 
+  // A held check-in (off plan, or too patchy to read) says the weeks since the estimate was learned
+  // are not ones it describes. The estimate itself stays put, since nothing measured it wrong, but its
+  // quality drops, so the next CLEAN cycle reads as the leap in reliability it is and sets most of
+  // the burn (see the quality lift above). Someone who tracks cleanly week after week keeps the
+  // ordinary weighting: the scenario tests show that pushing every clean week harder only overshoots,
+  // because the weight trend lags the eating that moved it.
+  var HELD_QUALITY = 0.4;
+  function expenditureAfterHold(ex) {
+    if (!ex || !(ex.kcal > 0)) return ex || null;
+    var q = (ex.q != null && isFinite(+ex.q)) ? +ex.q : 1;
+    return Object.assign({}, ex, { q: Math.min(q, HELD_QUALITY) });
+  }
+
   // ---- plateau detection ----
   // A cut is plateaued when the most recent >= minCycles consecutive check-ins were adherent,
   // trended nearly flat (|weekly change| < rateThreshold kg/wk) AND stepped calories down, i.e.
@@ -1076,7 +1089,17 @@
       ? ((opts.weighDays || 0) >= 1 ? 0.7 : 0)
       : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
-    var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    // A clean cycle: on plan (an off-plan one never gets here, it is held upstream), food logged on
+    // at least 90% of the days that could be finished, and weighed on at least 75% of mornings (the
+    // trend smooths over a missed one, so one gap in five days still reads cleanly). The log window
+    // leaves out an unfinished check-in day: you check in in the morning, and counting that day as
+    // unlogged was marking every fully logged week as 6 of 7. A clean cycle is trusted in full, and a
+    // short one (five or six days) is not marked down for its length.
+    var logDen = (opts.logWindow != null && +opts.logWindow > 0) ? +opts.logWindow : periodDays;
+    var clean = !wOnly && opts.weighCadence !== 'single' && periodDays >= 5
+      && (opts.adherenceDays || 0) >= 4 && (opts.adherenceDays || 0) / logDen >= 0.9
+      && (opts.weighDays || 0) >= 4 && (opts.weighDays || 0) / periodDays >= 0.75;
+    var conf = clean ? 1 : clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var trackQuality = conf; // before the overlap discount below: how well this cycle was tracked
     // A read window that reaches back PAST the last check-in is mostly evidence that has already
     // been acted on once. Re-reading it is right - a window has to be whole weeks or a weekly eating
@@ -1101,7 +1124,7 @@
       var actual0 = opts.estimate.weeklyChangeKg;
       return { changed: false, direction: 'unchanged', holdWithinNoise: true, deltaKcal: 0, confidence: confidence,
         expectedKgPerWeek: round(profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0, 2),
-        actualKgPerWeek: round(actual0, 3), expenditure: smoothed,
+        actualKgPerWeek: round(actual0, 3), expenditure: smoothed, cleanCycle: clean,
         reason: 'That\'s near enough spot on. Nudging your ' + currentKcal + ' either way would be chasing noise rather than fat, so I\'m leaving it exactly where it is.', estimate: opts.estimate };
     }
     var fullCap = clamp(round(0.10 * (burnRef || currentKcal)), 150, 350);
@@ -1119,7 +1142,7 @@
     if (opts.waterHigh && dir === 'down') {
       var expW = profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
       return { changed: false, direction: 'unchanged', deltaKcal: 0, confidence: confidence, waterHeld: true,
-        expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed,
+        expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed, cleanCycle: clean,
         reason: 'This cycle overlaps the water-weight rise around your period (it peaks on day one of your period and can look like a stall). Rather than cut on what\'s most likely water, not fat, I\'m holding you at ' + currentKcal + ' kcal. A check-in in the week after your period reads cleanest.', estimate: opts.estimate };
     }
 
@@ -1175,7 +1198,7 @@
       }
       reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and ' + proteinClause(opts.currentTargets, newTargets) + '.';
     }
-    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed };
+    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed, cleanCycle: clean };
   }
 
   // First-cycle (no prior baseline) adjustment. Early rapid weight change is largely water and glycogen,
@@ -1864,13 +1887,16 @@
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
     var kbd = opts.kcalByDate || {};
     var tbd = opts.targetByDate || {};
-    var vals = [], completeDays = 0;
+    var vals = [], completeDays = 0, todayComplete = false;
     for (var d in kbd) {
       if (d < cs || d > today) continue;
       if (!(kbd[d] > 0)) continue;
       if (!isCompleteDay(kbd[d], tbd[d])) continue;
       vals.push(kbd[d]); completeDays++;
+      if (d === today) todayComplete = true;
     }
+    // The days that could have been finished by now: the check-in day only counts once it is logged.
+    var logWindowDays = Math.max(1, cycleDays - (todayComplete ? 0 : 1));
     var wOnly = opts.mode === 'weightOnly';
     // Balance lane needs real logged intake; the weight-only lane doesn't, so skip the logs gate there.
     if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
@@ -1923,7 +1949,7 @@
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null);
     } else {
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale, logWindow: logWindowDays });
     }
     // Two strikes and the food log is out. Holding once on a suspicious log is prudent; holding every
     // cycle is a dead end, because the person whose log never reconciles is exactly the person whose
@@ -2281,7 +2307,7 @@
     cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, cyclingHistoryTidy: cyclingHistoryTidy, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     weekdayRhythm: weekdayRhythm,
-    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
+    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, expenditureAfterHold: expenditureAfterHold, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
