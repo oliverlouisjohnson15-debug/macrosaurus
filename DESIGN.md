@@ -90,6 +90,21 @@ Rules:
 | `Field` | A cream window, 52px tall, focused with a 3px `--cursor` ring. It can hold buttons inside (barcode, mic, camera, import) | the input styles |
 | `Banner` | A `--sunk` strip for live context inside a sheet ("Left today", rest timer) | — |
 
+### Secondary tier (fibre, and later sugar, salt, water)
+
+Protein, carbs and fat are what a day is budgeted against. The nutrients in `SECONDARY` (`app/src/app.jsx`) are tracked one step below them. They show up everywhere the macros do, but never as a peer.
+
+| | Primary (kcal, P, C, F) | Secondary (`SecondaryLine`) |
+|---|---|---|
+| Position | its own column or row in the macro block | one line **under** the macro block, after a hairline |
+| Meter | 10 cells (`PipMeter small`) | 5 cells at a fixed 60px width, or none in `compact` |
+| Label | macro ink, 12–13px, weight 600 | `--muted`, 12px, weight 600. Only the figure uses the nutrient's ink |
+| States | `left` / `over` in `--danger` | `goal`: "`n` g to go", then "hit" in `--good-ink`. `limit`: "`n` g left", then "`n` g over" in `--text2`. **Never** `--danger`, and the meter never paints an overshoot |
+| In strips (`MacroStrip`) | `P32 · C4 · F6` | after an en-space, muted and at normal weight: `Fib 3` |
+| In forms | the main grid | an "optional" field after Calories |
+
+To add a nutrient, see `SECONDARY_NUTRIENTS_PLAN.md`, phase 3.
+
 ## Icons
 
 One family, authored in `tools/pixel-icons.py` (then `node tools/gen-px-icons.mjs`): a 12×12 cell grid drawn at 24px (2px cells) or 48px, with a one-cell

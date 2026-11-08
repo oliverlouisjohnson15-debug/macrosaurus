@@ -4183,6 +4183,8 @@ function NumInput(props) {
 function TextInput(props) { return <input type="text" className={inputCls} {...props} />; }
 /* The label above a control (35-reset): 13px Plex, semibold, sentence case. No tracked uppercase
    eyebrow - that is the pattern Impeccable bans and the brief dropped. */
+// A form label for a secondary-tier nutrient: it sits after the macros and says it can be left blank.
+const fibreLabel = (unit = ' (g)') => <>Fibre{unit} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>optional</span></>;
 function Field({ label, children, hint }) {
   return (<label className="block mb-4">
     <div className="text-[13px] mb-1.5" style={{ color: 'var(--text2)', fontWeight: 600 }}>{label}</div>
@@ -4768,7 +4770,60 @@ function PipLine({ pct, color = 'var(--good)', height = 10, cells = 10, classNam
    the change from the four-row table this replaces. Four meters each carrying "75g / 131g" put
    fifteen numbers in a block whose job is to be glanced at, and every one of them was the day rather
    than the food - which the sentence underneath already says, in words, once. */
-/* The macros of one item, in the colours the rest of the app gives them: P32 · C4 · F6 · Fib 3.
+/* THE SECONDARY TIER. Protein, carbs and fat are what a day is budgeted against: each gets a column,
+   a full meter and its own colour. The nutrients here are tracked one step below them: a goal you
+   glance at rather than one you plan around. They appear everywhere the macros do, but as one
+   compact line UNDER the macro block, with a short meter, a muted label and only the figure in the
+   nutrient's ink. They never turn red: a goal reads "to go" and then "hit", and a limit reads "left"
+   and then "over" in muted type.
+   Fibre is the only one today. Another (sugar, salt, saturated fat, water) joins with one entry here
+   plus a data source on computed_macros - see SECONDARY_NUTRIENTS_PLAN.md, phase 3. */
+const SECONDARY = [
+  { key: 'fiber', label: 'Fibre', short: 'Fib', unit: 'g', kind: 'goal', color: 'var(--fib)', ink: 'var(--fib-ink)',
+    target: et => E.fiberTarget(et.eff.kcal).min },
+];
+// The day's secondary targets, keyed like computed_macros: { fiber: 27 }.
+function secondaryTargets(et) {
+  const out = {};
+  if (et && et.eff) SECONDARY.forEach(n => { out[n.key] = n.target(et); });
+  return out;
+}
+const SEC_METER_W = 60;
+/* One row per secondary nutrient that has a target. `values` is the day so far and `target` the
+   day's targets (both keyed like computed_macros); `add` lays an item on top in the lighter preview
+   fill, as AddImpact's meters do. `compact` drops the meter and the "of N" for tight headers, and
+   `flash` shows a just-added amount beside the figure. `exclude` hides keys (alcohol has no fibre),
+   and `divider` sets the line off from the macro block above it with a hairline. */
+function SecondaryLine({ values, target, add, compact, flash, title, note, exclude, divider, className = '' }) {
+  values = values || {}; target = target || {};
+  const items = SECONDARY.filter(n => (+target[n.key] || 0) > 0 && !(exclude && exclude.indexOf(n.key) >= 0));
+  if (!items.length) return null;
+  return (
+    <div className={className + (divider ? ' pt-1.5' + (/\bmt-/.test(className) ? '' : ' mt-2') : '')} style={divider ? { borderTop: '1px solid var(--hairline)' } : null} data-tier="secondary">
+      {title && <div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--muted)' }}>{title}</div>}
+      {items.map(n => {
+        const k = n.key, tg = +target[k] || 0, now = +values[k] || 0, added = add ? (+add[k] || 0) : 0;
+        const after = Math.round(now + added), left = Math.round(tg - now - added);
+        const goal = n.kind === 'goal';
+        const hit = goal && left <= 0;
+        const over = !goal && left < 0;
+        const status = hit ? 'hit' : goal ? left + ' ' + n.unit + ' to go' : over ? Math.abs(left) + ' ' + n.unit + ' over' : left + ' ' + n.unit + ' left';
+        const fl = flash && (+flash[k] || 0) > 0 ? Math.round(+flash[k] * 10) / 10 : 0;
+        return <div key={k} className="flex items-center gap-2.5" style={{ minHeight: compact ? 20 : 24 }}>
+          <span className="text-[12px] shrink-0" style={{ width: 48, fontWeight: 600, color: 'var(--muted)' }}>{n.label}</span>
+          {!compact && <div className="shrink-0" style={{ width: SEC_METER_W }}><PipMeter value={now} addValue={added} target={tg} color={n.color} cells={5} small overIsFine /></div>}
+          <span className="text-[12px] tnum min-w-0 flex-1 text-right truncate" style={{ color: 'var(--text2)' }}>
+            {!compact && <><span style={{ color: n.ink, fontWeight: 600 }}>{after}</span> of {Math.round(tg)} {n.unit} · </>}
+            <span style={{ color: hit ? 'var(--good-ink)' : compact ? n.ink : 'var(--text2)', fontWeight: compact || hit ? 600 : 400 }}>{status}</span>
+            {compact && <span className="fade-in" style={{ color: n.ink, fontWeight: 600 }}>{fl ? ' +' + fl + ' ' + n.unit : ''}</span>}
+          </span>
+        </div>;
+      })}
+      {note && <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{note}</div>}
+    </div>
+  );
+}
+/* The macros of one item, in the colours the rest of the app gives them: P32 · C4 · F6  Fib 3.
    Fibre says how well it is known. `fibre` is { state: 'known'|'est'|'pending'|'unknown' } (default
    'known'): an estimate wears a tilde, one on its way an ellipsis, and one nobody knows a question
    mark, because a bare 0 would claim the food has none. `plain` drops the colours, for dense rows. */
@@ -4782,15 +4837,16 @@ function MacroStrip({ m, fibre, plain, noFibre, className = '' }) {
     <span style={c('var(--pro-ink)')}>P{Math.round(+m.protein || 0)}</span>{' · '}
     <span style={c('var(--carb-ink)')}>C{Math.round(+m.carbs || 0)}</span>{' · '}
     <span style={c('var(--fat-ink)')}>F{Math.round(+m.fat || 0)}</span>
-    {!noFibre && <>{' · '}<span style={st === 'unknown' ? { color: 'var(--muted)' } : c('var(--fib-ink)')} title={st === 'est' ? 'Estimated fibre' : st === 'unknown' ? 'Fibre not known' : 'Fibre'}>Fib {fv}</span></>}
+    {/* Fibre trails the macros as the secondary tier: a wider gap, a muted label, normal weight. */}
+    {!noFibre && <>{'\u2002'}<span style={{ fontWeight: 400, color: 'var(--muted)' }} title={st === 'est' ? 'Estimated fibre' : st === 'unknown' ? 'Fibre not known' : 'Fibre'}>Fib <span style={st === 'unknown' ? undefined : c('var(--fib-ink)')}>{fv}</span></span></>}
   </span>;
 }
 /* WHAT ADDING THIS DOES, in one framed block. It answers the two questions an add sheet is asked, in
-   the order they get asked: what IS this (calories and the macros, fibre included), and where does it
-   leave today (kcal, protein, carbs, fat and fibre, each as the day's meter with this item laid on top
-   in the lighter "not yours yet" fill). PipMeter's `addValue` is that fill, so it is the same
-   instrument as the day card with nothing new to learn.
-   Fibre is a goal to reach, never a limit: it reads "to go" and then "hit", and never turns red. With
+   the order they get asked: what IS this (calories and the macros, fibre trailing them), and where
+   does it leave today (kcal, protein, carbs and fat, each as the day's meter with this item laid on
+   top in the lighter "not yours yet" fill). PipMeter's `addValue` is that fill, so it is the same
+   instrument as the day card with nothing new to learn. Fibre follows as the secondary tier
+   (SecondaryLine): a short meter with the same preview fill, reading "to go" and then "hit". With
    no day to compare against (no targets yet) only the item line is drawn. */
 function AddImpact({ add, rest, target, label, verb = 'Adding', fibre, onFibrePaywall, noFibre, dayOnly }) {
   add = add || {};
@@ -4799,11 +4855,12 @@ function AddImpact({ add, rest, target, label, verb = 'Adding', fibre, onFibrePa
   const kcal = Math.round(+add.kcal || 0);
   if (dayOnly && !hasDay) return null;
   const rows = hasDay ? [
-    ['kcal', 'kcal', 'var(--cal)', false],
-    ['Protein', 'protein', 'var(--pro)', false],
-    ['Carbs', 'carbs', 'var(--carb)', false],
-    ['Fat', 'fat', 'var(--fat)', false],
-  ].concat(target.fiber > 0 && !noFibre ? [['Fibre', 'fiber', 'var(--fib)', true]] : []) : [];
+    ['kcal', 'kcal', 'var(--cal)'],
+    ['Protein', 'protein', 'var(--pro)'],
+    ['Carbs', 'carbs', 'var(--carb)'],
+    ['Fat', 'fat', 'var(--fat)'],
+  ] : [];
+  const fibrePaywallBtn = st === 'unknown' && onFibrePaywall && <button type="button" onClick={onFibrePaywall} className="text-[12px] mt-1 text-left" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 32 }}>Fibre not known. Premium fills it in</button>;
   return (
     <div className="px-3 py-2.5" style={{ background: 'var(--sunk)' }}>
       {!dayOnly && <>
@@ -4813,22 +4870,23 @@ function AddImpact({ add, rest, target, label, verb = 'Adding', fibre, onFibrePa
         </div>
         <div className="text-[13px] mt-0.5"><MacroStrip m={add} fibre={fibre} noFibre={noFibre} /></div>
       </>}
-      {st === 'unknown' && onFibrePaywall && <button type="button" onClick={onFibrePaywall} className="text-[12px] mt-1 text-left" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 32 }}>Fibre not known. Premium fills it in</button>}
+      {!hasDay && fibrePaywallBtn}
       {hasDay && <div className={dayOnly ? '' : 'mt-2 pt-2'} style={dayOnly ? null : { borderTop: '1px solid var(--hairline)' }}>
         <div className="text-[11px] mb-1" style={{ color: 'var(--muted)', fontWeight: 600 }}>Today after this</div>
-        {rows.map(([l, k, fill, isFib]) => {
+        {rows.map(([l, k, fill]) => {
           const day = +rest[k] || 0, added = +add[k] || 0, tg = +target[k] || 0;
           const left = Math.round(tg - day - added);
-          const over = !isFib && left < 0;
-          const hit = isFib && left <= 0;
+          const over = left < 0;
           const unit = k === 'kcal' ? ' kcal' : ' g';
-          const txt = hit ? 'hit' : isFib ? Math.abs(left) + ' g to go' : over ? Math.abs(left).toLocaleString('en-GB') + unit + ' over' : left.toLocaleString('en-GB') + unit + ' left';
+          const txt = over ? Math.abs(left).toLocaleString('en-GB') + unit + ' over' : left.toLocaleString('en-GB') + unit + ' left';
           return <div key={k} className="flex items-center gap-2.5" style={{ minHeight: 24 }}>
             <span className="text-[12px] shrink-0" style={{ width: 48, fontWeight: 600, color: 'var(--text2)' }}>{l}</span>
-            <div className="flex-1 min-w-0"><PipMeter value={day} addValue={added} target={tg} color={over ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
-            <span className="text-[12px] tnum shrink-0 text-right" style={{ minWidth: 76, fontWeight: 600, color: over ? 'var(--danger-ink)' : hit ? 'var(--good-ink)' : 'var(--text2)' }}>{txt}</span>
+            <div className="flex-1 min-w-0"><PipMeter value={day} addValue={added} target={tg} color={over ? 'var(--danger)' : fill} cells={10} small /></div>
+            <span className="text-[12px] tnum shrink-0 text-right" style={{ minWidth: 76, fontWeight: 600, color: over ? 'var(--danger-ink)' : 'var(--text2)' }}>{txt}</span>
           </div>;
         })}
+        {!noFibre && <SecondaryLine values={rest} target={target} add={add} divider />}
+        {fibrePaywallBtn}
       </div>}
     </div>
   );
@@ -12792,7 +12850,7 @@ function TodayHero({ et, tot, onDetails, footer }) {
   // switch and the "Details ›" link - one way to see the day).
   const remaining = et.eff.kcal - tot.kcal;
   const over = remaining < 0;
-  const MAC = [['Protein', tot.protein, et.eff.protein_g, PRO, 'pro'], ['Carbs', tot.carbs, et.eff.carbs_g, CARB, 'carb'], ['Fat', tot.fat, et.eff.fat_g, FAT, 'fat'], ['Fibre', tot.fiber, E.fiberTarget(et.eff.kcal).min, 'var(--fib)', 'fib']];
+  const MAC = [['Protein', tot.protein, et.eff.protein_g, PRO, 'pro'], ['Carbs', tot.carbs, et.eff.carbs_g, CARB, 'carb'], ['Fat', tot.fat, et.eff.fat_g, FAT, 'fat']];
   return (
     <Hero className="mb-2">
       <button onClick={onDetails} aria-label="Open today in detail" className="block w-full text-left px-4 pt-4 pb-4">
@@ -12805,23 +12863,21 @@ function TodayHero({ et, tot, onDetails, footer }) {
         </span>
         <span className="block text-[13px] mt-1.5 mb-2.5 tnum" style={{ color: 'var(--muted)' }}>{Math.round(tot.kcal).toLocaleString('en-GB')} eaten of {Math.round(et.eff.kcal).toLocaleString('en-GB')}</span>
         <PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} />
-        <span className="grid grid-cols-4 gap-2.5 mt-4">
+        <span className="grid grid-cols-3 gap-2.5 mt-4">
           {MAC.map(([l, v, tg, c, k]) => {
-            const isFib = k === 'fib';
-            // Fibre is a goal to reach, never a limit: past the target it says "hit", not "over".
-            const o = !isFib && tg > 0 && v > tg;
-            const hit = isFib && tg > 0 && v >= tg;
+            const o = tg > 0 && v > tg;
             const n = o ? Math.round(v - tg) : Math.max(0, Math.round(tg - v));
             return (<span key={l} className="min-w-0 block">
               <span className="block text-[12px]" style={{ color: 'var(--' + k + '-ink)', fontWeight: 600 }}>{l}</span>
               <span className="flex items-baseline gap-1 mt-0.5 mb-1.5">
-                {hit ? <span className="num text-[16px]" style={{ color: 'var(--good-ink)' }}>hit</span>
-                  : <><span className="num text-[16px]" style={{ color: o ? 'var(--danger-ink)' : 'var(--text)' }}>{n}</span><span className="text-[13px] truncate" style={{ color: 'var(--muted)', fontWeight: 600 }}>g {o ? 'over' : 'left'}</span></>}
+                <span className="num text-[16px]" style={{ color: o ? 'var(--danger-ink)' : 'var(--text)' }}>{n}</span><span className="text-[13px] truncate" style={{ color: 'var(--muted)', fontWeight: 600 }}>g {o ? 'over' : 'left'}</span>
               </span>
-              <PipMeter value={v} target={tg} color={c} cells={10} small overIsFine={isFib} />
+              <PipMeter value={v} target={tg} color={c} cells={10} small />
             </span>);
           })}
         </span>
+        {/* Fibre and the rest of the secondary tier: one quieter line under the macros. */}
+        <SecondaryLine values={tot} target={secondaryTargets(et)} divider className="mt-3" />
       </button>
       {footer}
     </Hero>
@@ -12839,8 +12895,8 @@ function TodayDetailSheet({ db, et, tot, mode, isPremium, override, setShift, re
         <MacroRow label="Protein" value={tot.protein} target={et.eff.protein_g} color={PRO} />
         <MacroRow label="Carbs" value={tot.carbs} target={et.eff.carbs_g} color={CARB} />
         <MacroRow label="Fat" value={tot.fat} target={et.eff.fat_g} color={FAT} />
-        <MacroRow label="Fibre" value={tot.fiber} target={E.fiberTarget(et.eff.kcal).min} color="var(--fib)" overIsFine
-          note={entriesOn(db, today).some(e => e.fiber_est) ? 'includes estimated fibre' : null} />
+        <SecondaryLine title="Also tracking" values={tot} target={secondaryTargets(et)} className="pt-3 pb-2"
+          note={entriesOn(db, today).some(e => e.fiber_est) ? 'Fibre includes estimates' : null} />
         {drinks.length > 0 && <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Includes {dk} kcal of drinks, split across carbs and fat.</div>}
       </div>
       <Section title="Balance carbs & fat" className="!mb-0">
@@ -14075,9 +14131,9 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             16px the line was over by, and the colour change already does a separator's job. */}
         <div className="flex items-center gap-1.5 mt-[3px] min-w-0">
           <span className="text-[13px] tnum truncate min-w-0" style={{ color: 'var(--muted)' }}>{e.qty_label || ''}</span>
-          {/* Fibre, when the entry has any: the quality number the app asks for every day, so it sits
-              where the eye already is. A tilde marks an estimate. */}
-          {(e.computed_macros.fiber || 0) >= 0.5 && <span className="text-[13px] tnum shrink-0" style={{ color: 'var(--fib-ink)' }} title={e.fiber_est ? 'Estimated fibre' : 'Fibre'}>{e.fiber_est ? '~' : ''}{Math.round(e.computed_macros.fiber)} g fibre</span>}
+          {/* Fibre, when the entry has any, as the secondary tier: muted, with only the figure in
+              fibre's ink. A tilde marks an estimate. */}
+          {(e.computed_macros.fiber || 0) >= 0.5 && <span className="text-[13px] tnum shrink-0" style={{ color: 'var(--muted)' }} title={e.fiber_est ? 'Estimated fibre' : 'Fibre'}><span style={{ color: 'var(--fib-ink)' }}>{e.fiber_est ? '~' : ''}{Math.round(e.computed_macros.fiber)}</span> g fibre</span>}
         </div>
       </div>
       {/* THE NUMBERS, in a column of their own on the right: the calories in the pixel face over the
@@ -14160,7 +14216,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
             carrying the target, then one row per instrument. */}
         const isPast = date < today;
         const word = isPast ? 'under' : 'left';
-        const macroRows = [['P', 'protein', et.eff.protein_g, 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', et.eff.carbs_g, 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', et.eff.fat_g, 'var(--fat)', 'var(--fat-ink)'], ['Fi', 'fiber', E.fiberTarget(et.eff.kcal).min, 'var(--fib)', 'var(--fib-ink)']];
+        const macroRows = [['P', 'protein', et.eff.protein_g, 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', et.eff.carbs_g, 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', et.eff.fat_g, 'var(--fat)', 'var(--fat-ink)']];
         return <div className="mb-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="tnum"><span className="num text-[16px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{Math.abs(Math.round(rem)).toLocaleString('en-GB')}</span> <span className="text-[13px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--good-ink)', fontWeight: 600 }}>kcal {over ? 'over' : word}</span></span>
@@ -14169,16 +14225,14 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
           <div className="mt-2"><PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--cal)'} cells={PLAN_CELLS} small /></div>
           <div className="mt-2">
             {macroRows.map(([l, k, tgt, fill, ink]) => {
-              // Fibre is a goal to reach, not a limit: it reads "to go" and then "hit", never "over".
-              const isFib = k === 'fiber';
-              const left = Math.round(tgt - tot[k]); const mOver = !isFib && left < 0;
-              const fibHit = isFib && left <= 0;
+              const left = Math.round(tgt - tot[k]); const mOver = left < 0;
               return <div key={k} className="flex items-center gap-3" style={{ minHeight: 24 }}>
                 <span className="text-[13px] w-5 shrink-0" style={{ fontWeight: 600, color: ink }}>{l}</span>
-                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={tgt} color={mOver ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
-                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : fibHit ? 'var(--good-ink)' : 'var(--text2)', fontWeight: 600 }}>{fibHit ? 'hit' : Math.abs(left) + ' g ' + (mOver ? 'over' : isFib ? 'to go' : word)}</span>
+                <div className="flex-1 min-w-0"><PipMeter value={tot[k]} target={tgt} color={mOver ? 'var(--danger)' : fill} cells={10} small /></div>
+                <span className="text-[13px] tnum shrink-0 text-right" style={{ minWidth: 84, color: mOver ? 'var(--danger-ink)' : 'var(--text2)', fontWeight: 600 }}>{Math.abs(left) + ' g ' + (mOver ? 'over' : word)}</span>
               </div>;
             })}
+            <SecondaryLine values={tot} target={secondaryTargets(et)} divider />
           </div>
         </div>;
       })()}
@@ -14535,7 +14589,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onCopy, onDuplicate,
       <Collapsible variant="inline" label="Numbers look off?" sub="Edit">
       <div className="mb-2">
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
-        <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={total.fiber} onChange={e => setTotalField('fiber', e.target.value)} /></Field><Field label="Calories"><NumInput value={total.kcal} onChange={e => setTotalField('kcal', e.target.value)} /></Field></div>
+        <div className="grid grid-cols-2 gap-2.5"><Field label="Calories"><NumInput value={total.kcal} onChange={e => setTotalField('kcal', e.target.value)} /></Field><Field label={fibreLabel()}><NumInput value={total.fiber} onChange={e => setTotalField('fiber', e.target.value)} /></Field></div>
       </div>
       </Collapsible>
       {/* The design sets this button in the pixel face, uppercase and full-bleed, and labels it SAVE
@@ -14969,19 +15023,18 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
             <span style={{ fontWeight: 600 }}>{left.kcal < 0 ? 'Over today' : 'Left today'}</span>
             <span className="tnum"><span className="num text-[16px]" style={{ color: left.kcal < 0 ? 'var(--danger-ink)' : 'var(--text)' }}>{Math.abs(left.kcal).toLocaleString('en-GB')}</span> kcal</span>
           </div>
-          <div className="grid grid-cols-4 gap-2.5 mt-2">
-            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)'], ['Fib', 'fiber', 'var(--fib)', 'var(--fib-ink)']].map(([l, k, fill, ink]) => {
-              // Fibre is a goal, not a limit: it reads "to go", then "hit", and is never an overshoot.
-              const isFib = k === 'fiber';
-              const over = !isFib && left[k] < 0;
-              const hit = isFib && left[k] <= 0;
+          <div className="grid grid-cols-3 gap-2.5 mt-2">
+            {[['P', 'protein', 'var(--pro)', 'var(--pro-ink)'], ['C', 'carbs', 'var(--carb)', 'var(--carb-ink)'], ['F', 'fat', 'var(--fat)', 'var(--fat-ink)']].map(([l, k, fill, ink]) => {
+              const over = left[k] < 0;
               return <div key={k} className="min-w-0">
-                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {hit ? 'hit' : Math.abs(left[k]) + ' g' + (over ? ' over' : '')}</div>
-                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small overIsFine={isFib} /></div>
+                <div className="text-[12px] tnum truncate" style={{ fontWeight: 600, color: over ? 'var(--danger-ink)' : ink }}>{l} {Math.abs(left[k]) + ' g' + (over ? ' over' : '')}</div>
+                <div className="mt-1"><PipMeter value={day.rest[k]} target={day.target[k]} color={over ? 'var(--danger)' : fill} cells={10} small /></div>
                 <div className="text-[11px] tnum mt-0.5 fade-in" style={{ height: 14, color: ink, fontWeight: 600 }}>{flash && (+flash.m[k] || 0) > 0 ? '+' + (Math.round((+flash.m[k]) * 10) / 10) + ' g' : ''}</div>
               </div>;
             })}
           </div>
+          {/* Fibre, as the secondary tier: one compact line, flashing what a quick add brought. */}
+          <SecondaryLine compact values={day.rest} target={day.target} flash={flash && flash.m} />
         </div>}
       </div>
       <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -15030,8 +15083,12 @@ function QuickAddTab({ onPick, day, mealName }) {
   const log = () => { if (kcal <= 0) return; onPick({ name: (v.name || '').trim() || 'Quick add', source: 'manual', qtyLabel: '1 serving', macros, unit: 'serv', amount: 1, unitNoun: 'serving', fiberUnknown }); };
   return (<div>
     <Field label="Calories"><div className="relative"><NumInput autoFocus value={v.kcal} onChange={e => set('kcal', e.target.value)} className={inputCls + ' pr-12'} aria-label="Calories" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>kcal</span></div></Field>
+    {/* The three macros share a row; fibre, the secondary tier, gets its own optional slot under them. */}
+    <div className="grid grid-cols-3 gap-x-2.5">
+      {[['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat']].map(([k, l]) => <Field key={k} label={l}><div className="relative"><NumInput value={v[k]} onChange={e => set(k, e.target.value)} className={inputCls + ' pr-7'} aria-label={l + ' in grams'} /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>)}
+    </div>
     <div className="grid grid-cols-2 gap-x-3">
-      {[['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat'], ['fiber', 'Fibre']].map(([k, l]) => <Field key={k} label={l}><div className="relative"><NumInput value={v[k]} onChange={e => set(k, e.target.value)} className={inputCls + ' pr-7'} aria-label={l + ' in grams'} /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>)}
+      <Field label={fibreLabel('')}><div className="relative"><NumInput value={v.fiber} onChange={e => set('fiber', e.target.value)} className={inputCls + ' pr-7'} aria-label="Fibre in grams" /><span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--muted)' }}>g</span></div></Field>
     </div>
     <Field label="Name (optional)"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder={'Meal deal' + (mealName ? ', ' + mealName.toLowerCase() : '')} /></Field>
     {kcal > 0 && <div className="mb-3"><AddImpact rest={day && day.rest} target={day && day.target} add={macros} label="Adding 1 serving" fibre={{ state: fibreState }} onFibrePaywall={fibreState === 'unknown' ? fibrePaywall : null} /></div>}
@@ -15102,7 +15159,7 @@ function ManualTab({ onPick, onCancel, day }) {
       <Field label="Serving name" hint="e.g. pot, slice, biscuit"><TextInput value={v.servName} onChange={e => set('servName', e.target.value)} placeholder="serving" /></Field>
     </div>}
     <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => set('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => set('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => set('fat', e.target.value)} /></Field></div>
-    <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={v.fiber} onChange={e => set('fiber', e.target.value)} /></Field><Field label="Calories" hint="Auto from macros"><NumInput value={v.kcal} onChange={e => set('kcal', e.target.value)} placeholder={autoKcal ? String(autoKcal) : '0'} /></Field></div>
+    <div className="grid grid-cols-2 gap-2.5"><Field label="Calories" hint="Auto from macros"><NumInput value={v.kcal} onChange={e => set('kcal', e.target.value)} placeholder={autoKcal ? String(autoKcal) : '0'} /></Field><Field label={fibreLabel()}><NumInput value={v.fiber} onChange={e => set('fiber', e.target.value)} /></Field></div>
     <Btn kind="accent" className="w-full mt-1" disabled={!v.name.trim()} style={{ opacity: v.name.trim() ? 1 : 0.5 }} onClick={next}>Next: choose amount</Btn>
   </div>);
 }
@@ -15285,7 +15342,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <div className="mb-2">
       <div className="pf text-[11px] uppercase text-[var(--muted)] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
       <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => setMacro('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => setMacro('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => setMacro('fat', e.target.value)} /></Field></div>
-      <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)" hint={needsFibre ? 'Not known yet' : undefined}><NumInput value={v.fiber} onChange={e => { setFibreTouched(true); setMacro('fiber', e.target.value); }} /></Field><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field></div>
+      <div className="grid grid-cols-2 gap-2.5"><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field><Field label={fibreLabel()} hint={needsFibre ? 'Not known yet' : undefined}><NumInput value={v.fiber} onChange={e => { setFibreTouched(true); setMacro('fiber', e.target.value); }} /></Field></div>
       {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <TextBtn onClick={applyAtwater} className="mt-1.5">Calculate calories from the macros ({atwaterK} kcal)</TextBtn>}
     </div>
     </Collapsible>

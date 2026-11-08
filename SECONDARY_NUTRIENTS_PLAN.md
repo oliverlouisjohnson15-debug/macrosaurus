@@ -1,5 +1,7 @@
 # Fibre steps down a tier, and the tier is built to hold more
 
+**Status:** phases 1 and 2 are implemented. Phase 3 is the to-do list for the next nutrient.
+
 Fibre currently sits with protein, carbs and fat as a fourth macro. It has its own column, its own pip meter and its own colour in every surface. It should stay visible everywhere it is now, but it should read as **one step below** the big three: a goal you glance at, not one you budget against.
 
 This plan does two things:
