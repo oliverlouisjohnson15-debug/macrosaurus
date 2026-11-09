@@ -250,3 +250,19 @@ test('the coach is told about the deadline, so it cannot contradict the pace the
   assert.ok(/deadline: result\.phaseStep \?/.test(src), 'the check-in coach payload carries the phase');
   assert.ok(/If deadline is not null/.test(src), 'and the coach prompt says what to do with it');
 });
+
+test('a phase starts with a clean slate: last week’s overeat is not paid back on top', () => {
+  const db = account();
+  db.profile.carryover = { enabled: true, mode: 'dispersed', capKcal: 550 };
+  // Checked in on Friday, then a big Friday evening: the kind of day evening-out pays back.
+  db.last_checkin = TODAY;
+  db.log_entries.find(e => e.date === TODAY).computed_macros.kcal = 3400;
+  db.day_closed = { [TODAY]: true };
+  const MON = shift(TODAY, 3), TUE = shift(TODAY, 4);
+  const before = at(MON, () => A.effectiveTarget(db, TUE));
+  assert.ok(before.carry < 0, 'without a phase the overeat is paid back: ' + before.carry);
+  at(MON, () => A.startPhase(db, { goalKg: 80, endISO: shift(MON, 42), maintainDays: 14, confirmed: true }, MON));
+  const after = at(MON, () => A.effectiveTarget(db, TUE));
+  assert.strictEqual(Math.round(after.carry), 0, 'the phase starts fresh');
+  assert.strictEqual(db.last_checkin, TODAY, 'and the check-in day is untouched');
+});

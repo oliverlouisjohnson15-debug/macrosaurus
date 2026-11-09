@@ -4387,7 +4387,13 @@ function effectiveTarget(db, date) {
   // The carryover window starts ON the last check-in day (inclusive), so that day's own under- or
   // over-eat rolls into the next day instead of vanishing in the gap between cycles. (Coverage/cadence
   // still uses cycleStartISO, which excludes the check-in morning.) Only COMPLETE logged days count.
-  const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
+  // A phase starts with a clean slate. Its start weight is today's trend, which already carries
+  // whatever was over- or under-eaten before it, so paying that back as well would count it twice.
+  // A plain goal change gets the same by moving last_checkin; a phase keeps the check-in day, so it
+  // moves the start of the carry window instead.
+  const cs0 = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
+  const phStart = db.phase && db.phase.start && db.phase.start <= date ? db.phase.start : null;
+  const cs = phStart && phStart > cs0 ? phStart : cs0;
   // ...and it ends the day before the next check-in is due, which is not always a week on: the
   // cadence bends each cycle back onto your chosen day (see checkinReadyOn).
   const due = nextCheckinDueISO(db);
