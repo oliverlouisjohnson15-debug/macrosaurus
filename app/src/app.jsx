@@ -2380,6 +2380,17 @@ const PRICE_ANNUAL_LABEL = '£39.99';
 // changes network mid-request is the usual way) leaves the caller awaiting forever, which is how a
 // batch of screenshots ends up stuck on "reading 4 of 5" with nothing to press. Opt-in rather than
 // global, because a caller that has no way to recover is better off waiting than failing.
+// What to put on screen when an AI call fails. The raw error is for the logs: a dropped connection
+// reads "Failed to fetch" and a garbled reply reads "Unexpected token", and neither tells anyone what
+// to do next. Messages the app or the proxy wrote for people (sign in, free limit, a link that has no
+// recipe in it) are already readable and pass straight through.
+function aiErrorText(e, fallback) {
+  const m = String((e && ((e.aiError && e.aiError.message) || e.message)) || '').trim();
+  if (e && e.timedOut) return 'That took too long to come back. Try again.';
+  if ((e && e.name === 'TypeError') || /failed to fetch|load failed|networkerror|network request failed/i.test(m)) return 'Could not reach Macrosaurus. Check your connection and try again.';
+  if (!m || /json|unexpected (token|end)|is not valid|undefined|cannot read|^ai error$/i.test(m)) return fallback || 'Something went wrong. Try again.';
+  return m.charAt(0).toUpperCase() + m.slice(1);
+}
 async function aiRequest(body, opts) {
   opts = opts || {};
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
@@ -2622,7 +2633,7 @@ async function claudeVision(files, prompt, opts) {
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   // No text at all (rather than unreadable text) means the reply never got written, so say that
   // instead of letting parseModelJSON report it as unparseable.
-  if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
+  if (!txt.trim()) throw new Error('Nothing came back. Try again.');
   return parseModelJSON(txt);
 }
 // AI coaching layer: the deterministic engine has ALREADY decided the numbers; this only turns them
@@ -2630,7 +2641,7 @@ async function claudeVision(files, prompt, opts) {
 // medical/extreme advice, and it degrades gracefully offline. Returns text.
 async function coachNarrative(payload) {
   const who = (payload && payload.buddy_name) || 'Your buddy';
-  const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. If selfReportedOffPlan is true, the week is set aside: there is no calorie change and nothing from it counts towards their burn, so never read anything into their rate or burn, just reassure and point at next week. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
+  const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. If deadline is not null, they are working to a goal weight by a date and the app has ALREADY set the pace for the next cycle (deadline.pace_next_cycle_kg) for the reason in deadline.why: never suggest a different pace, date or calorie figure, and never contradict it. If why is "brake" (lifts falling) or "recover" (two rough weeks), back the easing off and point at sleep and recovery, not eating less. If why is "behind", the steps nudge is the one to give. If selfReportedOffPlan is true, the week is set aside: there is no calorie change and nothing from it counts towards their burn, so never read anything into their rate or burn, just reassure and point at next week. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nYour take (one or two short sentences):';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 140, messages: [{ role: 'user', content: prompt }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
@@ -2866,7 +2877,7 @@ async function menuIdeasRequest(files, brief, onProgress) {
     }
   );
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
+  if (!txt.trim()) throw new Error('Nothing came back. Try again.');
   return MenuIdeas.normalise(parseModelJSON(txt));
 }
 /* ---- Reading the menu behind a link ------------------------------------------------------------
@@ -5791,7 +5802,7 @@ function BodyFatPicker({ sex, prevBf, onPick, onClose }) {
         + ' Photos provided (in order): ' + have.join(', ') + '.';
       const est = await claudeVision(have.map(s => imgs[s].file), prompt, { model: AI_MODEL, maxTokens: 700 });
       setResult({ pct: Math.round(est.bodyfat_percent), confidence: est.confidence || 'medium', note: est.note || '' });
-    } catch (e) { setErr('Estimate failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The estimate didn’t come back. Try again.')); }
     setBusy(false);
   }
   return (
@@ -6301,7 +6312,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       // sentence to get wrong, so they get the same confirm-or-correct step the tapped path has.
       setStep('when');
     } catch (e) {
-      if (!(e && e.aiError)) setAiErr(e.message || 'I could not make sense of that.');
+      if (!(e && e.aiError)) setAiErr(aiErrorText(e, 'I could not make sense of that.'));
     }
     setAiBusy(false);
   }
@@ -6607,7 +6618,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     const payload = {
       buddy_name: (db.buddy && db.buddy.name) || 'Your buddy',
       goal: p.goalType,
-      targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0)),
+      targetRatePerWeek_kg: tgtRate,
       actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
       outcome: result.status === 'proposed' ? (result.changed ? (result.direction === 'up' ? 'calories increased' : 'calories decreased') : 'no change (on target)')
         : result.status === 'held' ? (result.offPlan ? 'held: user said this week was off plan, so it is set aside and none of its food counts towards their burn'
@@ -6632,6 +6643,12 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       steps_baseline: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.baseline : null,
       steps_recommendedLever: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.lever : null,
       steps_suggestTargetPerDay: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.suggestTarget : null,
+      // A goal weight by a date. The app has already set next cycle's pace; the coach must agree with it.
+      deadline: result.phaseStep ? {
+        goal_kg: result.phaseStep.goalKg, end_date: result.phaseStep.end, line_today_kg: result.phaseStep.target,
+        behind_kg: result.phaseStep.behindKg, pace_next_cycle_kg: result.phaseStep.rate, pace_last_cycle_kg: result.phaseStep.prevRate,
+        why: result.phaseStep.why, projected_on_deadline_kg: result.phaseStep.why === 'capped' ? result.phaseStep.projectedKg : null,
+      } : null,
     };
     coachNarrative(payload).then(t => { if (!cancelled) setCoach(t ? { text: t } : null); }).catch(() => { if (!cancelled) setCoach({ error: true }); });
     return () => { cancelled = true; };
@@ -6874,7 +6891,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   // Values that make the result screen readable at a glance: the rate you aimed for vs the rate you
   // actually trended, and when the next check-in comes round.
   const baseMac = base || {};
-  const tgtRate = p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0));
+  // The pace THIS cycle was aiming for. A phase step has already written next cycle's pace into the
+  // profile by the time the result shows, so read the one the step started from.
+  const aimKg = (result && result.phaseStep) ? result.phaseStep.prevRate : Math.abs(p.rateKgPerWeek || 0);
+  const tgtRate = p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -aimKg : aimKg);
   const actRate = result && result.estimate ? result.estimate.weeklyChangeKg : null;
   const rateOnGoal = actRate == null ? null : (p.goalType === 'cut' ? actRate < 0.02 : p.goalType === 'gain' ? actRate > -0.02 : Math.abs(actRate) < 0.15);
   const fmtRate = (r) => Math.abs(r) < 0.02 ? 'steady' : fmtRateKg(r, unit);
@@ -10554,7 +10574,7 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
       // then fell over is not something to leave sitting there tappable.
       setTurns(t => { const i = t.map(x => x.role).lastIndexOf('user'); return i < 0 ? t : t.slice(0, i); });
       setDraft(q);
-      setErr((e && e.message) || 'I could not answer that just now.');
+      setErr(aiErrorText(e, 'I could not answer that just now.'));
     }
     setBusy(false);
     try { inputRef.current && inputRef.current.focus(); } catch (_) {}
@@ -15912,7 +15932,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles, day
     try {
       const est = await claudeVision(imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
-    } catch (e) { setErr('Estimate failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The estimate didn’t come back. Try again.')); }
     setBusy(false);
   }
   async function refine(correction, via) {
@@ -15923,7 +15943,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles, day
       const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
       const est = await claudeVision(imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
-    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The re-estimate didn’t come back. Try again.')); }
     setBusy(false);
   }
   if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} db={db} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} dayRest={day && day.rest} dayTarget={day && day.target} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
@@ -16145,7 +16165,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         setRes(Object.assign({}, out, { menuRead: out.menuRead || sentMenu, sourceMenu: text || '' }));
         setAll(false); setView(rem ? 'fit' : 'protein'); setErr('');
       }
-    } catch (e) { setErr('Could not read that menu: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'Could not read that menu. Try again.')); }
     setBusy('');
   }
 
@@ -16178,7 +16198,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       setEst(est);
       setRefineCount(0);
       setVer(v => v + 1);
-    } catch (e) { setErr('Could not price that dish: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'Could not price that dish. Try again.')); }
     setBusy('');
   }
 
@@ -16194,7 +16214,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep the totals equal to the sum of the items and stay calibrated: change only what their correction actually implies, and do not drift the other components to compensate. Set "question" to "" and "question_options" to []. Respond ONLY with the JSON.';
       const out = await claudeVision([], prompt, { model: AI_MODEL, maxTokens: 3000, cacheText: AI_PROMPT });
       setEst(out); setVer(v => v + 1);
-    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The re-estimate didn’t come back. Try again.')); }
     setBusy('');
   }
 
@@ -16546,7 +16566,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
       const est = await claudeVision(imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
       try { window.MTRACK && MTRACK('photo_update', { outcome: 'estimated', photos: imgs.length, noted: !!note.trim(), was: Math.round(+before.kcal || 0) }); } catch (_) {}
-    } catch (e) { setErr('Update failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The update didn’t come back. Try again.')); }
     setBusy(false);
   }
   async function refine(correction, via) {
@@ -16560,7 +16580,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
         + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
       const est = await claudeVision(imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
-    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
+    } catch (e) { setErr(aiErrorText(e, 'The re-estimate didn’t come back. Try again.')); }
     setBusy(false);
   }
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)}
@@ -16875,7 +16895,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
           fiberUnknown: p100.fiber_g == null,
           initial: { name: est.name || 'Scanned food', kcal: Math.round(+p100.kcal || 0), protein: +p100.protein_g, carbs: +p100.carbs_g, fat: +p100.fat_g, fiber: +p100.fiber_g } });
       }
-    } catch (e) { setErr('Label read failed: ' + e.message); } setBusy(''); }
+    } catch (e) { setErr(aiErrorText(e, 'Could not read that label. Try a sharper photo.')); } setBusy(''); }
   async function lookupBarcode(code) { setMode(null); setBusy('Looking up product…'); setErr(''); setNotFound(false);
     try {
       const j = await (await fetch('https://world.openfoodfacts.org/api/v2/product/' + code + '.json')).json();
@@ -21046,7 +21066,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
       setNote(out.note || '');
       setDraft(draft); // review prices the macros in the background
     } catch (e) {
-      setErr((e.message || 'Import failed.') + ' Paste the caption or add a screenshot below.');
+      setErr(aiErrorText(e, 'Import failed.') + ' Paste the caption or add a screenshot below.');
       setShowFallback(true);
     }
     setBusy('');
@@ -21057,7 +21077,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
       setDraft(await structureRecipe(caption.trim(), meta));
-    } catch (e) { setErr(e.message || 'Import failed.'); }
+    } catch (e) { setErr(aiErrorText(e, 'Import failed.')); }
     setBusy('');
   }
   async function fromImages() {
@@ -21066,7 +21086,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
       setDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
-    } catch (e) { setErr(e.message || 'Import failed.'); }
+    } catch (e) { setErr(aiErrorText(e, 'Import failed.')); }
     setBusy('');
   }
   // Auto-run once when opened straight from a share.
@@ -21288,7 +21308,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     setBusy('Working out the macros...');
     let result;
     try { result = await analyzeRecipe(recipe.title, lines); }
-    catch (e) { setBusy(''); if (!auto) showToast('Could not work out macros: ' + e.message); return; }
+    catch (e) { setBusy(''); if (!auto) showToast(aiErrorText(e, 'Could not work out macros. Try again.')); return; }
     patch((r) => {
       (result.per_ingredient || []).forEach((p, i) => {
         const ing = r.ingredients[i]; if (!ing) return;
@@ -21939,7 +21959,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
     if (!imgs.length) { setErr('Add at least one photo of your fridge or cupboard first.'); return; }
     setErr(''); setBusy('Spotting your ingredients…');
     try { const found = await scanFridgeItems(imgs.map(i => i.file)); setItems(found); if (!found.length) setErr('Could not spot anything clearly. Add what you have by hand below.'); }
-    catch (e) { setItems([]); setErr(e.message || 'Could not read those photos.'); }
+    catch (e) { setItems([]); setErr(aiErrorText(e, 'Could not read those photos.')); }
     setBusy('');
   }
   const removeItem = (i) => setItems(x => x.filter((_, k) => k !== i));

@@ -234,3 +234,19 @@ test('finished phases survive a merge from another device', () => {
   const m = A.Store.mergeStates(a, b);
   assert.deepStrictEqual(plain(m.phase_log.map(p => p.id).sort()), ['p0', 'p1']);
 });
+
+test('AI failures read as something a person can act on, never as a raw error', () => {
+  const t = (e, f) => A.aiErrorText(e, f);
+  assert.strictEqual(t(Object.assign(new Error('Failed to fetch'), { name: 'TypeError' }), 'X.'), 'Could not reach Macrosaurus. Check your connection and try again.');
+  assert.strictEqual(t({ timedOut: true, message: 'aborted' }, 'X.'), 'That took too long to come back. Try again.');
+  assert.strictEqual(t(new Error('Unexpected token < in JSON at position 0'), 'Could not read that menu. Try again.'), 'Could not read that menu. Try again.');
+  assert.strictEqual(t(new Error('AI error'), 'Fallback.'), 'Fallback.');
+  assert.strictEqual(t(new Error('Please sign in to use AI features.'), 'X.'), 'Please sign in to use AI features.', 'messages written for people pass through');
+  assert.strictEqual(t({ message: 'x', aiError: { message: 'You have used your free AI logs this month.' } }, 'X.'), 'You have used your free AI logs this month.');
+});
+
+test('the coach is told about the deadline, so it cannot contradict the pace the app set', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'app/src/app.jsx'), 'utf8');
+  assert.ok(/deadline: result\.phaseStep \?/.test(src), 'the check-in coach payload carries the phase');
+  assert.ok(/If deadline is not null/.test(src), 'and the coach prompt says what to do with it');
+});
