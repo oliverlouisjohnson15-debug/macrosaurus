@@ -4262,6 +4262,27 @@ function PhaseReviewCard({ db, update, showToast }) {
     </div>
   </Card>);
 }
+// A real checkbox, for a decision that has to be ticked before something can happen. ChoiceRow is a
+// menu answer and shows nothing until chosen, which hides that there is anything to tick at all;
+// this always shows its box. Notched 2px ink ring (DESIGN.md, Window), filled with the link colour
+// and a tick once checked, and the whole row is the 44px+ target.
+function CheckRow({ checked, onChange, title, sub }) {
+  const ring = '0 -2px 0 0 var(--border), 0 2px 0 0 var(--border), -2px 0 0 0 var(--border), 2px 0 0 0 var(--border)';
+  return (
+    <button type="button" role="checkbox" aria-checked={!!checked} onClick={() => onChange(!checked)}
+      className="w-full text-left flex items-center gap-3 px-3 py-3 mt-1"
+      style={{ minHeight: 56, background: 'var(--card)', boxShadow: ring }}>
+      <span className="shrink-0 flex items-center justify-center" aria-hidden="true"
+        style={{ width: 24, height: 24, margin: 2, background: checked ? 'var(--link)' : 'var(--card)', color: 'var(--card)', boxShadow: '0 -2px 0 0 var(--text), 0 2px 0 0 var(--text), -2px 0 0 0 var(--text), 2px 0 0 0 var(--text)' }}>
+        {checked && <Icon.check width="16" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] leading-snug" style={{ fontWeight: 600, color: 'var(--text)' }}>{title}</span>
+        {sub && <span className="block text-[13px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{sub}</span>}
+      </span>
+    </button>
+  );
+}
 // The goal screen's "weight by a date" read-out: the pace it needs, what that costs a day, and the
 // one decision it asks for. Refused paces get the nearest dates and weights that would work.
 function PhaseFeasibilityPanel({ f, unit, goalType, yes, setYes, onUseDate, onUseWeight }) {
@@ -4290,7 +4311,7 @@ function PhaseFeasibilityPanel({ f, unit, goalType, yes, setYes, onUseDate, onUs
       ? <div style={{ color: 'var(--good-ink)' }}>Within the evidence-backed range of up to {ok}.</div>
       : <>
         <div className="mb-2" style={{ color: 'var(--fat-ink)' }}>Faster than the evidence-backed {ok}. Expect more hunger, flat strength and poorer sleep. I’ll ease off if your lifts drop.</div>
-        <ChoiceRow selected={!!yes} onClick={() => setYes(!yes)} title="I understand, run it at this pace" sub={'The limit is ' + hard + '. I won’t go past it.'} />
+        <CheckRow checked={!!yes} onChange={setYes} title="I understand, run it at this pace" sub={'The limit is ' + hard + '. I won’t go past it.'} />
       </>}
   </>);
 }

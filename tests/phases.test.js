@@ -139,3 +139,12 @@ test('readiness: poor twice running means recover', () => {
   assert.strictEqual(E.readinessRecover([{ date: 'a', ready: fine }], poor), false);
   assert.strictEqual(E.readinessRecover([{ date: 'a' }], poor), false, 'no earlier rating, no streak');
 });
+
+test('the pace is judged as it is shown, so a hair over the limit never reads "0.83, faster than 0.83"', () => {
+  const p = { sex: 'male', weightKg: 83.4, bodyFatPct: 22, goalType: 'cut' };
+  const lim = E.phaseLimits(p);
+  // A goal that needs exactly the limit once rounded to two decimals.
+  const f = E.phaseFeasibility({ profile: p, burnKcal: 2700, goalKg: +(83.4 - lim.okKg * 6 - 0.004).toFixed(3), fromISO: '2026-11-09', endISO: '2026-12-21' });
+  assert.strictEqual(f.rate, lim.okKg);
+  assert.strictEqual(f.status, 'ok');
+});

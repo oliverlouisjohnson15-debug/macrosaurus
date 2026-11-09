@@ -2360,8 +2360,11 @@
     // The fastest rate the floor allows (cuts only), and the fastest the limits allow.
     var floorRate = goalType === 'cut' && burn > 0 ? Math.max(0, (burn - floor) * 7 / KCAL_PER_KG) : Infinity;
     var maxRate = Math.min(lim.hardKg, floorRate);
+    // Judged on the pace as it is shown (two decimals), so the screen never reads "0.83, faster than
+    // the 0.83 limit" for a rate a hair over it.
+    var shown = round(rate, 2);
     var status = (goalType === 'cut' && burn > 0 && intake < floor) ? 'floor'
-      : rate > lim.hardKg + 1e-9 ? 'over' : rate > lim.okKg + 1e-9 ? 'confirm' : 'ok';
+      : shown > lim.hardKg + 1e-9 ? 'over' : shown > lim.okKg + 1e-9 ? 'confirm' : 'ok';
     var out = { status: status, goalType: goalType, rate: round(rate, 2), weeks: round(weeks, 1), pctBW: round(rate / nowKg * 100, 2),
       intakeKcal: intake, burnKcal: burn, floorKcal: floor, okKg: lim.okKg, hardKg: lim.hardKg, okPct: lim.okPct, hardPct: lim.hardPct };
     if (status === 'over' || status === 'floor') {
