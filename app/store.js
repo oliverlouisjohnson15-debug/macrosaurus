@@ -278,6 +278,11 @@
       week_plans: [],
       paused: false,      // goal paused (holiday mode)
       diet_break: null,       // temporary maintenance phase: { start, end, returnGoal }
+      // A goal weight by a date ("80 kg by 21 Dec"). One at a time; the app works out the rate and
+      // steers it at each check-in. { id, start, end, startKg, goalKg, goalType, capKg, rate,
+      // maintainDays, applied: { start, end }, outcome, reviewOn, updated_at } - see PHASES_PLAN.md.
+      phase: null,
+      phase_log: [],          // finished phases, newest last, kept for the history and the next plan
       last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
@@ -401,7 +406,7 @@
     training: ['training'],
     // Declared windows outlive the run that declared them: a holiday from the old cut still bridges
     // the streak and still shapes targets, so it has to be something you can put down.
-    weekplans: ['week_plans'],
+    weekplans: ['week_plans', 'phase', 'phase_log'],
     // ---- The groups below are what "reset everything" reaches that a fresh start never did. They
     // are listed here, in the same map, so the reset screen and the merge read one source of truth:
     // anything the user can tick is a group the merge already knows how to keep cleared.
@@ -777,6 +782,9 @@
     // Declared windows: unioned by id so a plan made on the phone survives a merge from the laptop.
     // Cancelling one tombstones it, exactly as removing a default meal does.
     out.week_plans     = unionBy(newer.week_plans,     older.week_plans,     byId);
+    // Finished phases are history: union by id so neither device loses one. The live `phase` is a
+    // single setting and the newer copy wins, like diet_break.
+    out.phase_log      = unionBy(newer.phase_log,      older.phase_log,      byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
     // Training: a session is logged in the gym, often offline, often on the phone while the laptop
     // holds a higher _rev. Union by id so neither device's work is dropped. prefs and volumeTargets

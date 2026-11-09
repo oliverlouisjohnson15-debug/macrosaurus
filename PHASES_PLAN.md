@@ -1,5 +1,27 @@
 # Phases: dated diet plans with a deadline
 
+> **Status (9 Nov 2026): built, simplified.** After review the scope was cut to *"set a goal
+> weight and a date; the app does the rest"*. What shipped:
+>
+> - **Goal screen:** "Pick a pace" / "Weight by a date". Gives the pace, its share of
+>   bodyweight and the daily calories against the learned burn. Within 1% BW is fine, up to
+>   1.25% needs an explicit yes, and past that (or below the kcal floor) is refused with the
+>   nearest date and weight that work. A maintenance block (1, 2 or 3 weeks) follows.
+> - **Check-in:** the pace is re-read from the trend each check-in. It goes up by at most
+>   0.1 kg/wk a check-in, never past the accepted limit. It eases 0.1 when two main lifts drop
+>   more than 5%, and is held after two poor readiness weeks. Readiness (hunger, energy, sleep,
+>   training, 1–5) is asked only during a phase. The check-in day never moves.
+> - **Today, Progress, Settings:** a phase strip, a single plan line, and the Goal row.
+> - **End:** the goal switches to maintenance, the maintenance block runs as a diet break,
+>   then a review card on Today with "Copy summary" as a prompt for another AI.
+> - Free. Engine: `phaseFeasibility`, `phaseRateStep`, `strengthTrend`, `readinessRecover` in
+>   `app/engine.js`. App: the phase helpers beside the diet break in `app/src/app.jsx`. Tests:
+>   `tests/phases.test.js`, `tests/phase-flow.test.js`.
+>
+> **Dropped:** AI plan import, drinking budget, custom weekly shape per phase, final-days carb
+> taper and the phase-only fat floor. The weekly shape, protein and steps stay in their existing
+> settings. The sections below are the original fuller design, kept for reference.
+
 A **phase** is a diet block with a start date, an end date and an optional goal weight
 by that end date. The weekly calorie shape, protein, steps, a drinking budget and what
 happens next all belong to it. Example: *"Cut to 80 kg by 21 Dec, Fri/Sat high, Sunday

@@ -4019,9 +4019,269 @@ function dietBreakStatus(db, today) {
   const checkins = (db.checkins || []).filter(c => c.date >= windowStart).length;
   const loggedDays = new Set(logDates.filter(d => d >= windowStart)).size;
   const snoozed = db.diet_break_snooze && today <= db.diet_break_snooze;
-  const eligible = p.goalType === 'cut' && !db.paused && !dietBreakActive(db, today)
+  // Never offered mid-phase: a phase already books its own maintenance block at the end.
+  const eligible = p.goalType === 'cut' && !db.paused && !dietBreakActive(db, today) && !phaseLive(db, today)
     && daysDieting >= DIETBREAK_MIN_DAYS && checkins >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED && !snoozed;
   return { eligible, weeks: Math.max(1, Math.floor(daysDieting / 7)) };
+}
+
+// ---- Phases: a goal weight by a date (PHASES_PLAN.md) ----
+// The person names a weight and a date. The engine works out the rate and whether it is safe; this
+// layer writes that into the settings the app already runs on (goal, rate, targets), steers the
+// rate at each check-in, and at the end hands over to maintenance and then a review. A phase never
+// moves the check-in day and never starts the next cut by itself.
+const PHASE_MAINTAIN_OPTIONS = [7, 14, 21];
+const PHASE_MAINTAIN_DEFAULT = 14;
+function phaseLive(db, iso) {
+  const ph = db && db.phase;
+  return !!(ph && ph.applied && ph.applied.start && !ph.applied.end && iso >= ph.start && iso <= ph.end);
+}
+// The trend weight on or before a date: where the person actually is, not one morning's reading.
+function phaseTrendKg(db, onISO) {
+  const ws = (db.weight_entries || []).filter(w => w && w.scale_weight != null && w.date <= onISO).sort((a, b) => a.date.localeCompare(b.date));
+  const w = ws[ws.length - 1];
+  return w ? +(w.trend_weight != null ? w.trend_weight : w.scale_weight) : (db.profile && db.profile.weightKg) || null;
+}
+function phaseBurnKcal(db, today) { return learnedTdee(db, today) || Math.round(E.tdeeFromProfile(withActivity(db.profile))); }
+// The whole setup check for a goal weight by a date, read off this person's own numbers.
+function phaseFeasibilityFor(db, goalKg, endISO, today) {
+  const nowKg = phaseTrendKg(db, today);
+  if (!(goalKg > 0) || !endISO || nowKg == null) return null;
+  return E.phaseFeasibility({ profile: Object.assign({}, db.profile, { weightKg: nowKg }), burnKcal: phaseBurnKcal(db, today), nowKg, goalKg, fromISO: today, endISO });
+}
+// Write a goal into the profile and re-anchor the plan on the learned burn, dated `iso`. The same
+// thing GoalEditor's save does, except that it leaves the check-in day alone.
+function phaseApplyGoal(d, goalType, rate, goalKg, iso) {
+  d.profile = Object.assign({}, d.profile, { goalType, rateKgPerWeek: rate },
+    goalKg != null ? { goalWeightKg: +(+goalKg).toFixed(1) } : {});
+  d.goals = { goal_type: goalType, rate_per_week_kg: rate };
+  const prior = learnedTdee(d, iso);
+  const nt = E.computeInitialTargets(withActivity(d.profile), prior ? { priorTdee: prior } : undefined);
+  nt.id = Store.uid(); nt.effective_date = iso; nt.source = 'goal-change';
+  d.targets = (d.targets || []).concat([nt]);
+  d.paused = false;
+}
+// Start a phase today. Refuses (returns null) anything the engine would not allow; `confirmed` is
+// the person's yes to a pace between the evidence-backed range and the hard limit.
+function startPhase(d, { goalKg, endISO, maintainDays, confirmed }, today) {
+  const f = phaseFeasibilityFor(d, goalKg, endISO, today);
+  if (!f || !(f.status === 'ok' || (f.status === 'confirm' && confirmed))) return null;
+  if (d.phase) closePhase(d, today, 'replaced');
+  const nowKg = phaseTrendKg(d, today);
+  d.phase = {
+    id: Store.uid(), start: today, end: endISO, startKg: +(+nowKg).toFixed(2), goalKg: +(+goalKg).toFixed(1), goalType: f.goalType,
+    capKg: f.status === 'confirm' ? f.hardKg : f.okKg, rate: f.rate, maintainDays: maintainDays == null ? PHASE_MAINTAIN_DEFAULT : maintainDays,
+    applied: { start: today, end: null }, outcome: null, reviewOn: null, updated_at: new Date().toISOString(),
+  };
+  phaseApplyGoal(d, f.goalType, f.rate, goalKg, today);
+  return d.phase;
+}
+// Put the current phase into the history. The goal and rate stay as they are: ending a phase
+// early is "stop counting down", not "undo my diet".
+function closePhase(d, today, reason) {
+  const ph = d.phase; if (!ph) return;
+  const on = today < ph.end ? today : ph.end;
+  const outcome = ph.outcome || phaseOutcome(d, ph, on, reason);
+  d.phase_log = (d.phase_log || []).concat([Object.assign({}, ph, { outcome, applied: Object.assign({}, ph.applied, { end: ph.applied && ph.applied.end || today }) })]);
+  d.phase = null;
+}
+function phaseOutcome(db, ph, onISO, reason) {
+  const endKg = phaseTrendKg(db, onISO);
+  const hit = endKg != null && (ph.goalType === 'cut' ? endKg <= ph.goalKg + 0.05 : endKg >= ph.goalKg - 0.05);
+  return { endedOn: onISO, endKg: endKg != null ? +endKg.toFixed(2) : null, hit, reason };
+}
+// Anything due today? Only the end, since a phase always starts the moment it is saved.
+function phaseTransitionDue(db, today) {
+  const ph = db && db.phase;
+  return !!(ph && ph.applied && ph.applied.start && !ph.applied.end && today > ph.end);
+}
+// The end of a phase: record how it went, switch the goal to maintenance from today (never
+// backdated, so days already eaten keep their targets), run the maintenance block as a diet break
+// so the check-ins hold through it, and set the day the review is due. Idempotent: applied.end.
+function applyPhaseTransitions(d, today) {
+  if (!phaseTransitionDue(d, today)) return;
+  const ph = d.phase;
+  ph.outcome = phaseOutcome(d, ph, ph.end, 'finished');
+  ph.applied = Object.assign({}, ph.applied, { end: today });
+  ph.updated_at = new Date().toISOString();
+  phaseApplyGoal(d, 'maintain', 0, null, today);
+  const md = +ph.maintainDays || 0;
+  const breakEnd = shiftISO(ph.end, md);
+  if (md > 0 && breakEnd >= today) { d.diet_break = { start: today, end: breakEnd, returnGoal: 'maintain' }; d.diet_break_snooze = null; }
+  ph.reviewOn = md > 0 && breakEnd >= today ? shiftISO(breakEnd, 1) : today;
+}
+// Where the phase stands today, for the Today strip and Progress: week x of y, the checkpoint and
+// how far off it the trend is, signed so positive always means behind.
+function phaseStatus(db, today) {
+  const ph = db.phase;
+  if (!ph || !phaseLive(db, today)) return null;
+  const totalDays = Math.max(1, daysBetween(ph.start, ph.end));
+  const week = Math.min(Math.ceil(totalDays / 7), Math.floor(daysBetween(ph.start, today) / 7) + 1);
+  const weeks = Math.ceil(totalDays / 7);
+  const nowKg = phaseTrendKg(db, today);
+  const target = E.phaseTargetOn(ph, today);
+  const behindKg = nowKg == null ? null : +((ph.goalType === 'cut' ? nowKg - target : target - nowKg)).toFixed(2);
+  const tone = behindKg == null ? null : behindKg > 0.3 ? 'behind' : behindKg < -0.3 ? 'ahead' : 'on';
+  return { ph, week, weeks, nowKg, target, behindKg, tone, daysLeft: Math.max(0, daysBetween(today, ph.end)) };
+}
+// What the check-in does to the rate during a phase. Read off the TREND weight the check-in has
+// just settled on, the lifts in the training log and the readiness answers given a step earlier.
+function phaseCheckFor(db, today, nowKg, ready) {
+  const ph = db.phase;
+  if (!ph || nowKg == null || today >= ph.end) return null;
+  const left = ph.goalType === 'cut' ? nowKg - ph.goalKg : ph.goalKg - nowKg;
+  const required = left <= 0 ? 0 : E.deadlineRate(nowKg, ph.goalKg, today, ph.end);
+  const st = E.strengthTrend(db.training && db.training.logs, today);
+  const recover = E.readinessRecover(db.checkins, ready);
+  const step = E.phaseRateStep({ prevRate: db.profile.rateKgPerWeek, required, capKg: ph.capKg, brake: st.brake, recover });
+  const target = E.phaseTargetOn(ph, today);
+  return Object.assign({}, step, {
+    prevRate: Math.abs(db.profile.rateKgPerWeek || 0), target, nowKg, goalKg: ph.goalKg, end: ph.end,
+    behindKg: +((ph.goalType === 'cut' ? nowKg - target : target - nowKg)).toFixed(2),
+    drops: st.drops, recover,
+    // At the rate this sets, where the trend lands on the deadline. Said out loud when capped.
+    projectedKg: +(nowKg + (ph.goalType === 'cut' ? -1 : 1) * step.rate * Math.max(0, daysBetween(today, ph.end)) / 7).toFixed(1),
+  });
+}
+// One plain sentence for what the check-in did to the rate and why.
+function phaseStepLine(s, unit) {
+  if (!s) return null;
+  const r = (x) => fmtRateKg(x, unit).replace(/^[+−]/, '').replace('/wk', ' a week');
+  const was = s.prevRate, now = s.rate;
+  const moved = Math.abs(now - was) >= 0.01 ? (now > was ? 'up' : 'down') + ' from ' + r(was) + ' to ' + r(now) : 'at ' + r(now);
+  switch (s.why) {
+    case 'brake': return 'Your main lifts have dropped for two weeks, so I’ve eased your pace ' + moved + '. Protecting muscle matters more than a few days on the deadline.';
+    case 'recover': return 'Two weeks of low readiness in a row, so I’ve held your pace ' + moved + ' rather than pushing harder. Sleep and fewer steps this week, not more food cuts.';
+    case 'capped': return 'You’re behind, and the pace is at the limit you agreed. Kept ' + moved + '. At this pace you land around ' + fmtWeight(s.projectedKg, unit) + ' on the day.';
+    case 'behind': return 'You’re ' + fmtWeightDelta(Math.abs(s.behindKg), unit).replace(/^[+−]/, '') + ' behind the line, so your pace goes ' + moved + '. Adding 2,000 steps a day is the easiest way to close it.';
+    case 'ahead': return 'You’re ahead of the line, so your pace comes ' + moved + '. More food for training, same finish.';
+    case 'reached': return 'You’ve reached your goal weight. Your pace eases ' + moved + ' until the deadline.';
+    default: return 'On the line. Your pace stays ' + moved + '.';
+  }
+}
+function phaseDate(iso) { return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); }
+// "0.3 kg behind" / "on track" / "0.4 kg ahead", read off phaseStatus.
+function phaseToneWords(st, unit) {
+  if (!st || st.behindKg == null) return { t: '', c: 'var(--muted)' };
+  const amt = fmtWeightDelta(Math.abs(st.behindKg), unit).replace(/^[+−]/, '');
+  return st.tone === 'behind' ? { t: amt + ' behind', c: 'var(--fat-ink)' }
+    : st.tone === 'ahead' ? { t: amt + ' ahead', c: 'var(--good-ink)' } : { t: 'on track', c: 'var(--good-ink)' };
+}
+// The review is due once the maintenance block has run, or straight away with none.
+function phaseReviewDue(db, today) {
+  const ph = db && db.phase;
+  return !!(ph && ph.applied && ph.applied.end && ph.reviewOn && today >= ph.reviewOn && !dietBreakActive(db, today));
+}
+// What a finished phase actually did, from the log rather than the plan: weight, food, steps,
+// sessions and the main lifts. Feeds the review card and the "copy summary" text.
+function phaseSummary(db, ph) {
+  const from = ph.start, to = ph.end;
+  const days = Math.max(1, daysBetween(from, to) + 1);
+  const kcal = {}, prot = {};
+  (db.log_entries || []).forEach(e => { if (e && e.date >= from && e.date <= to && e.computed_macros) { kcal[e.date] = (kcal[e.date] || 0) + (+e.computed_macros.kcal || 0); prot[e.date] = (prot[e.date] || 0) + (+e.computed_macros.protein || 0); } });
+  const logged = Object.keys(kcal);
+  const avg = (o) => logged.length ? Math.round(logged.reduce((s, k) => s + o[k], 0) / logged.length) : null;
+  const stepDays = Object.keys(db.steps || {}).filter(k => k >= from && k <= to && db.steps[k] > 0);
+  const steps = stepDays.length ? Math.round(stepDays.reduce((s, k) => s + db.steps[k], 0) / stepDays.length) : null;
+  const sessions = ((db.training && db.training.logs) || []).filter(l => l && l.dateISO >= from && l.dateISO <= to && (l.sets || []).some(s => s && s.done)).length;
+  const lifts = E.strengthTrend((db.training && db.training.logs) || [], to).lifts;
+  const o = ph.outcome || {};
+  return { days, loggedDays: logged.length, kcal: avg(kcal), protein: avg(prot), steps, sessionsPerWeek: +(sessions / (days / 7)).toFixed(1), lifts,
+    startKg: ph.startKg, endKg: o.endKg, goalKg: ph.goalKg, hit: !!o.hit };
+}
+function phaseSummaryText(ph, sm, unit) {
+  const lines = [
+    'My phase from ' + phaseDate(ph.start) + ' to ' + phaseDate(ph.end) + ' (' + Math.round(sm.days / 7) + ' weeks), goal ' + fmtWeight(ph.goalKg, unit) + '.',
+    'Trend weight: ' + fmtWeight(sm.startKg, unit) + ' to ' + fmtWeight(sm.endKg, unit) + (sm.hit ? ' (goal reached).' : ' (goal not reached).'),
+    sm.kcal != null ? 'Average intake: ' + sm.kcal + ' kcal and ' + sm.protein + ' g protein a day, logged on ' + sm.loggedDays + ' of ' + sm.days + ' days.' : null,
+    sm.steps != null ? 'Average steps: ' + sm.steps.toLocaleString() + ' a day.' : null,
+    'Training: ' + sm.sessionsPerWeek + ' sessions a week.',
+    sm.lifts.length ? 'Main lifts over the last 4 weeks: ' + sm.lifts.map(l => l.exerciseId.replace(/_/g, ' ') + ' ' + (l.changePct > 0 ? '+' : '') + l.changePct + '%').join(', ') + '.' : null,
+    'What should my next phase be?',
+  ];
+  return lines.filter(Boolean).join('\n');
+}
+
+// Four 1-5 taps. 1 is rough, 5 is good, for every one of them (hunger reads "how well you're
+// coping with it", so the scale never flips direction under the thumb).
+const READINESS_ROWS = [['hunger', 'Hunger', 'Ravenous', 'Fine'], ['energy', 'Energy', 'Flat', 'Great'], ['sleep', 'Sleep', 'Poor', 'Great'], ['gym', 'Training', 'Struggling', 'Strong']];
+function ReadinessGrid({ value, onChange }) {
+  return (<div className="grid gap-3">
+    {READINESS_ROWS.map(([k, l, lo, hi]) => (
+      <div key={k}>
+        <div className="flex items-baseline justify-between text-[13px] mb-1"><span style={{ fontWeight: 600 }}>{l}</span><span className="text-[12px] text-[var(--muted)]">1 {lo} · 5 {hi}</span></div>
+        <Seg value={value[k]} onChange={v => onChange(Object.assign({}, value, { [k]: value[k] === v ? undefined : v }))}
+          options={[1, 2, 3, 4, 5].map(n => ({ v: n, l: String(n) }))} />
+      </div>
+    ))}
+  </div>);
+}
+// On the check-in's reading screen: where the line says you should be, and what that did to the pace.
+function PhaseCheckNote({ step, unit }) {
+  return (<div className="py-3 mb-4 text-[13px] leading-snug" style={{ borderTop: '2px solid var(--hairline-strong)', borderBottom: '2px solid var(--hairline-strong)' }}>
+    <div className="text-[12px] mb-1" style={{ color: 'var(--muted)' }}>{fmtWeight(step.goalKg, unit)} by {phaseDate(step.end)} · the line says <b className="tnum" style={{ color: 'var(--text)' }}>{fmtWeight(step.target, unit)}</b> today</div>
+    {phaseStepLine(step, unit)}
+  </div>);
+}
+// The end-of-phase review, on Today, once maintenance has run.
+function PhaseReviewCard({ db, update, showToast }) {
+  const ph = db.phase, unit = db.profile.weight_unit;
+  const sm = phaseSummary(db, ph);
+  const done = () => update(d => closePhase(d, Store.todayISO(), 'reviewed'));
+  const copy = () => {
+    const text = phaseSummaryText(ph, sm, unit);
+    try { navigator.clipboard.writeText(text).then(() => showToast && showToast('Summary copied')); } catch (_) { showToast && showToast('Could not copy on this device'); }
+  };
+  const delta = sm.endKg != null && sm.startKg != null ? sm.endKg - sm.startKg : null;
+  return (<Card className="p-5 mb-4">
+    <div className="text-lg font-bold mb-1">Your phase is done</div>
+    <div className="text-[13px] mb-3 leading-snug" style={{ color: 'var(--text2)' }}>
+      {sm.hit ? 'You hit ' + fmtWeight(ph.goalKg, unit) + '.' : 'You finished at ' + fmtWeight(sm.endKg, unit) + ', against a goal of ' + fmtWeight(ph.goalKg, unit) + '.'}
+      {delta != null ? ' That’s ' + fmtWeightDelta(delta, unit) + ' over ' + Math.round(sm.days / 7) + ' weeks.' : ''}
+    </div>
+    <div className="text-[12px] leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>
+      {sm.kcal != null && <div>Averaged <span className="tnum" style={{ color: 'var(--text)' }}>{sm.kcal}</span> kcal and <span className="tnum" style={{ color: 'var(--text)' }}>{sm.protein}</span> g protein a day</div>}
+      {sm.steps != null && <div><span className="tnum" style={{ color: 'var(--text)' }}>{sm.steps.toLocaleString()}</span> steps a day · <span className="tnum" style={{ color: 'var(--text)' }}>{sm.sessionsPerWeek}</span> sessions a week</div>}
+      {sm.lifts.length > 0 && <div>Main lifts: {sm.lifts.slice(0, 3).map(l => l.exerciseId.replace(/_/g, ' ') + ' ' + (l.changePct > 0 ? '+' : '') + l.changePct + '%').join(' · ')}</div>}
+    </div>
+    <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>You’re on maintenance now. Set your next goal in Settings when you’re ready.</div>
+    <div className="grid grid-cols-2 gap-2">
+      <Btn kind="ghost" onClick={copy}>Copy summary</Btn>
+      <Btn kind="accent" onClick={done}>Done</Btn>
+    </div>
+  </Card>);
+}
+// The goal screen's "weight by a date" read-out: the pace it needs, what that costs a day, and the
+// one decision it asks for. Refused paces get the nearest dates and weights that would work.
+function PhaseFeasibilityPanel({ f, unit, goalType, yes, setYes, onUseDate, onUseWeight }) {
+  const box = (children) => <div className="pixel-box p-3.5 mb-4 text-[12px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{children}</div>;
+  if (!f) return box(<span style={{ color: 'var(--muted)' }}>Add your target weight above to see the pace it needs.</span>);
+  if (f.status === 'past') return box(<span style={{ color: 'var(--muted)' }}>Pick a date after today.</span>);
+  if (f.status === 'done') return box(<span style={{ color: 'var(--muted)' }}>You’re already there. Pick Maintain to hold it.</span>);
+  if (f.goalType !== goalType) return box(<span style={{ color: 'var(--fat-ink)' }}>That weight is {goalType === 'cut' ? 'above' : 'below'} your trend, so it’s a {f.goalType === 'cut' ? 'fat-loss' : 'lean-gain'} goal. Switch the goal above to match.</span>);
+  const rate = fmtRateKg(f.rate, unit).replace(/^[+−]/, '').replace('/wk', ' a week');
+  const ok = fmtRateKg(f.okKg, unit).replace(/^[+−]/, '').replace('/wk', ' a week');
+  const hard = fmtRateKg(f.hardKg, unit).replace(/^[+−]/, '').replace('/wk', ' a week');
+  if (f.status === 'over' || f.status === 'floor') return box(<>
+    <div style={{ color: 'var(--danger-ink)', fontWeight: 600 }} className="mb-1">Too fast to do safely</div>
+    <div className="mb-3" style={{ color: 'var(--text2)' }}>{f.status === 'floor'
+      ? 'It would mean eating about ' + f.intakeKcal + ' kcal a day, under the ' + f.floorKcal + ' floor.'
+      : 'It needs ' + rate + ', past the ' + hard + ' limit (' + Math.round(f.hardPct * 1000) / 10 + '% of your bodyweight).'}</div>
+    <div className="grid gap-2">
+      {f.earliestISO && <Btn kind="ghost" className="w-full" onClick={() => onUseDate(f.earliestISO)}>Same weight by {phaseDate(f.earliestISO)}</Btn>}
+      {f.reachableKg != null && <Btn kind="ghost" className="w-full" onClick={() => onUseWeight(f.reachableKg)}>{fmtWeight(f.reachableKg, unit)} by the same date</Btn>}
+    </div>
+  </>);
+  return box(<>
+    <div className="flex items-baseline gap-2 mb-1"><span className="num text-[16px]">{rate.replace(/ ?(kg|lb) a week$/, '')}</span><span className="text-[12px]" style={{ color: 'var(--muted)' }}>{unit === 'st_lb' ? 'lb' : 'kg'} a week for {f.weeks} weeks · {f.pctBW}% of your bodyweight</span></div>
+    <div className="mb-2" style={{ color: 'var(--text2)' }}>About {f.intakeKcal} kcal a day on average, against the {f.burnKcal} you burn. Your check-ins steer it from here.</div>
+    {f.status === 'ok'
+      ? <div style={{ color: 'var(--good-ink)' }}>Within the evidence-backed range of up to {ok}.</div>
+      : <>
+        <div className="mb-2" style={{ color: 'var(--fat-ink)' }}>Faster than the evidence-backed {ok}. Expect more hunger, flat strength and poorer sleep. I’ll ease off if your lifts drop.</div>
+        <ChoiceRow selected={!!yes} onClick={() => setYes(!yes)} title="I understand, run it at this pace" sub={'The limit is ' + hard + '. I won’t go past it.'} />
+      </>}
+  </>);
 }
 // Has the person said they are done eating on `iso`? Only ever set for today, from the Today card.
 function dayClosed(db, iso) { return !!(db.day_closed && db.day_closed[iso]); }
@@ -6325,6 +6585,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
   // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
   const [backfill, setBackfill] = useState(false);
+  // Readiness, asked only during a phase: hunger, energy, sleep and training, 1 (poor) to 5 (good).
+  // Two poor weeks running stops the pace rising (Engine.readinessRecover). Every answer is optional.
+  const inPhase = phaseLive(db, today);
+  const [readyAnswers, setReadyAnswers] = useState({});
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
   // Tracking lane: how completely did they log? "logged_all" trusts intake for the energy-balance read;
   // "roughly" steers by the scale alone. Pre-filled from this cycle's actual logging (no AI call needed):
@@ -6467,6 +6731,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     const byDate = {}; db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
     const targetByDate = {}; Object.keys(byDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
     const prof = withActivity(Object.assign({}, p, { weightKg: curAvg != null ? curAvg : p.weightKg }));
+    // A phase steers the rate towards its deadline before the week is read, so the decision below
+    // is made against the pace the person now needs, not last week's.
+    const phStep = phaseLive(db, today) ? phaseCheckFor(db, today, curAvg, readyAnswers) : null;
+    if (phStep) prof.rateKgPerWeek = phStep.rate;
     const priorBurn = expenditurePrior(db, prof);
     const dec = E.checkInDecision({
       profile: prof, currentTargets: base,
@@ -6510,6 +6778,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     // IS the adaptive part, so the result says it out loud instead of leaving it in a footnote.
     dec.burnNow = Math.round((dec.expenditure && dec.expenditure.kcal) || (dec.estimate && dec.estimate.tdee) || 0) || null;
     dec.burnPrev = (priorBurn && priorBurn.n > 0 && priorBurn.kcal > 0) ? Math.round(priorBurn.kcal) : null;
+    if (phStep) dec.phaseStep = phStep;
     return out(dec);
   }
   function complete() {
@@ -6549,6 +6818,19 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       // One record per date: re-running a check-in the same day (a resumed sheet, a second device)
       // replaces that day's record rather than stacking a second one the history then shows twice.
       d.checkins = (d.checkins || []).filter(c => !c || c.date !== today).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : (weightKg ? +weightKg.toFixed(2) : p.weightKg), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
+      // Readiness is kept on the check-in it was given at, so next week can see a streak. A phase
+      // step moves the pace for the next cycle and records why, whatever the target proposal does.
+      {
+        const rec = d.checkins[d.checkins.length - 1];
+        const ra = Object.keys(readyAnswers).length ? Object.assign({}, readyAnswers) : null;
+        if (ra && inPhase) rec.ready = ra;
+        const ps = res.phaseStep;
+        if (ps && d.phase) {
+          d.profile.rateKgPerWeek = ps.rate;
+          d.phase.rate = ps.rate; d.phase.updated_at = new Date().toISOString();
+          rec.phase = { target: ps.target, behindKg: ps.behindKg, rate: ps.rate, why: ps.why };
+        }
+      }
       d.profile.trackingLane = laneMode; // 'balance' or 'weightOnly', remembered for lane-aware copy
       // Check-in counts as showing up (any outcome, including a hold). Idempotent per date via a
       // game_awards guard so re-checking-in the same day never double-counts the badge track.
@@ -6616,7 +6898,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   // 'verdict' is only a beat when there is actually a decision to make. When nothing changes it
   // said the same thing the reading beat had just said, so the read now carries the outcome itself.
   const needsVerdict = !!(result && result.status === 'proposed' && result.changed && !result.accepted);
-  const beats = ['hello', 'weight', 'adherence', 'reading'].concat(needsVerdict ? ['verdict'] : [], ['ahead']);
+  const beats = ['hello', 'weight'].concat(inPhase ? ['ready'] : [], ['adherence', 'reading']).concat(needsVerdict ? ['verdict'] : [], ['ahead']);
   if (pendingLoop) beats.unshift('loop');
   const beatIdx = beats.indexOf(phase);
   const go = (b) => setPhase(b);
@@ -6732,11 +7014,17 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
             {bfNum != null && bfAfter && <div className="text-[12px] mt-2 leading-snug text-[var(--muted)]">Trend moves to <b style={{ color: 'var(--text)' }}>{bfAfter.pct.toFixed(1)}%</b>{leanPreview != null ? ', about ' + fmtWeight(leanPreview, unit) + ' of you lean' : ''}.</div>}
             <button onClick={() => setBfPick(true)} className="text-[12px] text-[var(--link)] mt-2">Not sure? Estimate from photos</button>
           </Collapsible>
-          <Btn kind="accent" className="w-full" onClick={() => go('adherence')}>Continue</Btn>
+          <Btn kind="accent" className="w-full" onClick={() => go(inPhase ? 'ready' : 'adherence')}>Continue</Btn>
           <button onClick={() => setBackfill(true)} className="w-full text-[12px] text-[var(--link)] mt-2.5 py-1">Missed a morning? Add it here</button>
         </div>}
 
         {/* 4. The honesty question, which is the only thing the buddy really needs from you. */}
+        {phase === 'ready' && <div className="fade-in">
+          <Say sub="Four taps, all optional. Two rough weeks in a row and I'll stop pushing the pace.">How are you holding up?</Say>
+          <ReadinessGrid value={readyAnswers} onChange={setReadyAnswers} />
+          <Btn kind="accent" className="w-full mt-4" onClick={() => go('adherence')}>{Object.keys(readyAnswers).length ? 'Continue' : 'Skip'}</Btn>
+        </div>}
+
         {phase === 'adherence' && <div className="fade-in">
           <Say sub="Be honest. If it was off plan, I'll set the week aside: your macros stay put and nothing you ate counts towards your burn.">Were you on plan this cycle?</Say>
           <div className="grid gap-2 mb-4">
@@ -6761,6 +7049,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
               : 'It rose in the last few days, and a week’s average only counts part of a late move. If that is water it will fade before it moves your numbers much.'}
           </div>}
           <Say>{result.reason}</Say>
+          {result.phaseStep && <PhaseCheckNote step={result.phaseStep} unit={unit} />}
           {(() => {
             const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
             const body = (coach && coach.text) ? coach.text : steps || null;
@@ -7382,10 +7671,23 @@ function ProgressHero({ db }) {
           </div> : <div className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>Weigh in for a week or so and I will tell you whether the plan is working.</div>}
           <span className="num text-[22px] leading-none shrink-0">{nowKg != null ? fmtWeight(nowKg, unit).replace(/ ?(kg|lb)$/, '') : '–'}</span>
         </div>
-        {v && <div className="text-[13px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
-          {v.goal === 'maintain' ? 'Aiming to hold steady' : 'Plan is ' + rateNum(v.target)}
-          {v.weeksToGoal != null ? ' · ' + fmtWeight(v.goalWeightKg, unit) + ' in about ' + v.weeksToGoal + ' week' + (v.weeksToGoal === 1 ? '' : 's') : ''}
-        </div>}
+        {(() => {
+          // A phase replaces the "about N weeks" estimate with its own date: one line, the goal said once.
+          const phs = phaseStatus(db, today);
+          if (phs) {
+            const tw = phaseToneWords(phs, unit);
+            const off = phs.behindKg != null && Math.abs(phs.behindKg) >= 0.1;
+            return <div className="text-[13px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
+              Plan is {fmtRateKg(Math.abs(db.profile.rateKgPerWeek || 0) * (phs.ph.goalType === 'cut' ? -1 : 1), unit)} to {fmtWeight(phs.ph.goalKg, unit)} by {phaseDate(phs.ph.end)}
+              {off ? <> · the line says <span className="tnum" style={{ color: 'var(--text)' }}>{fmtWeight(phs.target, unit)}</span></> : null}
+              {tw.t ? <> · <span style={{ color: tw.c }}>{tw.t}</span></> : null}
+            </div>;
+          }
+          return v ? <div className="text-[13px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
+            {v.goal === 'maintain' ? 'Aiming to hold steady' : 'Plan is ' + rateNum(v.target)}
+            {v.weeksToGoal != null ? ' · ' + fmtWeight(v.goalWeightKg, unit) + ' in about ' + v.weeksToGoal + ' week' + (v.weeksToGoal === 1 ? '' : 's') : ''}
+          </div> : null;
+        })()}
         {why && <div className="text-[13px] mt-1.5 leading-snug" style={{ color: ink }}>Most likely why: {why}.</div>}
         {lad && !lad.atGoal && <div className="mt-3" aria-label={'To your goal: ' + lad.doneCells + ' of ' + lad.cells + ' milestones'}>
           <PipMeter value={lad.doneCells} target={lad.cells} cells={lad.cells} scale={1} color="var(--good)" small overIsFine />
@@ -13591,12 +13893,21 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             <button onClick={() => setClosed(!closed)} className="hit text-[12px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>{closed ? 'Reopen' : 'Done for today ›'}</button>
           </div>;
         })();
+        // A phase running: week x of y and where the trend sits against the line, one tap from Progress.
+        const phs = phaseStatus(db, today);
+        const phaseRow = phs && (() => {
+          const tw = phaseToneWords(phs, db.profile.weight_unit);
+          return <div className="px-4 min-h-[44px] flex items-center justify-between gap-3 text-[12px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--muted)' }}>
+            <span className="leading-snug">Week {phs.week} of {phs.weeks} · <span className="tnum" style={{ color: 'var(--text)' }}>{fmtWeight(phs.ph.goalKg, db.profile.weight_unit)}</span> by {phaseDate(phs.ph.end)}{tw.t ? <> · <span style={{ color: tw.c }}>{tw.t}</span></> : null}</span>
+            <button onClick={() => setView('goals')} className="hit text-[12px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>Progress ›</button>
+          </div>;
+        })();
         const msgControls = !!(msg && !eggIncubating && (msg.weigh || (msg.choices || []).length || (msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)));
         const msgChecksIn = !!(msg && msg.primary && msg.primary.onClick === onCheckIn);
         const due = !!(week && week.due);
         const tn = trainNextSummary(db);
         const BLOCKS = {
-          plan: <TodayHero et={et} tot={tot} onDetails={() => setDetailOpen(true)} footer={<>{adjRow}{doneRow}</>} />,
+          plan: <TodayHero et={et} tot={tot} onDetails={() => setDetailOpen(true)} footer={<>{phaseRow}{adjRow}{doneRow}</>} />,
           buddy: (<>
             <BuddyLine db={db} buddy={buddy} bp={bp} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
               away={forageNow.status === 'away'} dueCheckin={due && !msgChecksIn} />
@@ -13607,6 +13918,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               { when: !!(week && week.weighToday && !(msg && msg.weigh) && !msgControls), render: () => <PromptRow title="Weigh in today" action="Weigh in" onAction={() => onWeigh(true)} /> },
               { when: !msgControls && !!(() => { const c = E.weekPlanContext(db.week_plans, today); return c.active || c.recovering || c.upcoming; })(),
                 render: () => <WeekPlanBanner db={db} update={update} showToast={showToast} onOpen={() => setView('more')} /> },
+              { when: !msgControls && phaseReviewDue(db, today), render: () => <PhaseReviewCard db={db} update={update} showToast={showToast} /> },
               { when: !msgControls && !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
                 render: () => <DietBreakCard db={db} update={update} /> },
               { when: !msgControls && !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
@@ -16897,18 +17209,39 @@ function GoalEditor({ db, update, showToast, onDone }) {
   const [showAdv, setShowAdv] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
+  // "Weight by a date": a phase. The person names the weight and the date and the pace is worked
+  // out for them (phaseFeasibilityFor), so in this mode the slider is replaced by the read-out.
+  const ph0 = db.phase && !(db.phase.applied && db.phase.applied.end) ? db.phase : null;
+  const [plan, setPlan] = useState(ph0 ? 'date' : 'pace');
+  const [byISO, setByISO] = useState(ph0 ? ph0.end : shiftISO(today, 42));
+  const [maintainDays, setMaintainDays] = useState(ph0 ? ph0.maintainDays : PHASE_MAINTAIN_DEFAULT);
+  const [phaseYes, setPhaseYes] = useState(false);
+  const [endPhaseAsk, setEndPhaseAsk] = useState(false);
   const [wErr, setWErr] = useState('');
   const seed = kgToStLb(p.weightKg);
   const [kg, setKg] = useState(p.weightKg); const [st, setSt] = useState(seed.st); const [lb, setLb] = useState(seed.lb);
 
   const goalWKg = g.goalType === 'maintain' ? null : (unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) : (+gwKg || null));
   const goalWChanged = goalWKg !== (p.goalWeightKg || null);
+  const byDate = g.goalType !== 'maintain' && plan === 'date';
+  const feas = byDate && goalWKg ? phaseFeasibilityFor(db, goalWKg, byISO, today) : null;
+  const feasRunnable = !!(feas && feas.goalType === g.goalType && (feas.status === 'ok' || (feas.status === 'confirm' && phaseYes)));
+  // A refused or half-filled deadline has no pace yet, so the calorie preview would be last
+  // pace's number dressed up as this plan's. Hidden until there is a pace to show.
+  const feasShowable = !!(feas && feas.goalType === g.goalType && (feas.status === 'ok' || feas.status === 'confirm'));
+  // The pace this screen previews is the one the deadline needs, so the kcal read-out below is the
+  // number the phase will actually start on.
+  useEffect(() => {
+    if (byDate && feas && feas.goalType === g.goalType && (feas.status === 'ok' || feas.status === 'confirm') && feas.rate !== g.rateKgPerWeek) setg('rateKgPerWeek', feas.rate);
+  }, [byDate, feas && feas.rate, feas && feas.status, g.goalType]);
+  const phaseChanged = byDate ? (!ph0 || ph0.end !== byISO || ph0.goalKg !== goalWKg || ph0.maintainDays !== maintainDays) : !!ph0;
   // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
   const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle
     || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType))
     || (exactProtein ? effProteinG : 0) !== (+p.proteinManualG || 0)
-    || proteinMode !== E.proteinMode(p);
+    || proteinMode !== E.proteinMode(p) || phaseChanged;
   const changed = planChanged || goalWChanged;
+  const canSave = changed && (!byDate || feasRunnable);
 
   // What this goal would actually cost you per day, worked out the same way the save does, so the
   // number on screen is the number that lands. Built on the LEARNED expenditure where we have one.
@@ -16933,6 +17266,18 @@ function GoalEditor({ db, update, showToast, onDone }) {
   function apply() {
     const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
     if (!weightKg) { setWErr("Enter your current weight to continue."); return; }
+    // A phase is checked again with the weight just confirmed: it moves the trend, and with it the
+    // pace the deadline needs. If that tips it past what was agreed, say so instead of saving half.
+    if (byDate) {
+      const trial = JSON.parse(JSON.stringify(db)); const t0 = Store.todayISO();
+      const ex0 = trial.weight_entries.find(x => x.date === t0);
+      if (ex0) ex0.scale_weight = +weightKg.toFixed(2); else trial.weight_entries.push({ id: 'trial', date: t0, scale_weight: +weightKg.toFixed(2) });
+      recomputeTrend(trial);
+      if (!startPhase(trial, { goalKg: goalWKg, endISO: byISO, maintainDays, confirmed: phaseYes }, t0)) {
+        setWErr('With that weight the pace changes. Check the read-out above, then try again.');
+        return;
+      }
+    }
     setWErr('');
     update(d => {
       d.profile = Object.assign({}, d.profile, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, proteinManualG: exactProtein ? effProteinG : null, proteinMode: proteinMode === 'grams' ? 'perkg' : proteinMode, weightKg: +weightKg.toFixed(2), goalWeightKg: goalWKg ? +goalWKg.toFixed(2) : null });
@@ -16941,13 +17286,16 @@ function GoalEditor({ db, update, showToast, onDone }) {
       recomputeTrend(d);
       // Build the new plan on the LEARNED expenditure when we have a recent one, so a goal change
       // doesn't throw away weeks of adaptive tuning by resetting to the formula.
+      // A phase keeps the check-in day: the pace changes, the Friday (or whichever) cadence doesn't.
+      if (byDate) { startPhase(d, { goalKg: goalWKg, endISO: byISO, maintainDays, confirmed: phaseYes }, t); return; }
+      if (d.phase && !(d.phase.applied && d.phase.applied.end)) closePhase(d, t, 'ended');
       const prior = learnedTdee(d, t);
       const nt = E.computeInitialTargets(withActivity(d.profile), prior ? { priorTdee: prior } : undefined);
       nt.id = Store.uid(); nt.effective_date = t; nt.source = 'goal-change'; d.targets.push(nt);
       d.last_checkin = t; d.paused = false;
     });
     setConfirming(false);
-    showToast && showToast('Goal updated, plan re-anchored from today');
+    showToast && showToast(byDate ? 'Phase started: ' + fmtWeight(goalWKg, unit) + ' by ' + phaseDate(byISO) : 'Goal updated, plan re-anchored from today');
     onDone && onDone();
   }
 
@@ -16961,7 +17309,8 @@ function GoalEditor({ db, update, showToast, onDone }) {
 
     <Card className="p-5 mb-4">
       {g.goalType !== 'maintain' && <>
-        <Field label={`Pace: ${g.rateKgPerWeek} kg a week`} hint={g.goalType === 'gain' ? 'How fast you aim to gain. A gentler pace stays leaner; faster adds more fat alongside the muscle.' : 'How fast you aim to lose. A gentler pace is easier to sustain; faster brings more hunger.'}>
+        <div className="mb-4"><Seg value={plan} onChange={setPlan} options={[{ v: 'pace', l: 'Pick a pace' }, { v: 'date', l: 'Weight by a date' }]} /></div>
+        {plan === 'pace' && <Field label={`Pace: ${g.rateKgPerWeek} kg a week`} hint={g.goalType === 'gain' ? 'How fast you aim to gain. A gentler pace stays leaner; faster adds more fat alongside the muscle.' : 'How fast you aim to lose. A gentler pace is easier to sustain; faster brings more hunger.'}>
           <input type="range" min="0.1" max="1.2" step="0.05" value={g.rateKgPerWeek} onChange={e => setg('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
           {/* Pace as a share of bodyweight, with the evidence-backed ceiling shown either way, so the
               recommended band is visible BEFORE you overshoot it rather than only as a telling-off. */}
@@ -16977,15 +17326,27 @@ function GoalEditor({ db, update, showToast, onDone }) {
               </div>}
             </div>);
           })()}
-        </Field>
-        <Field label="Target weight" hint="Optional. Drives your progress bar and the finish-line estimate below.">{unit === 'st_lb'
+        </Field>}
+        <Field label="Target weight" hint={byDate ? 'Where you want your trend weight to be on the day.' : 'Optional. Drives your progress bar and the finish-line estimate below.'}>{unit === 'st_lb'
           ? <div className="flex gap-2 items-center"><NumInput value={gwSt} onChange={e => setGwSt(e.target.value)} placeholder="st" /><span className="text-[var(--muted)]">st</span><NumInput value={gwLb} onChange={e => setGwLb(e.target.value)} placeholder="lb" /><span className="text-[var(--muted)]">lb</span></div>
           : <NumInput value={gwKg} onChange={e => setGwKg(e.target.value)} placeholder="kg" />}</Field>
+        {byDate && <>
+          <Field label="By">
+            <input type="date" className={inputCls} value={byISO} min={shiftISO(today, 7)} max={shiftISO(today, 7 * 52)} onChange={e => { setByISO(e.target.value); setPhaseYes(false); }} />
+          </Field>
+          <PhaseFeasibilityPanel f={feas} unit={unit} goalType={g.goalType} yes={phaseYes} setYes={setPhaseYes}
+            onUseDate={(iso) => { setByISO(iso); setPhaseYes(false); }}
+            onUseWeight={(w) => { if (unit === 'st_lb') { const x = kgToStLb(w); setGwSt(x.st); setGwLb(x.lb); } else setGwKg(String(w)); setPhaseYes(false); }} />
+          <Field label="Afterwards" hint="A block at maintenance straight after keeps hunger and strength in check. Your check-ins hold through it, then you get a review.">
+            <Seg value={maintainDays} onChange={setMaintainDays} options={(g.goalType === 'gain' ? [{ v: 0, l: 'None' }] : []).concat(PHASE_MAINTAIN_OPTIONS.map(n => ({ v: n, l: (n / 7) + ' week' + (n === 7 ? '' : 's') })))} />
+          </Field>
+          {ph0 && <button type="button" onClick={() => setEndPhaseAsk(true)} className="hit text-[12px] mb-4" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>End this phase</button>}
+        </>}
       </>}
 
       {/* The summary: what this goal costs you a day, and when it finishes. Both update live as you
           drag, which is the whole reason the pace slider is worth having. */}
-      {preview && <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+      {preview && (!byDate || feasShowable) && <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
         <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
@@ -16996,6 +17357,8 @@ function GoalEditor({ db, update, showToast, onDone }) {
         <div className="text-[12px] mt-2.5 leading-snug" style={{ color: 'var(--text2)' }}>
           {g.goalType === 'maintain'
             ? 'Holding steady at maintenance. No deficit, no surplus.'
+            : byDate
+              ? (feasRunnable ? <>Runs to {phaseDate(byISO)}, then {maintainDays ? (maintainDays / 7) + ' week' + (maintainDays === 7 ? '' : 's') + ' at maintenance and a review.' : 'a review.'}</> : 'Pick a weight and date that work to see your plan.')
             : eta
               ? <>About {eta.weeks} week{eta.weeks === 1 ? '' : 's'} to {fmtWeight(goalWKg, unit)}{etaDate ? ', so around ' + etaDate : ''}, if the trend holds.</>
               : !goalWKg
@@ -17052,9 +17415,9 @@ function GoalEditor({ db, update, showToast, onDone }) {
       </div>}
 
       {!confirming
-        ? <Btn kind="accent" className="w-full" disabled={!changed} style={{ opacity: changed ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
+        ? <Btn kind="accent" className="w-full" disabled={!canSave} style={{ opacity: canSave ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : byDate ? (ph0 ? 'Update phase' : 'Start phase') : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
         : <div className="pixel-box bg-[#1E1E22] p-4 mt-1 fade-in" style={{ boxShadow: 'none' }}>
-          <div className="text-[12px] text-[var(--muted)] mb-3">Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).</div>
+          <div className="text-[12px] text-[var(--muted)] mb-3">{byDate ? 'Confirm your current weight to start. Your check-in day stays the same.' : 'Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).'}</div>
           <Field label="Current weight">{unit === 'st_lb'
             ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[var(--muted)]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[var(--muted)]">lb</span></div>
             : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}</Field>
@@ -17068,12 +17431,15 @@ function GoalEditor({ db, update, showToast, onDone }) {
         ? <div className="text-[12px] text-[var(--muted)] pixel-box bg-[#1E1E22] px-4 py-3.5" style={{ boxShadow: 'none' }}>Your goal's paused. Resume from the Dashboard when you're ready: you'll weigh in and pick up from there.</div>
         : <><div className="text-[12px] text-[var(--muted)] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
     </Section>
+    {endPhaseAsk && <ConfirmDialog title="End this phase?" body="Your goal and pace stay as they are. The countdown, checkpoints and the maintenance block afterwards stop." confirmLabel="End phase" confirmKind="accent"
+      onConfirm={() => { update(d => closePhase(d, today, 'ended')); setEndPhaseAsk(false); setPlan('pace'); showToast && showToast('Phase ended'); }} onClose={() => setEndPhaseAsk(false)} />}
     {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={() => { update(d => { d.paused = true; }); showToast && showToast('Goal paused'); }} onClose={() => setPauseOpen(false)} />}
   </>);
 }
 // A one-line summary of the goal, used on the Settings overview row.
-function goalStatusLine(p, paused) {
+function goalStatusLine(p, paused, phase) {
   if (paused) return 'Paused';
+  if (phase && !(phase.applied && phase.applied.end)) return (phase.goalType === 'gain' ? 'Lean gain' : 'Fat loss') + ' · ' + fmtWeight(phase.goalKg, p.weight_unit) + ' by ' + phaseDate(phase.end);
   const t = p.goalType === 'cut' ? 'Fat loss' : p.goalType === 'gain' ? 'Lean gain' : 'Maintain';
   if (p.goalType === 'maintain') return 'Maintain · holding steady';
   return t + ' · ' + p.rateKgPerWeek + ' kg/week' + (p.goalWeightKg ? ' · target ' + fmtWeight(p.goalWeightKg, p.weight_unit) : '');
@@ -18473,7 +18839,7 @@ function planRows(db) {
   const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
   const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
   return [
-      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
+      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused, db.phase), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
       { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
       { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
       { key: 'weekly', label: 'Weekly shape', status: weeklyShapeSummary(cyc) + ' · evening out ' + (carry.enabled ? 'on' : 'off')
@@ -22443,6 +22809,13 @@ function App() {
   useEffect(() => {
     const cur = dbRef.current;
     if (cur && trainingShapeDrift(cur)) update(d => { const next = trainingShapeDrift(d); if (next) applyCycling(d, next); });
+  }, [db]);
+
+  // A phase that has run past its end date hands over to maintenance and books its review. Checked
+  // whenever the store changes, and idempotent (applied.end), so a second device does nothing.
+  useEffect(() => {
+    const cur = dbRef.current; const t = Store.todayISO();
+    if (cur && phaseTransitionDue(cur, t)) update(d => applyPhaseTransitions(d, t));
   }, [db]);
 
   // Keep Google Health fresh through the day: re-sync when the app returns to the foreground and on a
