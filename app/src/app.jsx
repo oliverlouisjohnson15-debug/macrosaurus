@@ -17255,19 +17255,30 @@ function GoalEditor({ db, update, showToast, onDone }) {
   // A refused or half-filled deadline has no pace yet, so the calorie preview would be last
   // pace's number dressed up as this plan's. Hidden until there is a pace to show.
   const feasShowable = !!(feas && feas.goalType === g.goalType && (feas.status === 'ok' || feas.status === 'confirm'));
+  const phaseChanged = byDate ? (!ph0 || ph0.end !== byISO || ph0.goalKg !== goalWKg || ph0.maintainDays !== maintainDays) : !!ph0;
   // The pace this screen previews is the one the deadline needs, so the kcal read-out below is the
   // number the phase will actually start on.
   useEffect(() => {
+    // A running phase keeps the pace its check-ins have steered to until its deadline is edited.
+    if (ph0 && !phaseChanged) { if (g.rateKgPerWeek !== ph0.rate) setg('rateKgPerWeek', ph0.rate); return; }
     if (byDate && feas && feas.goalType === g.goalType && (feas.status === 'ok' || feas.status === 'confirm') && feas.rate !== g.rateKgPerWeek) setg('rateKgPerWeek', feas.rate);
-  }, [byDate, feas && feas.rate, feas && feas.status, g.goalType]);
-  const phaseChanged = byDate ? (!ph0 || ph0.end !== byISO || ph0.goalKg !== goalWKg || ph0.maintainDays !== maintainDays) : !!ph0;
+  }, [byDate, feas && feas.rate, feas && feas.status, g.goalType, phaseChanged]);
   // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
   const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle
     || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType))
     || (exactProtein ? effProteinG : 0) !== (+p.proteinManualG || 0)
     || proteinMode !== E.proteinMode(p) || phaseChanged;
   const changed = planChanged || goalWChanged;
-  const canSave = changed && (!byDate || feasRunnable);
+  // A running phase whose deadline is untouched is saved as it stands; only a new or edited deadline
+  // has to pass the feasibility check (and the yes) again.
+  const canSave = changed && (!byDate || (ph0 && !phaseChanged) || feasRunnable);
+  // A greyed-out button has to say what it is waiting for, or it reads as broken.
+  const phaseBlocker = !goalWKg ? 'Add a target weight to start'
+    : !feas ? 'Pick a date to start'
+    : feas.goalType !== g.goalType ? 'Match the goal to your target'
+    : feas.status === 'confirm' ? 'Tap “I understand” above to start'
+    : (feas.status === 'over' || feas.status === 'floor') ? 'Pick a date or weight that works'
+    : 'Pick a date to start';
 
   // What this goal would actually cost you per day, worked out the same way the save does, so the
   // number on screen is the number that lands. Built on the LEARNED expenditure where we have one.
@@ -17294,7 +17305,10 @@ function GoalEditor({ db, update, showToast, onDone }) {
     if (!weightKg) { setWErr("Enter your current weight to continue."); return; }
     // A phase is checked again with the weight just confirmed: it moves the trend, and with it the
     // pace the deadline needs. If that tips it past what was agreed, say so instead of saving half.
-    if (byDate) {
+    // Only a new or edited deadline starts a phase. Changing protein or diet style while one runs
+    // just rebuilds today's targets and leaves the phase, its start and its pace where they are.
+    const newPhase = byDate && (phaseChanged || !ph0);
+    if (newPhase) {
       const trial = JSON.parse(JSON.stringify(db)); const t0 = Store.todayISO();
       const ex0 = trial.weight_entries.find(x => x.date === t0);
       if (ex0) ex0.scale_weight = +weightKg.toFixed(2); else trial.weight_entries.push({ id: 'trial', date: t0, scale_weight: +weightKg.toFixed(2) });
@@ -17313,7 +17327,14 @@ function GoalEditor({ db, update, showToast, onDone }) {
       // Build the new plan on the LEARNED expenditure when we have a recent one, so a goal change
       // doesn't throw away weeks of adaptive tuning by resetting to the formula.
       // A phase keeps the check-in day: the pace changes, the Friday (or whichever) cadence doesn't.
-      if (byDate) { startPhase(d, { goalKg: goalWKg, endISO: byISO, maintainDays, confirmed: phaseYes }, t); return; }
+      if (newPhase) { startPhase(d, { goalKg: goalWKg, endISO: byISO, maintainDays, confirmed: phaseYes }, t); return; }
+      if (byDate) {
+        d.profile.rateKgPerWeek = ph0.rate;
+        const prior0 = learnedTdee(d, t);
+        const nt0 = E.computeInitialTargets(withActivity(d.profile), prior0 ? { priorTdee: prior0 } : undefined);
+        nt0.id = Store.uid(); nt0.effective_date = t; nt0.source = 'goal-change'; d.targets.push(nt0);
+        return;
+      }
       if (d.phase && !(d.phase.applied && d.phase.applied.end)) closePhase(d, t, 'ended');
       const prior = learnedTdee(d, t);
       const nt = E.computeInitialTargets(withActivity(d.profile), prior ? { priorTdee: prior } : undefined);
@@ -17321,7 +17342,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
       d.last_checkin = t; d.paused = false;
     });
     setConfirming(false);
-    showToast && showToast(byDate ? 'Phase started: ' + fmtWeight(goalWKg, unit) + ' by ' + phaseDate(byISO) : 'Goal updated, plan re-anchored from today');
+    showToast && showToast(byDate && !(ph0 && !phaseChanged) ? 'Phase started: ' + fmtWeight(goalWKg, unit) + ' by ' + phaseDate(byISO) : 'Goal updated, plan re-anchored from today');
     onDone && onDone();
   }
 
@@ -17441,7 +17462,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
       </div>}
 
       {!confirming
-        ? <Btn kind="accent" className="w-full" disabled={!canSave} style={{ opacity: canSave ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : byDate ? (ph0 ? 'Update phase' : 'Start phase') : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
+        ? <Btn kind="accent" className="w-full" disabled={!canSave} style={{ opacity: canSave ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : byDate ? (canSave ? (ph0 ? 'Update phase' : 'Start phase') : phaseBlocker) : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
         : <div className="pixel-box bg-[#1E1E22] p-4 mt-1 fade-in" style={{ boxShadow: 'none' }}>
           <div className="text-[12px] text-[var(--muted)] mb-3">{byDate ? 'Confirm your current weight to start. Your check-in day stays the same.' : 'Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).'}</div>
           <Field label="Current weight">{unit === 'st_lb'

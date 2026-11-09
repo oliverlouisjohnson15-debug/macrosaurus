@@ -200,8 +200,8 @@ test('goal screen: weight by a date, confirm the faster pace, start the phase', 
     assert.ok(date, 'a date field appears');
     at(TODAY, () => ui.type(date, shift(TODAY, 42)));
     assert.ok(ui.has('Faster than the evidence-backed'), 'about 0.9 kg a week asks for a yes: ' + ui.text.slice(0, 600));
-    const start = ui.findEl('Start phase');
-    assert.ok(start && start.disabled, 'cannot start before saying yes');
+    const wait = ui.findEl('Tap “I understand” above to start');
+    assert.ok(wait && wait.disabled, 'cannot start before saying yes, and the button says why');
     at(TODAY, () => ui.click('I understand, run it at this pace'));
     assert.ok(!ui.findEl('Start phase').disabled, 'enabled once confirmed');
     at(TODAY, () => ui.click('Start phase'));
@@ -265,4 +265,34 @@ test('a phase starts with a clean slate: last week’s overeat is not paid back 
   const after = at(MON, () => A.effectiveTarget(db, TUE));
   assert.strictEqual(Math.round(after.carry), 0, 'the phase starts fresh');
   assert.strictEqual(db.last_checkin, TODAY, 'and the check-in day is untouched');
+});
+
+test('with a phase running, every setting stays editable on the goal screen', () => {
+  const db = inPhase(account());
+  const ph = JSON.parse(JSON.stringify(db.phase));
+  const ui = at(TODAY, () => mount(A.GoalEditor, { db, update: (fn) => fn(db), showToast() {}, onDone() {} }));
+  try {
+    assert.ok(ui.has('Weight by a date') && ui.has('End this phase'), 'opens on the running phase');
+    assert.ok(ui.has('No changes to save'), 'opening it changes nothing: ' + ui.text.slice(0, 300));
+    // Protein, without touching the deadline: saved, and the phase is left exactly as it was.
+    at(TODAY, () => ui.click('Advanced'));
+    at(TODAY, () => ui.click('Exact grams'));
+    const box = Array.from(ui.host.querySelectorAll('input')).find(i => i.type !== 'date' && i.type !== 'range' && i.value && +i.value > 100);
+    at(TODAY, () => ui.type(box, 190));
+    at(TODAY, () => ui.click('Update phase'));
+    at(TODAY, () => ui.click('Confirm & update'));
+  } finally { ui.unmount(); }
+  assert.strictEqual(db.profile.proteinManualG, 190);
+  assert.strictEqual(db.phase.id, ph.id, 'same phase');
+  assert.strictEqual(db.phase.start, ph.start, 'not restarted');
+  assert.strictEqual(db.profile.rateKgPerWeek, ph.rate, 'pace kept');
+  // Back to a plain pace ends the phase and keeps everything else editable.
+  const ui2 = at(TODAY, () => mount(A.GoalEditor, { db, update: (fn) => fn(db), showToast() {}, onDone() {} }));
+  try {
+    at(TODAY, () => ui2.click('Pick a pace'));
+    at(TODAY, () => ui2.click('Save & update goal'));
+    at(TODAY, () => ui2.click('Confirm & update'));
+  } finally { ui2.unmount(); }
+  assert.strictEqual(db.phase, null);
+  assert.strictEqual(db.phase_log.length, 1);
 });
