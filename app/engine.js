@@ -2314,6 +2314,132 @@
     return 'rest';
   }
 
+  // ---- Phases: a goal weight by a date ----
+  // A phase is "reach X kg by this date". The user names the weight and the date; everything else
+  // (the rate, whether it is safe, where they should be each week, how the rate moves when they
+  // fall behind) is worked out here from what the app already knows about them. These are pure so
+  // the setup screen, the check-in and the tests all read the same arithmetic.
+
+  // Rate limits as a share of bodyweight per week. `ok` is the evidence-backed range (rateGuidance's
+  // cap); between ok and hard the user must confirm, past hard the app will not set it. Lean
+  // dieters sit a step lower, as rateGuidance already does, and gains are kept slow.
+  var PHASE_LIMITS = { cut: { ok: 0.01, hard: 0.0125 }, cutLean: { ok: 0.0075, hard: 0.01 }, gain: { ok: 0.005, hard: 0.0075 } };
+  function phaseLimits(p) {
+    var bw = (p && p.weightKg) || 0;
+    var lean = p && p.bodyFatPct != null && ((p.sex === 'male' && p.bodyFatPct < 12) || (p.sex !== 'male' && p.bodyFatPct < 20));
+    var L = p && p.goalType === 'gain' ? PHASE_LIMITS.gain : lean ? PHASE_LIMITS.cutLean : PHASE_LIMITS.cut;
+    return { okPct: L.ok, hardPct: L.hard, okKg: round(bw * L.ok, 2), hardKg: round(bw * L.hard, 2) };
+  }
+  // kg a week needed to get from nowKg to goalKg between two dates. Always positive; the direction
+  // is the goal's. A deadline today or in the past has no rate to give.
+  function deadlineRate(nowKg, goalKg, fromISO, endISO) {
+    var days = daysBetweenISO(fromISO, endISO);
+    if (!(days > 0) || nowKg == null || goalKg == null) return null;
+    return round(Math.abs(goalKg - nowKg) / (days / 7), 3);
+  }
+  // Can this goal be reached by this date, and at what cost? burnKcal is the learned daily burn
+  // (or the formula estimate when there is none yet). Returns:
+  //   status 'ok'      within the evidence-backed range
+  //          'confirm' faster than that but within the hard limit: allowed once the user confirms
+  //          'over'    past the hard limit: refused, with the nearest weight and date that work
+  //          'floor'   the intake it needs is under the calorie floor: refused the same way
+  //          'done'    already at or past the goal
+  function phaseFeasibility(o) {
+    var p = o.profile || {};
+    var nowKg = o.nowKg != null ? o.nowKg : p.weightKg;
+    var goalType = o.goalKg < nowKg ? 'cut' : 'gain';
+    var weeks = daysBetweenISO(o.fromISO, o.endISO) / 7;
+    if (!(weeks > 0)) return { status: 'past', goalType: goalType };
+    if (Math.abs(o.goalKg - nowKg) < 0.05) return { status: 'done', goalType: goalType, rate: 0, weeks: round(weeks, 1) };
+    var lim = phaseLimits(Object.assign({}, p, { weightKg: nowKg, goalType: goalType }));
+    var rate = deadlineRate(nowKg, o.goalKg, o.fromISO, o.endISO);
+    var floor = kcalFloor(p);
+    var burn = o.burnKcal || 0;
+    var perDay = rate * KCAL_PER_KG / 7;
+    var intake = round(goalType === 'cut' ? burn - perDay : burn + perDay);
+    // The fastest rate the floor allows (cuts only), and the fastest the limits allow.
+    var floorRate = goalType === 'cut' && burn > 0 ? Math.max(0, (burn - floor) * 7 / KCAL_PER_KG) : Infinity;
+    var maxRate = Math.min(lim.hardKg, floorRate);
+    var status = (goalType === 'cut' && burn > 0 && intake < floor) ? 'floor'
+      : rate > lim.hardKg + 1e-9 ? 'over' : rate > lim.okKg + 1e-9 ? 'confirm' : 'ok';
+    var out = { status: status, goalType: goalType, rate: round(rate, 2), weeks: round(weeks, 1), pctBW: round(rate / nowKg * 100, 2),
+      intakeKcal: intake, burnKcal: burn, floorKcal: floor, okKg: lim.okKg, hardKg: lim.hardKg, okPct: lim.okPct, hardPct: lim.hardPct };
+    if (status === 'over' || status === 'floor') {
+      var sign = goalType === 'cut' ? -1 : 1;
+      out.reachableKg = round(nowKg + sign * maxRate * weeks, 1);
+      out.earliestISO = maxRate > 0 ? shiftISOdays(o.fromISO, Math.ceil(Math.abs(o.goalKg - nowKg) / maxRate * 7)) : null;
+      out.maxRate = round(maxRate, 2);
+    }
+    return out;
+  }
+  // Where the phase says you should be on a date: a straight line from the start weight to the
+  // goal. Clamped to the phase's own dates.
+  function phaseTargetOn(phase, iso) {
+    if (!phase || !phase.start || !phase.end) return null;
+    var total = daysBetweenISO(phase.start, phase.end);
+    if (!(total > 0)) return phase.goalKg;
+    var t = clamp(daysBetweenISO(phase.start, iso) / total, 0, 1);
+    return round(phase.startKg + (phase.goalKg - phase.startKg) * t, 2);
+  }
+  // The rate for the next cycle of a deadline phase. Re-read from where the trend is today, so
+  // falling behind asks for a little more and getting ahead asks for less, but it never jumps:
+  // up by at most 0.1 kg/wk a check-in (one bad week must not double the deficit), down by at
+  // most 0.2, and never past the limit the user accepted. Two signals override the deadline:
+  //   brake   - main lifts falling: the rate comes DOWN 0.1 (about 150 kcal a day back)
+  //   recover - two weeks of poor readiness: the rate is held, never raised
+  // Returns { rate, required, capped, why } with why in 'brake'|'recover'|'capped'|'behind'|'ahead'|'steady'|'reached'.
+  function phaseRateStep(o) {
+    var prev = Math.abs(o.prevRate || 0);
+    var cap = o.capKg || prev;
+    var req = o.required;
+    if (req == null) return { rate: prev, required: null, capped: false, why: 'steady' };
+    if (req <= 0.001) return { rate: Math.min(prev, 0.25), required: 0, capped: false, why: 'reached' };
+    var next = clamp(req, Math.max(0.1, prev - 0.2), prev + 0.1);
+    var why = req > prev + 0.02 ? 'behind' : req < prev - 0.02 ? 'ahead' : 'steady';
+    var capped = false;
+    if (next > cap) { next = cap; capped = req > cap + 1e-9; if (capped) why = 'capped'; }
+    if (o.recover && next > prev) { next = prev; why = 'recover'; }
+    if (o.brake) { next = Math.max(0.1, Math.min(next, prev - 0.1)); why = 'brake'; }
+    return { rate: round(next, 2), required: round(req, 2), capped: capped, why: why };
+  }
+  // Are the main lifts going backwards? Each lift's best estimated 1RM (Epley) over the last two
+  // weeks against the two weeks before. "Main" is the five most-trained exercises in that month,
+  // and only lifts done in BOTH halves count, so swapping an exercise is not read as a drop.
+  // brake = two or more main lifts down more than 5%.
+  function strengthTrend(logs, todayISO) {
+    var recent = {}, prior = {}, sessions = {};
+    (logs || []).forEach(function (l) {
+      if (!l || !l.dateISO) return;
+      var age = daysBetweenISO(l.dateISO, todayISO);
+      if (age < 0 || age >= 28) return;
+      var seen = {};
+      (l.sets || []).forEach(function (s) {
+        if (!s || !s.done || s.type === 'warmup' || !(s.weightKg > 0) || !(s.reps > 0) || s.reps > 20) return;
+        var e1 = s.weightKg * (1 + s.reps / 30);
+        var bag = age < 14 ? recent : prior;
+        if (!(bag[s.exerciseId] >= e1)) bag[s.exerciseId] = e1;
+        if (!seen[s.exerciseId]) { seen[s.exerciseId] = 1; sessions[s.exerciseId] = (sessions[s.exerciseId] || 0) + 1; }
+      });
+    });
+    var main = Object.keys(sessions).filter(function (k) { return recent[k] && prior[k]; })
+      .sort(function (a, b) { return sessions[b] - sessions[a]; }).slice(0, 5);
+    var lifts = main.map(function (k) { return { exerciseId: k, changePct: round((recent[k] / prior[k] - 1) * 100, 1) }; });
+    var drops = lifts.filter(function (x) { return x.changePct < -5; });
+    return { lifts: lifts, drops: drops, brake: drops.length >= 2 };
+  }
+  // Readiness, asked at check-in during a phase: hunger, energy, sleep and gym, each 1-5 (5 good).
+  // Poor = two or more at 2 or below. Recover when the last two check-ins were both poor.
+  function readinessPoor(r) {
+    if (!r) return false;
+    var n = 0; ['hunger', 'energy', 'sleep', 'gym'].forEach(function (k) { if (r[k] != null && r[k] <= 2) n++; });
+    return n >= 2;
+  }
+  function readinessRecover(checkins, current) {
+    var withR = (checkins || []).filter(function (c) { return c && c.ready; });
+    var last = withR[withR.length - 1];
+    return !!(current && readinessPoor(current) && last && readinessPoor(last.ready));
+  }
+
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
@@ -2344,6 +2470,8 @@
     photoUpdatable: photoUpdatable, priorEstimateBrief: priorEstimateBrief,
     ownRefs: ownRefs, ownCheck: ownCheck, estimateAudit: estimateAudit, estimateShare: estimateShare, estimateNote: estimateNote, aiGramsOk: aiGramsOk,
     foodNameTokens: nameTokens, sameFood: sameFood,
+    phaseLimits: phaseLimits, deadlineRate: deadlineRate, phaseFeasibility: phaseFeasibility, phaseTargetOn: phaseTargetOn,
+    phaseRateStep: phaseRateStep, strengthTrend: strengthTrend, readinessPoor: readinessPoor, readinessRecover: readinessRecover,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
