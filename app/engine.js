@@ -227,6 +227,13 @@
     if (p.proteinMode === 'adaptive' || p.proteinMode === 'perkg') return p.proteinMode;
     return 'perkg';
   }
+  // The protein boost steps, in grams. Missing or 0 is off, so existing profiles read as they did.
+  var PROTEIN_BOOST_STEPS = [0, 5, 10, 15, 20];
+  function normProteinBoost(p) {
+    var n = p ? +p.proteinBoostG : 0;
+    if (!isFinite(n)) return 0;
+    return clamp(Math.round(n / 5) * 5, 0, 20);
+  }
   // Evidence-based protein: manual gram target, else the adaptive model, else user's g/kg lean.
   function proteinGrams(p) {
     if (p.proteinManualG) {
@@ -275,6 +282,28 @@
         protein_g = Math.max(0, Math.floor((kcal - fat_g * 9 - fiberKcal) / 4));
       }
     }
+    // Protein boost: a manual +N g on top of the mode's figure, paid for by fat and carbs so calories
+    // don't move. Not part of proteinGrams (that would make carbs pay for all of it). Ignored for a
+    // held gram figure, and when the budget is already squeezed there is nothing to trade.
+    var boostReq = normProteinBoost(profile), boostApplied = 0, boostFatG = 0;
+    if (boostReq > 0 && !squeezed && proteinMode(profile) !== 'grams') {
+      var pb = proteinManualBounds(profile);
+      var boost = Math.min(boostReq, Math.max(0, (pb ? pb.max : protein_g + boostReq) - protein_g));
+      var carbKcal = Math.max(0, kcal - protein_g * 4 - fat_g * 9 - fiberKcal);
+      var fatKcal = fat_g * 9;
+      var fatShare = (fatKcal + carbKcal) > 0 ? fatKcal / (fatKcal + carbKcal) : 0;
+      var fatRoom = Math.max(0, (fat_g - fatFloor) * 9);
+      var need = boost * 4;
+      var fromFat = Math.min(need * fatShare, fatRoom);
+      if (need - fromFat > carbKcal) {
+        // Not enough fat and carbs to give: shrink the boost to what fits.
+        fromFat = Math.min(fatRoom, fatKcal);
+        boost = Math.max(0, Math.floor((fromFat + carbKcal) / 4));
+        need = boost * 4;
+        fromFat = Math.min(fromFat, need);
+      }
+      if (boost > 0) { protein_g += boost; fat_g -= fromFat / 9; boostApplied = boost; boostFatG = fromFat / 9; }
+    }
     // Carbs are derived from the ROUNDED calories, protein and fat: the exact rule applyKcalDelta uses
     // to build each day from this target. Deriving them from the unrounded fat here meant a fresh plan
     // could say 109 g on setup and Progress while every day built from it said 108 g.
@@ -282,6 +311,7 @@
     var carbs_g = Math.max(0, (kR - pR * 4 - fR * 9 - fiberReserveKcal(kR)) / 4);
     var out = { kcal: kR, protein_g: pR, fat_g: fR, carbs_g: round(carbs_g) };
     if (squeezed) out.squeezed = true;
+    if (boostReq > 0) out.proteinBoost = { requested: boostReq, applied: boostApplied, fat_g: -round(boostFatG) };
     return out;
   }
 
@@ -2453,7 +2483,7 @@
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
-    proteinManualBounds: proteinManualBounds, proteinClause: proteinClause, proteinRecommendation: proteinRecommendation, proteinMode: proteinMode,
+    proteinManualBounds: proteinManualBounds, proteinClause: proteinClause, proteinRecommendation: proteinRecommendation, proteinMode: proteinMode, normProteinBoost: normProteinBoost, PROTEIN_BOOST_STEPS: PROTEIN_BOOST_STEPS,
     proteinLeanAdj: proteinLeanAdj, proteinDeficitAdj: proteinDeficitAdj, proteinDeficitPct: proteinDeficitPct,
     PROTEIN_BASE_G_PER_KG_LBM: PROTEIN_BASE_G_PER_KG_LBM, PROTEIN_BAND_G_PER_KG_LBM: PROTEIN_BAND_G_PER_KG_LBM,
     PROTEIN_MANUAL_MIN_G_PER_KG_LBM: PROTEIN_MANUAL_MIN_G_PER_KG_LBM, PROTEIN_MANUAL_MAX_G_PER_KG_LBM: PROTEIN_MANUAL_MAX_G_PER_KG_LBM,
