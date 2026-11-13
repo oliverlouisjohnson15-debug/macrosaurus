@@ -750,7 +750,7 @@ test('weeklyAdjust rationale: slower-than-target cut whose burn moves calories U
   assert.strictEqual(r.direction, 'up');
   assert.ok(!/faster than/i.test(r.reason), r.reason);
   assert.ok(/slower than your 0\.60 kg\/wk target/.test(r.reason), r.reason);
-  assert.ok(/burn higher/.test(r.reason) && /above your 2095 target/.test(r.reason), r.reason);
+  assert.ok(/burn reads higher/.test(r.reason) && /above your 2095 target/.test(r.reason), r.reason);
 });
 
 test('weeklyAdjust rationale: faster-than-target cut whose burn moves calories DOWN never says "slower"', () => {
@@ -762,7 +762,7 @@ test('weeklyAdjust rationale: faster-than-target cut whose burn moves calories D
   });
   assert.strictEqual(r.direction, 'down');
   assert.ok(!/slower than/i.test(r.reason), r.reason);
-  assert.ok(/faster than your 0\.60 kg\/wk target/.test(r.reason) && /burn lower/.test(r.reason), r.reason);
+  assert.ok(/faster than your 0\.60 kg\/wk target/.test(r.reason) && /burn reads lower/.test(r.reason), r.reason);
 });
 
 test('weeklyAdjust rationale: matching cases keep the plain faster/slower wording', () => {
