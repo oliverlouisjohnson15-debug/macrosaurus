@@ -572,9 +572,9 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         {daysResult && (
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{daysResult.text}</div>
-            <button onClick={undoDays} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>
+            <Btn kind="ghost" onClick={undoDays} className="w-full mt-2">
               Put it back to {daysResult.was} days
-            </button>
+            </Btn>
           </div>
         )}
       </Card>
