@@ -8,7 +8,7 @@
  * freely; module-level `const` does not, so anything declared with one has to appear before
  * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
  * ------------------------------------------------------------------------------------- */
-function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart, onProgramme }) {
+function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart }) {
   useBackClose(onBack);
   const t = tdb(db);
   const today = Store.todayISO();
@@ -39,9 +39,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
   //
   // Two kinds land here. A block file (.json) has already been read exactly. A SPREADSHEET is read
   // exactly right now: Training.blocksFromGrid takes the grid off the sheet - every set, rep range,
-  // RIR pair, rest, substitution and note, all twelve weeks of it - and no model sees it. That is
-  // the difference between this and the wizard's importer, which reads a photograph and therefore
-  // has to guess, and which can only fit about a quarter of a long sheet into a prompt anyway.
+  // RIR pair, rest, substitution and note, all twelve weeks of it - and no model sees it.
   const [loadBusy, setLoadBusy] = useState('');
   async function loadBlockFile(file) {
     if (!file) return;
@@ -99,11 +97,6 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       {loadBusy && loadBusy !== 'Reading it...' && (
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--warn)' }}>{loadBusy}</div>
       )}
-
-      {/* The shipped programmes, here as well as on the tab: once you have a block the tab's empty
-          state is gone, and this is where somebody comes looking for another one. */}
-      <ProgrammeCards db={db} className="mb-4"
-        onPick={(key) => onProgramme && onProgramme(key)} />
 
       {blocks.map(block => {
         const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id), Store.todayISO());
@@ -167,10 +160,9 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       })}
 
       {/* One way to get another one, at the bottom where the design puts it, reachable whether the
-          list is empty or twelve long. Bringing a source is a step inside this now, not a separate
-          screen competing with it. */}
+          list is empty or twelve long: the programmes. */}
       <div className="mt-1">
-        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
+        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Pick a programme</button>
       </div>
 
       {fixing && (() => {
@@ -1535,140 +1527,11 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 /* ============================================================================
  * AI: proposals and prose only
  * ----------------------------------------------------------------------------
- * Three calls, and not one of them returns a number the engine could compute.
- * They read messy sources, choose between movements we already shortlisted, and
- * write sentences. Every set count, every rep range, every volume judgement on
+ * Two calls, and neither returns a number the engine could compute. They write
+ * sentences about a block: the coverage advice and the end-of-block review. Every set count, every rep range, every volume judgement on
  * screen comes from training.js. Each is Premium-gated in ai-proxy by the
  * signature phrase at the top of its prompt.
  * ==========================================================================*/
-
-// Read a plan out of whatever we managed to get hold of. `content` is an array of Anthropic content
-// blocks, so the same function serves pasted text, a PDF, a screenshot and a scraped caption.
-// `days` is the day count chosen in the wizard: it decides which track a multi-option source hands
-// back, and how a single-track source gets adapted. {{DAYS}} appears more than once in the prompt, so
-// this needs a global replace, unlike the single {{NAME}} swap in buddyVoice().
-async function aiParseWorkout(content, opts) {
-  const days = (opts && opts.days) || 4;
-  const batch = (opts && opts.batch) || 0;
-  const prompt = WORKOUT_PROMPT.replace(/\{\{DAYS\}\}/g, String(days));
-  // A file in a batch is one PART of the week, not the week. Sent as a separate block after the
-  // prompt rather than folded into it, so the big prompt above stays byte-identical and cacheable.
-  const head = [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }].concat(
-    batch > 1 ? [{ type: 'text', text: WORKOUT_BATCH_NOTE.replace(/\{\{DAYS\}\}/g, String(days)).replace(/\{\{N\}\}/g, String(batch)) }] : []);
-  const j = await aiRequest({
-    model: AI_MODEL, max_tokens: 3000,
-    messages: [{ role: 'user', content: head.concat(content) }],
-  }, opts);
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  if (!txt.trim()) throw new Error('Nothing came back. Try a clearer source.');
-  return parseModelJSON(txt);
-}
-
-// Hand the plan back to the model with the person's notes on what is wrong with it. What comes back
-// is re-resolved by Training.importTemplate exactly like a fresh import, so a tweak cannot smuggle in
-// a movement the library does not have any more than the first read could.
-async function aiTweakWorkout(plan, comments) {
-  const j = await aiRequest({
-    model: AI_MODEL, max_tokens: 4000,
-    messages: [{ role: 'user', content: [
-      { type: 'text', text: WORKOUT_TWEAK_PROMPT, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: 'THE PLAN AS IT STANDS:\n' + JSON.stringify(plan) },
-      { type: 'text', text: 'WHAT THEY WANT CHANGED:\n' + String(comments || '').slice(0, 2000) },
-    ] }],
-  }, { timeoutMs: 120000 });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
-  return parseModelJSON(txt);
-}
-
-// The draft, in the shape the tweak pass reads and returns: the library's names rather than the
-// coach's, because that is what is actually on screen and what the person is describing when they say
-// "the hamstring curl is wrong".
-function draftAsPlan(draft, custom) {
-  return {
-    name: (draft && draft.name) || 'My block',
-    days: ((draft && draft.days) || []).map(d => ({
-      name: d.name, dayOfWeek: d.dayOfWeek == null ? null : d.dayOfWeek,
-      exercises: (d.exercises || []).map(e => {
-        const ex = Training.byId(e.exerciseId, custom);
-        return {
-          name: (ex && ex.name) || e.exerciseId,
-          sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
-          rir: e.target.rir, restSec: e.target.restSec, tempo: e.target.tempo || null,
-        };
-      }),
-    })),
-  };
-}
-
-/* ---- changing a block you own, from a sentence -------------------------------------------------
- * The block goes out as a description and comes back as a list of operations, never as a plan (see
- * BLOCK_TWEAK_PROMPT for why). Training.blockTweak applies them: it resolves every movement name
- * against the real library, clamps every number through setExerciseTarget, and refuses to touch a
- * week that has already been trained. So the worst a bad read can do here is propose something that
- * gets rejected and reported, which is a sentence on screen rather than a broken block.
- */
-async function aiTweakBlock(payload, wish) {
-  const j = await aiRequest({
-    model: AI_MODEL, max_tokens: 2000,
-    messages: [{ role: 'user', content: [
-      { type: 'text', text: BLOCK_TWEAK_PROMPT, cache_control: { type: 'ephemeral' } },
-      // The library is nine kilobytes and identical on every call, so it is its own cached block:
-      // without a breakpoint here every tweak pays for it again.
-      { type: 'text', text: 'THE MOVEMENTS THE APP KNOWS:\n' + payload.library.join('\n'), cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: 'THE BLOCK:\n' + JSON.stringify(payload.block) },
-      { type: 'text', text: 'THE VOLUME AUDIT FOR ONE WEEK OF IT:\n' + JSON.stringify(payload.audit) },
-      { type: 'text', text: 'ABOUT THEM AND THEIR GYM:\n' + JSON.stringify(payload.about) },
-      { type: 'text', text: 'WHAT THEY WANT CHANGED:\n' + String(wish || '').slice(0, 1500) },
-    ] }],
-  }, { timeoutMs: 120000 });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
-  return parseModelJSON(txt);
-}
-
-/* What the model is shown. One week of the block, because every week has the same shape and sending
- * four copies of it buys nothing but tokens; the audit, so a request for "more shoulders" is answered
- * against this person's own ceiling rather than a general opinion; the open slots, so it can answer
- * one; and the movement list, because a swap it cannot name is a swap that gets rejected downstream.
- * Library names are the CANONICAL ones - the generated variations resolve through aliases anyway, and
- * listing all four hundred of them makes the menu harder to choose from, not easier. */
-function blockAsPlan(block, db, week) {
-  const t = tdb(db);
-  const targets = trainTargets(db, block ? block.style : undefined);
-  const cov = Training.coverage(Training.blockWeekVolume(block, week, t.custom), targets);
-  const sessions = Training.weekSessions(block, week).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-  const gym = currentGym(db);
-  return {
-    block: {
-      name: block.name, weeks: block.weeks, style: block.style || 'minmax',
-      weekShown: week, unitOfEffort: 'reps in reserve, 0 means to failure',
-      days: sessions.map(s => ({
-        name: s.name, weekday: WEEKDAYS_FULL[s.dayOfWeek] || null,
-        exercises: Training.sessionItems(s).map(e => ({
-          name: (Training.byId(e.exerciseId, t.custom) || {}).name || e.exerciseId,
-          sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
-          rir: e.target.rir, rirLast: e.target.rirLast == null ? null : e.target.rirLast,
-          restSec: e.target.restSec,
-          openSlot: e.choice ? (e.choice.label || null) : null,
-        })),
-      })),
-    },
-    audit: cov.rows.map(r => ({ muscle: r.label, sets: r.sets, mev: r.mev, mav: r.mav, mrv: r.mrv })),
-    about: {
-      experience: t.prefs.experience,
-      equipment: gym ? Training.gymEquipment(gym).equipment : (t.prefs.equipment || []),
-      gym: gym ? gym.name : null,
-      dislikes: (t.prefs.dislikes || []).map(id => (Training.byId(id, t.custom) || {}).name || id),
-      minutesPerSession: t.prefs.sessionMinutes,
-      openSlots: Training.blockChoices(block, t.custom).map(c => ({
-        label: c.label, options: c.options.map(id => (Training.byId(id, t.custom) || {}).name || id),
-        picked: (Training.byId(c.picked, t.custom) || {}).name || c.picked,
-      })),
-    },
-    library: Training.all(t.custom).filter(e => !e.variantOf && !Training.isCardio(e)).map(e => e.name),
-  };
-}
 
 // Both training write-ups are spoken by the buddy, not by an anonymous coach, so the prompt gets the
 // name of the individual the person is actually raising. {{NAME}} lives in prompts.jsx purely so that
@@ -1722,20 +1585,10 @@ async function blockReviewProse(db, review) {
 }
 
 /* ---- reading files ---------------------------------------------------------
- * A coach's plan arrives as a PDF, a spreadsheet or a photo of a whiteboard.
- * Each is turned into content blocks the model can read, with the STRUCTURE
- * kept wherever it exists: a spreadsheet flattened into prose loses the fact
- * that columns are weeks and rows are exercises, which is most of its meaning.
+ * A written programme you already own, as a spreadsheet, read exactly - no model
+ * in the way. A spreadsheet keeps the STRUCTURE: columns are weeks and rows are
+ * exercises, which is most of its meaning.
  * ------------------------------------------------------------------------- */
-
-function fileToB64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => { const s = String(r.result || ''); resolve(s.slice(s.indexOf(',') + 1)); };
-    r.onerror = () => reject(new Error('Could not read that file.'));
-    r.readAsDataURL(file);
-  });
-}
 
 // Minimal .xlsx reader. An xlsx is a zip of XML, and browsers can inflate a raw deflate stream, so
 // this needs no library: walk the zip's central directory, inflate the two parts we care about
@@ -1744,8 +1597,7 @@ function fileToB64(file) {
 //
 // It hands back the GRID, rows of cells, rather than text. A written programme is a grid - column 5
 // is the working sets and column 13 is the rest - and Training.blocksFromGrid reads it as one,
-// exactly, without a model in the way. Flattening it to text is what you do for the model, and that
-// is readXlsxText below.
+// exactly, without a model in the way.
 async function readXlsx(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const dv = new DataView(buf.buffer);
@@ -1824,14 +1676,9 @@ async function readXlsx(file) {
   return rows;
 }
 
-// The same read, flattened. A model gets tab-separated text; Training.blocksFromGrid gets the grid.
-async function readXlsxText(file) {
-  return (await readXlsx(file)).map(r => r.join('\t')).join('\n');
-}
-
 // A written programme, off a spreadsheet, exactly as written. Returns null when the sheet is not a
 // programme - a food diary, a set of body-weight readings, a plan laid out some way this cannot
-// read - so the caller can fall back to the importer that copes with anything.
+// read - so the caller can say so.
 //
 // Shaped like Training.blocksFromFile's answer on purpose: the two are the same act from the
 // person's point of view, which is bringing in a plan they already own.
@@ -1870,49 +1717,6 @@ function sheetTitle(fileName) {
   const base = String(fileName || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
   return base || 'Imported programme';
 }
-
-function readTextFile(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result || ''));
-    r.onerror = () => reject(new Error('Could not read that file.'));
-    r.readAsText(file);
-  });
-}
-
-// One file in, content blocks out. The caller does not care which kind it was.
-async function workoutContentFromFile(file) {
-  const name = (file.name || '').toLowerCase();
-  const type = file.type || '';
-  if (type.indexOf('image/') === 0) {
-    const im = await imageToB64(file, 1600);   // plans are dense text, so read them at a decent size
-    return { blocks: [{ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } }, { type: 'text', text: 'This is a photo or screenshot of a training plan. Read it.' }], kind: 'photo' };
-  }
-  if (type === 'application/pdf' || /\.pdf$/.test(name)) {
-    const b64 = await fileToB64(file);
-    return { blocks: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: 'This PDF is a training plan from a coach. Read it.' }], kind: 'pdf' };
-  }
-  if (/\.xlsx$/.test(name) || type.indexOf('spreadsheetml') !== -1) {
-    const grid = await readXlsxText(file);
-    return { blocks: [{ type: 'text', text: 'This is a training plan exported from a spreadsheet. Rows and columns are preserved as tab-separated text, so a column is very often a week and a row an exercise. Read the FIRST week only.\n\n' + grid.slice(0, 24000) }], kind: 'spreadsheet' };
-  }
-  if (/\.(csv|tsv|txt|md)$/.test(name) || type.indexOf('text/') === 0) {
-    const txt = await readTextFile(file);
-    return { blocks: [{ type: 'text', text: 'This is a training plan as a text or CSV file. Where it looks like a grid, a column is very often a week and a row an exercise. Read the FIRST week only.\n\n' + txt.slice(0, 24000) }], kind: 'text' };
-  }
-  throw new Error('That file type is not one I can read. PDF, spreadsheet, CSV, text or a photo all work.');
-}
-
-// A screenshot is missing everything that was not on screen: which day of the week it is, that the
-// numbers are in pounds, that the top half is last week. The person importing it knows all of that,
-// so this bolts their note onto whatever the source turned into. Appended AFTER the source so it
-// reads as a correction to it rather than a preamble, and clipped because it is a note, not a plan.
-function withImportNote(blocks, note) {
-  const v = String(note || '').trim();
-  if (!v) return blocks;
-  return blocks.concat([{ type: 'text', text: 'WHAT THE PERSON SAID ABOUT THIS:\n' + v.slice(0, 1200) }]);
-}
-const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
 
 /* ============================================================================
  * The shared block library
@@ -2166,420 +1970,6 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
       </StickyAction>
     </div>
   );
-}
-
-// ---- the draft basket ---------------------------------------------------------------------------
-// Where days collected from several sources wait until there are enough of them to be a programme.
-// This is the answer to "I follow someone who posts Upper A on Monday and Lower B on Thursday":
-// import each post as it lands, and build the block once the week is complete.
-/* One day of an imported programme, as a list you can rearrange. Its own component because every day
-   needs its own drag list and a hook cannot live inside a map. Hold a row or grab the dots to put it
-   in a different place; tap the dots for the menu, which is also how a movement goes to a DIFFERENT
-   day - the commonest thing an import gets wrong is which day a line belongs to. */
-function DraftDayRows({ day, di, days, t, edit, setPicking }) {
-  const rows = day.exercises || [];
-  const rowKey = (e, ei) => e.id || ('ix' + ei);
-  const byKey = {};
-  rows.forEach((e, ei) => { byKey[rowKey(e, ei)] = { e, ei }; });
-  const [moving, setMoving] = useState(null);     // row key whose "move" menu is open
-  const dnd = useDragList({
-    ids: rows.map(rowKey),
-    onDrop: (id, to) => edit(d => {
-      const arr = d.days[di].exercises;
-      const from = arr.findIndex((x, i) => rowKey(x, i) === id);
-      if (from < 0) return;
-      arr.splice(to, 0, arr.splice(from, 1)[0]);
-      arr.forEach((x, i) => { x.order = i; });
-    }),
-    disabled: moving != null,
-  });
-  const shown = dnd.order.map(k => byKey[k]).filter(Boolean);
-  const shown0 = (e) => e.sourceName || (Training.byId(e.exerciseId, t.custom) || {}).name || e.exerciseId;
-  const mv = moving != null ? byKey[moving] : null;
-  function toDay(target) {
-    if (!mv) return;
-    edit(d => {
-      const row = d.days[di].exercises.splice(mv.ei, 1)[0];
-      d.days[di].exercises.forEach((x, i) => { x.order = i; });
-      const dest = d.days[target].exercises = d.days[target].exercises || [];
-      row.order = dest.length;
-      dest.push(row);
-    });
-  }
-  function toPlace(to) {
-    if (!mv) return;
-    edit(d => {
-      const arr = d.days[di].exercises;
-      arr.splice(to < 0 ? arr.length : to, 0, arr.splice(mv.ei, 1)[0]);
-      arr.forEach((x, i) => { x.order = i; });
-    });
-  }
-  return (
-    <>
-      {shown.map(({ e, ei }) => {
-            const rp = dnd.rowProps(rowKey(e, ei));
-            const lib = Training.byId(e.exerciseId, t.custom);
-            const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
-            // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is
-            // noise on every line; "Smith machine split squat, counted as Split squat" is the whole
-            // point, and it is one tap from being corrected.
-            // The engine decides what is worth a second look, and marks it on the row at import.
-            // Anything unmarked matched cleanly enough that saying so would be noise on every line.
-            const differs = !!e.check && lib;
-            return (
-              <div key={rowKey(e, ei)} ref={rp.ref} data-drag-id={rp['data-drag-id']} onPointerDown={rp.onPointerDown}
-                className="flex items-start justify-between gap-2 py-2 border-t" style={Object.assign({ borderColor: 'var(--border)' }, rp.style)}>
-                <DragHandle dnd={dnd} id={rowKey(e, ei)} label={shown0(e)} onTap={() => setMoving(rowKey(e, ei))} />
-                <button onClick={() => setPicking({ day: di, index: ei })} className="min-w-0 flex-1 text-left">
-                  <span className="block text-[12.5px] leading-snug">{shown}</span>
-                  {/* Three words and the name. The row is tappable, so the note's whole job is to
-                      say what happened, not to argue for it. */}
-                  {differs && (
-                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>
-                      {e.check === 'kit' ? 'Counted as ' + lib.name
-                        : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check'
-                          : 'Read as ' + lib.name + '?'}
-                    </span>
-                  )}
-                </button>
-                {/* Agreeing with the guess is the common answer and it had no control at all: the
-                    only way to clear a flag was to open the picker and re-choose the movement the
-                    app had already chosen. Now the row offers both, and the count bar above can
-                    actually reach zero. */}
-                {differs && (
-                  <button onClick={() => edit(d => { delete d.days[di].exercises[ei].check; })}
-                    aria-label={'Keep ' + shown + ' as ' + lib.name}
-                    className="shrink-0 px-2 text-[11px]" style={{ minHeight: 44, border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
-                    Keep
-                  </button>
-                )}
-                <span className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
-                    {e.target.sets} x {Training.repLabel(e.target)}
-                    {e.target.tempo ? ' · ' + e.target.tempo : ''}
-                  </span>
-                  <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label={'Remove ' + shown} className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
-                </span>
-              </div>
-            );
-          })}
-      {mv && (
-        <ActionSheet kicker="Movement" title={shown0(mv.e)} onClose={() => setMoving(null)}
-          actions={[
-            { label: 'Move to the top', disabled: mv.ei === 0, onClick: () => toPlace(0) },
-            { label: 'Move to the bottom', disabled: mv.ei >= rows.length - 1, onClick: () => toPlace(-1) },
-          ].concat(days.map((d, k) => (k === di ? null
-            : { label: 'Move to ' + d.name, sub: 'Goes at the end of that day', onClick: () => toDay(k) })))} />
-      )}
-    </>
-  );
-}
-
-function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBuild, onImport }) {
-  useBackClose(onBack);
-  const t = tdb(db);
-  const targets = trainTargets(db);
-  const draft = t.draft;
-  const [name, setName] = useState((draft && draft.name) || 'My block');
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [picking, setPicking] = useState(null);   // day index we are adding a movement to
-  // The days themselves, rearranged by their grip. Only the grip: a day is a card full of fields and
-  // buttons, and a hold anywhere on it would fight the scroll. Days are keyed by position, which is
-  // stable for the length of a drag; the order they land in is the order of the week.
-  const dayDnd = useDragList({
-    ids: ((draft && draft.days) || []).map((d, i) => String(i)),
-    onDrop: (id, to) => edit(d => { d.days.splice(to, 0, d.days.splice(+id, 1)[0]); }),
-    disabled: picking != null,
-  });
-  const [tweak, setTweak] = useState('');
-  const [tweakBusy, setTweakBusy] = useState(false);
-  const [tweakNote, setTweakNote] = useState(null);
-  const [tweakErr, setTweakErr] = useState(false);
-
-  // Say what is wrong in your own words and it re-reads the plan with that in hand. This is the step
-  // that was missing: a screenshot cannot say which day is the Friday or that the coach's "hamstring
-  // curl" is the machine one, so the first read is a draft in the real sense, and this is how you
-  // correct it without retyping a five-day programme by hand.
-  async function applyTweak() {
-    const v = tweak.trim();
-    if (!v || !draft) return;
-    if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
-    setTweakBusy(true); setTweakNote(null); setTweakErr(false);
-    try {
-      const revised = await aiTweakWorkout(draftAsPlan(draft, t.custom), v);
-      const res = Training.importTemplate(revised, { custom: t.custom });
-      if (!res.template.length) throw new Error('That left nothing I could read. Try describing the change another way.');
-      trainUpdate(update, (tr) => {
-        // A movement the tweak added or renamed can need a fresh guess exactly as a first import
-        // can, and it has to land in t.custom or the day above points at an id nothing holds.
-        if (res.newCustom && res.newCustom.length) tr.custom = (tr.custom || []).concat(res.newCustom);
-        // The revision REPLACES the draft rather than merging into it, because it is the same plan
-        // corrected, not another source arriving. Merging would leave both readings side by side.
-        tr.draft = Object.assign({}, tr.draft, {
-          name: (revised && revised.name) || (tr.draft && tr.draft.name) || 'My block',
-          days: res.template.map((d, i) => Object.assign({}, d, {
-            dayOfWeek: i,
-            sourceRef: ((tr.draft && tr.draft.days) || []).map(x => x.sourceRef)[i] || null,
-          })),
-          unresolved: res.unresolved,
-        });
-      });
-      if (revised && revised.name) setName(revised.name);
-      setTweak('');
-      setTweakNote((revised && revised.note) || 'Done. Have a look and change anything else.');
-    } catch (e) {
-      setTweakErr(true);
-      setTweakNote((e && e.message) || 'I could not apply that. Try saying it a different way.');
-    }
-    setTweakBusy(false);
-  }
-  if (!draft || !draft.days.length) {
-    return (
-      <div className="fade-in">
-        <SubHeader back={onBack} backLabel="Back" title={'Draft block'} />
-        
-        <Card className="p-4 text-center">
-          {/* Every other empty state in the app has the buddy in it. */}
-          <div className="flex justify-center mb-4">
-            <div className="pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
-              <BuddyAvatar buddy={db.buddy || {}} px={2} />
-            </div>
-          </div>
-          <div className="text-[13px] font-bold mb-1">Nothing collected yet</div>
-          {/* What a draft IS, in one sentence. The paragraph that used to sit here described the
-              button underneath it rather than the idea. */}
-          <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
-            A draft stacks up single sessions - import one for each day of someone's week, then build the block from the pile.
-          </div>
-          <button onClick={onImport} className="pixel-btn w-full h-12 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Import a session</button>
-          {/* The escape hatch. Nothing to import yet is not the same as nothing to build, and the old
-              dead end offered only the import path. */}
-          <button onClick={onImport} className="text-[12px]" style={{ color: 'var(--link)' }}>
-            or build straight away ›
-          </button>
-        </Card>
-        {/* A draft can be empty and still exist: delete every day one by one and the basket itself is
-            still there, named, holding nothing. Without this there is no way to be rid of it. */}
-        {draft && (
-          <button onClick={() => { trainUpdate(update, (tr) => { tr.draft = null; }); onBack(); }}
-            className="w-full py-3 text-[12px] mt-3" style={{ color: 'var(--danger)' }}>Throw the empty draft away</button>
-        )}
-      </div>
-    );
-  }
-
-  const cov = Training.coverage(Training.plannedVolume(draft.days, t.custom), targets);
-  // Lines the import marked as worth a second look, across every day. One number for the whole draft.
-  const flagged = draft.days.reduce((a, d) => a + (d.exercises || []).filter(e => !!e.check).length, 0);
-  function edit(fn) { trainUpdate(update, (tr) => { fn(tr.draft); tr.draft.days.forEach((d, i) => { d.dayOfWeek = i; }); }); }
-
-  return (
-    /* pb-28 clears the StickyAction bar, which is fixed 104px off the bottom and stands about 170px
-       tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
-       button, and the last thing on this screen is how you throw the draft away. */
-    <div className="fade-in pb-2">
-      <SubHeader back={onBack} backLabel="Back" title={'What I read'} />
-      {/* "Draft block" named the object; "What I read" names what you are here to do, which is check
-          the app's reading of somebody else's plan before four weeks get built on top of it. */}
-      
-      <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan.{' '}
-        {/* What the button at the bottom is going to do with them, said where they are being checked
-            rather than left as a surprise. The day count is the person's last answer, not the number
-            of days their plan happened to be photographed across. */}
-        {(Training.SHAPES[t.prefs.shape] || Training.SHAPES.build4).asWritten
-          ? 'They will be built exactly as written, for four weeks.'
-          : 'The movements and rep ranges are theirs; the ' + (t.prefs.daysPerWeek || 4) + ' sessions a week, the sets and how the ' + plannedWeeks(t.prefs) + ' weeks run come from the builder.'}
-      </div>
-
-      {/* ---- the count bar, per `Build a block v3.dc.html` ----
-          How many lines want a look, pinned while you scroll the days. The flags were already on the
-          rows, but they were scattered through three day cards, so the only way to know whether you
-          had dealt with them all was to scroll back up and count. This says it, and follows you.
-          "Everything matched" is worth showing just as loudly: the fear with an importer is that it
-          quietly dropped something, and the answer to that fear is a number, not silence. */}
-      <div className="sticky z-10 -mx-5 px-5 pb-2.5 mb-3"
-        style={{ top: 'var(--appbar-h)', background: 'var(--bg)' }}>
-        <div className="pixel-box flex items-center gap-2.5 px-2.5 py-2" style={{ background: 'var(--card)' }}>
-          <span className="shrink-0 flex items-center justify-center pf text-[11px]"
-            style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>
-            {flagged ? String(flagged) : <Tick size={12} />}
-          </span>
-          <span className="flex-1 text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-            {flagged
-              ? flagged + (flagged === 1 ? ' line needs a look' : ' lines need a look') + '. Everything else matched.'
-              : 'Everything is placed. Nothing was dropped.'}
-          </span>
-          {flagged > 0 && (
-            <button onClick={() => edit(d => d.days.forEach(day => (day.exercises || []).forEach(e => { delete e.check; })))}
-              className="pf text-[11px] uppercase shrink-0 px-2" style={{ minHeight: 44, letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
-              Accept all
-            </button>
-          )}
-        </div>
-      </div>
-
-      <Field label="Call it"><TextInput value={name} onChange={e => { setName(e.target.value); edit(d => { d.name = e.target.value; }); }} /></Field>
-
-      {/* The two things that are ABOUT the whole draft rather than about one movement, both folded
-          away. Correcting a single line is now a tap on that line, so a note in words is the fallback
-          rather than the main event, and coverage is a question you ask once before building rather
-          than a wall you read past on the way to the days. */}
-      <Collapsible label="Anything read wrong?" sub="Say it in words" variant="inline" className="mb-4">
-        <textarea value={tweak} onChange={e => setTweak(e.target.value)} rows={3}
-          placeholder={'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.'}
-          className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-        <button onClick={applyTweak} disabled={tweakBusy || !tweak.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
-          {tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes \u00b7 Premium'}
-        </button>
-        {tweakNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: tweakErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{tweakNote}</div>}
-      </Collapsible>
-
-      <Collapsible
-        label={cov.gaps.length ? 'What it covers' : 'Covers every muscle'}
-        sub={cov.gaps.length ? cov.gaps.length + ' short' : 'Show'} variant="inline" className="mb-5">
-        {cov.gaps.filter(g => !g.sets).length > 0 && (
-          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>
-            Nothing at all for {cov.gaps.filter(g => !g.sets).map(g => g.label.toLowerCase()).join(', ')}. That may well be deliberate on your coach's part, but it is worth knowing now.
-          </div>
-        )}
-        {cov.gaps.filter(g => g.sets > 0).length > 0 && (
-          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-            Light on {cov.gaps.filter(g => g.sets > 0).slice(0, 3).map(g => g.label.toLowerCase()).join(', ')}.
-          </div>
-        )}
-        <CoverageBars coverage={cov} limit={6} compact />
-      </Collapsible>
-
-      {/* Which week of somebody else's programme this is. One line, because it is one fact about the
-          whole import, and it is the only warning left that is not about a specific movement. */}
-      {draft.weekLabel && (
-        <div className="text-[12px] mb-4 leading-snug px-3 py-3" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))', color: 'var(--text2)' }}>
-          These screenshots were showing <strong>{draft.weekLabel}</strong>. All four weeks get built from it.
-        </div>
-      )}
-
-      {dayDnd.order.map(k => ({ day: draft.days[+k], di: +k })).filter(x => x.day).map(({ day, di }) => { const rp = dayDnd.rowProps(String(di)); return (
-        <div key={di} ref={rp.ref} data-drag-id={rp['data-drag-id']} className="ms-card p-4 mb-4" style={rp.style}>
-          <div className="flex items-center justify-between gap-2 mb-2">
-            {draft.days.length > 1 && <DragHandle dnd={dayDnd} id={String(di)} label={day.name} />}
-            <input value={day.name} onChange={e => edit(d => { d.days[di].name = e.target.value; })}
-              className="text-[13.5px] font-bold bg-transparent min-w-0 flex-1" style={{ color: 'var(--text)' }} aria-label="Day name" />
-            <button onClick={() => edit(d => { d.days.splice(di, 1); })} aria-label="Remove day" className="px-2 text-[16px] shrink-0" style={{ color: 'var(--muted2)' }}>&times;</button>
-          </div>
-          {day.sourceRef && (
-            <div className="text-[11px] mb-2" style={{ color: 'var(--muted2)' }}>
-              from {day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? (day.sourceRef.name || 'a file') : 'text you pasted'}
-            </div>
-          )}
-          <DraftDayRows day={day} di={di} days={draft.days} t={t} edit={edit} setPicking={setPicking} />
-          {/* What this day had that could not be placed, sitting IN the day rather than in a list of
-              warnings further up. The day then shows every movement the source did, and the fix is
-              next to the gap instead of a screen away. */}
-          {(day.missing || []).map((m, mi) => (
-            <button key={'m' + mi} onClick={() => setPicking({ day: di, index: null, replacing: mi })}
-              className="w-full flex items-start justify-between gap-2 py-2 border-t text-left" style={{ borderColor: 'var(--border)' }}>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12.5px] leading-snug" style={{ color: 'var(--muted2)' }}>{m.name}</span>
-                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--warn)' }}>not recognised &middot; choose the movement</span>
-              </span>
-            </button>
-          ))}
-          <button onClick={() => setPicking({ day: di, index: null })} className="pixel-box w-full h-11 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
-        </div>
-      ); })}
-
-      <div className="flex gap-2 mb-4">
-        <button onClick={onImport} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Import another day</button>
-        <button onClick={() => edit(d => { d.days.push({ name: 'Day ' + (d.days.length + 1), kind: 'full', exercises: [] }); })}
-          className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Add a blank day</button>
-      </div>
-
-      <button onClick={() => setConfirmClear(true)} className="w-full py-3 text-[12px]" style={{ color: 'var(--danger)' }}>Throw the draft away</button>
-
-      <StickyAction>
-        <button onClick={() => onBuild(draft)} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          Build the 4-week block
-        </button>
-      </StickyAction>
-
-      {/* One picker, three jobs: swap the movement on a row, place one the library could not read,
-          or add a new one. Swapping keeps the row's own sets, reps and tempo, because the coach
-          prescribed those for the slot and only the movement was ever in question. */}
-      {picking != null && (
-        <ExercisePicker db={db} update={update} onClose={() => setPicking(null)}
-          title={picking.index != null ? 'Change movement' : 'Add movement'}
-          {...(() => {
-            const day = draft.days[picking.day] || {};
-            // Tapping a movement offers a variation OF that movement, which is the commonest reason a
-            // library match is wrong: a grip, a stance, an attachment. This is where an import is most
-            // likely to need it, and until now it was only offered mid-session.
-            if (picking.index != null) {
-              const row = (day.exercises || [])[picking.index];
-              return { basedOn: row && row.exerciseId };
-            }
-            // Nothing to vary from when the library never placed it, so the next best thing is to
-            // arrive with the plan's own words already in the box.
-            const miss = picking.replacing != null ? (day.missing || [])[picking.replacing] : null;
-            return miss ? { seed: miss.name } : {};
-          })()}
-          onPick={(id) => {
-            const ex = Training.byId(id, t.custom);
-            const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
-            const di = picking.day;
-            edit(d => {
-              const day = d.days[di];
-              if (picking.index != null) {
-                const row = day.exercises[picking.index];
-                row.exerciseId = id;
-                row.id = id + '_d' + di + '_' + picking.index;
-                // Their correction becomes the name on the row: they have just told us what it is.
-                row.sourceName = ex ? ex.name : row.sourceName;
-                return;
-              }
-              const from = picking.replacing != null ? (day.missing || [])[picking.replacing] : null;
-              day.exercises.push({
-                id: id + '_d' + di + '_' + day.exercises.length, exerciseId: id,
-                order: day.exercises.length,
-                // A movement placed by hand keeps the plan's wording for it where there was one.
-                sourceName: from ? from.name : (ex ? ex.name : null),
-                target: { sets: 2, repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12, rir: 2, restSec: compound ? 150 : 120 },
-              });
-              if (picking.replacing != null && day.missing) day.missing.splice(picking.replacing, 1);
-            });
-            setPicking(null);
-          }} />
-      )}
-      {confirmClear && <ConfirmDialog title="Throw this draft away?" body="The days you collected go. Anything you already built into a block stays."
-        onConfirm={() => { trainUpdate(update, (tr) => { tr.draft = null; }); onBack(); }} onClose={() => setConfirmClear(false)} />}
-    </div>
-  );
-}
-
-// Turn a sentence into block settings. The model only ever fills in the FORM: days, minutes, kit,
-// and which muscles to bias. The block itself is still built by Training.generateBlock from those
-// answers, so "make me a programme" cannot produce a programme nobody checked.
-// Signature 'You turn a sentence about training into JSON' maps to workout_import in ai-proxy.
-async function aiParseTrainingWish(text) {
-  const rules = 'You turn a sentence about training into JSON settings for a programme builder. Read ONLY what the person said and leave anything they did not mention as null. Respond ONLY with compact JSON: {"daysPerWeek": number|null, "sessionMinutes": number|null, "experience": "beginner"|"intermediate"|"advanced"|null, "goal": "hypertrophy"|"strength"|"general"|null, "equipment": string[]|null, "emphasis": string[]|null, "note": string}. equipment uses only these words: barbell, dumbbell, machine, cable, bodyweight, smith, ez, kettlebell, trapbar. emphasis is the muscles they want to prioritise, using only these words: chest, front delts, side delts, rear delts, lats, upper back, lower back, biceps, triceps, forearms, abs, obliques, quads, hamstrings, glutes, adductors, calves. If they name a body part loosely ("shoulders", "arms", "back", "legs"), expand it to the specific muscles that make it up. note = one short British-English sentence back to them confirming what you understood.';
-  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 500, messages: [{ role: 'user', content: rules + '\n\nWhat they said:\n' + String(text || '').slice(0, 1200) + '\n\nJSON:' }] });
-  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  return parseModelJSON(txt);
-}
-
-// Muscle words back to the engine's keys. The model is told to use these exact labels, but people's
-// phrasing leaks through, so match on the label rather than trusting an id.
-function musclesFromLabels(labels) {
-  const byLabel = {};
-  Training.MUSCLES.forEach(m => { byLabel[Training.MUSCLE_LABEL[m].toLowerCase()] = m; });
-  const extra = { shoulders: ['fd', 'sd', 'rd'], arms: ['bi', 'tr'], back: ['lt', 'ub'], legs: ['qu', 'ha', 'gl'], delts: ['sd', 'rd'], traps: ['ub'], core: ['ab', 'ob'] };
-  const out = [];
-  (labels || []).forEach(l => {
-    const k = String(l || '').toLowerCase().trim();
-    if (byLabel[k]) out.push(byLabel[k]);
-    else if (extra[k]) extra[k].forEach(m => out.push(m));
-  });
-  return out.filter((m, i) => out.indexOf(m) === i);
 }
 
 /* ============================================================================

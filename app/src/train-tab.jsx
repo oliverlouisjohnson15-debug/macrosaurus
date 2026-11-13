@@ -9,7 +9,7 @@
  * the code that reads it AT MODULE SCOPE. Nothing here does, but that is the rule.
  * ------------------------------------------------------------------------------------- */
 // ---- the tab ----------------------------------------------------------------------------------
-function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, importUrl, onConsumeImport }) {
+function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) {
   // Which screen you are on is component state, and this component is unmounted every time you look
   // at another tab - `{view === 'train' && <TrainTab/>}` in app.jsx - and again on every reload. A
   // live session is the one screen in the app that owns the phone for an hour, and it was the one
@@ -60,14 +60,6 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     trainUpdate(update, (tr) => { delete tr.open; });
     go(to || 'home');
   }
-
-  // A link shared in from another app and routed here rather than to Cook. Open the importer with it
-  // already filled in, so the share lands one tap from being read.
-  useEffect(() => {
-    if (!importUrl) return;
-    setScreen({ name: 'wizard', url: importUrl });
-    onConsumeImport && onConsumeImport();
-  }, [importUrl]);
 
   // Starting a session is the single most common action, so it is one call from anywhere. If more
   // than one gym is saved we ask which one first, because that is the whole point of saving two.
@@ -129,40 +121,15 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} tweak={screen.tweak} onBack={() => go(screen.from || 'home')}
+      blockId={screen.blockId} draft={screen.draft} onBack={() => go(screen.from || 'home')}
       onSchedule={(id) => go('schedule', { blockId: id, fresh: true })}
       onStart={screen.blockId ? startSession : null} />);
   }
-  if (screen.name === 'wizard') {
-    return page(<BlockWizard db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      initialUrl={screen.url}
-      onBack={() => go(screen.from || 'home')}
-      onDraft={(draft, opts) => go('builder', Object.assign({ draft: draft }, opts))} onShots={() => go('draft')} />);
-  }
-  if (screen.name === 'draft') {
-    return page(<BlockDraft db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      onBack={() => go('home')} onImport={() => go('wizard', { from: 'draft' })}
-      onBuild={(draft) => {
-        // Same one call the wizard makes, on the same answers it last saved - nothing about building
-        // straight from the draft screen is a different code path. The source is INSPIRATION unless
-        // the shape says "as brought": the movements and rep ranges are theirs, the day count is the
-        // one the person chose, and the volume, the climb and the walk to failure are ours.
-        const prefs = tdb(db).prefs || {};
-        const gym = currentGym(db);
-        const block = Training.blockFromSource(draft.days, {
-          gym: gym, daysPerWeek: prefs.daysPerWeek || (prefs.style === 'landmarks' ? 4 : 5),
-          weeks: blockWeeks(prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax4')),
-          shape: prefs.shape || (prefs.style === 'landmarks' ? 'build4' : 'minmax4'),
-          style: prefs.style || 'minmax',
-          targets: trainTargets(db, prefs.style || 'minmax'), custom: tdb(db).custom,
-          equipment: (prefs.equipment || []).length ? prefs.equipment : null, dislikes: prefs.dislikes,
-          sessionMinutes: prefs.sessionMinutes || 60,
-          name: draft.name || 'My block', startISO: Store.todayISO(),
-          sourceRef: { kind: 'draft', days: draft.days.length, importedISO: Store.todayISO() },
-        });
-        block.gymId = gym ? gym.id : null;
-        go('builder', { draft: block, clearDraft: true });
-      }} />);
+  // The programme gallery as a page of its own, for the routes that arrive from somewhere other than
+  // the tab's home: Blocks, and Your blocks.
+  if (screen.name === 'programmes') {
+    return page(<ProgrammesScreen db={db} onBack={() => go(screen.from || 'home')}
+      onPick={(key) => go('builder', { from: screen.from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />);
   }
   if (screen.name === 'rerun') {
     return page(<RerunScreen db={db} update={update} showToast={showToast} blockId={screen.blockId}
@@ -171,8 +138,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
-      onBack={() => go('block')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard', { from: 'blocks' })}
-      onProgramme={(key) => go('builder', { from: 'blocks', draft: Training.programmeBlock(key, { custom: tdb(db).custom, startISO: Store.todayISO() }) })}
+      onBack={() => go('block')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('programmes', { from: 'blocks' })}
       onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
       onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
       onStart={(blk) => {
@@ -241,30 +207,179 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
 }
 
 // ---- home -------------------------------------------------------------------------------------
-/* The two programmes the app ships with, offered as one tap.
+/* ---- the programmes -----------------------------------------------------------------------------
+ * Training is built around the written programmes the app ships, the way Cook is built around the
+ * recipe library: a grid of cards you can filter, a tap to see the whole week, and one button to run
+ * it. There is no questionnaire in front of them any more - the plans are the product, and somebody
+ * who just wants a good plan on a Monday morning should be one look and one tap from starting one.
  *
- * Everything else on the Train tab asks you questions first, which is right when the answer changes
- * what gets built - but somebody who just wants a good plan on a Monday morning should not have to
- * answer seven of them. These are written plans, not generated ones: what the generator is aiming
- * at, run exactly as they are, with the movements the programme deliberately leaves open still open.
- *
- * Tapping one opens the builder on it, which is where the choices get made and where it is saved or
- * started - the same screen a generated block lands on, so nothing here is a second way to save a
- * block that could drift from the first. */
-function ProgrammeCards({ db, onPick, className }) {
-  const t = tdb(db);
-  const list = Training.PROGRAMMES.map(p => Training.programmeSummary(p.key, t.custom));
-  if (!list.length) return null;
-  // A Section of Rows, like every other list in the app (36-after-reset/04). Tapping one opens the
-  // builder on it, which is where the choices get made and where it is saved or started, so nothing
-  // here is a second way to save a block that could drift from the first.
+ * Starting one opens the builder on it, which is where the either/or lines get a default, days get
+ * moved and the block is saved - the same screen every block lands on, so nothing here is a second
+ * way to save a block that could drift from the first. */
+
+// Two letters for a day's kind, for the week strip on a card. Read off the template's own `kind`, so
+// a new programme needs nothing added here unless it invents a kind of day.
+const DAY_KIND_SHORT = { full: 'FB', upper: 'UP', lower: 'LO', legs: 'LG', push: 'PU', pull: 'PL', arms: 'AR' };
+const WEEK_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+// The filters, like the recipe hub's pills: few enough that the row wraps rather than scrolls.
+function programmeFilters(list) {
+  const out = [['all', 'All']];
+  const days = [...new Set(list.map(p => p.daysPerWeek))].sort((a, b) => a - b);
+  if (days.length > 1) days.forEach(d => out.push(['d' + d, d + ' days']));
+  if (list.some(p => /machine/i.test(p.setting))) out.push(['machines', 'Machines']);
+  return out;
+}
+function programmeMatches(p, pick) {
+  if (pick === 'all') return true;
+  if (pick === 'machines') return /machine/i.test(p.setting);
+  if (pick[0] === 'd') return p.daysPerWeek === +pick.slice(1);
+  return true;
+}
+
+// A week of training at a glance: seven squares, the training days filled with what they train.
+function WeekStrip({ days }) {
+  const by = {};
+  days.forEach(d => { by[d.dayOfWeek] = d; });
   return (
-    <Section title="Macrosaurus programmes" className={className}>
-      {list.map(p => (
-        <Row key={p.key} icon={<Icon.dumbbell width="24" />} title={p.name}
-          sub={(p.blurb ? p.blurb + ' · ' : '') + p.daysPerWeek + ' days · ' + p.sets + ' hard sets'} onClick={() => onPick(p.key)} />
-      ))}
-    </Section>
+    <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }} aria-hidden="true">
+      {WEEK_LETTERS.map((l, i) => {
+        const d = by[i];
+        return (
+          <div key={i} className="flex flex-col items-center gap-1">
+            <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l}</span>
+            <span className="pf w-full flex items-center justify-center text-[9px]" style={{
+              height: 22,
+              background: d ? 'var(--accent)' : 'var(--sunk)',
+              color: d ? 'var(--on-accent)' : 'transparent',
+            }}>{d ? (DAY_KIND_SHORT[d.kind] || d.name.slice(0, 2).toUpperCase()) : '·'}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProgrammeTile({ p, onOpen }) {
+  return (
+    <button onClick={onOpen} className="pixel-box text-left w-full p-3 flex flex-col gap-2.5 active:opacity-95" style={{ background: 'var(--card)' }}>
+      <WeekStrip days={p.days} />
+      <div className="min-w-0">
+        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{p.name}</div>
+        <div className="text-[12px] mt-1" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{p.blurb}</div>
+      </div>
+      <div className="text-[12px] tnum mt-auto" style={{ color: 'var(--muted)' }}>
+        {p.daysPerWeek} days · {p.sets} sets/wk
+      </div>
+    </button>
+  );
+}
+
+// Everything a card can show about a programme, read off the programme itself so no number here can
+// drift from what the block will actually say.
+function programmeCards(custom) {
+  return Training.PROGRAMMES.map(p => {
+    const sum = Training.programmeSummary(p.key, custom);
+    const days = p.template.map(d => ({
+      name: d.name, kind: d.kind, dayOfWeek: d.dayOfWeek,
+      mins: sessionMins(d.exercises),
+      lines: d.exercises.map(e => ({
+        names: (e.choice && e.choice.options && e.choice.options.length > 1 ? e.choice.options : [e.exerciseId])
+          .map(id => (Training.byId(id, custom) || {}).name || id),
+        sets: e.target.sets, reps: Training.repLabel(e.target),
+      })),
+    })).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+    return Object.assign({}, sum, { days: days });
+  });
+}
+
+// The whole week of one programme, before you commit to it. The recipe hub's preview sheet, for a plan.
+function ProgrammePreview({ p, onStart, onClose }) {
+  const mins = Math.round(p.days.reduce((a, d) => a + d.mins, 0) / Math.max(1, p.days.length));
+  return (
+    <Sheet title={p.name} onClose={onClose} wide z={85}>
+      <div className="flex flex-wrap gap-2">
+        <span className="ms-chip on">{p.blurb}</span>
+        {p.setting && <span className="ms-chip">{p.setting}</span>}
+      </div>
+      {p.about && <p className="text-[15px] leading-snug">{p.about}</p>}
+      <div className="grid grid-cols-4 gap-2 text-center">
+        {[[p.daysPerWeek, 'days/wk'], [p.weeks, 'weeks'], [p.sets, 'sets/wk'], ['~' + mins, 'min/day']].map(([v, l]) => (
+          <SheetBox key={l} className="py-2.5">
+            <div className="text-[17px] tnum num" style={{ fontWeight: 700 }}>{v}</div>
+            <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{l}</div>
+          </SheetBox>
+        ))}
+      </div>
+      <WeekStrip days={p.days} />
+      <Section title="The week" className="!mb-0">
+        {p.days.map((d, di) => (
+          <div key={di} className="py-3" style={di ? { borderTop: '2px solid var(--border)' } : null}>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-[14px] min-w-0" style={{ fontWeight: 700 }}>
+                <span style={{ color: 'var(--accent-ink)' }}>{WEEKDAYS[d.dayOfWeek]}</span> · {d.name}
+              </span>
+              <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>~{d.mins} min</span>
+            </div>
+            {d.lines.map((l, li) => (
+              <div key={li} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
+                <span className="min-w-0" style={{ color: 'var(--text2)' }}>
+                  {l.names.length > 1
+                    ? l.names.map((n, ni) => <React.Fragment key={ni}>{ni ? <span style={{ color: 'var(--muted)' }}> or </span> : null}{n}</React.Fragment>)
+                    : l.names[0]}
+                </span>
+                <span className="tnum shrink-0" style={{ color: 'var(--muted)' }}>{l.sets} × {l.reps}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </Section>
+      <div className="flex flex-col gap-2">
+        <Btn className="w-full" onClick={() => onStart(p.key)}>Start {p.name}</Btn>
+        <div className="text-[13px] text-center leading-snug" style={{ color: 'var(--muted)' }}>
+          Next you can pick your options, move days and swap anything your gym has not got.
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+// The gallery: filter pills, a grid of cards, and the preview behind each. Shared by the tab's home
+// and the Programmes page, so the two can never show different programmes or different numbers.
+function ProgrammeGallery({ db, onPick, className }) {
+  const t = tdb(db);
+  const list = useMemo(() => programmeCards(t.custom), [t.custom]);
+  const [pick, setPick] = useState('all');
+  const [open, setOpen] = useState(null);
+  if (!list.length) return null;
+  const pills = programmeFilters(list);
+  const shown = list.filter(p => programmeMatches(p, pick));
+  const openP = open ? list.filter(p => p.key === open)[0] : null;
+  return (
+    <div className={className}>
+      {pills.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} aria-pressed={pick === k} className={'ms-chip' + (pick === k ? ' on' : '')}>{l}</button>)}
+        </div>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {shown.map(p => <ProgrammeTile key={p.key} p={p} onOpen={() => setOpen(p.key)} />)}
+      </div>
+      {openP && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => { setOpen(null); onPick(key); }} />}
+    </div>
+  );
+}
+
+// The gallery as a page, for the routes that are not the tab's home.
+function ProgrammesScreen({ db, onBack, onPick }) {
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Back" title="Programmes" />
+      <div className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+        Written plans, ready to run. Tap one to see the whole week.
+      </div>
+      <ProgrammeGallery db={db} onPick={onPick} className="mb-4" />
+    </div>
   );
 }
 
@@ -349,9 +464,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const weeks = useMemo(() => (block ? Training.blockWeeks(block, t.logs, today) : []), [block, t.logs, today]);
   const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
   const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
-  const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
-  const [confirmDraft, setConfirmDraft] = useState(false);
 
   /* ---- a session you stepped out of ----
      Stepping out of the player no longer ends anything, so the tab has to carry the session back.
@@ -679,7 +792,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--good)' }}>Block finished</div>
           <div className="text-[15px] font-bold mb-1">{block.name}</div>
           <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            All {block.weeks} weeks are behind you. See what moved, then build the next one on top of it.
+            All {block.weeks} weeks are behind you. See what moved, then run it again or pick your next programme below.
           </div>
           <button onClick={() => go('review', { blockId: block.id })} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             See how it went
@@ -687,62 +800,37 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </Card>
       )}
 
+      {/* ---- nothing running: the programmes ARE the empty state ----
+          Like Cook, where the recipes are the page rather than a link to one: the buddy says one
+          line, and the plans sit right under it, each a tap from its whole week. */}
       {!block && (
-        <Card className="p-4 mb-4">
-          {/* Every other empty state in this app has the buddy in it. This one used to be a heading
-              and a definition, which is the tone of a manual rather than of the companion who is
-              about to run the next four weeks with you. */}
-          <div className="flex items-start gap-3 mb-4">
-            <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
-              <BuddyAvatar buddy={db.buddy || {}} px={2} />
+        <div className="flex items-start gap-3 mb-4">
+          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
+            <BuddyAvatar buddy={db.buddy || {}} px={2} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[15px] font-bold mb-1 leading-tight">
+              {t.logs.length ? 'Nothing running right now' : 'Pick a programme'}
             </div>
-            <div className="min-w-0">
-              <div className="text-[15px] font-bold mb-1 leading-tight">
-                {t.logs.length ? 'Nothing running right now' : 'Let us get you a block'}
-              </div>
-              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-                {(() => {
-                  // What the block would actually be. The promise has to come off the STYLE, because
-                  // that is what decides whether volume climbs: reading it off the shape meant a
-                  // min-max block set to four weeks was described as one that "builds on each other
-                  // and then backs off", which is the one thing min-max never does - it adds no sets
-                  // at all, and neither of its shapes has a back-off week. The length is a separate
-                  // question and the intro week belongs to the shape, so both are asked separately.
-                  const shape = plannedShape(t.prefs);
-                  const n = plannedWeeks(t.prefs);
-                  const intro = !!(Training.SHAPES[shape] || {}).intro;
-                  const tail = t.logs.length
-                    ? ' I will keep the numbers.'
-                    : ' Bring one you already follow, take one off the shelf, or I will write you one.';
-                  // plannedStyle, not styleOf: this sentence is a promise about the block that WOULD
-                  // be built, and styleOf answers for blocks that already exist. Reading the promise
-                  // off styleOf meant somebody with no style recorded was offered a six-week block
-                  // and told, in the same breath, that it would build week on week and then back off.
-                  if (Training.styleOf(plannedStyle(t.prefs)).toFailure) {
-                    return n + ' weeks' + (intro ? ', an easier first one and ' + (n - 1) + ' hard ones' : '')
-                      + '. One or two sets a movement, taken to where the weight stops moving, and nothing added week to week: the weight does the moving.' + tail;
-                  }
-                  return n + ' weeks that build on each other and then back off'
-                    + (t.logs.length ? ', so you start the next one fresher than you finished this one.' : '.') + tail;
-                })()}
-              </div>
+            <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+              {t.logs.length
+                ? 'Pick your next programme and I will keep the numbers from the last one.'
+                : 'Written plans, ready to run. Tap one to see the whole week, then start it.'}
             </div>
           </div>
-          <button onClick={() => go('wizard')} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            Build a {plannedWeeks(t.prefs)}-week block
-          </button>
-          <div className="flex gap-2 mb-2">
-            <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Community blocks</button>
-          </div>
-          <button onClick={() => setWhyEmpty(true)} className="w-full py-2 text-[12px]" style={{ color: 'var(--link)' }}>
-            Or start an empty session and log what you did
-          </button>
-        </Card>
+        </div>
       )}
-
-      {/* Under the build card, not above it: building one against your own kit and days is still the
-          better answer, and this is the shortcut for anyone who would rather not be asked. */}
-      {(!block || blockDone) && <ProgrammeCards db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />}
+      {(!block || blockDone) && (
+        <>
+          {blockDone && <div className="text-[15px] font-bold mb-3">Pick your next programme</div>}
+          <ProgrammeGallery db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />
+        </>
+      )}
+      {!block && onFreeform && (
+        <button onClick={() => setWhyEmpty(true)} className="w-full py-2 mb-4 text-[12px]" style={{ color: 'var(--link)' }}>
+          Or start an empty session and log what you did
+        </button>
+      )}
 
       {/* ---- the gap used to shout from here, and it has been moved to where it can be acted on ----
               A volume gap is a question about what to BUILD. Once a block is running it is not a
@@ -758,42 +846,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           to decide the next hour rather than to admire the last one. History is a labelled button a
           few pixels below, which is the honest way to offer a record of what you did. */}
 
-      {/* ---- a draft in progress is a promise you made yourself, so it gets a real card ---- */}
-      {draftDays > 0 && (
-        <div className="pixel-box p-4 mb-4 flex items-center justify-between gap-2" style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
-          <button onClick={() => go('draft')} className="min-w-0 flex-1 text-left flex items-center gap-3">
-            <span className="min-w-0 flex-1">
-              <span className="pf text-[11px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Draft block</span>
-              <span className="block text-[13px] font-semibold mt-1 truncate">{(t.draft && t.draft.name) || 'My block'}</span>
-              <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
-                {draftDays} {draftDays === 1 ? 'day' : 'days'} collected, ready when you are
-              </span>
-            </span>
-            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-          </button>
-          {/* Binning a half-read import is at least as common as finishing one, so it does not need
-              a trip inside the draft to find. */}
-          <button onClick={() => setConfirmDraft(true)} aria-label="Delete draft block"
-            className="hit shrink-0 px-2 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
-        </div>
-      )}
-
-      {/* ---- where new blocks come from, when there is nothing running to browse or build past.
-              One route in: bringing a source (a reel, a PDF, a screenshot) and building from scratch
-              are the same wizard, not a choice between two screens. Once a block IS running, both of
-              these are one tap further away inside "Blocks" - showing them here too was two routes
-              to the same place for the case that matters least. ---- */}
-      {!block && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
-            Community<br />blocks
-          </button>
-          <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[12px] leading-tight" style={{ background: 'var(--surface2)' }}>
-            Build<br />a block
-          </button>
-        </div>
-      )}
-
       {/* ---- MORE: everything below the week, as one list (design-plans/34-overhaul/05) ------------
           It used to be five controls in three shapes: a "Change this block" card, a row of three
           buttons and a centred "Empty session" link. They are all places to go, so they take the
@@ -801,16 +853,12 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           line where the name alone does not say enough.
           - History, Progress and Blocks are unconditional, as before: Blocks has to stay reachable
             at the end of every block, and Progress answers "am I getting stronger".
-          - Change this block is the way to change the plan from the screen you read it on, and only
-            while a block is running. It is a deliberate act on a four-week programme, so it lives
-            in this list rather than beside the session you are about to do.
           - Empty session is for the days that are not in the plan: a class, a holiday gym, a bit of
             arms on the way past. Only once there is a block for it to be an exception to. */}
       {(() => {
         const rows = [
           { key: 'history', label: 'History', status: 'Sessions and lifts', icon: 'history', onClick: () => go('history') },
           { key: 'block', label: block && !blockDone ? 'Block & schedule' : 'Blocks', status: block && !blockDone ? (block.weeks + ' weeks · ' + (block.sessions || []).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek).map(x => WEEKDAYS[x.dayOfWeek]).filter((d, i, arr) => arr.indexOf(d) === i).join(' ')) : 'Start or pick one', icon: 'calendar', onClick: () => go('block') },
-          block && !blockDone && { key: 'tweak', label: 'Change this block', status: 'Say what you want different', icon: 'edit', onClick: () => go('builder', { blockId: block.id, from: 'home', tweak: true }) },
           block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', icon: 'plus', onClick: () => setWhyEmpty(true) },        ].filter(Boolean);
         return (
           <Section title="More">
@@ -832,16 +880,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           free and what is Premium is being sold something they already own. */}
       {!isPremium && t.logs.length === 0 && (
         <div className="text-[11px] leading-snug mt-4 text-center" style={{ color: 'var(--muted2)' }}>
-          Logging is free and always will be. Building blocks for you, reading a gap and importing a plan are the Premium parts.
+          Logging and the programmes are free and always will be. The coaching write-ups are the Premium part.
         </div>
       )}
 
-      {confirmDraft && (
-        <ConfirmDialog title="Throw this draft away?"
-          body={'The ' + draftDays + (draftDays === 1 ? ' day' : ' days') + ' collected in it go. Anything you already built into a block stays.'}
-          onConfirm={() => { trainUpdate(update, (tr) => { tr.draft = null; }); showToast && showToast('Draft thrown away.'); }}
-          onClose={() => setConfirmDraft(false)} />
-      )}
     </div>
   );
 }
@@ -897,12 +939,8 @@ function BlockPlace({ db, block, go }) {
       )}
       <Section title="Start one">
         {block && done && <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
-        <Row icon={<Icon.plus width="24" />} title="Start a new block" sub="Answer a few questions and I will build it" onClick={() => go('wizard', { from: 'block' })} />
+        <Row icon={<Icon.plus width="24" />} title="Pick a programme" sub={Training.PROGRAMMES.length + ' written plans, ready to run'} onClick={() => go('programmes', { from: 'block' })} />
       </Section>
-      {/* The four written programmes the app ships, always here (36-after-reset/04). They used to show
-          only when there was no block at all, and the row that said "Ready-made programmes" opened the
-          community library instead. */}
-      <ProgrammeCards db={db} onPick={(key) => go('builder', { from: 'block', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />
       <Section title="More">
         <Row icon={<Icon.book width="24" />} title="Community blocks" sub="What other members are running" onClick={() => go('library')} />
         <Row icon={<Icon.history width="24" />} title="All blocks" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />

@@ -181,50 +181,7 @@ test('dropping a day says which day went', () => {
   } finally { ui.unmount(); }
 });
 
-/* ---- and asked before anything is read ---------------------------------------------------------
- * `days` is not only a setting for the block we write. It is handed to the reader as which day-count
- * track to pull out of a source, and it is what a brought plan is laid across - so asking it AFTER
- * the upload step meant five screenshots of a five-day week were read at whatever the last block
- * happened to be. The question has to be in front of somebody before they tap "Choose file(s)".
- */
 const { render } = require('./helpers/app.js');
-
-function wizard() {
-  const db = accountWith(A.Training.generateBlock({ daysPerWeek: 4, weeks: 4 }));
-  db.training.blocks = [];
-  return { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} };
-}
-
-test('the day count is asked on the step that reads your screenshots, above the upload', () => {
-  const r = render(A.BlockWizard, wizard());
-  assert.ok(/Days a week/.test(r.text), 'it is on the opening step: ' + r.text.slice(0, 300));
-  assert.ok(/Bring a programme/.test(r.text), 'so is the import');
-  assert.ok(r.text.indexOf('Days a week') < r.text.indexOf('Bring a programme'),
-    'and it is answered first: ' + r.text.slice(0, 400));
-  assert.ok(/How you want to train/.test(r.text), 'the style question is still first of all');
-  assert.ok(r.text.indexOf('How you want to train') < r.text.indexOf('Days a week'),
-    'style before days, since the style is what moves the default');
-});
-
-test('the import says it reads at that count, and follows a plan that brought its own', () => {
-  const r = render(A.BlockWizard, wizard());
-  assert.ok(/day count set above/.test(r.text), 'it points at the control, which is above it now');
-  assert.ok(/the count follows it/.test(r.text), 'and says an untouched count follows the source');
-});
-
-test('the day count is asked once, and the sessions step says where it stands', () => {
-  const ui = mount(A.BlockWizard, wizard());
-  try {
-    const asks = (ui.text.match(/Days a week/g) || []).length;
-    assert.equal(asks, 1, 'one control, not two that can disagree');
-    pressDays(ui, 5);
-    ui.click('Next · Sessions');
-    assert.ok(ui.has('5 sessions a week'), 'the next step carries the answer: ' + ui.text.slice(0, 400));
-    assert.ok(ui.has('Change it'), 'and says where to change it rather than asking again');
-    ui.click('Change it');
-    assert.ok(ui.has('Bring a programme'), 'which goes back to the step it is on');
-  } finally { ui.unmount(); }
-});
 
 /* ---- the five-day bodybuilding split ------------------------------------------------------------
  * Transcribed from five screenshots of the app it was written in, which is a worse source than a

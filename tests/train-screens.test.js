@@ -96,8 +96,7 @@ const SCREENS = [
   ['TrainHome', (db) => ({ db, update: noop, showToast: noop, isPremium: true, onUpgrade: noop, block: blockOf(db), onOpen: noop, onFreeform: noop, go: noop })],
   ['BlockList', (db) => ({ db, update: noop, showToast: noop, onBack: noop, onOpen: noop, onNew: noop, onCoverage: noop, onReview: noop, onStart: noop, onProgramme: noop })],
   ['BlockLibrary', (db) => ({ db, update: noop, showToast: noop, isPremium: true, onUpgrade: noop, onBack: noop, onAdopt: noop })],
-  ['BlockDraft', (db) => ({ db, update: noop, showToast: noop, isPremium: true, onUpgrade: noop, onBack: noop, onBuild: noop, onImport: noop })],
-  ['BlockWizard', (db) => ({ db, update: noop, showToast: noop, isPremium: true, onUpgrade: noop, onBack: noop, onDraft: noop, onShots: noop })],
+  ['ProgrammesScreen', (db) => ({ db, onBack: noop, onPick: noop })],
   ['TrainHistory', (db) => ({ db, update: noop, onBack: noop, onOpenExercise: noop, onOpenSession: noop })],
   ['TrainSettings', (db) => ({ db, update: noop, showToast: noop, onBack: noop, onHowItWorks: noop })],
   ['HowItWorks', () => ({ onBack: noop })],
@@ -146,8 +145,6 @@ test('the premium screens draw for somebody who has not paid', () => {
     [A.CoverageScreen, { db, update: noop, isPremium: false, onUpgrade: noop, blockId: b.id, onBack: noop }],
     [A.BlockReviewScreen, { db, update: noop, showToast: noop, isPremium: false, onUpgrade: noop, blockId: b.id, onBack: noop, onNext: noop, onRerun: noop }],
     [A.BlockLibrary, { db, update: noop, showToast: noop, isPremium: false, onUpgrade: noop, onBack: noop, onAdopt: noop }],
-    [A.BlockDraft, { db, update: noop, showToast: noop, isPremium: false, onUpgrade: noop, onBack: noop, onBuild: noop, onImport: noop }],
-    [A.BlockWizard, { db, update: noop, showToast: noop, isPremium: false, onUpgrade: noop, onBack: noop, onDraft: noop, onShots: noop }],
     [A.TrainHome, { db, update: noop, showToast: noop, isPremium: false, onUpgrade: noop, block: b, onOpen: noop, onFreeform: noop, go: noop }],
   ].forEach(([C, props]) => { assert.ok(render(C, props).html.length > 0); });
 });

@@ -125,30 +125,6 @@ test('moving a queued movement from its menu keeps you on the one you are doing,
   } finally { ui.unmount(); }
 });
 
-// ---- the import review --------------------------------------------------------------------------
-
-test('an imported day\'s movement can be sent to another day from its grip', () => {
-  const ex = (id, i) => ({ id: id + '_d0_' + i, exerciseId: id, order: i, target: { sets: 3, repLow: 8, repHigh: 12, rir: 2, restSec: 120 } });
-  const d = accountWith(null);
-  d.training.draft = {
-    days: [
-      { name: 'Day 1', kind: 'full', exercises: [ex('db_lateral', 0), ex('db_curl', 1)] },
-      { name: 'Day 2', kind: 'full', exercises: [ex('db_lateral', 0)] },
-    ],
-  };
-  const ui = mount(A.BlockDraft, { db: d, update(fn) { fn(d); }, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onBuild() {}, onImport() {} });
-  try {
-    const grips = Array.from(ui.host.querySelectorAll('button[aria-label^="Reorder"]'));
-    assert.ok(grips.length >= 3, 'every movement has a grip: ' + grips.length);
-    ui.clickEl(grips.filter(g => /Reorder (Dumbbell )?[Cc]url/.test(g.getAttribute('aria-label')))[0] || grips[1]);
-    assert.ok(ui.has('Move to Day 2'), ui.text.slice(-300));
-    ui.click('Move to Day 2');
-    assert.equal(d.training.draft.days[0].exercises.length, 1);
-    assert.equal(d.training.draft.days[1].exercises.length, 2);
-    assert.deepEqual(d.training.draft.days[1].exercises.map(e => e.order), [0, 1]);
-  } finally { ui.unmount(); }
-});
-
 // ---- the gesture itself, with the boxes faked ---------------------------------------------------
 // jsdom lays nothing out, so each row reports a box computed from its place in the DOM: 100px tall,
 // stacked in the order they are drawn. That is enough to drive the real handlers - grab, move,
