@@ -20494,51 +20494,6 @@ function demoStateBuild() {
       s.profile = s.profile || {};
       s.profile.milestonesShown = Array.from({ length: 20 }, (_, i) => 'm' + (i + 1));
     }
-    // ?demo&draft  a half-read import sitting in the draft basket, exactly as a batch of screenshots
-    // from a coaching app leaves it: the coach's own tag on every movement, kit the library has no
-    // version of, a line nothing could place, and a week label that says this is week four of
-    // somebody else's programme. The review screen is otherwise unreachable without a live AI call,
-    // which is precisely why it is the screen that goes unlooked-at.
-    if (new URLSearchParams(window.location.search).has('draft')) {
-      const src = [
-        ['Day 1', [['CAM - SMITH MACHINE INCLINE PRESS', 2, 6, '2110'], ['CAM - MACHINE LAT PULLDOWN', 2, 8, '2110'],
-          ['CAM - DECLINE CHEST FLY', 2, 8, '2110'], ['CAM - T-BAR ROW (MEGA MASS)', 2, 6, '2110'],
-          ['CAM - T-BAR ROW', 1, 8, '2110'], ['CAM - HANGING LEG RAISES', 2, 8, '2110']]],
-        ['Day 2', [['CAM - PENDULUM SQUAT', 2, 8, '2110'], ['CAM - SPLIT SQUAT SMITH MACHINE', 1, 6, '2110'],
-          ['CAM - HAMSTRING CURL', 2, 8, '2110'], ['CAM - MACHINE ADDUCTION', 2, 8, '2110'],
-          ['CAM - LEG EXTENSIONS', 2, 8, '2110']]],
-        ['Day 3', [['CAM - DB SEATED SHOULDER PRESS', 2, 8, '3110'], ['CAM - MACHINE LATERAL RAISE', 2, 10, '2110'],
-          ['CAM - MACHINE REAR DELT FLY', 1, 10, '2110'], ['CAM - ALTERNATING DUMBBELL HAMMER CURL', 2, 8, '2110'],
-          ['CAM - FRENCH PRESS (OHTX)', 2, 6, '2110'], ['the finisher coach showed me', 2, 12, null]]],
-      ];
-      const days = [];
-      s.training.custom = s.training.custom || [];
-      src.forEach(([name, rows], i) => {
-        const parsed = { days: [{ name: name, exercises: rows.map(([n, st, r, tempo]) => ({ name: n, sets: st, repLow: r, tempo: tempo })) }] };
-        const res = Training.importTemplate(parsed, { custom: s.training.custom });
-        // "the finisher coach showed me" has no library match, so a real read mints a custom
-        // exercise from the model's own guess (see Training.importTemplate). The wizard merges
-        // that into t.custom the moment it happens; this fixture has to do the same or the
-        // preview shows a plain exercise line with no "worth a second look" flag on it, which is
-        // exactly the state this fixture exists to make reviewable.
-        if (res.newCustom && res.newCustom.length) s.training.custom = s.training.custom.concat(res.newCustom);
-        Training.mergeDraftDays(days, res.template, { kind: 'file', name: 'screenshot-' + (i + 1) + '.png' });
-      });
-      s.training.draft = { name: "Cam Kissel's Program", days: days, source: 'import', weekLabel: 'Week 4 (08/10/26 - 08/15/26)' };
-      // And a block imported BEFORE any of that existed: days called "Day 1", the name every
-      // generated block used to get, and its author's two sets walked up to four by week three.
-      // This is what an early adopter is actually holding, and it is what "bring it up to date" has
-      // to be able to repair without touching a logged session.
-      const oldDays = JSON.parse(JSON.stringify(days.slice(0, 2)));
-      oldDays.forEach((d, i) => { d.name = 'Day ' + (i + 1); d.exercises.forEach(e => { delete e.sourceName; delete e.check; }); delete d.missing; });
-      const oldBlock = Training.blockFromTemplate(oldDays, {
-        weeks: 4, shape: 'build3-deload1', targets: Training.defaultTargets({ experience: 'intermediate' }),
-        source: 'import', startISO: shiftISO(today, -3),
-      });
-      oldBlock.name = '4-week growth block';
-      oldBlock.archived = true;
-      s.training.blocks = s.training.blocks.concat([oldBlock]);
-    }
   }
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };
   // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
@@ -20651,43 +20606,6 @@ const NAV_ITEMS = [['dashboard', 'Today', Icon.dash], ['foodlog', 'Food', Icon.f
 // both NN/G and Material warn against, and it read as a demotion. Cook is a peer destination again.
 // 35-reset: Progress is a tab (it is the plan's home) and Cook lives inside Food as its Recipes view.
 const BOTTOM_NAV = ['dashboard', 'foodlog', 'train', 'goals'].map(k => NAV_ITEMS.find(([n]) => n === k));
-// Does this account train? Used to decide whether a shared link needs disambiguating at all. Any
-// block, any logged session, or any stated training preference counts. Deliberately generous: the
-// cost of asking someone who does train is one tap, and the cost of NOT asking is their workout
-// silently becoming a recipe.
-function trainsHere(db) {
-  const t = (db && db.training) || {};
-  return !!((t.blocks && t.blocks.length) || (t.logs && t.logs.length) || t.draft);
-}
-// Shared from another app, and it could be either thing. Two big targets, no default, no cleverness.
-function ShareKindSheet({ onRecipe, onWorkout, onClose }) {
-  useBackClose(onClose);
-  return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[12px] mb-1.5">What have you shared?</h2>
-        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          We can read it either way, but the two go to different places.
-        </div>
-        <button onClick={onRecipe} className="pixel-box w-full p-3.5 mb-2 text-left flex items-center gap-3" style={{ background: 'var(--surface2)' }}>
-          <Icon.recipe width="24" height="24" style={{ color: 'var(--accent-ink)' }} />
-          <span>
-            <span className="block text-[13.5px] font-semibold">Something to cook</span>
-            <span className="block text-[12px]" style={{ color: 'var(--muted)' }}>Priced for macros and saved to Cook</span>
-          </span>
-        </button>
-        <button onClick={onWorkout} className="pixel-box w-full p-3.5 mb-3 text-left flex items-center gap-3" style={{ background: 'var(--surface2)' }}>
-          <Icon.dumbbell width="24" height="24" style={{ color: 'var(--accent-ink)' }} />
-          <span>
-            <span className="block text-[13.5px] font-semibold">A workout</span>
-            <span className="block text-[12px]" style={{ color: 'var(--muted)' }}>Read into a session you can add to a block</span>
-          </span>
-        </button>
-        <button onClick={onClose} className="w-full py-2.5 text-[12px]" style={{ color: 'var(--muted)' }}>Neither, close this</button>
-      </div>
-    </div>
-  );
-}
 /* THE TAB BAR (35-reset, DESIGN.md). Purple, five slots, the gold A button raised in the middle. Labels
    are Plex Sans at the 11px floor; the active tab takes the on-bar gold plus the pixel ▶ cursor, so
    the state is never colour alone. */
@@ -22508,8 +22426,6 @@ function App() {
   const [adjusting, setAdjusting] = useState(null);    // log-entry id being tweaked from the post-log "Adjust" toast action
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
-  const [shareChoice, setShareChoice] = useState(null); // { url } shared from another app, when it could be either a recipe or a workout
-  const [trainImport, setTrainImport] = useState(null); // a shared link handed on to the Train tab's importer
   const [openRecipeId, setOpenRecipeId] = useState(null); // a recipe to open straight to detail (from the dashboard gap strip)
   const [openFridge, setOpenFridge] = useState(false); // open the Cook tab straight onto the fridge scanner (from the buddy nudge)
   const [toast, setToast] = useState(null);
@@ -22842,16 +22758,11 @@ function App() {
         const files = [];
         for (let i = 0; i < (meta.count || 0); i++) { const r = await cache.match('/shared-file-' + i); if (r) { const b = await r.blob(); files.push(new File([b], 'shared-' + i + '.jpg', { type: b.type || 'image/jpeg' })); } }
         await Promise.all((await cache.keys()).map(k => cache.delete(k)));
-        // A shared YouTube/Instagram/TikTok link (no photos) is ambiguous now that training exists:
-        // the same reel could be tonight's dinner or Monday's session. Rather than guess, ASK, but
-        // only of people who actually train. Someone who has never opened the Train tab goes
-        // straight to the recipe importer exactly as they always did, so the cooking flow is
-        // untouched for everyone it belongs to.
+        // A shared YouTube/Instagram/TikTok link (no photos) goes to the recipe importer. Training
+        // used to ask "recipe or workout?" here, for the AI workout importer; training is built
+        // around the written programmes now, so there is only one place a link can go.
         const recShare = files.length ? null : (Rcp && Rcp.detectShare(meta.text || ''));
-        if (recShare) {
-          if (trainsHere(db)) setShareChoice({ url: recShare.url });
-          else { setRecipeImport(recShare.url); setView('recipes'); }
-        }
+        if (recShare) { setRecipeImport(recShare.url); setView('recipes'); }
         else if (files.length) setShared({ files: files, text: meta.text || '' });
         else if (meta.text && firstMeal) setAdding({ date: Store.todayISO(), mealId: firstMeal });
       } catch (e) { /* ignore */ }
@@ -23300,7 +23211,6 @@ function App() {
             setTimeout(() => showToast.apply(null, held), 400);
           }
         }}
-        importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
       {/* Progress is a tab (35-reset), so it is a root with no way back - except when You opened it,
           where Back returns there. */}
@@ -23338,10 +23248,6 @@ function App() {
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
-      {shareChoice && <ShareKindSheet
-        onRecipe={() => { setRecipeImport(shareChoice.url); setView('recipes'); setShareChoice(null); }}
-        onWorkout={() => { setTrainImport(shareChoice.url); setView('train'); setShareChoice(null); }}
-        onClose={() => setShareChoice(null)} />}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}

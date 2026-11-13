@@ -49,16 +49,6 @@ test('a volume-model block is described in its own terms', () => {
   assert.ok(/RIR/.test(r.text), 'its effort is still reps in reserve: ' + r.text.slice(0, 200));
 });
 
-test('the build button offers the block it would actually build', () => {
-  for (const [style, weeks] of [['minmax', '4-week'], ['landmarks', '4-week']]) {
-    const db = accountWith(minmax());
-    db.training.blocks = [];
-    db.training.prefs = { units: 'kg', style: style };
-    const r = home(db, null);
-    assert.ok(r.has('Build a ' + weeks + ' block'), style + ' should offer a ' + weeks + ' block: ' + r.text.slice(0, 160));
-  }
-});
-
 test('the tab offers the programmes the app ships with', () => {
   const db = accountWith();
   db.training.blocks = [];
@@ -67,11 +57,12 @@ test('the tab offers the programmes the app ships with', () => {
   assert.ok(r.has('Raptor'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
   assert.ok(r.has('T-Rex'));
   // With their real shape on the card, not a claim that would need checking against the engine.
-  assert.ok(/5 days · \d+ hard sets/.test(r.text), 'days and sets on the row: ' + r.text.slice(0, 300));
-  // Four rows, one per programme. The split is the builder's to show (36-after-reset/04 dropped the
-  // day-name line: a one-line row cut it short on a phone).
-  assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its row');
+  assert.ok(/5 days · \d+ sets\/wk/.test(r.text), 'days and sets on the card: ' + r.text.slice(0, 300));
+  // One card per programme, each saying what KIND of plan it is.
+  assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its card');
   assert.ok(r.has('Stego') && r.has('Machines'), 'and the machine one');
+  assert.ok(r.has('Pick a programme'), 'the programmes are the empty state');
+  assert.ok(!r.has('Build a'), 'and nothing offers to build one with questions first');
   // Names that are each their own: a dinosaur on its own for the house programmes, or the name of
   // whoever wrote a named one - never two that differ only by a number or a suffix, and each with a
   // blurb that says what KIND of plan it is (the name does not).
@@ -83,11 +74,12 @@ test('the tab offers the programmes the app ships with', () => {
   assert.equal(new Set(blurbs).size, blurbs.length, 'and no two the same');
 });
 
-test('Blocks shows the shipped programmes while a block is running, and names the community row for what it is', () => {
+test('Blocks offers the programmes while a block is running, and names the community row for what it is', () => {
   const block = minmax();
   const db = accountWith(block);
   const r = render(A.BlockPlace, { db, block, go() {} });
-  for (const n of A.Training.PROGRAMMES.map(p => p.name)) assert.ok(r.has(n), n + ' should be on Blocks: ' + r.text.slice(0, 300));
+  assert.ok(r.has('Pick a programme'), 'the way to the programmes: ' + r.text.slice(0, 300));
+  assert.ok(!r.has('Answer a few questions'), 'not a questionnaire');
   assert.ok(r.has('Community blocks'), 'the library row should say what it opens');
   assert.ok(!r.has('Ready-made programmes'), 'the old label opened the community library, not these');
 });
@@ -371,17 +363,6 @@ test('a block that runs techniques says what it adds', () => {
 
 // ---- the wizard ---------------------------------------------------------------------------------
 
-test('the wizard previews the style it is set to', () => {
-  const db = accountWith(minmax());
-  db.training.blocks = [];
-  const r = render(A.BlockWizard, {
-    db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {},
-  });
-  assert.ok(/How you want to train/.test(r.text), 'the style is the first question');
-  assert.ok(/Min-max/.test(r.text));
-  assert.ok(/deficit/.test(r.text), 'and a cutting account should be told which one suits it');
-});
-
 // ---- the Game Boy face carries labels, never names -------------------------------------------------
 // TRAINING_UI_REVIEW.md §1.2, and its ship record: "Press Start 2P now carries labels and fixed
 // strings only", because the face runs about a full em per character and has no narrow forms. Six
@@ -419,49 +400,6 @@ test('a session screen puts no movement name in the pixel font', () => {
   });
   const names = pfStrings(r.html).filter(x => LIBRARY_NAMES.has(x));
   assert.deepEqual(names, [], 'movement names in the pixel font: ' + JSON.stringify(names));
-});
-
-test('the empty state promises what the STYLE does, not what the length implies', () => {
-  // A min-max block set to four weeks was being described as one that "builds on each other and then
-  // backs off" - the one thing min-max never does, since it adds no sets and neither shape has a
-  // back-off week.
-  const cases = [
-    ['minmax', 'minmax6', /nothing added week to week/, /build on each other/],
-    ['minmax', 'build4', /nothing added week to week/, /build on each other/],
-    ['landmarks', 'build4', /build on each other and then back off/, /nothing added week to week/],
-    // The two that matter most and that the first version of this test missed: nobody has chosen a
-    // style yet. Training.styleOf answers "landmarks" for an absent style, because a block built
-    // before styles existed must keep behaving as it did - but the block about to be BUILT is
-    // min-max, and reading the promise off styleOf offered a six-week block while describing a
-    // four-week one in the same sentence.
-    [undefined, undefined, /nothing added week to week/, /build on each other/],
-    [undefined, 'build4', /nothing added week to week/, /build on each other/],
-  ];
-  for (const [style, shape, expected, forbidden] of cases) {
-    const db = accountWith();
-    db.training.blocks = [];
-    db.training.prefs = { units: 'kg', style, shape };
-    const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-    assert.ok(expected.test(r.text), style + '/' + shape + ' should say ' + expected + ': ' + r.text.slice(0, 200));
-    assert.ok(!forbidden.test(r.text), style + '/' + shape + ' must not claim ' + forbidden);
-    // And the button has to offer the same block the sentence just described.
-    const weeks = (r.text.match(/Build a (\d+)-week block/) || [])[1];
-    const promised = (r.text.match(/(\d+) weeks/) || [])[1];
-    assert.equal(weeks, promised, style + '/' + shape + ': the button offers ' + weeks + ' weeks and the copy promises ' + promised);
-  }
-});
-
-test('a returning user gets the block the wizard would actually build', () => {
-  // Somebody who used this app before styles existed has shape 'build4' saved and no style, and that
-  // saved answer carries no opinion about a method that did not exist when they gave it.
-  const db = accountWith();
-  db.training.blocks = [];
-  db.training.prefs = { units: 'kg', shape: 'build4', daysPerWeek: 4, sessionMinutes: 60 };
-  const tab = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(tab.has('Build a 4-week block'), 'the tab should offer the house method: ' + tab.text.slice(0, 120));
-  // And the wizard it opens has to agree, or the tab was writing a cheque the next screen bounces.
-  const wiz = render(A.BlockWizard, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, onBack() {}, onDraft() {}, onShots() {} });
-  assert.ok(/4 weeks/.test(wiz.text), 'the wizard should open on the four-week shape: ' + (wiz.text.match(/[^.]*weeks[^.]*/) || [''])[0]);
 });
 
 // ---- run it again, and the rotation wizard inside it ---------------------------------------------
