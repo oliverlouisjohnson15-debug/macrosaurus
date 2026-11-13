@@ -71,8 +71,8 @@ function render(component, props) {
   const html = ReactDOMServer.renderToStaticMarkup(React.createElement(component, props));
   return {
     html,
-    text: html.replace(/<[^>]+>/g, ' ').replace(/&middot;|&#xB7;/g, '·').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(),
-    has: (s) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').indexOf(s) !== -1,
+    text: html.replace(/<[^>]+>/g, ' ').replace(/&middot;|&#xB7;/g, '·').replace(/&nbsp;/g, ' ').replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, ' ').trim(),
+    has: (s) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, ' ').indexOf(s) !== -1,
   };
 }
 

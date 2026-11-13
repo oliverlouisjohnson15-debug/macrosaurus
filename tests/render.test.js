@@ -72,10 +72,11 @@ test('the tab offers the programmes the app ships with', () => {
   // day-name line: a one-line row cut it short on a phone).
   assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its row');
   assert.ok(r.has('Stego') && r.has('Machines'), 'and the machine one');
-  // Four names that are each their own: a dinosaur on its own, never two that differ only by a number
-  // or a suffix, and each with a blurb that says what KIND of plan it is (the name no longer does).
+  // Names that are each their own: a dinosaur on its own for the house programmes, or the name of
+  // whoever wrote a named one - never two that differ only by a number or a suffix, and each with a
+  // blurb that says what KIND of plan it is (the name does not).
   const names = A.Training.PROGRAMMES.map(p => p.name);
-  for (const n of names) assert.match(n, /^[A-Z][A-Za-z-]+$/, n + ' is not named like the others');
+  for (const n of names) assert.match(n, /^[A-Z][A-Za-z-]+$|^[A-Z][A-Za-z' -]+'s Split$/, n + ' is not named like the others');
   assert.equal(new Set(names).size, names.length, 'every programme needs a name of its own');
   const blurbs = A.Training.PROGRAMMES.map(p => p.blurb);
   for (const b of blurbs) assert.ok(b && b.length < 20, 'a short blurb on each: ' + b);
