@@ -1109,55 +1109,46 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           that the useful adjustment is a small one. Almost nobody can do this because it needs to
           know how you slept, and we already sync that for the buddy.
           Always an offer: someone who slept badly and wants to train anyway is allowed to. */}
+      {/* Both of these are offers, not the session: a Banner (DESIGN.md) - one --sunk strip, a line
+          of text and two text actions - rather than a framed card with a gold button that outranked
+          the work below it. The set table is the screen's job; these sit above it and get out of
+          the way in one tap. */}
       {adjust && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--sleep) 14%, var(--surface2))' }}>
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--sleep)' }}>
-            Readiness {readiness}
-          </div>
-          <div className="text-[12.5px] mb-4 leading-snug">{adjust.text}</div>
-          <div className="flex gap-2">
-            <button onClick={() => setAdjust(null)} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>
-              Run it as written
-            </button>
-            <button onClick={() => {
-              mutate(n => {
-                (adjust.drop || []).slice().sort((a, b) => b.index - a.index).forEach(d => { n.splice(d.index, 1); });
-                if (adjust.rirDelta) n.forEach(it => { if (it.target) it.target = Object.assign({}, it.target, { rir: Math.min(5, (it.target.rir || 2) + adjust.rirDelta) }); });
-              });
-              showToast && showToast(adjust.action === 'trim' ? 'Trimmed for today.' : 'Eased off for today.');
-              setAdjust(null);
-            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-              {adjust.action === 'trim' ? 'Trim it' : 'Ease off'}
-            </button>
-          </div>
-        </Card>
+        <SessionBanner
+          text={<><span style={{ fontWeight: 600 }}>Readiness {readiness}.</span> {adjust.text}</>}
+          yes={adjust.action === 'trim' ? 'Trim it' : 'Ease off'}
+          no="Run as written"
+          onNo={() => setAdjust(null)}
+          onYes={() => {
+            mutate(n => {
+              (adjust.drop || []).slice().sort((a, b) => b.index - a.index).forEach(d => { n.splice(d.index, 1); });
+              if (adjust.rirDelta) n.forEach(it => { if (it.target) it.target = Object.assign({}, it.target, { rir: Math.min(5, (it.target.rir || 2) + adjust.rirDelta) }); });
+            });
+            showToast && showToast(adjust.action === 'trim' ? 'Trimmed for today.' : 'Eased off for today.');
+            setAdjust(null);
+          }} />
       )}
 
       {/* The rack is taken, or you are at the hotel gym. Offer the fix rather than making someone
           swap five movements by hand before they can start. */}
       {unavailable.length > 0 && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Not at {gym ? gym.name : 'this gym'}</div>
-          <div className="text-[12.5px] mb-4 leading-snug">
-            {unavailable.map(u => (Training.byId(u.exerciseId, t.custom) || {}).name).filter(Boolean).join(', ')}
-            {unavailable.length === 1 ? ' is not something you can do here.' : ' are not things you can do here.'}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setUnavailable([])} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Leave them</button>
-            <button onClick={() => {
-              mutate(n => {
-                unavailable.forEach(u => {
-                  if (!u.alt) return;
-                  const old2 = n[u.index];
-                  if (!old2) return;
-                  n[u.index] = replacedRow(old2, u.alt);
-                });
+        <SessionBanner
+          text={<><span style={{ fontWeight: 600 }}>Not at {gym ? gym.name : 'this gym'}:</span>{' '}
+            {unavailable.map(u => (Training.byId(u.exerciseId, t.custom) || {}).name).filter(Boolean).join(', ')}.</>}
+          yes="Swap them" no="Leave them"
+          onNo={() => setUnavailable([])}
+          onYes={() => {
+            mutate(n => {
+              unavailable.forEach(u => {
+                if (!u.alt) return;
+                const old2 = n[u.index];
+                if (!old2) return;
+                n[u.index] = replacedRow(old2, u.alt);
               });
-              showToast && showToast('Swapped for what is here.');
-              setUnavailable([]);
-            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Swap them</button>
-          </div>
-        </Card>
+            });
+            showToast && showToast('Swapped for what is here.');
+            setUnavailable([]);
+          }} />
       )}
 
       {session && session.deload && (
@@ -1998,6 +1989,20 @@ function SessionBuddy({ db, pattern, trigger }) {
    so the separate "?" bubble beside every one of them goes: three cues meant three labels and three
    question marks fighting for a 375px row, and the pair wrapped "2 RIR" onto two lines. Tapping the
    chip still opens the explainer, which is what the "?" was for. */
+// A Banner (DESIGN.md, Components): live context as a --sunk strip with one line and two text
+// actions. The yes is the bolder of the two; neither is gold, which stays with the screen's primary.
+function SessionBanner({ text, yes, no, onYes, onNo }) {
+  return (
+    <div className="mb-4 pl-3 pr-1 pt-2.5" style={{ background: 'var(--sunk)' }}>
+      <div className="text-[13px] leading-snug pr-2">{text}</div>
+      <div className="flex justify-end items-center">
+        <button onClick={onNo} className="px-2 text-[13px]" style={{ color: 'var(--muted)', minHeight: 44 }}>{no}</button>
+        <button onClick={onYes} className="px-2 text-[13px]" style={{ color: 'var(--link)', fontWeight: 700, minHeight: 44 }}>{yes}</button>
+      </div>
+    </div>
+  );
+}
+
 // The count said as words, because "3 sets" in a sentence reads as a table cell. Past five the
 // figure is clearer than the word.
 function setWords(n) {

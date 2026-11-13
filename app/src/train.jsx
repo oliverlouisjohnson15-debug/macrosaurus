@@ -519,9 +519,9 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
 
       {prose && <BuddySays db={db}>{prose}</BuddySays>}
       {!prose && (
-        <button onClick={writeUp} disabled={busy} className="pixel-box w-full py-3 text-[12px] mb-4" style={{ background: 'var(--surface2)' }}>
+        <Btn kind="ghost" onClick={writeUp} disabled={busy} className="w-full mb-4">
           {busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'}
-        </button>
+        </Btn>
       )}
 
       {/* One way on, not two. "Build a new one" threw the plan away and generated a fresh block,
@@ -1539,7 +1539,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
                 <span style={{ color: 'var(--muted)' }}>{targets[m].mev} - {targets[m].mav} <span style={{ color: 'var(--muted2)' }}>(max {targets[m].mrv})</span></span>
               </div>
             ))}
-            <button onClick={resetTargets} className="pixel-box w-full py-3 text-[12px] mt-3" style={{ background: 'var(--surface2)' }}>Reset to defaults</button>
+            <Btn kind="ghost" onClick={resetTargets} className="w-full mt-3">Reset to defaults</Btn>
           </div>
         )}
         <button onClick={onHowItWorks} className="w-full text-left flex items-center justify-between gap-2 px-3.5 py-3" style={{ borderTop: '2px solid var(--border)' }}>
