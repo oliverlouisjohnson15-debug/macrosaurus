@@ -3203,7 +3203,10 @@
               : (isDeload
                 ? Math.max(1, Math.round(base / 2))
                 : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
-            if (style.maxSets) sets = Math.min(sets, style.maxSets);
+            // The style's ceiling is OUR rule for plans we write. A written plan that asks for three or
+            // four sets gets three or four: capping it quietly turned "Standing Calf Raises, 4 sets"
+            // into two, which is editing the author while promising not to.
+            if (style.maxSets && !asWritten) sets = Math.min(sets, style.maxSets);
             // As written means as written: the effort target comes from the plan too, and where the
             // plan does not state one we hold it steady rather than walking it in a week at a time.
             var effort = asWritten
@@ -4464,6 +4467,30 @@
   }
   // Pick one, everywhere it appears. Mutates the block, like swapInBlock, so a caller can run it
   // inside a store update. Returns how many lines moved.
+  /* Answering an open slot from INSIDE the week rather than before the block starts. The builder's
+   * applyChoice answers it for every week, which is right before anything has been lifted and wrong
+   * after: week one's log says back squat, and a plan that now says pendulum squat for week one is a
+   * plan that disagrees with what happened. So this answers it from `fromWeek` on and leaves the
+   * weeks behind it exactly as they were.
+   *
+   * It is the slot KEY that moves, not the one line: an author who writes one squat choice into two
+   * days is asking one question, and picking on Monday answers Friday too. The pick is also the
+   * default from now on - nothing extra to remember, because the block itself is the memory, and
+   * switching back is the same single tap. Returns how many lines it changed.
+   */
+  function applyChoiceFrom(block, key, exerciseId, fromWeek) {
+    var n = 0, from = fromWeek || 1;
+    if (!block || !key || !exerciseId) return 0;
+    (block.sessions || []).forEach(function (s) {
+      if ((s.week || 1) < from) return;
+      (s.exercises || []).forEach(function (e) {
+        if (!e.choice || e.choice.key !== key) return;
+        if ((e.choice.options || []).indexOf(exerciseId) === -1) return;
+        if (replaceExercise(e, exerciseId)) n++;
+      });
+    });
+    return n;
+  }
   function applyChoice(block, key, exerciseId) {
     var n = 0;
     ((block && block.sessions) || []).forEach(function (s) {
@@ -7494,7 +7521,7 @@
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     blockFromSource: blockFromSource, inspirationFrom: inspirationFrom,
-    blockChoices: blockChoices, applyChoice: applyChoice, blocksFromFile: blocksFromFile,
+    blockChoices: blockChoices, applyChoice: applyChoice, applyChoiceFrom: applyChoiceFrom, blocksFromFile: blocksFromFile,
     dayTotals: dayTotals, historyFromCsv: historyFromCsv, addImportedLogs: addImportedLogs, parseCsv: parseCsv,
     PROGRAMME_ADDITIONS: PROGRAMME_ADDITIONS, applyPriority: applyPriority,
     looksLikeBodyweight: looksLikeBodyweight, retagBodyweight: retagBodyweight, effectiveLoad: effectiveLoad, setIndex: setIndex, strengthOf: strengthOf, foldSessionSets: foldSessionSets, progressionWindow: progressionWindow,

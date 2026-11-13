@@ -708,6 +708,22 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     Training.replaceExercise(row, exId);
     return row;
   }
+  /* Answering an "or" line mid-session. Today's row is rebuilt the way any replacement is - fresh
+     sets prefilled from THAT movement's history - and the block takes the answer from this week on,
+     on every day that shares the question (Training.applyChoiceFrom). No "just today or the rest?"
+     sheet: the toggle is on the line every session, so changing your mind is one tap, not a setting.
+     Editing a past session from History changes that log only - the plan has moved on. */
+  function pickChoice(ii, exId) {
+    const row = items[ii];
+    if (!row || !row.choice || row.exerciseId === exId) return;
+    if ((row.sets || []).some(x => x.done)) return;
+    mutate(n => { n[ii] = replacedRow(n[ii], exId); });
+    if (past || !block || !session) return;
+    trainUpdate(update, (tr) => {
+      const i = tr.blocks.findIndex(b => b.id === block.id);
+      if (i >= 0) Training.applyChoiceFrom(tr.blocks[i], row.choice.key, exId, session.week || 1);
+    });
+  }
   function swapExercise(ii, exId) {
     const wasId = items[ii] && items[ii].exerciseId;
     mutate(n => { n[ii] = replacedRow(n[ii], exId); });
@@ -1260,6 +1276,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps
                   </span>
                 </div>
+
+                {/* An "or" line: the author's options, answered here. Locked once a set is ticked,
+                    because by then what you lifted has answered it. */}
+                {it.choice && (
+                  <div className="mb-2">
+                    <ChoiceToggle item={it} custom={t.custom} onPick={(id) => pickChoice(ii, id)}
+                      locked={(it.sets || []).some(x => x.done)} />
+                  </div>
+                )}
 
                 {it.note && (
                   <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>

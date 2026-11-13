@@ -783,6 +783,39 @@ function DragHandle({ dnd, id, label, color, onTap }) {
   );
 }
 
+/* An "or" line, answered where you train rather than only in the block builder. "Pendulum squat or
+   barbell back squat" is the author handing you the decision, and the moment you actually make it is
+   standing in the gym looking at which one is free - so the options sit on the line itself, one tap
+   each, with the current answer filled in. `locked` once a set has been logged against the line: by
+   then the question has been answered by what you lifted, and the Replace sheet is still there for a
+   genuine change of mind. */
+function ChoiceToggle({ item, custom, onPick, locked }) {
+  const c = item && item.choice;
+  const options = ((c && c.options) || []).filter(id => !!Training.byId(id, custom));
+  if (options.length < 2) return null;
+  return (
+    <div className="flex gap-1.5 flex-wrap" role="group" aria-label={c.label || 'Your choice'}>
+      {options.map(id => {
+        const ex = Training.byId(id, custom);
+        const on = item.exerciseId === id;
+        return (
+          <button key={id} type="button" aria-pressed={on} disabled={locked && !on}
+            onClick={(ev) => { ev.stopPropagation(); if (!on && !locked) onPick(id); }}
+            className="pixel-box px-2.5 text-[11px]" style={{
+              minHeight: 36,
+              // The same "this is the chosen one" treatment as the builder's chips.
+              background: on ? 'var(--seg-on)' : 'var(--surface2)',
+              color: on ? 'var(--seg-on-text)' : 'var(--text2)',
+              opacity: locked && !on ? 0.5 : 1,
+            }}>
+            {ex.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* Drag something onto one of several places, rather than up and down a list: the week strip, where a
    session is held and dropped onto another weekday. Same hold-to-pick-up as `useDragList` and for the
    same reasons. The place under the finger is found with elementsFromPoint, skipping the floating

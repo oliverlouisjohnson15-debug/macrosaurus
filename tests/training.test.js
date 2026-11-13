@@ -3876,3 +3876,18 @@ test('a block reads back week by week, and an empty week is not an achievement',
   assert.equal(T.blockWeeks(empty, logs, '2026-08-23')[2].full, false, 'an empty week is not an achievement');
   assert.deepEqual(T.blockWeeks(null, logs, '2026-08-23'), [], 'and no block is no rows, not a crash');
 });
+
+test('a shipped programme keeps the set counts its author wrote, past the style\'s own ceiling', () => {
+  // Min-max caps the plans WE write at two sets a line. That cap was applied to as-written plans
+  // too, so "Standing Calf Raises, 4 sets" in Quinton Pulliam's split arrived as two.
+  for (const p of T.PROGRAMMES) {
+    const b = T.programmeBlock(p.key);
+    for (let w = 1; w <= b.weeks; w++) {
+      const got = T.weekSessions(b, w).flatMap(s => s.exercises.slice().sort((x, y) => x.order - y.order).map(e => e.target.sets));
+      const want = p.template.flatMap(d => d.exercises.map(e => e.target.sets));
+      assert.deepEqual(got, want, p.name + ' week ' + w);
+    }
+  }
+  const calf = T.programmeBlock('qp5').sessions[4].exercises.find(e => e.exerciseId === 'standing_calf');
+  assert.equal(calf.target.sets, 4);
+});

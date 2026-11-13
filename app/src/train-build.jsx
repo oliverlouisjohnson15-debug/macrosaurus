@@ -1484,7 +1484,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
         <Card className="p-4 mb-4">
           <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your call</div>
           <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-            {choices.length === 1 ? 'One movement in this plan is' : choices.length + ' movements in this plan are'} left up to you. Pick once and it applies to every week.
+            {choices.length === 1 ? 'One movement in this plan is' : choices.length + ' movements in this plan are'} left up to you. Pick a default here - you can switch at each workout.
           </div>
           {choices.map(c => (
             <div key={c.key} className="mb-3">
@@ -1977,6 +1977,15 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     if (showToast) showToast(scope === 'block' ? 'Swapped for the rest of the block.' : (to ? to.name : 'Swapped') + ' for this session.');
   }
 
+  // Answering an "or" line from the session screen. From this week on, and every day that shares the
+  // question, because that is what the author asked - see Training.applyChoiceFrom.
+  function pickChoice(it, exId) {
+    if (!it || !it.choice) return;
+    edit((s, b) => { Training.applyChoiceFrom(b, it.choice.key, exId, live.week || 1); });
+    const to = Training.byId(exId, t.custom);
+    if (showToast) showToast((to ? to.name : 'That') + ' from now on. Switch back here any time.');
+  }
+
   const item = menuFor ? items.filter(x => x.id === menuFor)[0] : null;
   const itemIndex = item ? items.indexOf(item) : -1;
   const itemEx = item ? Training.byId(item.exerciseId, t.custom) : null;
@@ -2106,15 +2115,21 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
                 return <div key={it.id || i} className="px-4 py-3 flex items-start gap-3" style={rule}>{body}</div>;
               }
               const rp = dnd.rowProps(it.id);
+              // An "or" line carries its options on the row, so the call is made here, on the way
+              // into the session, rather than three screens back in the builder.
+              const toggle = it.choice ? <ChoiceToggle item={it} custom={t.custom} onPick={(id) => pickChoice(it, id)} /> : null;
               return (
                 <div key={it.id || i} ref={rp.ref} data-drag-id={rp['data-drag-id']} onPointerDown={rp.onPointerDown}
-                  className="flex items-stretch" style={Object.assign({ background: 'var(--card)' }, rp.style, rule)}>
-                  <button onClick={() => { if (dnd.justDropped()) return; setMenuFor(it.id); }}
-                    aria-label={'Change ' + name}
-                    className={'flex-1 min-w-0 text-left pl-4 py-3 flex gap-3 ' + (acc ? 'items-center' : 'items-start')}>
-                    {body}
-                  </button>
-                  <DragHandle dnd={dnd} id={it.id} label={name} onTap={() => setMenuFor(it.id)} />
+                  style={Object.assign({ background: 'var(--card)' }, rp.style, rule)}>
+                  <div className="flex items-stretch">
+                    <button onClick={() => { if (dnd.justDropped()) return; setMenuFor(it.id); }}
+                      aria-label={'Change ' + name}
+                      className={'flex-1 min-w-0 text-left pl-4 py-3 flex gap-3 ' + (acc ? 'items-center' : 'items-start')}>
+                      {body}
+                    </button>
+                    <DragHandle dnd={dnd} id={it.id} label={name} onTap={() => setMenuFor(it.id)} />
+                  </div>
+                  {toggle && <div className="pl-[52px] pr-4 pb-3 -mt-1">{toggle}</div>}
                 </div>
               );
             })}
