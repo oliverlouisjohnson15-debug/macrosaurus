@@ -1281,15 +1281,26 @@ function TargetSheet({ row, name, onChange, onClose }) {
 function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
   const today = Store.todayISO();
   const rows = Training.scheduleOf(block, today);
-  const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
-  const recommended = Training.recommendedDows(block, rows.length);
+  const need = rows.length;
+  /* Tap the days you can train; the sessions fill in, in order (design: Train: programmes and
+     community, screen 5). It used to be a seven-button row for EVERY session - five rows of seven
+     for a five-day plan - to answer what is really one question: which days are yours. */
+  const initial = Array.from(new Set(rows.map(r => r.dayOfWeek))).sort((x, y) => x - y);
+  const [chosen, setChosen] = useState(initial);
+  const days = chosen.slice().sort((x, y) => x - y);
+  const ready = days.length === need;
+  const dows = ready ? days : rows.map(r => r.dayOfWeek);
+  // A written programme's own week IS the recommendation: offering a different "week this plan is
+  // written for" than the one its author wrote contradicted the plan on its own days screen.
+  const prog = block.sourceRef && block.sourceRef.kind === 'programme' ? Training.programmeOf(block.sourceRef.name) : null;
+  const written = prog && prog.template.length === need ? prog.template.map(d => d.dayOfWeek).sort((x, y) => x - y) : null;
+  const recommended = written || Training.recommendedDows(block, need);
   const ownCadence = Training.prescribesDays(block);
-  const dirty = dows.some((d, i) => d !== rows[i].dayOfWeek);
-  const isRecommended = dows.every((d, i) => d === recommended[i]);
-  // Two sessions on one day is allowed - two-a-days are real, and so is a Saturday double when the
-  // week got away from you - but it is worth saying rather than letting two land in silence.
-  const doubled = dows.filter((d, i) => dows.indexOf(d) !== i).length;
-  const restCount = 7 - new Set(dows).size;
+  const dirty = ready && dows.some((d, i) => d !== rows[i].dayOfWeek);
+  const isRecommended = recommended.slice().sort((x, y) => x - y).join() === days.join();
+  function toggle(d) {
+    setChosen(xs => xs.indexOf(d) !== -1 ? xs.filter(x => x !== d) : (xs.length < need ? xs.concat([d]) : xs));
+  }
   function save() {
     if (dirty) {
       trainUpdate(update, (tr) => {
@@ -1300,85 +1311,70 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
     showToast && showToast(fresh ? 'Your programme is ready. First session is waiting.' : 'Your week is set.');
     onBack();
   }
+  const label = (r) => r.name.split(' - ')[0];
+  const focusOf = (r) => r.focus || ((block.sessions || []).filter(x => x.id === r.id || x.name === r.name)[0] || {}).focus || null;
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Train" title={fresh ? 'When do you train?' : 'Your training days'} />
-      <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
-        {fresh
-          ? 'Your programme is set up. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.'
-          : 'Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them.'}
+      <SubHeader back={onBack} backLabel="Train" title={fresh ? 'Which days?' : 'Your training days'} />
+      <p className="text-[15px] leading-snug mb-5">
+        Tap the {need} days you can train. The sessions fill in, in order.
+      </p>
+
+      <div className="grid gap-1.5 mb-2" role="group" aria-label="Training days" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+        {WEEKDAYS_FULL.map((full, d) => {
+          const on = days.indexOf(d) !== -1;
+          return (
+            <button key={d} onClick={() => toggle(d)} aria-pressed={on} aria-label={full}
+              className="pixel-box text-[15px]" style={{
+                minHeight: 48, fontWeight: 700,
+                background: on ? 'var(--seg-on)' : 'var(--card)',
+                color: on ? 'var(--seg-on-text)' : 'var(--text)',
+              }}>
+              {(WEEKDAYS[d] || '')[0]}
+            </button>
+          );
+        })}
+      </div>
+      <div className="text-[13px] mb-5" style={{ color: 'var(--muted)' }}>
+        {ready ? 'All ' + need + ' sessions placed.' : 'Pick ' + (need - days.length) + ' more.'}
       </div>
 
-      <Card className="p-0 mb-4 overflow-hidden">
-        <CardHead title="Each session" right={restCount + ' rest day' + (restCount === 1 ? '' : 's')} />
-        {rows.map((r, i) => (
-          <div key={r.id} className="px-3 py-3" style={i ? { borderTop: '2px solid var(--border)' } : null}>
-            <div className="text-[13px] font-bold mb-2 truncate">{r.name.split(' - ')[0]}</div>
-            {/* Seven buttons, not a dropdown. The whole question is "which day", there are exactly
-                seven answers, and a picker that hides six of them behind a tap makes comparing them
-                impossible - which is the entire act here. */}
-            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-              {Array.from({ length: 7 }, (_, d) => {
-                const on = dows[i] === d;
-                const taken = !on && dows.indexOf(d) !== -1;
-                return (
-                  <button key={d} onClick={() => setDows(xs => xs.map((x, j) => (j === i ? d : x)))}
-                    aria-label={r.name.split(' - ')[0] + ' on ' + (WEEKDAYS_FULL[d] || '')}
-                    aria-pressed={on}
-                    className="pf text-[11px] uppercase"
-                    style={{
-                      // 44px, the app's floor for a real control - and this is the only control on
-                      // the screen. It was 40, which is under it in both axes on a 375px phone.
-                      minHeight: 44, letterSpacing: '0.04em',
-                      // A day another session already has reads as MORE than an empty one, not less.
-                      // At a 12% tint behind a weaker border it was the quietest thing in the row,
-                      // so the one state carrying information looked like the absence of it.
-                      border: '2px solid ' + (on || taken ? 'var(--border)' : '#cfc8ba'),
-                      background: on ? 'var(--seg-on)' : taken ? 'color-mix(in srgb, var(--accent) 26%, var(--surface2))' : 'var(--surface2)',
-                      color: on ? 'var(--seg-on-text)' : taken ? 'var(--accent-ink)' : 'var(--muted)',
-                    }}>
-                    {(WEEKDAYS[d] || '')[0]}
-                  </button>
-                );
-              })}
+      <Section title="Your week" className="mb-4">
+        {WEEKDAYS.map((dow, d) => {
+          const at = ready ? days.indexOf(d) : rows.findIndex(r => r.dayOfWeek === d);
+          const r = at === -1 ? null : rows[at];
+          return (
+            <div key={d} className="flex items-center gap-3" style={{ minHeight: 48, borderBottom: '1px solid var(--hairline)' }}>
+              <span className="text-[13px] w-9 shrink-0" style={{ color: 'var(--muted)', fontWeight: 600 }}>{dow}</span>
+              {r
+                ? <span className="text-[15px] min-w-0 truncate" style={{ fontWeight: 600 }}>{label(r)}{focusOf(r) ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {focusOf(r)}</span> : null}</span>
+                : <span className="text-[15px]" style={{ color: 'var(--muted)' }}>Rest</span>}
             </div>
-          </div>
-        ))}
-      </Card>
-
-      {doubled > 0 && (
-        <div className="pixel-box p-3 mb-4 text-[12px] leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))', color: 'var(--warn-ink)' }}>
-          Two sessions land on the same day. That is allowed and sometimes it is the plan, but it is
-          a long day and the muscles trained twice get no gap at all.
-        </div>
-      )}
+          );
+        })}
+      </Section>
 
       {!isRecommended && (
-        <button onClick={() => setDows(recommended.slice())} className="pixel-box w-full h-11 text-[12px] mb-3" style={{ background: 'var(--surface2)' }}>
-          {ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'}
+        <button onClick={() => setChosen(recommended.slice())} className="w-full text-[13px] mb-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+          {written || ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'}
         </button>
       )}
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
-        {/* Stated, not just applied: a default nobody can see is a decision the app made on your
-            behalf and never mentioned. And a block that prescribes its OWN week gets a different
-            sentence, because "we suggest" and "this plan is built around" are not the same claim -
-            on min-max the rest days are the method, not a preference. */}
-        {ownCadence
+      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+        {written
+          ? 'This programme is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + '. Move it to suit your week; the order of the sessions stays the same.'
+          : ownCadence
           ? 'This plan is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': training everything to failure needs the day off in the middle. You can still move it.'
           : 'We suggest ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': a break in the middle of the week rather than every rest day stacked at the end of it.'}
       </div>
 
-      {/* On a brand new block this is the way OUT of the screen, so it is never disabled: confirming
-          the default is a real answer and the commonest one. On a block already running there is
-          nothing to commit until something changes. */}
-      <button onClick={save} disabled={!dirty && !fresh}
-        className="pixel-btn w-full h-14 pf text-[12px] uppercase" style={{
-          background: dirty || fresh ? 'var(--accent)' : 'var(--track)',
-          color: dirty || fresh ? 'var(--on-accent)' : 'var(--muted2)', letterSpacing: '0.06em',
-        }}>
-        {dirty ? 'Save these days' : fresh ? 'These days are right' : 'Nothing to change'}
-      </button>
-      <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
+      {/* On a brand new programme this is the way OUT, so confirming the default is always a real
+          answer. On one already running there is nothing to commit until something changes. */}
+      <Btn className="w-full" onClick={save} disabled={!ready || (!dirty && !fresh)}
+        style={!ready || (!dirty && !fresh) ? { background: 'var(--sunk)', color: 'var(--muted)' } : null}>
+        {!ready ? 'Pick ' + (need - days.length) + ' more ' + (need - days.length === 1 ? 'day' : 'days')
+          : fresh ? 'Start ' + block.name : dirty ? 'Save these days' : 'Nothing to change'}
+      </Btn>
+      <div className="text-[12px] mt-3 leading-snug" style={{ color: 'var(--muted)' }}>
         This sets every week of {block.name}. To move one session in one week only, open that day from
         the week and change it there.
       </div>

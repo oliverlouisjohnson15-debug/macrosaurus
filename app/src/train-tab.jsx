@@ -146,7 +146,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   // the tab's home: Blocks, and Your blocks.
   if (screen.name === 'programmes') {
     return page(<ProgrammesScreen db={db} onBack={() => go(screen.from || 'home')}
-      onStart={startProgramme} onCustomise={(key) => customiseProgramme(key, screen.from)} />);
+      onStart={startProgramme} onCustomise={(key) => customiseProgramme(key, screen.from)}
+      onCommunity={(pub) => go('library', { pub: pub })} onCommunityAll={() => go('library')} />);
   }
   if (screen.name === 'rerun') {
     return page(<RerunScreen db={db} update={update} showToast={showToast} blockId={screen.blockId}
@@ -172,7 +173,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   }
   if (screen.name === 'library') {
     return page(<BlockLibrary db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      onBack={() => go('block')} onAdopt={(block) => go('builder', { draft: block })} />);
+      initialPub={screen.pub || null} onBack={() => go(screen.pub ? 'home' : 'block')} onAdopt={(block) => go('builder', { draft: block })} />);
   }
   if (screen.name === 'coverage') {
     return page(<CoverageScreen db={db} update={update} isPremium={isPremium} onUpgrade={onUpgrade}
@@ -247,11 +248,13 @@ function programmeFilters(list) {
   const days = [...new Set(list.map(p => p.daysPerWeek))].sort((a, b) => a - b);
   if (days.length > 1) days.forEach(d => out.push(['d' + d, d + ' days']));
   if (list.some(p => /machine/i.test(p.setting))) out.push(['machines', 'Machines']);
+  if (list.some(p => /home/i.test(p.setting))) out.push(['home', 'Home gym']);
   return out;
 }
 function programmeMatches(p, pick) {
   if (pick === 'all') return true;
   if (pick === 'machines') return /machine/i.test(p.setting);
+  if (pick === 'home') return /home/i.test(p.setting);
   if (pick[0] === 'd') return p.daysPerWeek === +pick.slice(1);
   return true;
 }
@@ -285,12 +288,12 @@ function ProgrammeTile({ p, onOpen }) {
   return (
     <button onClick={onOpen} className="pixel-box text-left w-full p-3 flex flex-col gap-2.5 active:opacity-95" style={{ background: 'var(--card)' }}>
       <WeekStrip days={p.days} />
-      {/* What it IS leads; whose it is follows. A dinosaur name says nothing about the plan, so it is
-          the badge rather than the title, and a programme somebody wrote carries their name instead. */}
+      {/* Its name, what kind of plan it is, and whose it is - the name now says something, so it
+          leads again, with the split right under it so nobody has to open a card to find out. */}
       <div className="min-w-0">
-        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{p.type}</div>
+        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{p.name}</div>
+        <div className="text-[13px] mt-0.5 leading-tight" style={{ color: 'var(--text2)' }}>{p.type}</div>
         <div className="text-[12px] mt-1 truncate" style={{ color: 'var(--link)', fontWeight: 600 }}>{programmeBy(p)}</div>
-        <div className="text-[12px] mt-0.5" style={{ color: 'var(--muted)' }}>{p.blurb}</div>
       </div>
       <div className="text-[12px] tnum mt-auto" style={{ color: 'var(--muted)' }}>
         {p.daysPerWeek} days · {p.sets} sets/wk
@@ -299,9 +302,8 @@ function ProgrammeTile({ p, onOpen }) {
   );
 }
 
-// "Raptor", or "by Quinton Pulliam" for a programme a person wrote: credited the way Cook credits a
-// recipe's creator.
-function programmeBy(p) { return p.author ? 'by ' + p.author : p.name; }
+// Every programme is somebody's, credited the way Cook credits a recipe's creator.
+function programmeBy(p) { return p.author ? 'by ' + p.author : ''; }
 
 // Everything a card can show about a programme, read off the programme itself so no number here can
 // drift from what the block will actually say.
@@ -325,8 +327,8 @@ function programmeCards(custom) {
 function ProgrammePreview({ p, onStart, onClose }) {
   const mins = Math.round(p.days.reduce((a, d) => a + d.mins, 0) / Math.max(1, p.days.length));
   return (
-    <Sheet title={p.type} onClose={onClose} wide z={85}>
-      <div className="text-[13px] -mt-3" style={{ color: 'var(--link)', fontWeight: 600 }}>{programmeBy(p)}</div>
+    <Sheet title={p.name} onClose={onClose} wide z={85}>
+      <div className="text-[13px] -mt-3"><span style={{ color: 'var(--text2)', fontWeight: 600 }}>{p.type}</span> <span style={{ color: 'var(--link)', fontWeight: 600 }}>· {programmeBy(p)} · a Macrosaurus pick</span></div>
       <div className="flex flex-wrap gap-2">
         <span className="ms-chip on">{p.blurb}</span>
         {p.setting && <span className="ms-chip">{p.setting}</span>}
@@ -364,10 +366,12 @@ function ProgrammePreview({ p, onStart, onClose }) {
           </div>
         ))}
       </Section>
-      <div className="flex flex-col gap-2">
+      {/* Pinned to the foot of the sheet: the week is long, and the one thing to do with it should
+          never be a scroll away. */}
+      <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-1 flex flex-col gap-1.5" style={{ background: 'var(--card)', boxShadow: '0 -2px 0 0 var(--border)' }}>
         <Btn className="w-full" onClick={() => onStart(p.key)}>Start this programme</Btn>
         <div className="text-[13px] text-center leading-snug" style={{ color: 'var(--muted)' }}>
-          Next you can pick your options, move days and swap anything your gym has not got.
+          Two quick questions: when, and which days.
         </div>
       </div>
     </Sheet>
@@ -395,7 +399,7 @@ function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
   const opts = [[today, 'Today'], ...(isMonday ? [] : [[monday, 'Next Monday']])];
   return (
     <Sheet title="When do you start?" onClose={onClose} z={86}>
-      <div className="text-[15px]" style={{ fontWeight: 600 }}>{p.type} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {programmeBy(p)}</span></div>
+      <div className="text-[15px]" style={{ fontWeight: 600 }}>{p.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {programmeBy(p)}</span></div>
       <Seg value={when} onChange={setWhen} options={opts.map(([v, l]) => ({ v: v, l: l }))} />
       <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
         {when === today
@@ -407,7 +411,7 @@ function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
           This replaces {replaces.name}, which is in week {runningProg.week} of {replaces.weeks}. Your logged sessions are kept.
         </div>
       )}
-      <Btn className="w-full" onClick={() => onStart(p.key, when)}>Start {p.weeks} weeks</Btn>
+      <Btn className="w-full" onClick={() => onStart(p.key, when)}>Next: your days</Btn>
       <button onClick={() => onCustomise(p.key)} className="w-full text-[13px] text-center" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
         Customise first
       </button>
@@ -417,26 +421,59 @@ function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
 
 // The gallery: filter pills, a grid of cards, and the preview behind each. Shared by the tab's home
 // and the Programmes page, so the two can never show different programmes or different numbers.
-function ProgrammeGallery({ db, onStart, onCustomise, className }) {
+function ProgrammeGallery({ db, onStart, onCustomise, onCommunity, onCommunityAll, className }) {
   const t = tdb(db);
   const list = useMemo(() => programmeCards(t.custom), [t.custom]);
   const [pick, setPick] = useState('all');
+  const [q, setQ] = useState('');
+  // A few of what members are running, under ours: one library rather than two screens that both
+  // say "programmes". Fetched quietly; with no connection the section is simply the invitation.
+  const [community, setCommunity] = useState([]);
+  useEffect(() => {
+    let live = true;
+    const days = pick[0] === 'd' ? +pick.slice(1) : null;
+    const tm = setTimeout(() => {
+      browsePublicBlocks({ limit: 3, days: days, search: q }).then(r => { if (live) setCommunity(r || []); }, () => { if (live) setCommunity([]); });
+    }, q ? 300 : 0);
+    return () => { live = false; clearTimeout(tm); };
+  }, [pick, q]);
   const [open, setOpen] = useState(null);
   const [starting, setStarting] = useState(null);
   if (!list.length) return null;
   const pills = programmeFilters(list);
-  const shown = list.filter(p => programmeMatches(p, pick));
+  const needle = q.trim().toLowerCase();
+  const shown = list.filter(p => programmeMatches(p, pick)
+    && (!needle || [p.type, p.name, p.author, p.blurb, p.setting].filter(Boolean).join(' ').toLowerCase().indexOf(needle) !== -1));
   const openP = open ? list.filter(p => p.key === open)[0] : null;
   return (
     <div className={className}>
+      <label className="flex items-center gap-2 pl-3 pr-1 field-focus mb-3" style={{ minHeight: 52, margin: 2 }}>
+        <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+        <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search programmes, splits or authors"
+          aria-label="Search programmes" className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
+      </label>
       {pills.length > 1 && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-4">
           {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} aria-pressed={pick === k} className={'ms-chip' + (pick === k ? ' on' : '')}>{l}</button>)}
         </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        {shown.map(p => <ProgrammeTile key={p.key} p={p} onOpen={() => setOpen(p.key)} />)}
-      </div>
+      <Section title="Macrosaurus picks" right="Checked line by line" className="!mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 pt-3">
+          {shown.map(p => <ProgrammeTile key={p.key} p={p} onOpen={() => setOpen(p.key)} />)}
+        </div>
+        {!shown.length && <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>None of ours match. Try All, or another word.</div>}
+      </Section>
+      <Section title="From the community" right={onCommunityAll ? { label: 'See all', onClick: onCommunityAll } : null} className="!mb-0">
+        {community.map(pub => (
+          <Row key={pub.id} title={pub.title}
+            icon={<span className="text-[13px]" style={{ color: 'var(--link)', fontWeight: 700 }}>{initialsOf(pub.author_name)}</span>}
+            sub={[pub.author_name ? 'by ' + pub.author_name : null, pub.days_per_week ? pub.days_per_week + ' days' : null, pub.runs > 0 ? pub.runs + ' running it' : null].filter(Boolean).join(' · ')}
+            onClick={onCommunity ? () => onCommunity(pub) : undefined} />
+        ))}
+        <p className="text-[13px] leading-snug pt-3" style={{ color: 'var(--muted)' }}>
+          Running one of your own? Share it from My programme and it lands here, credited to you.
+        </p>
+      </Section>
       {openP && !starting && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
       {starting && openP && (
         <StartProgrammeSheet db={db} p={openP} onClose={() => setStarting(null)}
@@ -447,15 +484,20 @@ function ProgrammeGallery({ db, onStart, onCustomise, className }) {
   );
 }
 
+function initialsOf(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length ? (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase() : '··';
+}
+
 // The gallery as a page, for the routes that are not the tab's home.
-function ProgrammesScreen({ db, onBack, onStart, onCustomise }) {
+function ProgrammesScreen({ db, onBack, onStart, onCustomise, onCommunity, onCommunityAll }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Back" title="Pick a programme" />
       <div className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Written plans, ready to run. Tap one to see the whole week.
       </div>
-      <ProgrammeGallery db={db} onStart={onStart} onCustomise={onCustomise} className="mb-4" />
+      <ProgrammeGallery db={db} onStart={onStart} onCustomise={onCustomise} onCommunity={onCommunity} onCommunityAll={onCommunityAll} className="mb-4" />
     </div>
   );
 }
@@ -901,7 +943,8 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {(!block || blockDone) && (
         <>
           {blockDone && <div className="text-[15px] font-bold mb-3">Pick your next programme</div>}
-          <ProgrammeGallery db={db} className="mb-4" onStart={onStartProgramme} onCustomise={(key) => onCustomiseProgramme(key)} />
+          <ProgrammeGallery db={db} className="mb-4" onStart={onStartProgramme} onCustomise={(key) => onCustomiseProgramme(key)}
+            onCommunity={(pub) => go('library', { pub: pub })} onCommunityAll={() => go('library')} />
         </>
       )}
       {!block && onFreeform && (
@@ -936,6 +979,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {(() => {
         const rows = [
           { key: 'history', label: 'History', status: 'Sessions and lifts', icon: 'history', onClick: () => go('history') },
+          // The library, reachable while one is running: the next programme is chosen before this
+          // one ends, not after.
+          block && !blockDone && { key: 'programmes', label: 'Programmes', status: 'Macrosaurus picks and the community', icon: 'book', onClick: () => go('programmes', { from: 'home' }) },
           { key: 'block', label: block && !blockDone ? 'My programme' : 'Programmes', status: block && !blockDone ? (block.weeks + ' weeks · ' + (block.sessions || []).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek).map(x => WEEKDAYS[x.dayOfWeek]).filter((d, i, arr) => arr.indexOf(d) === i).join(' ')) : 'Start or pick one', icon: 'calendar', onClick: () => go('block') },
           block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', icon: 'plus', onClick: () => setWhyEmpty(true) },        ].filter(Boolean);
         return (
