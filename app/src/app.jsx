@@ -6780,7 +6780,26 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     const phStep = phaseLive(db, today) ? phaseCheckFor(db, today, curAvg, readyAnswers) : null;
     if (phStep) prof.rateKgPerWeek = phStep.rate;
     const priorBurn = expenditurePrior(db, prof);
+    // The weight change is read across this cycle AND the last, so the food that explains it spans
+    // both too (Engine.matchedIntake picks out exactly which days, and how much each counts). Only
+    // food the burn may trust goes in: complete days, on or after the plan floor, never a day from a
+    // week checked in as off plan. The weight-only lane assumes the plan was eaten, so it gets the
+    // plan that was in force on each of those days instead.
+    const offDays = offPlanDateSet(db);
+    const histFrom = shiftISO(cs, -(cycleDays + 35));
+    const intakeByDate = {}, plannedByDate = {};
+    db.log_entries.forEach(e => { if (e.date >= histFrom && e.date <= today) intakeByDate[e.date] = (intakeByDate[e.date] || 0) + e.computed_macros.kcal; });
+    Object.keys(intakeByDate).forEach(dd => {
+      if (offDays.has(dd) || !afterFloor(db, dd) || !E.isCompleteDay(intakeByDate[dd], plannedKcalOn(db, dd))) delete intakeByDate[dd];
+    });
+    for (let dd = histFrom; dd <= today; dd = shiftISO(dd, 1)) {
+      if (!offDays.has(dd) && afterFloor(db, dd)) { const pk = plannedKcalOn(db, dd); if (pk > 0) plannedByDate[dd] = pk; }
+    }
     const dec = E.checkInDecision({
+      intakeByDate, plannedByDate,
+      // The pace this week was run at, when a phase has just moved it, so the result is judged
+      // against the target the week actually had and says which of pace or burn moved the number.
+      prevRateKgPerWeek: phStep ? phStep.prevRate : undefined,
       profile: prof, currentTargets: base,
       weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
       kcalByDate: byDate, targetByDate,

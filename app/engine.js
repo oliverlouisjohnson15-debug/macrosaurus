@@ -1193,24 +1193,54 @@
       // it reads a HIGHER burn and can still move calories up. Saying "faster than your target" there
       // is the app contradicting its own numbers, so name the real driver (the burn) instead.
       var RATE_TOL = 0.05; // kg/wk: inside this the rate is "about on" target, not faster or slower
-      var gap = actual - expected; // +ve = heavier than plan (slower cut / faster gain)
+      // The week is judged against the pace it was RUN at. When a phase has just moved the pace,
+      // `expected` is already next week's, and "slower than 0.81" about a week planned at 0.93 is
+      // grading it against a target it never had.
+      var ranRate = (opts.prevRateKgPerWeek != null && isFinite(+opts.prevRateKgPerWeek) && goal !== 'maintain') ? Math.abs(+opts.prevRateKgPerWeek) : null;
+      var paceMoved = ranRate != null && Math.abs(ranRate - Math.abs(profile.rateKgPerWeek || 0)) >= 0.01;
+      var judged = paceMoved ? (goal === 'cut' ? -ranRate : ranRate) : expected;
+      var gap = actual - judged; // +ve = heavier than plan (slower cut / faster gain)
       var rateCmp = Math.abs(gap) <= RATE_TOL ? 'on' : goal === 'gain' ? (gap > 0 ? 'faster' : 'slower') : (gap > 0 ? 'slower' : 'faster');
       var cmpWord = rateCmp === 'on' ? 'about on' : rateCmp === 'faster' ? 'faster than' : 'slower than';
       var avgK = opts.estimate.avgKcal;
       var verb = dir === 'up' ? (goal === 'cut' ? 'giving you back ' : 'adding ') : (goal === 'gain' ? 'trimming ' : 'dropping you ');
+      // Names what actually moved the number. Two things can: the pace (a phase steering towards its
+      // date) and the burn (what this week taught). They can pull opposite ways, and saying "your burn
+      // is higher" when the burn fell and the pace did the work is the app misreporting its own sums.
       function burnWhy() {
+        var nowRate = Math.abs(profile.rateKgPerWeek || 0);
+        var paceKcal = paceMoved ? goalDailyDelta(goal, nowRate) - goalDailyDelta(goal, ranRate) : 0; // +ve = more food
+        // The burn the current target implies: target minus the pace it was set for. With it, the
+        // change splits exactly into a burn part and a pace part, so neither is named by guesswork.
+        var built = round(currentKcal - goalDailyDelta(goal, paceMoved ? ranRate : nowRate));
+        var burnMove = round(burnRef) - built;
+        var withDir = function (v) { return dir === 'up' ? v > 0 : v < 0; };
+        // Each driver in two forms: as the reason ("your pace eases ...") and as what it outweighs
+        // ("your burn reading lower ...").
+        var paceFrom = ' from ' + rt(ranRate) + '/wk to ' + rt(nowRate) + '/wk';
+        var paceT = paceMoved ? ['your pace ' + (nowRate < ranRate ? 'eases' : 'rises') + paceFrom, 'your pace ' + (nowRate < ranRate ? 'easing' : 'rising') + paceFrom] : null;
+        var burnRest = (burnMove > 0 ? 'higher' : 'lower') + ' than the ' + built + ' your targets were built on';
+        var burnT = (Math.abs(burnMove) >= 15) ? ['your burn reads ' + burnRest, 'your burn reading ' + burnRest] : null;
+        var drivers = [], against = [];
+        if (paceT) { if (withDir(paceKcal)) drivers.push(paceT[0]); else against.push(paceT[1]); }
+        if (burnT) { if (withDir(burnMove)) drivers.push(burnT[0]); else against.push(burnT[1]); }
         var eatClause = '';
-        if (!wOnly && isFinite(+avgK)) {
+        if (!wOnly && !(opts.estimate && opts.estimate.matched) && isFinite(+avgK) && !paceMoved) {
           if (dir === 'up' && avgK > currentKcal + 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, above your ' + currentKcal + ' target';
           if (dir === 'down' && avgK < currentKcal - 25) eatClause = ' while averaging ' + round(avgK) + ' kcal a day, under your ' + currentKcal + ' target';
         }
-        var goalWord = goal === 'maintain' ? 'holding steady' : (goal === 'cut' ? 'losing ' : 'gaining ') + rt(expected) + '/wk';
-        return (goal === 'maintain' ? 'That\'s ' + (Math.abs(actual) <= 0.02 ? 'about steady' : 'a little off steady') : 'That\'s ' + cmpWord + ' your ' + rt(expected) + '/wk target')
-          + eatClause + ', which puts your burn ' + (dir === 'up' ? 'higher' : 'lower') + ' than your targets were built on. '
-          + ucfirst(goalWord) + ' from that burn means eating ' + (dir === 'up' ? 'a little more' : 'a little less') + ', so I\'m ' + verb;
+        var lead = goal === 'maintain' ? 'That\'s ' + (Math.abs(actual) <= 0.02 ? 'about steady' : 'a little off steady')
+          : 'That\'s ' + cmpWord + (paceMoved ? ' the ' + rt(judged) + '/wk this week was planned at' : ' your ' + rt(judged) + '/wk target') + eatClause;
+        // "but" when the week's rate on its own argues the other way from where the number went.
+        var rateAgainst = goal !== 'maintain' && rateCmp !== 'on' && ((rateCmp === 'slower') === (goal === 'cut' ? dir === 'up' : dir === 'down'));
+        var cause = drivers.length ? (rateAgainst ? ', but ' : ', and ') + drivers.join(', and ') + (against.length ? ', which more than makes up for ' + against.join(' and ') : '') + '. '
+          : '. ';
+        var goalWord = goal === 'maintain' ? 'holding steady' : (goal === 'cut' ? 'losing ' : 'gaining ') + rt(nowRate) + '/wk';
+        return lead + cause + ucfirst(goalWord) + ' from here means eating ' + (dir === 'up' ? 'a little more' : 'a little less') + ', so I\'m ' + verb;
       }
       var why;
-      if (goal === 'cut') {
+      if (paceMoved) why = burnWhy();
+      else if (goal === 'cut') {
         if (dir === 'down' && rateCmp === 'slower') why = 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' (you actually went up)' : '') + ', so to get fat loss moving again I\'m dropping you ';
         else if (dir === 'up' && rateCmp === 'faster') why = 'That\'s faster than your ' + rt(expected) + '/wk target. Great going, but to protect muscle and keep it sustainable I\'m giving you back ';
         else why = burnWhy();
@@ -1909,6 +1939,69 @@
     };
   }
 
+  /* ---- Matching the food to the weight change it explains ----
+   *
+   * The burn is read as food eaten minus what the scale moved. Both halves have to describe the SAME
+   * days, or the sum is meaningless. The rate is read mean-to-mean (cycleMeans): last cycle's mean
+   * against this cycle's, on a smoothed trend. That change happened across BOTH windows, centred on
+   * the line between them and lagged a couple of days by the smoothing, so about half of it was
+   * driven by the previous cycle's eating. Pairing it with this cycle's food alone charged the old
+   * target's weight change to the new target's intake: after every cut the burn read low (by up to
+   * ~400 kcal on real data), and the next cut built on that, so the error compounded rather than
+   * washing out. That is the app failing to read its own corrections.
+   *
+   * The fix measures, rather than assumes, which days the rate covers. Eating on day d reaches the
+   * scale from the morning of d+1, so a 1 kg step after d says how much day d moves the statistic.
+   * Running that step through cycleMeans itself gives each day's share of the measured change: the
+   * exact window, weekday balancing, clipping and smoothing lag included, so the food side can never
+   * drift from the weight side again whatever cycleMeans does. The matched intake is the food on
+   * those days weighted by those shares, and the shares sum to the span the change covers.
+   *
+   * Only days the caller trusts are passed in intakeByDate (complete logs, never an off-plan week).
+   * When too little of the span is covered by them, the read is not attempted (null) rather than
+   * filled in with a guess.
+   *
+   * It also says when the intake STEPPED between the two windows. A big change in what you eat moves
+   * glycogen, and about 3 g of water with every gram, so the first week after one shows a drop (or a
+   * rise) that is mostly not fat. That week is still read, but trusted less: see TRANSITION_*.
+   */
+  var MATCH_MIN_COVERAGE = 0.6;   // share of the span that needs trusted food under it
+  var MATCH_LOOKBACK_DAYS = 28;   // the smoothing's memory past this is under 1%
+  var TRANSITION_KCAL = 200;      // a step in average intake this big between windows moves glycogen
+  var TRANSITION_CONF = 0.35;     // how much of a transition week's read is let through
+  function matchedIntake(opts) {
+    var ib = opts.intakeByDate;
+    if (!ib) return null;
+    var today = opts.today, cs = opts.cycleStart;
+    var floorISO = opts.floorISO || null;
+    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null && (!floorISO || w.date >= floorISO); });
+    var base = cycleMeans(opts);
+    if (base.cur == null || base.prev == null) return null;
+    var dKg = base.cur - base.prev;
+    var from = base.prevFrom || shiftISOdays(cs, -(opts.cycleDays || 7));
+    var start = shiftISOdays(from, -MATCH_LOOKBACK_DAYS);
+    if (floorISO && start < floorISO) start = floorISO;
+    var kernel = {}, span = 0, covered = 0, kcalW = 0;
+    for (var d = start; d < today; d = shiftISOdays(d, 1)) {
+      var stepped = ws.map(function (w) { return { date: w.date, kg: w.date > d ? 1 : 0 }; });
+      var cmS = cycleMeans(Object.assign({}, opts, { weights: stepped }));
+      if (cmS.cur == null || cmS.prev == null) continue;
+      var k = cmS.cur - cmS.prev;
+      if (!(k > 1e-4)) continue;
+      kernel[d] = k; span += k;
+      if (ib[d] > 0) { covered += k; kcalW += k * ib[d]; }
+    }
+    if (!(span > 0.5)) return null;
+    var coverage = covered / span;
+    var out = { dKg: dKg, span: span, coverage: round(coverage, 3), kernel: kernel, kcal: covered > 0 ? kcalW / covered : null };
+    // Did the eating step between the two windows? Plain means over each window's trusted days.
+    function avgIn(a, b) { var s = 0, n = 0; for (var x in ib) if (x >= a && x <= b && ib[x] > 0) { s += ib[x]; n++; } return n >= 3 ? s / n : null; }
+    var curK = avgIn(base.curStart || cs, today), prevK = avgIn(from, shiftISOdays(cs, -1));
+    if (curK != null && prevK != null && Math.abs(curK - prevK) >= TRANSITION_KCAL)
+      out.transition = { fromKcal: round(prevK), toKcal: round(curK) };
+    return out;
+  }
+
   function checkInDecision(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
@@ -1929,6 +2022,25 @@
     if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
     var avgKcal = vals.length ? mean(vals) : null;
     var cm = cycleMeans(opts);
+    // A rate read with the food (or, weight-only, the plan) that actually drove it. null when the
+    // caller passed no wider history or too little of the span is trusted; callers then fall back.
+    function matchedEstimate(byDate, weightOnly) {
+      if (!byDate) return null;
+      var m = matchedIntake(Object.assign({}, opts, { intakeByDate: byDate }));
+      if (!m || m.kcal == null || m.coverage < MATCH_MIN_COVERAGE) return null;
+      var perDay = m.dKg / m.span;
+      var e = { tdee: round(m.kcal - perDay * KCAL_PER_KG), avgKcal: round(m.kcal), weeklyChangeKg: round(perDay * 7, 3), days: cycleDays,
+        matched: { span: round(m.span, 1), coverage: m.coverage } };
+      if (weightOnly) e.weightOnly = true;
+      if (m.transition) e.transition = m.transition;
+      return e;
+    }
+    // A week straight after a big change in eating is mostly glycogen and water on the scale, so its
+    // read goes into the burn at TRANSITION_CONF of its usual weight, and moves the target less.
+    function confFor(e) {
+      if (!e || !e.transition) return opts.confScale;
+      return (opts.confScale != null && isFinite(+opts.confScale) ? clamp(+opts.confScale, 0, 1) : 1) * TRANSITION_CONF;
+    }
     var curAvg = cm.cur, prevAvg = cm.prev, curCycle = cm.curCycle, spanDaysForRate = cm.spanDays;
     if (opts.weighCadence === 'single') {
       if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
@@ -1959,8 +2071,11 @@
       } else {
         if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
         var wChg2 = ((curAvg - prevAvg) / spanDaysForRate) * 7;
-        var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
-        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: opts.confScale });
+        // Assumed intake is the plan, so it has to be the plan that was in force over the days the
+        // rate covers, not just today's: see matchedIntake.
+        var estW = matchedEstimate(opts.plannedByDate, true)
+          || { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: confFor(estW), prevRateKgPerWeek: opts.prevRateKgPerWeek });
       }
     } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
@@ -1975,8 +2090,12 @@
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null);
     } else {
-      var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: opts.confScale, logWindow: logWindowDays });
+      // The food that explains the weight change, not just this window's (see matchedIntake). The
+      // window-only pairing is kept for callers that don't pass the wider history, and for spans
+      // too thinly covered by trusted logs to match honestly.
+      var est2 = matchedEstimate(opts.intakeByDate, false)
+        || estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: confFor(est2), logWindow: logWindowDays, prevRateKgPerWeek: opts.prevRateKgPerWeek });
     }
     // Two strikes and the food log is out. Holding once on a suspicious log is prudent; holding every
     // cycle is a dead end, because the person whose log never reconciles is exactly the person whose
@@ -1999,6 +2118,15 @@
       switched.underReportFlagged = true;
       switched.reason = 'Your food log and your scale have disagreed two cycles running, so I\'m going to stop trying to reconcile them and steer from your weigh-ins alone. ' + (switched.reason || '');
       result = switched;
+    }
+    // Say when this week's read went in at reduced weight, and why, so a big drop on the scale that
+    // moved the number less than expected isn't left looking like the app ignoring it.
+    var tr = result.estimate && result.estimate.transition;
+    if (tr && result.reason && !result.laneSwitched) {
+      result.transition = tr;
+      result.reason += ' Your eating ' + (tr.toKcal < tr.fromKcal ? 'dropped' : 'rose') + ' from about ' + tr.fromKcal + ' to ' + tr.toKcal
+        + ' kcal a day between these two weeks, and a change that size ' + (tr.toKcal < tr.fromKcal ? 'drains' : 'refills') + ' stored carbs and the water held with them, so part of this week\'s '
+        + (tr.toKcal < tr.fromKcal ? 'drop' : 'rise') + ' isn\'t fat. I\'ve counted it at about a third of its usual weight; next week\'s read will be cleaner.';
     }
     result.status = 'proposed';
     result.completeDays = completeDays;
@@ -2461,7 +2589,7 @@
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     fiberReserveKcal: fiberReserveKcal,
     cyclingDelta: cyclingDelta, cyclingWeek: cyclingWeek, cyclingKind: cyclingKind, cyclingKindOn: cyclingKindOn, cyclingOn: cyclingOn, cyclingHistoryTidy: cyclingHistoryTidy, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
-    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
+    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans, matchedIntake: matchedIntake,
     weekdayRhythm: weekdayRhythm,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, expenditureAfterHold: expenditureAfterHold, expenditureAfterOffPlan: expenditureAfterOffPlan, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
