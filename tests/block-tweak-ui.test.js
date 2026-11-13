@@ -26,7 +26,7 @@ function programmeUI() {
 test('the way back to the programme as written is one tap', () => {
   const ui = programmeUI();
   try {
-    assert.ok(ui.has('Start again from T-Rex as written'), 'offered: ' + ui.text.slice(0, 700));
+    assert.ok(ui.has('Start again from Foundation Five as written'), 'offered: ' + ui.text.slice(0, 700));
   } finally { ui.unmount(); }
 });
 

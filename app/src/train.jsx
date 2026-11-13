@@ -1816,7 +1816,7 @@ async function bumpPublicBlockRuns(id) {
 const SPLIT_LABEL = { full: 'Full body', upper_lower: 'Upper / lower', ppl: 'Push pull legs', other: 'Custom split' };
 
 // ---- the library screen -------------------------------------------------------------------------
-function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onAdopt }) {
+function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onAdopt, initialPub }) {
   useBackClose(onBack);
   const t = tdb(db);
   const targets = trainTargets(db);
@@ -1826,7 +1826,8 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
   const [split, setSplit] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [preview, setPreview] = useState(null);
+  // Opened from the Programmes library on one member's programme: straight to its preview.
+  const [preview, setPreview] = useState(initialPub || null);
 
   async function load() {
     setBusy(true); setErr('');

@@ -534,14 +534,17 @@ test('setting your training days on the screen moves every week of the block', (
     assert.ok(ui.has('Upper A'), 'every session of the week is listed: ' + ui.text.slice(0, 200));
     // Nothing to commit until something changes - the default is already what the block runs.
     assert.ok(ui.has('Nothing to change'), 'and it opens with nothing to save');
-    const sat = Array.from(ui.host.querySelectorAll('button'))
-      .filter(b => /Upper A on Saturday/.test(b.getAttribute('aria-label') || ''))[0];
-    assert.ok(sat, 'each session offers all seven days');
-    ui.clickEl(sat);
+    // One question - which days - not seven buttons per session: drop the first day, add Saturday.
+    const first = T.scheduleOf(block, A.Store.todayISO())[0].dayOfWeek;
+    const btn = (name) => Array.from(ui.host.querySelectorAll('button[aria-pressed]')).filter(b => b.getAttribute('aria-label') === name)[0];
+    ui.clickEl(btn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][first]));
+    assert.ok(ui.has('Pick 1 more'), 'it says what is missing');
+    ui.clickEl(btn('Saturday'));
     ui.click('Save these days');
     for (let w = 1; w <= 4; w++) {
-      const first = live.training.blocks[0].sessions.filter(s => s.week === w)[0];
-      assert.equal(first.dayOfWeek, 5, 'week ' + w + ' moved to Saturday');
+      const days = live.training.blocks[0].sessions.filter(s => s.week === w).map(s => s.dayOfWeek);
+      assert.ok(days.indexOf(5) !== -1, 'week ' + w + ' trains Saturday');
+      assert.ok(days.indexOf(first) === -1, 'and not the day that was dropped');
     }
   } finally { ui.unmount(); }
 });
@@ -558,9 +561,9 @@ test('a brand new block asks which days before it hands you the plan', () => {
     db, showToast() {}, isPremium: true, onUpgrade() {}, block, fresh: true, onBack() {}, update() {},
   });
   try {
-    assert.ok(ui.has('When do you train?') || ui.has('Your block is built'),
+    assert.ok(ui.has('Which days?'),
       'it is framed as the last question of building one: ' + ui.text.slice(0, 200));
     // Confirming the default is a real answer, and the commonest one, so the way out is never dead.
-    assert.ok(ui.has('These days are right'), 'and confirming is always pressable: ' + ui.text.slice(-200));
+    assert.ok(ui.has('Start X'), 'and confirming the default is always pressable: ' + ui.text.slice(-200));
   } finally { ui.unmount(); }
 });

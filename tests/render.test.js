@@ -54,20 +54,21 @@ test('the tab offers the programmes the app ships with', () => {
   db.training.blocks = [];
   db.training.prefs = { units: 'kg' };
   const r = render(A.TrainHome, { db, update() {}, showToast() {}, isPremium: true, onUpgrade() {}, block: null, onOpen() {}, go() {} });
-  assert.ok(r.has('Raptor'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
-  assert.ok(r.has('T-Rex'));
+  assert.ok(r.has('Express Four'), 'the four-day should be on the tab: ' + r.text.slice(0, 200));
+  assert.ok(r.has('Foundation Five'));
   // With their real shape on the card, not a claim that would need checking against the engine.
   assert.ok(/5 days · \d+ sets\/wk/.test(r.text), 'days and sets on the card: ' + r.text.slice(0, 300));
   // One card per programme, each saying what KIND of plan it is.
-  assert.ok(r.has('Brachio') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its card');
-  assert.ok(r.has('Stego') && r.has('Machines'), 'and the machine one');
+  assert.ok(r.has('Tempo Split') && r.has('Bodybuilding'), 'and the bodybuilding split, said on its card');
+  assert.ok(r.has('Machine Shop') && r.has('Machines'), 'and the machine one');
   assert.ok(r.has('Pick a programme'), 'the programmes are the empty state');
   assert.ok(!r.has('Build a'), 'and nothing offers to build one with questions first');
   // Names that are each their own: a dinosaur on its own for the house programmes, or the name of
   // whoever wrote a named one - never two that differ only by a number or a suffix, and each with a
   // blurb that says what KIND of plan it is (the name does not).
   const names = A.Training.PROGRAMMES.map(p => p.name);
-  for (const n of names) assert.match(n, /^[A-Z][A-Za-z-]+$|^[A-Z][A-Za-z' -]+'s Split$/, n + ' is not named like the others');
+  for (const n of names) assert.match(n, /^[A-Z][A-Za-z]*( [A-Z][A-Za-z]*){0,2}$/, n + ' is a short name in title case');
+  for (const p of A.Training.PROGRAMMES) assert.ok(p.author, p.name + ' is credited to somebody');
   assert.equal(new Set(names).size, names.length, 'every programme needs a name of its own');
   const blurbs = A.Training.PROGRAMMES.map(p => p.blurb);
   for (const b of blurbs) assert.ok(b && b.length < 20, 'a short blurb on each: ' + b);
