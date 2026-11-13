@@ -273,6 +273,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [help, setHelp] = useState(null);          // which "?" explainer is open
   const [pastFor, setPastFor] = useState(null);    // exercise id whose history sheet is open
   const [noteOpen, setNoteOpen] = useState(null);  // exercise id whose note field is open
+  const [formOpen, setFormOpen] = useState(null);  // exercise id whose form notes are showing
   const [setMenu, setSetMenu] = useState(null);    // "ii:si" of the set whose type/remove menu is open
   const [justDone, setJustDone] = useState(null);  // "ii:si" of the tick that was just pressed, for the pop
   const [lift, setLift] = useState({ ii: -1, n: 0 });  // bumped on each tick, so the buddy does the rep too
@@ -1313,8 +1314,31 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     <b>On the last set:</b> {it.technique}
                   </div>
                 )}
+                {/* Your own machine setup stays in view until the first set: it is short, it is
+                    yours, and it is what you need while adjusting the seat. */}
+                {!work.some(x => x.done) && setupOf(it.exerciseId) && (
+                  <div className="text-[13px] mb-2 leading-snug" style={{ color: 'var(--text2)' }}>
+                    <span style={{ color: 'var(--muted2)' }}>Setup: </span>{setupOf(it.exerciseId)}
+                  </div>
+                )}
+                {/* The author's form note, folded behind one line. Worth reading once and then known;
+                    open, it pushed the set table - the part of the card you actually touch - half a
+                    screen down on every movement. */}
                 {it.planNote && (
-                  <div className="text-[11px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>{it.planNote}</div>
+                  <div className="mb-2">
+                    <button onClick={() => setFormOpen(formOpen === it.exerciseId ? null : it.exerciseId)}
+                      aria-expanded={formOpen === it.exerciseId}
+                      className="text-[13px] flex items-center gap-1.5" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+                      <span aria-hidden="true" className="inline-flex items-center justify-center text-[11px]"
+                        style={{ width: 18, height: 18, border: '2px solid currentColor', borderRadius: 999, fontWeight: 700 }}>i</span>
+                      {formOpen === it.exerciseId ? 'Hide how to do it' : 'How to do it'}
+                    </button>
+                    {formOpen === it.exerciseId && (
+                      <div className="text-[13px] leading-snug mt-1 px-3 py-2.5" style={{ background: 'var(--sunk)', color: 'var(--text2)' }}>
+                        {it.planNote}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* ---- what you did last time, ABOVE the table ----
@@ -1326,11 +1350,6 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     an effort, and what that costs in kilos is the lifter's call on the day. */}
                 {/* How the machine is set up for you, until you have started: it is what you need while
                     you are adjusting the seat and no use once you are under the weight. */}
-                {!work.some(x => x.done) && setupOf(it.exerciseId) && (
-                  <div className="text-[13px] mb-2 leading-snug" style={{ color: 'var(--text2)' }}>
-                    <span style={{ color: 'var(--muted2)' }}>Setup: </span>{setupOf(it.exerciseId)}
-                  </div>
-                )}
                 {(() => {
                   const lts = it.sets.map(x => x.lastTime).filter(Boolean);
                   if (lts.length) {
@@ -1393,7 +1412,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     and somebody who knows there is one set does not. It is said on the movement you
                     are about to do, once, and only while it is still ahead of you - a line telling
                     you to lock in, above a set you have already finished, is noise. */}
-                {style.toFailure && !work.some(x => x.done) && tgt && (
+                {/* ONE line of coaching above the table: the progression note when there is one
+                    (it is about THIS lift, today), and this when there is not. */}
+                {style.toFailure && !it.note && !work.some(x => x.done) && tgt && (
                   <div className="text-[12px] mb-3 px-2.5 py-2 leading-snug"
                     style={{ borderLeft: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)' }}>
                     {(tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0
@@ -1401,8 +1422,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       : work.length === 1
                         ? 'One set here. Make it count: take it to the rep where the weight stops moving.'
                         : tgt.rir > 0
-                          ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.'
-                          : 'Two sets, both to failure. The second is lighter for exactly that reason.'}
+                          ? setWords(work.length) + '. Stop ' + (work.length === 2 ? 'the first one' : 'the early ones') + ' a rep short; the last is the one you take until the weight stops moving.'
+                          : setWords(work.length) + ', ' + (work.length === 2 ? 'both' : 'all') + ' to failure. ' + (work.length === 2 ? 'The second is' : 'The later ones are') + ' lighter for exactly that reason.'}
                   </div>
                 )}
 
@@ -1538,19 +1559,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 })}
                 </div>
 
-                <button onClick={() => addSet(ii)} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add set</button>
-
-                {/* One tool row, and now BELOW the table. These are the three things you reach for
-                    between sets rather than during one, and above the rows they pushed the only part
-                    of the card you actually touch while training a third of the way further down. */}
-                <div className="flex gap-2 mt-3">
-                  <ToolBtn on={noteOpen === it.exerciseId || !!exNotes[it.exerciseId]}
-                    onClick={() => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)}>Note</ToolBtn>
-                  {/* Only where there is something to show. A movement you have never trained had a
-                      greyed-out third button sitting there, which reads as a broken control rather
-                      than as an empty one - and on a first session that was every card. */}
-                  {hist.length > 0 && <ToolBtn onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>}
-                  <ToolBtn on={menuOpen === ii} onClick={() => setMenuOpen(ii)}>More</ToolBtn>
+                {/* One quiet row under the table: another set, and everything else about this
+                    movement (note, history, replace, sets and reps, setup...) in one menu. Three boxed
+                    buttons here read as three decisions pending on every card. */}
+                <div className="flex items-center justify-between mt-1">
+                  <button onClick={() => addSet(ii)} className="text-[13px] px-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>+ Add set</button>
+                  <button onClick={() => setMenuOpen(ii)} aria-label={'More for ' + (ex ? ex.name : 'this movement')}
+                    className="text-[13px] px-1 flex items-center gap-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+                    More
+                  </button>
                 </div>
 
                 {(noteOpen === it.exerciseId || exNotes[it.exerciseId]) && (
@@ -1601,7 +1618,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       );
       })()}
 
-      <button onClick={() => setPicking(true)} className="pixel-box w-full h-12 text-[13px] mb-4" style={{ background: 'var(--surface2)' }}>+ Add an exercise</button>
+      <Btn kind="ghost" className="w-full mb-4" onClick={() => setPicking(true)}>+ Add an exercise</Btn>
 
       {/* The count that used to sit here said "0 of 16 sets logged so far" three inches under the
           spine, which says the same thing permanently and in view. What is worth putting at the foot
@@ -1625,17 +1642,17 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           The asking belongs one step later, and already happens: the confirm dialog names how many
           sets counted and promises that anything unticked stays on the session, which is the actual
           worry - that finishing early throws the rest away. It does not. */}
-      {allWorkDone ? (
-        <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 font-bold mb-2 fade-in"
-          style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          That is every set · finish
-        </button>
-      ) : (
-        <button onClick={() => setConfirmEnd(true)} className="pixel-box w-full h-12 text-[12.5px] mb-2"
-          style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
-          {doneSets ? 'Finish here · ' + doneSets + ' of ' + totalSets + ' sets ticked' : 'Finish without logging anything'}
-        </button>
-      )}
+      {/* Pinned to the foot of the screen, so the way out is always one thumb away rather than at
+          the end of an eight-movement scroll (the app's toast is already lifted clear of it). */}
+      <div className="sticky bottom-0 z-10 -mx-5 px-5 pt-3 pb-3" style={{ background: 'var(--bg)', boxShadow: '0 -2px 0 0 var(--border)', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+        {allWorkDone ? (
+          <Btn className="w-full fade-in" onClick={() => setConfirmEnd(true)}>That is every set · finish</Btn>
+        ) : (
+          <Btn kind="ghost" className="w-full" onClick={() => setConfirmEnd(true)}>
+            {doneSets ? 'Finish here · ' + doneSets + ' of ' + totalSets + ' sets ticked' : 'Finish without logging anything'}
+          </Btn>
+        )}
+      </div>
 
       {/* Session notes and finishing both used to live here, at the bottom of the scroll: a titled
           panel and a full-width button sitting under every set on the way past. Both are
@@ -1733,6 +1750,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         <ActionSheet kicker="Movement" title={(Training.byId(items[menuOpen].exerciseId, t.custom) || {}).name || 'This movement'}
           onClose={() => setMenuOpen(null)}
           actions={[
+            // Note and History used to be their own buttons on every card. They are reached for
+            // between sets, not during one, so they live with the movement's other options.
+            { label: exNotes[items[menuOpen].exerciseId] ? 'Edit note' : 'Add a note', sub: exNotes[items[menuOpen].exerciseId] || 'Seat height, pin, how it felt', onClick: () => setNoteOpen(items[menuOpen].exerciseId) },
+            Training.exerciseHistory(t.logs, items[menuOpen].exerciseId).length
+              ? { label: 'History', sub: 'Every time you have done it', onClick: () => setPastFor(items[menuOpen].exerciseId) }
+              : null,
             { label: 'Replace it', sub: 'Something else that does the same job, keeping your sets and reps', onClick: () => setSwapping(menuOpen) },
             // The prescription was readable on this screen and editable only back in the builder, so
             // "three sets is plenty today" meant leaving the session to change it. It is the most
@@ -1871,24 +1894,24 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           <ActionSheet kicker="Replace" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
-              { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
+              { label: 'Just today', sub: 'The programme keeps ' + (from ? from.name : 'the original') },
               swapScope.offer && {
                 label: 'Always at ' + gym.name,
-                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The programme itself is not changed.',
                 onClick: () => {
                   rememberAtGym(update, gym.id, swapScope.planId, swapScope.to);
                   showToast && showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gym.name + ' now.');
                 },
               },
               swapScope.reach > 1 && {
-                label: 'The rest of the block',
+                label: 'The rest of the programme',
                 sub: 'Changes ' + swapScope.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => {
                   trainUpdate(update, (tr) => {
                     const i = tr.blocks.findIndex(b => b.id === block.id);
                     if (i >= 0) Training.swapSlotInBlock(tr.blocks[i], session.id, swapScope.itemId, swapScope.to, swapScope.week);
                   });
-                  showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the block.');
+                  showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the programme.');
                 },
               },
             ]} />
@@ -1975,11 +1998,20 @@ function SessionBuddy({ db, pattern, trigger }) {
    so the separate "?" bubble beside every one of them goes: three cues meant three labels and three
    question marks fighting for a 375px row, and the pair wrapped "2 RIR" onto two lines. Tapping the
    chip still opens the explainer, which is what the "?" was for. */
+// The count said as words, because "3 sets" in a sentence reads as a table cell. Past five the
+// figure is clearer than the word.
+function setWords(n) {
+  const w = ['No sets', 'One set', 'Two sets', 'Three sets', 'Four sets', 'Five sets'][n];
+  return w || n + ' sets';
+}
+// A chip naming the line's effort target, tempo or rest. A LABEL, so Plex and sentence case:
+// DESIGN.md keeps Silkscreen for numbers you track, and this used to be `.pf.tnum`, which set "To
+// failure" in the pixel numeral face in capitals.
 function MetaBit({ label, onHelp, muted, hideHelp }) {
   return (
     <button onClick={hideHelp ? undefined : onHelp} aria-label={hideHelp ? label : 'What does ' + label + ' mean?'}
-      className="pf text-[11px] uppercase tnum shrink-0 whitespace-nowrap px-2 py-2"
-      style={{ letterSpacing: '0.08em', border: '2px solid var(--border)', background: 'var(--surface2)',
+      className="pf text-[12px] shrink-0 whitespace-nowrap px-2 py-2"
+      style={{ border: '2px solid var(--border)', background: 'var(--surface2)',
         color: muted ? 'var(--muted)' : 'var(--text)' }}>{label}</button>
   );
 }
@@ -1994,7 +2026,7 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
     body = 'The LAST set of a movement ends when the weight stops moving, not when it gets hard. Where a movement has two sets, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. The first week of a block sits a rep or two further back on everything, and it is not a formality: it is what lets the next five weeks be this hard. Stop if your form breaks rather than grinding a rep that has already gone wrong, and take the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
   } else if (topic === 'rir') {
     title = 'Reps in reserve';
-    body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the block goes on so the hard weeks land when you are ready for them.';
+    body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the programme goes on so the hard weeks land when you are ready for them.';
   } else if (topic === 'rest') {
     title = 'Rest';
     body = 'How long to leave between sets. Short rests do not make a set count for more, they just make the next one worse, so on the big compounds take the time. The timer starts on its own when you tick a set, and stays quiet after a drop set or mid-superset where the point is to keep going.';
