@@ -305,6 +305,8 @@ test('ticking a set does not take the plan away from the movement', () => {
     db, update() {}, showToast() {}, sessionId: block.sessions[0].id, blockId: block.id, onExit() {},
   });
   try {
+    // The author's note is folded behind "How to do it" so the set table stays near the top.
+    ui.click('How to do it');
     assert.ok(ui.has('Pause for a second at the bottom.'), 'the note is there to begin with: ' + ui.text.slice(0, 300));
     ui.click('Add set');
     assert.ok(ui.has('Pause for a second at the bottom.'), 'and it is still there after an edit');

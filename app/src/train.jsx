@@ -2308,20 +2308,6 @@ function HowItWorks({ onBack }) {
 
 // A small labelled action under an exercise. Four of these replaced four stacked full-width blocks:
 // same reach, a quarter of the height, and the set table now starts where your thumb already is.
-function ToolBtn({ children, onClick, on, disabled }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      className="pixel-box flex-1 h-11 text-[11px]"
-      style={{
-        background: on ? 'var(--accent)' : 'var(--surface2)',
-        color: on ? 'var(--on-accent)' : (disabled ? 'var(--muted2)' : 'var(--text2)'),
-        opacity: disabled ? 0.45 : 1,
-      }}>
-      {children}
-    </button>
-  );
-}
-
 // Beating your best used to happen in silence. It is the single most motivating thing that occurs in
 // a gym and the app said nothing at all, which is a waste of the one moment that is genuinely worth
 // celebrating. Rare, earned, and tied to a real number, so it never reads as a participation badge.

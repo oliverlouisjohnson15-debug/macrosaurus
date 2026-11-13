@@ -288,7 +288,7 @@ test('the set count is not said twice on the same screen', () => {
   } finally { ui.unmount(); }
 });
 
-test('a movement you have never trained does not offer a dead History button', () => {
+test('a movement you have never trained does not offer a dead History option', () => {
   const block = minmax();
   const db = accountWith(block);
   const session = T.weekSessions(block, 1)[0];
@@ -296,9 +296,12 @@ test('a movement you have never trained does not offer a dead History button', (
     db, update() {}, showToast() {}, sessionId: session.id, blockId: block.id, onExit() {},
   });
   try {
-    assert.ok(!ui.has('History'), 'nothing to show, so no greyed-out third button');
-    assert.ok(ui.has('Note'), 'the two that do something are still there');
-    assert.ok(ui.has('More'));
+    // Note and History live in the movement's More menu now, not as boxed buttons on every card.
+    const mores = Array.from(ui.host.querySelectorAll('button')).filter(b => b.textContent.trim() === 'More');
+    assert.ok(mores.length, 'one More per open movement');
+    ui.clickEl(mores[mores.length - 1]);
+    assert.ok(ui.findEl('Add a note'), 'the note is one tap into the menu');
+    assert.ok(!ui.findEl('History'), 'nothing to show, so no History option');
   } finally { ui.unmount(); }
 });
 
