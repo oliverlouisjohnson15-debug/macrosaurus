@@ -15,7 +15,7 @@ function MesoGrid({ weeks, sessions }) {
     <div className="flex gap-1.5">
       <div className="flex flex-col gap-1 pt-[13px] shrink-0">
         {weeks.map(w => (
-          <span key={w.week} className="pf text-[11px] w-4" style={{ height: 22, lineHeight: '22px', letterSpacing: '0.06em', color: w.deload ? 'var(--warn-ink)' : w.week === 1 ? 'var(--muted)' : 'var(--accent-ink)' }}>W{w.week}</span>
+          <span key={w.week} className="pf text-[11px] w-4" style={{ height: 22, lineHeight: '22px', letterSpacing: '0.06em', color: w.deload ? 'var(--warn-ink)' : 'var(--muted)' }}>W{w.week}</span>
         ))}
       </div>
       <div className="flex-1 min-w-0">
@@ -32,8 +32,10 @@ function MesoGrid({ weeks, sessions }) {
                   className="flex items-center justify-center text-[11px] tnum"
                   style={{
                     height: 22, boxSizing: 'border-box', border: '2px solid var(--border)', transition: 'background .25s ease',
-                    background: w.deload ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) ' + Math.min(100, Math.max(18, Math.round(s.sets / peak * 100))) + '%, var(--track))',
-                    color: w.deload ? 'var(--muted)' : 'var(--on-accent)',
+                    // The Seg's ink, not gold: gold is a screen's one primary action (DESIGN.md), and
+                    // twenty gold cells sat right above the gold button on every screen this draws on.
+                    background: w.deload ? 'var(--surface2)' : 'color-mix(in srgb, var(--seg-on) ' + Math.min(100, Math.max(12, Math.round(s.sets / peak * 100))) + '%, var(--track))',
+                    color: w.deload ? 'var(--muted)' : (s.sets / peak > 0.55 ? 'var(--seg-on-text)' : 'var(--text)'),
                   }}>{s.sets}</div>
               ))}
             </div>

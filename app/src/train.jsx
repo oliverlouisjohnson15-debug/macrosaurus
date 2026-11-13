@@ -66,9 +66,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Saved programmes" />
-      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Started, saved and finished</div>
-      <h1 className="pf text-lg mb-2">Saved programmes</h1>
-      <div className="text-[12.5px] mb-4 leading-relaxed" style={{ color: 'var(--muted)' }}>
+      <div className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Every programme you have started or saved. Tap one to change it, or delete one you made by mistake. The sessions you logged against it are kept either way.
       </div>
 
@@ -77,25 +75,11 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           since graph paper has said that. */}
       {!blocks.length && (
         <div className="p-5 text-center mb-4" style={{ border: '2px dashed var(--border)' }}>
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Nothing here yet</div>
-          <div className="text-[12.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
-            Build one from your kit and your days, or import a plan you already follow.
+          <div className="text-[15px] mb-1" style={{ fontWeight: 600 }}>Nothing here yet</div>
+          <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
+            Pick a programme below. Anything you start or save for later lands here.
           </div>
         </div>
-      )}
-
-      {/* A block you already own, as a file. The wizard's importer reads a plan somebody photographed
-          and has to guess at every line; a file has already been read exactly, so this path does no
-          guessing at all - and it is the honest way to bring in a programme you paid for, because
-          nothing about it is published or shared. */}
-      <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] mb-4 ' + (loadBusy === 'Reading it...' ? 'opacity-60' : 'cursor-pointer')}
-        style={{ background: 'var(--surface2)' }}>
-        {loadBusy === 'Reading it...' ? loadBusy : 'Load a programme file or spreadsheet'}
-        <input type="file" className="hidden" accept=".json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={loadBusy === 'Reading it...'}
-          onChange={e => { loadBlockFile(e.target.files && e.target.files[0]); e.target.value = ''; }} />
-      </label>
-      {loadBusy && loadBusy !== 'Reading it...' && (
-        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--warn)' }}>{loadBusy}</div>
       )}
 
       {blocks.map(block => {
@@ -131,7 +115,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
                 it is the difference between reading "7 of 16" and seeing it. */}
             <div className="flex gap-[1px] mt-2.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
               {Array.from({ length: 20 }, (_, i) => (
-                <i key={i} className="flex-1" style={{ height: 11, background: i < Math.round(pct * 20) ? (prog.done ? 'var(--good)' : 'var(--accent)') : 'var(--track)' }} />
+                <i key={i} className="flex-1" style={{ height: 11, background: i < Math.round(pct * 20) ? (prog.done ? 'var(--good)' : 'var(--link)') : 'var(--track)' }} />
               ))}
             </div>
             {/* A block built before a rule existed does not get it retroactively, and the ones that
@@ -147,7 +131,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
                 has for the strongest intent on the row. */}
             <div className="flex gap-2 mt-3">
               {!block.startISO && (
-                <button onClick={() => onStart(block)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--accent)', color: 'var(--on-accent)' }}>Start this programme</button>
+                <Btn kind="ghost" className="flex-1" onClick={() => onStart(block)}>Start this programme</Btn>
               )}
               <button onClick={() => onCoverage(block.id)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--surface2)' }}>What it covers</button>
               {comp.done > 0 && (
@@ -162,8 +146,22 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       {/* One way to get another one, at the bottom where the design puts it, reachable whether the
           list is empty or twelve long: the programmes. */}
       <div className="mt-1">
-        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Pick a programme</button>
+        <Btn className="w-full" onClick={onNew}>Pick a programme</Btn>
       </div>
+
+      {/* A block you already own, as a file. The wizard's importer reads a plan somebody photographed
+          and has to guess at every line; a file has already been read exactly, so this path does no
+          guessing at all - and it is the honest way to bring in a programme you paid for, because
+          nothing about it is published or shared. */}
+      <label className={'flex items-center justify-center text-[13px] mt-2 ' + (loadBusy === 'Reading it...' ? 'opacity-60' : 'cursor-pointer')}
+        style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+        {loadBusy === 'Reading it...' ? loadBusy : 'Load a programme file or spreadsheet'}
+        <input type="file" className="hidden" accept=".json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={loadBusy === 'Reading it...'}
+          onChange={e => { loadBlockFile(e.target.files && e.target.files[0]); e.target.value = ''; }} />
+      </label>
+      {loadBusy && loadBusy !== 'Reading it...' && (
+        <div className="text-[13px] mb-4 leading-snug px-3 py-2.5" style={{ background: 'var(--sunk)' }}>{loadBusy}</div>
+      )}
 
       {fixing && (() => {
         const list = Training.blockFixes(fixing, t.custom);
@@ -387,7 +385,7 @@ function ExpandableLiftList({ lifts }) {
   return <>{lifts.map(row)}</>;
 }
 
-function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockId, onBack, onNext, onRerun }) {
+function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockId, onBack, onNext, onRerun, onProgrammes }) {
   useBackClose(onBack);
   const t = tdb(db);
   const block = t.blocks.filter(b => b.id === blockId)[0];
@@ -531,9 +529,12 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
           so, and now learns your landmarks the same way this button used to. Nothing this page could
           do is left on the path fewer people were taking. */}
       <StickyAction>
-        <button onClick={() => onRerun(block.id)} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          Plan the next block ›
-        </button>
+        <Btn className="w-full" onClick={() => onRerun(block.id)}>Run it again ›</Btn>
+        {onProgrammes && (
+          <button onClick={onProgrammes} className="w-full text-[13px] mt-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+            Or pick another programme
+          </button>
+        )}
       </StickyAction>
     </div>
   );
@@ -1816,7 +1817,7 @@ async function bumpPublicBlockRuns(id) {
 const SPLIT_LABEL = { full: 'Full body', upper_lower: 'Upper / lower', ppl: 'Push pull legs', other: 'Custom split' };
 
 // ---- the library screen -------------------------------------------------------------------------
-function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onAdopt, initialPub }) {
+function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onAdopt, initialPub, onStartBlock, onSaveBlock }) {
   useBackClose(onBack);
   const t = tdb(db);
   const targets = trainTargets(db);
@@ -1839,174 +1840,143 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
   useEffect(() => { const h = setTimeout(load, 350); return () => clearTimeout(h); }, [q]);
 
   if (preview) {
-    return <SharedBlockPreview db={db} pub={preview} onBack={() => setPreview(null)} onAdopt={onAdopt} />;
+    return <SharedBlockPreview db={db} pub={preview} onBack={() => (initialPub ? onBack() : setPreview(null))} onAdopt={onAdopt} onStartBlock={onStartBlock} onSaveBlock={onSaveBlock} />;
   }
 
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Back" title="Community programmes" />
-      
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-        Blocks other members are running. Whatever you pick gets rebuilt around your kit and the volume you recover from.
-      </div>
+      <p className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+        Programmes other members are running, as they wrote them. Anything your gym cannot do is swapped, and you are told.
+      </p>
 
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search programmes"
-        className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-
-      {/* One row of filters, the two that actually decide whether a block fits your life. */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-1">
-        <FilterPill on={!days && !split} onClick={() => { setDays(null); setSplit(null); }}>All</FilterPill>
-        {[2, 3, 4, 5, 6].map(n => (
-          <FilterPill key={n} on={days === n} onClick={() => setDays(days === n ? null : n)}>{n} days</FilterPill>
+      {/* The same search and pills as the Programmes library, so the two read as one place. */}
+      <label className="flex items-center gap-2 pl-3 pr-1 field-focus mb-3" style={{ minHeight: 52, margin: 2 }}>
+        <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+        <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search programmes or authors"
+          aria-label="Search community programmes" className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
+      </label>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button onClick={() => { setDays(null); setSplit(null); }} aria-pressed={!days && !split} className={'ms-chip' + (!days && !split ? ' on' : '')}>All</button>
+        {[3, 4, 5, 6].map(n => (
+          <button key={n} onClick={() => setDays(days === n ? null : n)} aria-pressed={days === n} className={'ms-chip' + (days === n ? ' on' : '')}>{n} days</button>
+        ))}
+        {['full', 'upper_lower', 'ppl'].map(sp => (
+          <button key={sp} onClick={() => setSplit(split === sp ? null : sp)} aria-pressed={split === sp} className={'ms-chip' + (split === sp ? ' on' : '')}>{SPLIT_LABEL[sp]}</button>
         ))}
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
-        {['full', 'upper_lower', 'ppl'].map(s => (
-          <FilterPill key={s} on={split === s} onClick={() => setSplit(split === s ? null : s)}>{SPLIT_LABEL[s]}</FilterPill>
-        ))}
-      </div>
-      <div className="text-[11px] mb-4" style={{ color: 'var(--muted2)' }}>Filters match your kit and recovery settings by default.</div>
 
       {busy && items === null && <SkeletonRows n={4} />}
-      {err && <Card className="p-4 mb-4"><div className="text-[12px]">{err}</div></Card>}
-      {/* Only one of these at a time: a failure and "nothing here yet" are different stories, and
-          showing both makes the app look like it does not know which one happened. */}
+      {err && <div className="px-3 py-2.5 mb-4 text-[13px]" style={{ background: 'var(--sunk)' }}>{err}</div>}
       {items && items.length === 0 && !busy && !err && (
-        <Card className="p-4">
-          <div className="text-[13px] mb-1">Nothing here yet.</div>
-          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-            The library fills up as people share what they are running. Build or import a block and you can be the first.
+        <div className="py-4">
+          <div className="text-[15px] mb-1" style={{ fontWeight: 600 }}>Nothing here yet</div>
+          <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
+            The library fills up as people share what they are running. Share yours from My programme and you can be the first.
           </div>
-        </Card>
+        </div>
       )}
 
-      {(items || []).map(pub => (
-        <button key={pub.id} onClick={() => setPreview(pub)} className="w-full text-left pixel-box p-4 mb-4" style={{ background: 'var(--card)' }}>
-          <div className="flex items-baseline justify-between gap-2 mb-1">
-            <span className="text-[14px] font-bold truncate">{pub.title}</span>
-            {pub.runs > 0 && <span className="text-[11px] shrink-0 tnum" style={{ color: 'var(--muted2)' }}>{pub.runs} running</span>}
-          </div>
-          <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>
-            {pub.days_per_week} days · {SPLIT_LABEL[pub.split] || 'Custom split'} · {Math.round(pub.total_sets)} sets a week
-            {pub.author_name ? ' · ' + pub.author_name : ''}
-          </div>
-          {/* The muscles it hits hardest, so you can tell at a glance whether it matches what you want. */}
-          <div className="flex gap-1 flex-wrap">
-            {topMuscles(pub.muscles, 4).map(m => (
-              <span key={m} className="text-[11px] px-2 py-0.5" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{Training.MUSCLE_LABEL[m]}</span>
-            ))}
-          </div>
-        </button>
-      ))}
+      {(items || []).length > 0 && (
+        <Section title={items.length + (items.length === 1 ? ' programme' : ' programmes')}>
+          {items.map(pub => (
+            <Row key={pub.id} title={pub.title}
+              icon={<span className="text-[13px]" style={{ color: 'var(--link)', fontWeight: 700 }}>{initialsOf(pub.author_name)}</span>}
+              sub={[pub.author_name ? 'by ' + pub.author_name : null, pub.days_per_week + ' days', SPLIT_LABEL[pub.split] || null, pub.runs > 0 ? pub.runs + ' running it' : null].filter(Boolean).join(' · ')}
+              onClick={() => setPreview(pub)} />
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
 
-function FilterPill({ on, onClick, children }) {
-  return (
-    <button onClick={onClick} className="pixel-box px-3 h-11 text-[12px] whitespace-nowrap shrink-0"
-      style={{ background: on ? '#fff' : 'var(--surface2)', color: on ? '#111' : 'var(--text2)', fontWeight: on ? 700 : 400 }}>
-      {children}
-    </button>
-  );
-}
-function topMuscles(muscles, n) {
-  const m = muscles || {};
-  return Object.keys(m).filter(k => m[k] > 0).sort((a, b) => m[b] - m[a]).slice(0, n || 4);
-}
 
 // What you see before committing to someone else's block: what it is, what it trains, and
 // crucially what WE would change about it for you. Adopting silently would be the wrong move.
-function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
+function SharedBlockPreview({ db, pub, onBack, onAdopt, onStartBlock, onSaveBlock }) {
   useBackClose(onBack);
   const t = tdb(db);
-  // The author's style, if they published one, judged against YOUR landmarks for that style. A block
-  // written to be run at failure on four to ten sets a muscle has to arrive as that block; adopting
-  // it into the volume model and re-periodising it produces something its author never wrote.
+  const [starting, setStarting] = useState(false);
+  /* The same preview a Macrosaurus pick gets (design: Train: programmes and community, screen 3),
+     and run the same way: AS WRITTEN. It used to be re-periodised onto your own volume landmarks -
+     "the author runs 48 sets, yours starts at 94" - which is a different programme with their name
+     on it. The one thing still adapted is kit: a movement your gym cannot do is swapped for the
+     nearest one it can, and every swap is listed, because that is your gym's call, not theirs. */
   const style = Training.templateStyle(pub.template);
   const days = Training.templateDays(pub.template);
-  const targets = trainTargets(db, style);
-  const [result] = useState(() => Training.adoptTemplate(days, {
-    weeks: pub.weeks || 4, shape: pub.shape || 'build3-deload1', targets: targets, style: style,
-    equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom,
-    goal: pub.goal, name: pub.title, daysPerWeek: pub.days_per_week,
+  const gym = currentGym(db);
+  const build = (startISO) => Training.adoptTemplate(days, {
+    weeks: pub.weeks || 4, shape: 'as-written', style: style || 'minmax', intensity: 'high',
+    gym: gym, equipment: gym ? null : t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom,
+    goal: pub.goal, name: pub.title, daysPerWeek: pub.days_per_week, startISO: startISO || null,
     source: 'library', sourceRef: { kind: 'library', id: pub.id, author: pub.author_name || null },
-  }));
-  const cov = Training.coverage(Training.blockWeekVolume(result.block, 1, t.custom), targets);
-  const authorSets = Math.round(pub.total_sets);
-  const yourSets = Math.round(cov.totalSets);
+  });
+  const [result] = useState(() => build(null));
+  const week = Training.weekSessions(result.block, 1).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek);
+  const sets = week.reduce((a, s) => a + (s.exercises || []).reduce((b, e) => b + (e.target.sets || 0), 0), 0);
+  const mins = Math.round(week.reduce((a, s) => a + sessionMins(s.exercises), 0) / Math.max(1, week.length));
+  const fresh = (iso) => { const r = build(iso); r.block.archived = false; r.block.shared = false; return r.block; };
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Programmes" title="Shared programme" />
-      <h1 className="text-[19px] font-bold leading-tight mb-2">{pub.title}</h1>
-      <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
-        {pub.days_per_week} days a week · {SPLIT_LABEL[pub.split] || 'Custom split'}
-        {pub.author_name ? ' · by ' + pub.author_name : ''}
-        {pub.experience ? ' · written by someone ' + ({ beginner: 'newer to lifting', intermediate: 'a few years in', advanced: 'training for years' }[pub.experience] || 'training') : ''}
+      <SubHeader back={onBack} backLabel="Programmes" title="Community programme" />
+      <h1 className="text-[20px] font-bold leading-tight mb-1">{pub.title}</h1>
+      <div className="text-[13px] mb-4">
+        <span style={{ color: 'var(--link)', fontWeight: 600 }}>{pub.author_name ? 'Shared by ' + pub.author_name : 'Shared by a member'}</span>
+        {pub.runs > 0 && <span style={{ color: 'var(--muted)' }}> · {pub.runs} running it</span>}
       </div>
-
-      {/* The honest bit. This is what makes adopting safe rather than a leap of faith. */}
-      {(result.swaps.length > 0 || Math.abs(authorSets - yourSets) > 4) && (
-        <Card className="p-4 mb-4">
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>What we changed for you</div>
-          {Math.abs(authorSets - yourSets) > 4 && (
-            <div className="text-[12.5px] mb-2 leading-snug">
-              The author runs about {authorSets} sets a week. Yours starts at {yourSets}, because week 1 should be
-              somewhere you can definitely recover from, and the block builds from there.
-            </div>
-          )}
-          {result.swaps.map((s, i) => (
-            <div key={i} className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
-              {s.to ? s.from + ' becomes ' + s.to : s.from + ' left out, no kit for it'}
-              <span style={{ color: 'var(--muted2)' }}> ({s.day})</span>
-            </div>
+      <div className="px-3 py-2.5 mb-4 text-[13px] leading-snug" style={{ background: 'var(--sunk)' }}>
+        A member's programme, as they wrote it. The weights and reps you log are yours alone; nothing about you is shared back.
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-center mb-5">
+        {[[week.length, 'days/wk'], [result.block.weeks, 'weeks'], [sets, 'sets/wk'], [mins, 'min a day']].map(([v, l]) => (
+          <div key={l} className="py-2.5" style={{ background: 'var(--sunk)' }}>
+            <div className="text-[17px] num tnum">{v}</div>
+            <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      {result.swaps.length > 0 && (
+        <div className="px-3 py-2.5 mb-5 text-[13px] leading-snug" style={{ background: 'var(--sunk)' }}>
+          <div style={{ fontWeight: 600 }}>Swapped for {gym ? gym.name : 'your kit'}</div>
+          {result.swaps.map((sw, i) => (
+            <div key={i} style={{ color: 'var(--text2)' }}>{sw.to ? sw.from + ' → ' + sw.to : sw.from + ' left out, no kit for it'} <span style={{ color: 'var(--muted)' }}>({sw.day})</span></div>
           ))}
-        </Card>
+        </div>
       )}
-
-      {/* The shape of the thing you are about to take on, before the movement lists. "Four weeks,
-          four days" is a sentence; this is the climb, and it is what tells you whether somebody
-          else's block is a week you can actually stand up to. Same grid as the builder draws, so a
-          block adopted from the library and a block you wrote look like the same kind of object. */}
-      {(() => {
-        const read = readBlock(result.block);
-        if (!read) return null;
-        return (
-          <Card className="p-0 overflow-hidden mb-4">
-            <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
-            <div className="p-3.5">
-              <MesoGrid weeks={read.weeks} sessions={read.sessions} />
-              <div className="text-[11px] mt-2.5" style={{ color: 'var(--muted2)' }}>
-                About {read.minutesEach} min a session, once it is re-periodised to your numbers.
+      <Section title="The week">
+        {week.map((d, di) => (
+          <div key={d.id} className="py-3" style={di ? { borderTop: '2px solid var(--border)' } : null}>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-[14px] min-w-0" style={{ fontWeight: 700 }}>
+                <span style={{ color: 'var(--link)' }}>{WEEKDAYS[d.dayOfWeek]}</span> · {d.name.split(' - ')[0]}
+              </span>
+              <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>about {sessionMins(d.exercises)} min</span>
+            </div>
+            {Training.sessionItems(d).map(e => (
+              <div key={e.id} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
+                <span className="min-w-0" style={{ color: 'var(--text2)' }}><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
+                <span className="tnum shrink-0" style={{ color: 'var(--muted)' }}>{e.target.sets} × {Training.repLabel(e.target)}</span>
               </div>
-            </div>
-          </Card>
-        );
-      })()}
-
-      <Card className="p-4 mb-4">
-        <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Your week 1</div>
-        <CoverageBars coverage={cov} limit={6} compact />
-      </Card>
-
-      {Training.weekSessions(result.block, 1).map(s => (
-        <Card key={s.id} className="p-4 mb-4">
-          <div className="text-[13px] font-bold mb-2">{s.name}</div>
-          {s.exercises.map(e => (
-            <div key={e.id} className="flex items-baseline justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
-              <span className="text-[12px] truncate"><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
-              <span className="text-[11px] tnum whitespace-nowrap" style={{ color: 'var(--muted)' }}>{e.target.sets} x {Training.repLabel(e.target)}</span>
-            </div>
-          ))}
-        </Card>
-      ))}
+            ))}
+          </div>
+        ))}
+      </Section>
 
       <StickyAction>
-        <button onClick={() => { bumpPublicBlockRuns(pub.id); onAdopt(result.block); }} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          Run this block
-        </button>
+        <Btn className="w-full" onClick={() => setStarting(true)}>Start this programme</Btn>
+        {onSaveBlock && (
+          <button onClick={() => { bumpPublicBlockRuns(pub.id); onSaveBlock(fresh(null)); }} className="w-full text-[13px] mt-1"
+            style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Save for later</button>
+        )}
       </StickyAction>
+      {starting && (
+        <StartProgrammeSheet db={db} name={pub.title} by={pub.author_name ? 'by ' + pub.author_name : ''}
+          onClose={() => setStarting(false)}
+          onStart={(iso) => { setStarting(false); bumpPublicBlockRuns(pub.id); (onStartBlock || onAdopt)(fresh(iso)); }}
+          onCustomise={onAdopt ? () => { setStarting(false); bumpPublicBlockRuns(pub.id); onAdopt(fresh(Store.todayISO())); } : null} />
+      )}
     </div>
   );
 }

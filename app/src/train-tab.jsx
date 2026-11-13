@@ -81,16 +81,25 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   /* A programme, started. The block is built exactly as the builder would build it, saved as the
      running one (whatever was running retires, as saving a new block always has done), and then the
      one question the plan cannot answer: which days. */
-  function startProgramme(key, startISO) {
-    const blk = Training.programmeBlock(key, { custom: t.custom, startISO: startISO });
+  function startBlock(blk) {
     if (!blk) return;
     const gym = currentGym(db);
-    if (gym) blk.gymId = gym.id;
+    if (gym && !blk.gymId) blk.gymId = gym.id;
     trainUpdate(update, (tr) => {
       tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
       tr.blocks.push(blk);
     });
     go('schedule', { blockId: blk.id, fresh: true });
+  }
+  function startProgramme(key, startISO) {
+    startBlock(Training.programmeBlock(key, { custom: t.custom, startISO: startISO }));
+  }
+  // On the shelf, not running: competes with nothing until it is started from Saved programmes.
+  function saveBlockForLater(blk) {
+    if (!blk) return;
+    trainUpdate(update, (tr) => { tr.blocks.push(Object.assign({}, blk, { startISO: null })); });
+    showToast && showToast('Saved to your programmes. Start it whenever you like.');
+    go('blocks', { from: 'home' });
   }
   const customiseProgramme = (key, from) => go('builder', { from: from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) });
 
@@ -173,7 +182,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   }
   if (screen.name === 'library') {
     return page(<BlockLibrary db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      initialPub={screen.pub || null} onBack={() => go(screen.pub ? 'home' : 'block')} onAdopt={(block) => go('builder', { draft: block })} />);
+      initialPub={screen.pub || null} onBack={() => go(screen.pub ? 'home' : 'block')}
+      onStartBlock={startBlock} onSaveBlock={saveBlockForLater} onAdopt={(block) => go('builder', { draft: block })} />);
   }
   if (screen.name === 'coverage') {
     return page(<CoverageScreen db={db} update={update} isPremium={isPremium} onUpgrade={onUpgrade}
@@ -183,6 +193,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
     return page(<BlockReviewScreen db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       blockId={screen.blockId} onBack={() => go(screen.from || 'home')}
       onRerun={(blockId) => go('rerun', { blockId })}
+      onProgrammes={() => go('programmes', { from: 'home' })}
       onNext={(draft) => go('builder', { draft })} />);
   }
   if (screen.name === 'history') {
@@ -388,7 +399,7 @@ function nextMondayISO(todayISO) {
   const dow = (d.getUTCDay() + 6) % 7;            // Monday-first, like every dayOfWeek here
   return new Date(d.getTime() + ((7 - dow) % 7 || 7) * 86400000).toISOString().slice(0, 10);
 }
-function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
+function StartProgrammeSheet({ db, name, by, onStart, onCustomise, onClose }) {
   const today = Store.todayISO();
   const monday = nextMondayISO(today);
   const isMonday = ((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7) === 0;
@@ -399,7 +410,7 @@ function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
   const opts = [[today, 'Today'], ...(isMonday ? [] : [[monday, 'Next Monday']])];
   return (
     <Sheet title="When do you start?" onClose={onClose} z={86}>
-      <div className="text-[15px]" style={{ fontWeight: 600 }}>{p.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {programmeBy(p)}</span></div>
+      <div className="text-[15px]" style={{ fontWeight: 600 }}>{name}{by ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {by}</span> : null}</div>
       <Seg value={when} onChange={setWhen} options={opts.map(([v, l]) => ({ v: v, l: l }))} />
       <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
         {when === today
@@ -411,10 +422,10 @@ function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
           This replaces {replaces.name}, which is in week {runningProg.week} of {replaces.weeks}. Your logged sessions are kept.
         </div>
       )}
-      <Btn className="w-full" onClick={() => onStart(p.key, when)}>Next: your days</Btn>
-      <button onClick={() => onCustomise(p.key)} className="w-full text-[13px] text-center" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+      <Btn className="w-full" onClick={() => onStart(when)}>Next: your days</Btn>
+      {onCustomise && <button onClick={onCustomise} className="w-full text-[13px] text-center" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
         Customise first
-      </button>
+      </button>}
     </Sheet>
   );
 }
@@ -476,9 +487,9 @@ function ProgrammeGallery({ db, onStart, onCustomise, onCommunity, onCommunityAl
       </Section>
       {openP && !starting && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
       {starting && openP && (
-        <StartProgrammeSheet db={db} p={openP} onClose={() => setStarting(null)}
-          onStart={(key, iso) => { setStarting(null); setOpen(null); onStart(key, iso); }}
-          onCustomise={(key) => { setStarting(null); setOpen(null); onCustomise(key); }} />
+        <StartProgrammeSheet db={db} name={openP.name} by={programmeBy(openP)} onClose={() => setStarting(null)}
+          onStart={(iso) => { const key = openP.key; setStarting(null); setOpen(null); onStart(key, iso); }}
+          onCustomise={() => { const key = openP.key; setStarting(null); setOpen(null); onCustomise(key); }} />
       )}
     </div>
   );

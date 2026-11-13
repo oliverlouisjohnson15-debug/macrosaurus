@@ -83,3 +83,25 @@ test('a movement page leads with its best numbers and how to do it, with dates w
   assert.ok(r.has('How to do it') && r.has('stretch-biased curl'), 'and the form cue');
   assert.ok(r.has('5 Mar') && !r.has('2026-03-05'), 'a written date, never a raw ISO one');
 });
+
+test('a community programme runs as its author wrote it, started the same way as ours', () => {
+  const src = T.programmeBlock('mac5', {});
+  const pub = { id: 'p1', title: 'Strength Base', author_name: 'Sam Lee', days_per_week: 5, split: 'upper_lower', total_sets: 40, runs: 3, template: T.templateOf(src) };
+  const db = accountWith(null);
+  db.training.blocks = [];
+  let started = null;
+  const ui = mount(A.SharedBlockPreview, { db, pub, onBack() {}, onAdopt() {}, onStartBlock: (b) => { started = b; }, onSaveBlock() {} });
+  try {
+    assert.ok(ui.has('Shared by Sam Lee') && ui.has('3 running it'), 'credited: ' + ui.text.slice(0, 300));
+    assert.ok(ui.has('as they wrote it'), 'and says so');
+    assert.ok(!ui.has('Yours starts at'), 'no re-periodising onto our landmarks');
+    ui.click('Start this programme');
+    ui.clickEl(ui.findEl('Next: your days'));
+  } finally { ui.unmount(); }
+  assert.ok(started, 'it started');
+  assert.equal(started.shape, 'as-written');
+  assert.equal(started.startISO, A.Store.todayISO());
+  const want = src.sessions.filter(s => s.week === 1).flatMap(s => s.exercises.map(e => e.target.sets));
+  const got = started.sessions.filter(s => s.week === 1).flatMap(s => s.exercises.map(e => e.target.sets));
+  assert.deepEqual(got, want, 'the author\'s set counts, untouched');
+});
