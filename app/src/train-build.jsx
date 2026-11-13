@@ -983,7 +983,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
     <div className="fade-in pb-2">
       <SubHeader back={onBack} backLabel="Train" title={live.name} />
       <div className="text-[13px] mb-1" style={{ color: 'var(--muted)', fontWeight: 600 }}>
-        {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
+        {live.focus ? live.focus + ' · ' : ''}{prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
       </div>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min

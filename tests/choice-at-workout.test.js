@@ -15,7 +15,7 @@ const { app, mount, accountWith } = require('./helpers/app.js');
 const A = app();
 const T = A.Training;
 
-const QUAD_DAY = 'Legs (Quad Focus)';
+const QUAD_DAY = 'Legs B';
 const squatLines = (block) => block.sessions.flatMap(s => s.exercises
   .filter(e => e.choice && e.choice.key === 'squat')
   .map(e => ({ week: s.week, day: s.name, id: e.exerciseId })));
@@ -34,7 +34,7 @@ test('a pick from week 2 changes weeks 2 on and leaves week 1 as it was lifted',
 test('a pick answers every day that shares the question', () => {
   const b = T.programmeBlock('qp5');
   // Give the posterior-chain day the same leg-curl question the quad day has.
-  b.sessions.filter(s => s.name === 'Legs (Posterior Chain Focus)').forEach(s => {
+  b.sessions.filter(s => s.name === 'Legs A').forEach(s => {
     const first = s.exercises.find(e => e.order === 0);
     const curl = b.sessions.find(x => x.name === QUAD_DAY).exercises.find(e => e.choice && e.choice.key === 'leg_curl');
     first.exerciseId = 'lying_leg_curl';

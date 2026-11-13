@@ -78,6 +78,22 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
     if (gymsOf(db).length > 1) { setPendingStart({ sessionId: null, blockId: null, freeform: true }); return; }
     go('player', { freeform: true });
   }
+  /* A programme, started. The block is built exactly as the builder would build it, saved as the
+     running one (whatever was running retires, as saving a new block always has done), and then the
+     one question the plan cannot answer: which days. */
+  function startProgramme(key, startISO) {
+    const blk = Training.programmeBlock(key, { custom: t.custom, startISO: startISO });
+    if (!blk) return;
+    const gym = currentGym(db);
+    if (gym) blk.gymId = gym.id;
+    trainUpdate(update, (tr) => {
+      tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
+      tr.blocks.push(blk);
+    });
+    go('schedule', { blockId: blk.id, fresh: true });
+  }
+  const customiseProgramme = (key, from) => go('builder', { from: from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) });
+
   // Looking is not starting. A tap on a day opens the plan; the button on that screen begins it.
   function previewSession(session, blk) {
     go('preview', { sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
@@ -115,7 +131,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : null;
     const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
     if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
+      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
+    onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
     return page(<SessionPreview db={db} update={update} showToast={showToast} session={sess} block={blk}
       onBack={() => go('home')} onStart={() => startSession(sess, blk)} />);
   }
@@ -129,7 +146,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   // the tab's home: Blocks, and Your blocks.
   if (screen.name === 'programmes') {
     return page(<ProgrammesScreen db={db} onBack={() => go(screen.from || 'home')}
-      onPick={(key) => go('builder', { from: screen.from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />);
+      onStart={startProgramme} onCustomise={(key) => customiseProgramme(key, screen.from)} />);
   }
   if (screen.name === 'rerun') {
     return page(<RerunScreen db={db} update={update} showToast={showToast} blockId={screen.blockId}
@@ -185,7 +202,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   if (screen.name === 'schedule') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
+      block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
+    onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
     return page(<ScheduleDays db={db} update={update} showToast={showToast}
       block={blk} fresh={!!screen.fresh} onBack={() => go(screen.fresh ? 'home' : 'block')} />);
   }
@@ -203,7 +221,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   // to ask, and reaching it meant a menu inside a menu inside a menu. `StatSheet` itself is left
   // standing for the Play side, which is where a character sheet belongs.
   return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-    block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go} />);
+    block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
+    onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
 }
 
 // ---- home -------------------------------------------------------------------------------------
@@ -247,11 +266,13 @@ function WeekStrip({ days }) {
         const d = by[i];
         return (
           <div key={i} className="flex flex-col items-center gap-1">
-            <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l}</span>
-            <span className="pf w-full flex items-center justify-center text-[9px]" style={{
-              height: 22,
-              background: d ? 'var(--accent)' : 'var(--sunk)',
-              color: d ? 'var(--on-accent)' : 'transparent',
+            <span className="text-[11px]" style={{ color: 'var(--muted)' }}>{l}</span>
+            {/* The Seg's "selected" fill, not gold: gold is the screen's one primary action
+                (DESIGN.md, Colour), and a card sits right next to the Start button. */}
+            <span className="pf w-full flex items-center justify-center text-[11px]" style={{
+              height: 24,
+              background: d ? 'var(--seg-on)' : 'var(--sunk)',
+              color: d ? 'var(--seg-on-text)' : 'transparent',
             }}>{d ? (DAY_KIND_SHORT[d.kind] || d.name.slice(0, 2).toUpperCase()) : '·'}</span>
           </div>
         );
@@ -264,9 +285,12 @@ function ProgrammeTile({ p, onOpen }) {
   return (
     <button onClick={onOpen} className="pixel-box text-left w-full p-3 flex flex-col gap-2.5 active:opacity-95" style={{ background: 'var(--card)' }}>
       <WeekStrip days={p.days} />
+      {/* What it IS leads; whose it is follows. A dinosaur name says nothing about the plan, so it is
+          the badge rather than the title, and a programme somebody wrote carries their name instead. */}
       <div className="min-w-0">
-        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{p.name}</div>
-        <div className="text-[12px] mt-1" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{p.blurb}</div>
+        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{p.type}</div>
+        <div className="text-[12px] mt-1 truncate" style={{ color: 'var(--link)', fontWeight: 600 }}>{programmeBy(p)}</div>
+        <div className="text-[12px] mt-0.5" style={{ color: 'var(--muted)' }}>{p.blurb}</div>
       </div>
       <div className="text-[12px] tnum mt-auto" style={{ color: 'var(--muted)' }}>
         {p.daysPerWeek} days · {p.sets} sets/wk
@@ -275,13 +299,17 @@ function ProgrammeTile({ p, onOpen }) {
   );
 }
 
+// "Raptor", or "by Quinton Pulliam" for a programme a person wrote: credited the way Cook credits a
+// recipe's creator.
+function programmeBy(p) { return p.author ? 'by ' + p.author : p.name; }
+
 // Everything a card can show about a programme, read off the programme itself so no number here can
 // drift from what the block will actually say.
 function programmeCards(custom) {
   return Training.PROGRAMMES.map(p => {
     const sum = Training.programmeSummary(p.key, custom);
     const days = p.template.map(d => ({
-      name: d.name, kind: d.kind, dayOfWeek: d.dayOfWeek,
+      name: d.name, focus: d.focus || null, kind: d.kind, dayOfWeek: d.dayOfWeek,
       mins: sessionMins(d.exercises),
       lines: d.exercises.map(e => ({
         names: (e.choice && e.choice.options && e.choice.options.length > 1 ? e.choice.options : [e.exerciseId])
@@ -297,14 +325,15 @@ function programmeCards(custom) {
 function ProgrammePreview({ p, onStart, onClose }) {
   const mins = Math.round(p.days.reduce((a, d) => a + d.mins, 0) / Math.max(1, p.days.length));
   return (
-    <Sheet title={p.name} onClose={onClose} wide z={85}>
+    <Sheet title={p.type} onClose={onClose} wide z={85}>
+      <div className="text-[13px] -mt-3" style={{ color: 'var(--link)', fontWeight: 600 }}>{programmeBy(p)}</div>
       <div className="flex flex-wrap gap-2">
         <span className="ms-chip on">{p.blurb}</span>
         {p.setting && <span className="ms-chip">{p.setting}</span>}
       </div>
       {p.about && <p className="text-[15px] leading-snug">{p.about}</p>}
       <div className="grid grid-cols-4 gap-2 text-center">
-        {[[p.daysPerWeek, 'days/wk'], [p.weeks, 'weeks'], [p.sets, 'sets/wk'], ['~' + mins, 'min/day']].map(([v, l]) => (
+        {[[p.daysPerWeek, 'days/wk'], [p.weeks, 'weeks'], [p.sets, 'sets/wk'], [mins, 'min a day']].map(([v, l]) => (
           <SheetBox key={l} className="py-2.5">
             <div className="text-[17px] tnum num" style={{ fontWeight: 700 }}>{v}</div>
             <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{l}</div>
@@ -317,7 +346,8 @@ function ProgrammePreview({ p, onStart, onClose }) {
           <div key={di} className="py-3" style={di ? { borderTop: '2px solid var(--border)' } : null}>
             <div className="flex items-baseline justify-between gap-2 mb-1.5">
               <span className="text-[14px] min-w-0" style={{ fontWeight: 700 }}>
-                <span style={{ color: 'var(--accent-ink)' }}>{WEEKDAYS[d.dayOfWeek]}</span> · {d.name}
+                <span style={{ color: 'var(--link)' }}>{WEEKDAYS[d.dayOfWeek]}</span> · {d.name}
+                {d.focus && <span className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 400 }}> · {d.focus}</span>}
               </span>
               <span className="text-[12px] tnum shrink-0" style={{ color: 'var(--muted)' }}>~{d.mins} min</span>
             </div>
@@ -335,7 +365,7 @@ function ProgrammePreview({ p, onStart, onClose }) {
         ))}
       </Section>
       <div className="flex flex-col gap-2">
-        <Btn className="w-full" onClick={() => onStart(p.key)}>Start {p.name}</Btn>
+        <Btn className="w-full" onClick={() => onStart(p.key)}>Start this programme</Btn>
         <div className="text-[13px] text-center leading-snug" style={{ color: 'var(--muted)' }}>
           Next you can pick your options, move days and swap anything your gym has not got.
         </div>
@@ -344,13 +374,55 @@ function ProgrammePreview({ p, onStart, onClose }) {
   );
 }
 
+/* Starting one, in a single question. The builder used to stand between the preview and the first
+   session: a 2,400px page of name, date, priority muscle, volume panels, open slots, day count and
+   sharing, for a plan whose whole point is that somebody already wrote it. TrainHeroic asks one thing
+   - when - and so does this. Which DAYS comes next, on the page built for it, and everything else is
+   one tap away behind "Customise first" for the people who want it. */
+function nextMondayISO(todayISO) {
+  const d = new Date(todayISO + 'T00:00:00Z');
+  const dow = (d.getUTCDay() + 6) % 7;            // Monday-first, like every dayOfWeek here
+  return new Date(d.getTime() + ((7 - dow) % 7 || 7) * 86400000).toISOString().slice(0, 10);
+}
+function StartProgrammeSheet({ db, p, onStart, onCustomise, onClose }) {
+  const today = Store.todayISO();
+  const monday = nextMondayISO(today);
+  const isMonday = ((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7) === 0;
+  const [when, setWhen] = useState(today);
+  const running = activeBlock(db);
+  const runningProg = running ? Training.blockProgress(running, today) : null;
+  const replaces = running && runningProg && !runningProg.done ? running : null;
+  const opts = [[today, 'Today'], ...(isMonday ? [] : [[monday, 'Next Monday']])];
+  return (
+    <Sheet title="When do you start?" onClose={onClose} z={86}>
+      <div className="text-[15px]" style={{ fontWeight: 600 }}>{p.type} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {programmeBy(p)}</span></div>
+      <Seg value={when} onChange={setWhen} options={opts.map(([v, l]) => ({ v: v, l: l }))} />
+      <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
+        {when === today
+          ? 'Week one starts today. Next, pick which days you train.'
+          : 'Week one starts ' + WEEKDAYS_FULL[0] + ' ' + new Date(monday + 'T00:00:00Z').getUTCDate() + ' ' + MONTHS[new Date(monday + 'T00:00:00Z').getUTCMonth()] + '. Next, pick which days you train.'}
+      </div>
+      {replaces && (
+        <div className="px-3 py-2.5 text-[13px] leading-snug" style={{ background: 'var(--sunk)' }}>
+          This replaces {replaces.name}, which is in week {runningProg.week} of {replaces.weeks}. Your logged sessions are kept.
+        </div>
+      )}
+      <Btn className="w-full" onClick={() => onStart(p.key, when)}>Start {p.weeks} weeks</Btn>
+      <button onClick={() => onCustomise(p.key)} className="w-full text-[13px] text-center" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+        Customise first
+      </button>
+    </Sheet>
+  );
+}
+
 // The gallery: filter pills, a grid of cards, and the preview behind each. Shared by the tab's home
 // and the Programmes page, so the two can never show different programmes or different numbers.
-function ProgrammeGallery({ db, onPick, className }) {
+function ProgrammeGallery({ db, onStart, onCustomise, className }) {
   const t = tdb(db);
   const list = useMemo(() => programmeCards(t.custom), [t.custom]);
   const [pick, setPick] = useState('all');
   const [open, setOpen] = useState(null);
+  const [starting, setStarting] = useState(null);
   if (!list.length) return null;
   const pills = programmeFilters(list);
   const shown = list.filter(p => programmeMatches(p, pick));
@@ -365,25 +437,30 @@ function ProgrammeGallery({ db, onPick, className }) {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {shown.map(p => <ProgrammeTile key={p.key} p={p} onOpen={() => setOpen(p.key)} />)}
       </div>
-      {openP && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => { setOpen(null); onPick(key); }} />}
+      {openP && !starting && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
+      {starting && openP && (
+        <StartProgrammeSheet db={db} p={openP} onClose={() => setStarting(null)}
+          onStart={(key, iso) => { setStarting(null); setOpen(null); onStart(key, iso); }}
+          onCustomise={(key) => { setStarting(null); setOpen(null); onCustomise(key); }} />
+      )}
     </div>
   );
 }
 
 // The gallery as a page, for the routes that are not the tab's home.
-function ProgrammesScreen({ db, onBack, onPick }) {
+function ProgrammesScreen({ db, onBack, onStart, onCustomise }) {
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Back" title="Programmes" />
       <div className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Written plans, ready to run. Tap one to see the whole week.
       </div>
-      <ProgrammeGallery db={db} onPick={onPick} className="mb-4" />
+      <ProgrammeGallery db={db} onStart={onStart} onCustomise={onCustomise} className="mb-4" />
     </div>
   );
 }
 
-function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onResume, onFreeform, go }) {
+function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onResume, onFreeform, go, onStartProgramme, onCustomiseProgramme }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -583,6 +660,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             <div className="p-4">
               <div className="flex items-baseline justify-between gap-2 text-[13px]" style={{ fontWeight: 600 }}><span style={{ color: 'var(--link)' }}>{live ? 'In progress' : 'Next'}{WEEKDAYS_FULL[next.session.dayOfWeek] ? ' · ' + WEEKDAYS_FULL[next.session.dayOfWeek] : ''}</span><span className="tnum" style={{ color: 'var(--muted)', fontWeight: 400 }}>about {sessionMins(next.session.exercises)} min</span></div>
               <button onClick={() => onOpen(next.session, block)} className="block text-left text-[24px] leading-tight mt-1" style={{ fontWeight: 700, minHeight: 44 }} aria-label={'Open ' + next.session.name.split(' - ')[0]}>{next.session.name.split(' - ')[0]}</button>
+              {next.session.focus && <div className="text-[15px] -mt-0.5 mb-1" style={{ color: 'var(--text2)', fontWeight: 600 }}>{next.session.focus}</div>}
               <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
                 {live
                   ? (() => {
@@ -823,7 +901,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {(!block || blockDone) && (
         <>
           {blockDone && <div className="text-[15px] font-bold mb-3">Pick your next programme</div>}
-          <ProgrammeGallery db={db} className="mb-4" onPick={(key) => go('builder', { draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) })} />
+          <ProgrammeGallery db={db} className="mb-4" onStart={onStartProgramme} onCustomise={(key) => onCustomiseProgramme(key)} />
         </>
       )}
       {!block && onFreeform && (
@@ -926,7 +1004,7 @@ function BlockPlace({ db, block, go }) {
         <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>Week {prog.week} of {block.weeks} · {weekRangeLabel(block.startISO, prog.week)}</div>
         <Section title="Schedule" right={{ label: 'Move days', onClick: () => go('schedule', { blockId: block.id }) }}>
           {days.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i).map(s => (
-            <Row key={s.id} title={s.name.split(' - ')[0]} sub={(s.exercises || []).length + ' exercises · about ' + sessionMins(s.exercises) + ' min'}
+            <Row key={s.id} title={s.name.split(' - ')[0]} sub={(s.focus ? s.focus + ' · ' : '') + (s.exercises || []).length + ' exercises · about ' + sessionMins(s.exercises) + ' min'}
               icon={<span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}>{WEEKDAYS[s.dayOfWeek]}</span>}
               onClick={() => go('preview', { sessionId: s.id, blockId: block.id })} />))}
         </Section>

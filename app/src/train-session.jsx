@@ -1401,8 +1401,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       : work.length === 1
                         ? 'One set here. Make it count: take it to the rep where the weight stops moving.'
                         : tgt.rir > 0
-                          ? 'Two sets. Stop the first one a rep short; the second is the one you take until the weight stops moving.'
-                          : 'Two sets, both to failure. The second is lighter for exactly that reason.'}
+                          ? setWords(work.length) + '. Stop ' + (work.length === 2 ? 'the first one' : 'the early ones') + ' a rep short; the last is the one you take until the weight stops moving.'
+                          : setWords(work.length) + ', ' + (work.length === 2 ? 'both' : 'all') + ' to failure. ' + (work.length === 2 ? 'The second is' : 'The later ones are') + ' lighter for exactly that reason.'}
                   </div>
                 )}
 
@@ -1975,11 +1975,20 @@ function SessionBuddy({ db, pattern, trigger }) {
    so the separate "?" bubble beside every one of them goes: three cues meant three labels and three
    question marks fighting for a 375px row, and the pair wrapped "2 RIR" onto two lines. Tapping the
    chip still opens the explainer, which is what the "?" was for. */
+// The count said as words, because "3 sets" in a sentence reads as a table cell. Past five the
+// figure is clearer than the word.
+function setWords(n) {
+  const w = ['No sets', 'One set', 'Two sets', 'Three sets', 'Four sets', 'Five sets'][n];
+  return w || n + ' sets';
+}
+// A chip naming the line's effort target, tempo or rest. A LABEL, so Plex and sentence case:
+// DESIGN.md keeps Silkscreen for numbers you track, and this used to be `.pf.tnum`, which set "To
+// failure" in the pixel numeral face in capitals.
 function MetaBit({ label, onHelp, muted, hideHelp }) {
   return (
     <button onClick={hideHelp ? undefined : onHelp} aria-label={hideHelp ? label : 'What does ' + label + ' mean?'}
-      className="pf text-[11px] uppercase tnum shrink-0 whitespace-nowrap px-2 py-2"
-      style={{ letterSpacing: '0.08em', border: '2px solid var(--border)', background: 'var(--surface2)',
+      className="pf text-[12px] shrink-0 whitespace-nowrap px-2 py-2"
+      style={{ border: '2px solid var(--border)', background: 'var(--surface2)',
         color: muted ? 'var(--muted)' : 'var(--text)' }}>{label}</button>
   );
 }
