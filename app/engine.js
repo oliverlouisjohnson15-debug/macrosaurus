@@ -42,6 +42,12 @@
     };
   }
   function tdeeFromProfile(p) { return tdeeBreakdown(p).tdee; }
+  // How much the burn moves per kg of bodyweight, from the same model: BMR, steps and training all
+  // scale with weight. A learned burn is only true AT the weight it was measured at; this is what
+  // carries it to another one (see updateExpenditure's `ref`).
+  function burnPerKg(p) {
+    return round(10 * RESTING_MULT + (p.avgSteps || 0) * KCAL_PER_STEP_PER_KG + ((p.gymSessionsPerWeek || 0) * KCAL_PER_GYM_SESSION_PER_KG) / 7, 2);
+  }
 
   // Evidence-based sustainable rate guardrail. Helms et al.: ~0.5–1% of bodyweight/week during a cut
   // best preserves lean mass, with leaner dieters sitting at the slower end; lean bulks want roughly
@@ -961,14 +967,27 @@
   // first-cycle water discount and the overlap discount on a widened read. Recording those as quality
   // would make the next ordinary cycle look like a leap in tracking and hand it the maximum weight.
   // Omitted, it defaults to conf; null leaves the stored quality untouched.
-  function updateExpenditure(prior, estimate, conf, quality) {
+  // `ref` (optional) { perKg, nowKg, estKg } puts both numbers at today's weight before blending them.
+  // A burn falls as weight comes off (BMR, steps and training all scale with kg), and both the stored
+  // burn (learned at an older, heavier weight) and this cycle's read (centred on the middle of a
+  // fortnight) describe a heavier body than the one the next target is for. Blending them as they
+  // stand plans every week on a burn one to three weeks stale, which in simulation left a perfectly
+  // compliant dieter losing ~0.49 kg a week against a 0.6 goal. The result carries `kg`, the weight
+  // it is now true at, so the next check-in can carry it on again.
+  function updateExpenditure(prior, estimate, conf, quality, ref) {
     var est = +estimate;
     if (!isFinite(est)) return prior || null;
     var c = clamp(conf == null ? 0.5 : +conf, 0, 1);
     var pk = (prior && isFinite(+prior.kcal)) ? +prior.kcal : null;
+    var hasRef = ref && isFinite(+ref.perKg) && isFinite(+ref.nowKg);
+    if (hasRef) {
+      if (isFinite(+ref.estKg)) est += ref.perKg * (ref.nowKg - ref.estKg);
+      if (pk != null && prior.kg != null && isFinite(+prior.kg)) pk += ref.perKg * (ref.nowKg - +prior.kg);
+    }
+    var kgOut = hasRef ? { kg: round(+ref.nowKg, 2) } : {};
     var n = (prior && isFinite(+prior.n)) ? Math.max(0, +prior.n) : 0;
     var qc = quality === undefined ? c : (quality === null ? null : clamp(+quality, 0, 1));
-    if (pk == null) return { kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) };
+    if (pk == null) return Object.assign({ kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) }, kgOut);
     var ramp = clamp((n + 1) / 5, 0.2, 0.6);
     // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
     // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log fully.
@@ -985,7 +1004,7 @@
     var staleLift = clamp((age - 7) / 28, 0, 0.25);
     var k = c * Math.min(0.85, ramp + Math.max(qualityLift, staleLift));
     var qNew = qc == null ? q : (q == null ? qc : q + 0.5 * (qc - q));
-    return { kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
+    return Object.assign({ kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) }, kgOut);
   }
 
   // A check-in held as TOO PATCHY TO READ says the weeks since the estimate was learned are not
@@ -1126,11 +1145,16 @@
     // estimate into it (confidence-scaled) and build the desired target on the SMOOTHED burn,
     // not the noisy single-cycle read. Without a prior (legacy callers), use the raw estimate.
     var smoothed = null, burnRef = opts.estimate.tdee;
+    // Burn at today's weight, when the read says what weight it was taken at (see updateExpenditure).
+    var perKg = burnPerKg(profile);
+    var ref = (isFinite(+opts.estimate.kgMid) && isFinite(+profile.weightKg)) ? { perKg: perKg, nowKg: +profile.weightKg, estKg: +opts.estimate.kgMid } : null;
     if (opts.expenditure && isFinite(+opts.expenditure.kcal)) {
-      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf, trackQuality);
+      smoothed = updateExpenditure(opts.expenditure, opts.estimate.tdee, conf, trackQuality, ref);
       burnRef = smoothed.kcal;
-    }
-    var desiredKcal = burnRef + goalDelta;
+    } else if (ref) burnRef = round(burnRef + perKg * (ref.nowKg - ref.estKg));
+    // ...and the target is for the week AHEAD, whose middle is half a week further along the goal.
+    var planBurn = ref ? burnRef + perKg * (goalDelta / KCAL_PER_KG) * 3.5 : burnRef;
+    var desiredKcal = planBurn + goalDelta;
     // Deadband: a difference smaller than measurement noise is not worth chasing. Hold instead of
     // proposing a token change. Uses the estimate's uncertainty band when one is available.
     // The hold is decided on CALORIES (the target is already within noise of what the burn says), not
@@ -1993,13 +2017,43 @@
     }
     if (!(span > 0.5)) return null;
     var coverage = covered / span;
-    var out = { dKg: dKg, span: span, coverage: round(coverage, 3), kernel: kernel, kcal: covered > 0 ? kcalW / covered : null };
+    var out = { dKg: dKg, span: span, coverage: round(coverage, 3), kernel: kernel, kcal: covered > 0 ? kcalW / covered : null, kgMid: (base.cur + base.prev) / 2 };
     // Did the eating step between the two windows? Plain means over each window's trusted days.
     function avgIn(a, b) { var s = 0, n = 0; for (var x in ib) if (x >= a && x <= b && ib[x] > 0) { s += ib[x]; n++; } return n >= 3 ? s / n : null; }
     var curK = avgIn(base.curStart || cs, today), prevK = avgIn(from, shiftISOdays(cs, -1));
     if (curK != null && prevK != null && Math.abs(curK - prevK) >= TRANSITION_KCAL)
       out.transition = { fromKcal: round(prevK), toKcal: round(curK) };
     return out;
+  }
+
+  // The check-in after an off-plan week (and the one after that, if the week's water left too few
+  // clean mornings to compare against). Nothing is read from it: the burn stays exactly as learned.
+  // But a phase may have moved the PACE, and that change does not depend on reading anything, so it
+  // still goes through, built on the burn already learned (carried to today's weight). Holding the
+  // calories while the pace moves would leave the plan saying one rate and the food another.
+  function afterOffPlanHold(opts, avgKcal, cycleDays) {
+    var profile = opts.profile, cur = opts.currentTargets;
+    var held = 'Your off-plan week is left out completely, food and weigh-ins, along with the first few mornings after it while its extra water clears. That leaves too few clean weigh-ins to compare this week against, and reading it on its own would mistake that water for fat, so your burn stays as it was.';
+    var base = { changed: false, direction: 'unchanged', afterOffPlan: true, earlyPhase: true,
+      reason: held + ' Your targets hold, and once a clean week is behind you the next check-in adjusts as normal.',
+      estimate: { tdee: (opts.expenditure && opts.expenditure.kcal) || cur.kcal, avgKcal: round(avgKcal), weeklyChangeKg: null, days: cycleDays } };
+    var ex = opts.expenditure, goal = profile.goalType;
+    var ran = opts.prevRateKgPerWeek, now = Math.abs(profile.rateKgPerWeek || 0);
+    if (!ex || !(ex.kcal > 0) || goal === 'maintain' || ran == null || !isFinite(+ran) || Math.abs(Math.abs(+ran) - now) < 0.01) return base;
+    var perKg = burnPerKg(profile);
+    var burn = +ex.kcal + ((ex.kg != null && isFinite(+ex.kg) && isFinite(+profile.weightKg)) ? perKg * (+profile.weightKg - +ex.kg) : 0);
+    var delta = goalDailyDelta(goal, now) - goalDailyDelta(goal, Math.abs(+ran));
+    var cap = clamp(round(0.10 * burn), 150, 350);
+    var step = clamp(round(delta), -cap, cap);
+    if (Math.abs(step) < 25) return base;
+    var newKcal = Math.max(kcalFloor(profile), cur.kcal + step);
+    var nt = macrosFromKcal(newKcal, profile);
+    nt.estimatedTDEE = round(burn); nt.source = 'adaptive';
+    var kg = function (v) { return profile.weight_unit === 'st_lb' ? (Math.abs(v) * 2.20462).toFixed(1) + ' lb' : Math.abs(v).toFixed(2) + ' kg'; };
+    var dir = newKcal > cur.kcal ? 'up' : 'down';
+    return Object.assign({}, base, { changed: true, direction: dir, deltaKcal: newKcal - cur.kcal, newTargets: nt,
+      reason: held + ' Your pace has moved, though, from ' + kg(ran) + ' to ' + kg(now) + ' a week, and that needs no reading, so on the burn already learned I\'m '
+        + (dir === 'up' ? 'giving you back ' : 'taking off ') + Math.abs(newKcal - cur.kcal) + ' kcal, so ' + newKcal + ' a day from here. Once a clean week is behind you the next check-in adjusts as normal.' });
   }
 
   function checkInDecision(opts) {
@@ -2029,7 +2083,7 @@
       var m = matchedIntake(Object.assign({}, opts, { intakeByDate: byDate }));
       if (!m || m.kcal == null || m.coverage < MATCH_MIN_COVERAGE) return null;
       var perDay = m.dKg / m.span;
-      var e = { tdee: round(m.kcal - perDay * KCAL_PER_KG), avgKcal: round(m.kcal), weeklyChangeKg: round(perDay * 7, 3), days: cycleDays,
+      var e = { tdee: round(m.kcal - perDay * KCAL_PER_KG), avgKcal: round(m.kcal), weeklyChangeKg: round(perDay * 7, 3), days: cycleDays, kgMid: round(m.kgMid, 2),
         matched: { span: round(m.span, 1), coverage: m.coverage } };
       if (weightOnly) e.weightOnly = true;
       if (m.transition) e.transition = m.transition;
@@ -2059,7 +2113,9 @@
       // when on-track the rate gap is ~0 and it holds, so what was actually eaten never needs knowing.
       var curKcal = opts.currentTargets.kcal;
       var expW = opts.profile.goalType === 'cut' ? -Math.abs(opts.profile.rateKgPerWeek || 0) : opts.profile.goalType === 'gain' ? Math.abs(opts.profile.rateKgPerWeek || 0) : 0;
-      if (prevAvg == null) {
+      if (prevAvg == null && opts.afterOffPlan) {
+        result = afterOffPlanHold(opts, curKcal, cycleDays);
+      } else if (prevAvg == null) {
         // First cycle on the scale alone is water-heavy and noisy; hold and let a full cycle settle.
         if (curCycle.length < 3) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
         var xsW = curCycle.map(function (w) { return daysBetweenISO(cs, w.date); });
@@ -2074,9 +2130,16 @@
         // Assumed intake is the plan, so it has to be the plan that was in force over the days the
         // rate covers, not just today's: see matchedIntake.
         var estW = matchedEstimate(opts.plannedByDate, true)
-          || { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
+          || { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true, kgMid: round((curAvg + prevAvg) / 2, 2) };
         result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: confFor(estW), prevRateKgPerWeek: opts.prevRateKgPerWeek });
       }
+    } else if (prevAvg == null && opts.afterOffPlan) {
+      // The week before was off plan and is left out entirely, scale included, so this week has no
+      // baseline. It is also the week that week's extra food, salt and glycogen drain off in, so read
+      // on its own it looks like fast fat loss and over-reads the burn (in simulation: +90 to +170 kcal
+      // of bias, and dieters given visibly too much food). So it teaches the app nothing: targets and
+      // burn stay exactly as they are, and it becomes the baseline the next check-in reads from.
+      result = afterOffPlanHold(opts, avgKcal, cycleDays);
     } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
       // started, so read the slope robustly (Theil-Sen) from the RAW weigh-ins instead; earlyAdjust
@@ -2085,16 +2148,17 @@
       var xs = curCycle.map(function (w) { return daysBetweenISO(cs, w.date); });
       var ys = curCycle.map(function (w) { return w.weightKg; });
       var weeklyChangeKg = theilSen(xs, ys).slope * 7;
-      var est = { tdee: round(avgKcal - (weeklyChangeKg * KCAL_PER_KG) / 7), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: cycleDays };
+      var est = { tdee: round(avgKcal - (weeklyChangeKg * KCAL_PER_KG) / 7), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: cycleDays, kgMid: round(mean(ys), 2) };
       result = earlyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, earlyCap: opts.earlyCap || 150, waterHigh: opts.waterHigh });
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
-      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null);
+      if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3, null,
+        isFinite(+opts.profile.weightKg) ? { perKg: burnPerKg(opts.profile), nowKg: +opts.profile.weightKg, estKg: est.kgMid } : null);
     } else {
       // The food that explains the weight change, not just this window's (see matchedIntake). The
       // window-only pairing is kept for callers that don't pass the wider history, and for spans
       // too thinly covered by trusted logs to match honestly.
       var est2 = matchedEstimate(opts.intakeByDate, false)
-        || estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
+        || Object.assign(estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate }), { kgMid: round((curAvg + prevAvg) / 2, 2) });
       result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence, confScale: confFor(est2), logWindow: logWindowDays, prevRateKgPerWeek: opts.prevRateKgPerWeek });
     }
     // Two strikes and the food log is out. Holding once on a suspicious log is prudent; holding every
@@ -2112,7 +2176,7 @@
     if (result.underReportFlagged && priorFlagged && !wOnly && !opts.plannedDays && curAvg != null && prevAvg != null) {
       var curKcalS = opts.currentTargets.kcal;
       var wChgS = ((curAvg - prevAvg) / spanDaysForRate) * 7;
-      var estS = { tdee: round(curKcalS - (wChgS * KCAL_PER_KG) / 7), avgKcal: round(curKcalS), weeklyChangeKg: round(wChgS, 3), days: cycleDays, weightOnly: true };
+      var estS = { tdee: round(curKcalS - (wChgS * KCAL_PER_KG) / 7), avgKcal: round(curKcalS), weeklyChangeKg: round(wChgS, 3), days: cycleDays, weightOnly: true, kgMid: round((curAvg + prevAvg) / 2, 2) };
       var switched = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estS, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence, confScale: opts.confScale });
       switched.laneSwitched = 'weightOnly';
       switched.underReportFlagged = true;
@@ -2578,7 +2642,7 @@
     upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext, planHomeEarly: planHomeEarly,
     recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
-    mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
+    mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile, burnPerKg: burnPerKg,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     proteinManualBounds: proteinManualBounds, proteinClause: proteinClause, proteinRecommendation: proteinRecommendation, proteinMode: proteinMode,

@@ -3624,6 +3624,15 @@ const CHECKIN_READ_MIN_DAYS = 7;
 // The first day after the most recent check-in you said was off plan, or null. Nothing that reads
 // your burn looks before it: "I didn't stick to the plan" means the log can't be trusted even where
 // it looks complete (eating that never made it in), so those days are disregarded outright.
+// The scale carries an off-plan week for a few mornings after it ends: the extra carbs' glycogen,
+// the water stored with it and the salt all clear over about three days. Food on those days is
+// on plan and trusted; their WEIGH-INS are not a fair baseline yet. In simulation, using them read
+// the water coming off as fat loss and over-read the burn by ~90-170 kcal.
+const OFFPLAN_WASHOUT_DAYS = 3;
+function offPlanWeighFloorISO(db, todayISO) {
+  const f = offPlanFloorISO(db, todayISO);
+  return f ? shiftISO(f, OFFPLAN_WASHOUT_DAYS) : null;
+}
 function offPlanFloorISO(db, todayISO) {
   const last = (db.checkins || []).filter(c => c && c.adhered === false && c.date && c.date < todayISO)
     .reduce((m, c) => (c.date > m ? c.date : m), '');
@@ -3997,7 +4006,7 @@ function expenditurePrior(db, prof) {
   const ex = db.expenditure;
   // q (confidence of the cycles that built it) and its age let a cleaner or much newer cycle outweigh
   // it faster; see Engine.updateExpenditure.
-  if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0, q: ex.q != null ? +ex.q : null,
+  if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0, q: ex.q != null ? +ex.q : null, kg: ex.kg != null ? +ex.kg : null,
     // Off-plan weeks since it was learned don't count towards its age (see Engine.expenditureAfterOffPlan).
     ageDays: ex.updated ? Math.max(0, daysBetween(ex.updated, Store.todayISO()) - (+ex.heldDays || 0)) : 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
@@ -6574,7 +6583,14 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const cs = cov.cs, cycleDays = cov.days;
   // The day this run began. Everything the check-in DECIDES from is read at or after it, so a fresh
   // start is measured on its own terms rather than against the plan it was drawn to replace.
-  const planFloor = planFloorISO(db);
+  // ...and nothing from a week you checked in as off plan. Its food was already left out; its
+  // weigh-ins are too, because a baseline taken in that week puts the week straight back into the
+  // burn through the scale (a Halloween's water reads as a stall, or its loss as a whoosh). This is
+  // the same line the live burn on Progress is read from, so the two can never disagree about it.
+  const offFloor = offPlanWeighFloorISO(db, today);
+  const planFloor = (offFloor && (!planFloorISO(db) || offFloor > planFloorISO(db))) ? offFloor : planFloorISO(db);
+  // When that line cut into the week the check-in would normally compare against.
+  const afterOffPlan = !!offFloor && offFloor > shiftISO(cs, -cycleDays);
   const loggedDays = cov.logged, weighDays = cov.weighed;
   const logWindow = cov.logWindow, weighWindow = cov.weighWindow;
   // Thresholds scale to the days we actually expected of them, not the raw calendar window.
@@ -6658,7 +6674,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       deltaKcal: result.deltaKcal || 0,
       protein_g: result.newTargets ? result.newTargets.protein_g : (base ? base.protein_g : null),
       estimatedBurn_kcal: (result.estimate && !result.earlyPhase) ? ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) : null,
-      phase: result.earlyPhase ? 'first cycle (early: rapid loss is largely water, targets nudged gently not fully retuned)' : 'normal adaptive cycle',
+      phase: result.afterOffPlan ? 'first check-in after an off-plan week: that week is ignored entirely (food and weigh-ins), so targets and burn are held and this week becomes the baseline for next week'
+        : result.earlyPhase ? 'first cycle (early: rapid loss is largely water, targets nudged gently not fully retuned)' : 'normal adaptive cycle',
       daysLogged: loggedDays, daysWeighed: weighDays, cycleDays: cycleDays, enoughData: onTrack,
       dataConfidence: result.confidence || null, maxStepThisCycle_kcal: result.adjCap || null,
       underReportFlagged: !!result.underReportFlagged, unit: unit === 'st_lb' ? 'stones/pounds' : 'kilograms',
@@ -6803,7 +6820,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       profile: prof, currentTargets: base,
       weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
       kcalByDate: byDate, targetByDate,
-      cycleStart: cs, today, cycleDays, floorISO: planFloor,
+      cycleStart: cs, today, cycleDays, floorISO: planFloor, afterOffPlan,
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
       // How much of that window is new since the last check-in. A widened window is read in full -
       // it has to be, to stay whole weeks - but only the new part is new evidence.
@@ -6827,7 +6844,9 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     // Before reporting a rate, check the window can actually see the change being looked for. Saying
     // "flat" from a window narrower than the person's own daily swing reads as a verdict on them.
     const rel = E.readReliability({
-      weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
+      // Day-to-day noise is measured from the same clean run the decision reads: an off-plan week's
+      // swings would otherwise make a clean week look too noisy to act on.
+      weights: entries.filter(w => w.scale_weight != null && (!planFloor || w.date >= planFloor)).map(w => ({ date: w.date, kg: w.scale_weight })),
       cycleStart: cs, today, cycleDays,
       targetRatePerWeek: p.goalType === 'maintain' ? 0 : Math.abs(p.rateKgPerWeek || 0),
       weighCadence: p.weighCadence,
@@ -6908,7 +6927,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
       // Persist what this cycle taught us (regardless of whether the target change is approved):
       // the smoothed expenditure, and the trend/step data plateau detection reads next time.
       update(d => {
-        if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = Object.assign({ kcal: res.expenditure.kcal, n: res.expenditure.n, updated: today }, res.expenditure.q != null ? { q: res.expenditure.q } : {});
+        // kg: the weight the burn is true at, so the next check-in can carry it to the weight then.
+        if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = Object.assign({ kcal: res.expenditure.kcal, n: res.expenditure.n, updated: today }, res.expenditure.q != null ? { q: res.expenditure.q } : {}, res.expenditure.kg != null ? { kg: res.expenditure.kg } : {});
         const ci = (d.checkins || [])[(d.checkins || []).length - 1];
         if (ci && ci.date === today && res.estimate) { ci.weeklyChangeKg = res.estimate.weeklyChangeKg; ci.deltaKcal = 0; ci.tdee = Math.round((res.expenditure && res.expenditure.kcal) || res.estimate.tdee || 0) || null; }
         // Whether the food log reconciled with the scale this cycle. The engine reads it back next
@@ -8159,10 +8179,13 @@ function burnEstimate(db) {
   // can't be trusted, so neither its food nor its weigh-ins feed the burn shown here.
   const offFloor = offPlanFloorISO(db, today);
   const usable = (iso) => afterFloor(db, iso) && (!offFloor || iso >= offFloor);
+  // Weigh-ins wait out the off-plan week's water as well (see OFFPLAN_WASHOUT_DAYS).
+  const weighFloor = offPlanWeighFloorISO(db, today);
+  const weighUsable = (iso) => usable(iso) && (!weighFloor || iso >= weighFloor);
   db.log_entries.forEach(e => { if (usable(e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
   const targetByDate = {}; // lets the engine drop incomplete (abandoned) logging days from the intake average
   Object.keys(kcalByDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
-  const weights = db.weight_entries.filter(w => usable(w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
+  const weights = db.weight_entries.filter(w => weighUsable(w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
   const bmr = E.mifflinBMR(withActivity(db.profile));
   // The window is a fortnight, or the account's age if younger (never under the week the estimate needs):
   // days before the account existed were being scored as unlogged, which alone kept confidence "low".
