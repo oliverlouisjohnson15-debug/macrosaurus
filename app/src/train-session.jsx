@@ -1894,24 +1894,24 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           <ActionSheet kicker="Replace" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
-              { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
+              { label: 'Just today', sub: 'The programme keeps ' + (from ? from.name : 'the original') },
               swapScope.offer && {
                 label: 'Always at ' + gym.name,
-                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The programme itself is not changed.',
                 onClick: () => {
                   rememberAtGym(update, gym.id, swapScope.planId, swapScope.to);
                   showToast && showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gym.name + ' now.');
                 },
               },
               swapScope.reach > 1 && {
-                label: 'The rest of the block',
+                label: 'The rest of the programme',
                 sub: 'Changes ' + swapScope.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => {
                   trainUpdate(update, (tr) => {
                     const i = tr.blocks.findIndex(b => b.id === block.id);
                     if (i >= 0) Training.swapSlotInBlock(tr.blocks[i], session.id, swapScope.itemId, swapScope.to, swapScope.week);
                   });
-                  showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the block.');
+                  showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the programme.');
                 },
               },
             ]} />
@@ -2026,7 +2026,7 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
     body = 'The LAST set of a movement ends when the weight stops moving, not when it gets hard. Where a movement has two sets, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. That is only a sane instruction because there are so few sets: one or two per movement, four to ten a muscle a week. The first week of a block sits a rep or two further back on everything, and it is not a formality: it is what lets the next five weeks be this hard. Stop if your form breaks rather than grinding a rep that has already gone wrong, and take the machine or cable version where there is one - failing safely is the whole reason this style leans on guided kit.';
   } else if (topic === 'rir') {
     title = 'Reps in reserve';
-    body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the block goes on so the hard weeks land when you are ready for them.';
+    body = 'How many more reps you should have left when you rack it. Two RIR means you could have done two more and stopped. It is a better instruction than "to failure", because taking every set to the limit buys fatigue faster than it buys muscle, and the number walks down as the programme goes on so the hard weeks land when you are ready for them.';
   } else if (topic === 'rest') {
     title = 'Rest';
     body = 'How long to leave between sets. Short rests do not make a set count for more, they just make the next one worse, so on the big compounds take the time. The timer starts on its own when you tick a set, and stays quiet after a drop set or mid-superset where the point is to keep going.';

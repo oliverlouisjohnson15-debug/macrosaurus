@@ -451,7 +451,7 @@ function ProgrammeGallery({ db, onStart, onCustomise, className }) {
 function ProgrammesScreen({ db, onBack, onStart, onCustomise }) {
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Back" title="Programmes" />
+      <SubHeader back={onBack} backLabel="Back" title="Pick a programme" />
       <div className="text-[13px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Written plans, ready to run. Tap one to see the whole week.
       </div>
@@ -851,7 +851,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           {(isDeload || isIntro) && !viewingAhead && (
             <div className="text-[11px] px-3 py-2 leading-snug" style={{ borderTop: '2px solid var(--border)', background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn-ink)' }}>
               {isDeload
-                ? 'Deload week. Lighter on purpose, so the next block starts on a fresh body.'
+                ? 'Deload week. Lighter on purpose, so the next four weeks start on a fresh body.'
                 : 'Intro week, and it is meant to feel easy. Everything stops a rep or two further from failure than it will from next week on: this is the week that earns the ' + (block.weeks - 1) + ' after it.'}
             </div>
           )}
@@ -867,7 +867,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {block && blockDone && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
-          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--good)' }}>Block finished</div>
+          <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--good)' }}>Programme finished</div>
           <div className="text-[15px] font-bold mb-1">{block.name}</div>
           <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
             All {block.weeks} weeks are behind you. See what moved, then run it again or pick your next programme below.
@@ -936,7 +936,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
       {(() => {
         const rows = [
           { key: 'history', label: 'History', status: 'Sessions and lifts', icon: 'history', onClick: () => go('history') },
-          { key: 'block', label: block && !blockDone ? 'Block & schedule' : 'Blocks', status: block && !blockDone ? (block.weeks + ' weeks · ' + (block.sessions || []).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek).map(x => WEEKDAYS[x.dayOfWeek]).filter((d, i, arr) => arr.indexOf(d) === i).join(' ')) : 'Start or pick one', icon: 'calendar', onClick: () => go('block') },
+          { key: 'block', label: block && !blockDone ? 'My programme' : 'Programmes', status: block && !blockDone ? (block.weeks + ' weeks · ' + (block.sessions || []).slice().sort((x, y) => x.dayOfWeek - y.dayOfWeek).map(x => WEEKDAYS[x.dayOfWeek]).filter((d, i, arr) => arr.indexOf(d) === i).join(' ')) : 'Start or pick one', icon: 'calendar', onClick: () => go('block') },
           block && !blockDone && onFreeform && { key: 'empty', label: 'Empty session', status: 'For a day that is not in the plan', icon: 'plus', onClick: () => setWhyEmpty(true) },        ].filter(Boolean);
         return (
           <Section title="More">
@@ -949,7 +949,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           one way into a session outside the plan, and it did nothing at all. */}
       {whyEmpty && (
         <ConfirmDialog title="Start an empty session?"
-          body="Nothing prescribed - you add the movements as you go. It is for the days that are not in your block: a class, a holiday gym, a bit of arms on the way past. It still counts towards your volume and your records, and it does not touch the week's plan."
+          body="Nothing prescribed - you add the movements as you go. It is for the days that are not in your programme: a class, a holiday gym, a bit of arms on the way past. It still counts towards your volume and your records, and it does not touch the week's plan."
           confirmLabel="Start one" confirmKind="accent"
           onConfirm={onFreeform} onClose={() => setWhyEmpty(false)} />
       )}
@@ -998,7 +998,7 @@ function BlockPlace({ db, block, go }) {
   const days = block ? (block.sessions || []).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek) : [];
   return (
     <div className="fade-in">
-      <SubHeader back={() => go('home')} backLabel="Train" title={block && !done ? block.name : 'Blocks'}
+      <SubHeader back={() => go('home')} backLabel="Train" title={block && !done ? block.name : 'Programmes'}
         actions={[{ icon: <Icon.help width="24" />, label: 'How it works', onClick: () => go('how') }]} />
       {block && !done && <>
         <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>Week {prog.week} of {block.weeks} · {weekRangeLabel(block.startISO, prog.week)}</div>
@@ -1010,18 +1010,18 @@ function BlockPlace({ db, block, go }) {
         </Section>
       </>}
       {block && !done && (
-        <Section title="Block">
+        <Section title="This programme">
           <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />
-          <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />
+          <Row icon={<Icon.trophy width="24" />} title="Review this programme" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />
         </Section>
       )}
       <Section title="Start one">
-        {block && done && <Row icon={<Icon.trophy width="24" />} title="Review this block" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
+        {block && done && <Row icon={<Icon.trophy width="24" />} title="Review this programme" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />}
         <Row icon={<Icon.plus width="24" />} title="Pick a programme" sub={Training.PROGRAMMES.length + ' written plans, ready to run'} onClick={() => go('programmes', { from: 'block' })} />
       </Section>
       <Section title="More">
-        <Row icon={<Icon.book width="24" />} title="Community blocks" sub="What other members are running" onClick={() => go('library')} />
-        <Row icon={<Icon.history width="24" />} title="All blocks" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />
+        <Row icon={<Icon.book width="24" />} title="Community programmes" sub="What other members are running" onClick={() => go('library')} />
+        <Row icon={<Icon.history width="24" />} title="Saved programmes" sub={(t.blocks || []).length + ' saved'} onClick={() => go('blocks')} />
         <Row icon={<Icon.book width="24" />} title="Bring your history" sub="From Strong, Hevy or FitNotes" onClick={() => go('import')} />
         <Row icon={<Icon.sliders width="24" />} title="Training settings" sub={(t.prefs.units || 'kg') + ' · rest timer · reps in reserve'} onClick={() => go('settings')} />
       </Section>

@@ -74,13 +74,14 @@ test('the tab offers the programmes the app ships with', () => {
   assert.equal(new Set(blurbs).size, blurbs.length, 'and no two the same');
 });
 
-test('Blocks offers the programmes while a block is running, and names the community row for what it is', () => {
+test('My programme offers the programmes while one is running, and names the community row for what it is', () => {
   const block = minmax();
   const db = accountWith(block);
   const r = render(A.BlockPlace, { db, block, go() {} });
   assert.ok(r.has('Pick a programme'), 'the way to the programmes: ' + r.text.slice(0, 300));
   assert.ok(!r.has('Answer a few questions'), 'not a questionnaire');
-  assert.ok(r.has('Community blocks'), 'the library row should say what it opens');
+  assert.ok(r.has('Community programmes'), 'the library row should say what it opens');
+  assert.ok(!/\bblocks?\b/i.test(r.text.replace(r.text.split(' ')[0], '')), 'and nothing on it says block: ' + r.text.slice(0, 300));
   assert.ok(!r.has('Ready-made programmes'), 'the old label opened the community library, not these');
 });
 

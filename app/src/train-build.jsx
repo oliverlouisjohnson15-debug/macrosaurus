@@ -335,8 +335,8 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
     // Saved on the way into a session rather than on the way out of the screen: nothing to announce
     // and nowhere to go.
     if (quiet) return;
-    showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.'
-      : isNew ? 'Block saved.' : 'Block updated.');
+    showToast && showToast(later ? 'Saved to your programmes. Start it whenever you like.'
+      : isNew ? 'Programme saved.' : 'Programme updated.');
     /* A NEW block that starts now goes straight to the days question.
        The plan is the hard part and the calendar is the easy one, so the calendar was never asked
        about: a block was built, given a default week, and handed over. The default is a good one and
@@ -350,13 +350,13 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
   function remove() {
     if (saved && saved.shared) retractPublicBlock(block.id);
     trainUpdate(update, (tr, d) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); tombstone(d, [block.id]); });
-    showToast && showToast('Block deleted.');
+    showToast && showToast('Programme deleted.');
     onBack();
   }
 
   return (
     <div className="fade-in pb-2">
-      <SubHeader back={leave} backLabel="Back" title={isNew ? 'Your new block' : 'Edit block'} />
+      <SubHeader back={leave} backLabel="Back" title={isNew ? 'Your new programme' : 'Edit programme'} />
       
 
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
@@ -381,7 +381,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       )}
       {priorityOpen && (
         <ActionSheet kicker="Priority muscle" title="Which one needs more?" onClose={() => setPriorityOpen(false)}
-          actions={[{ label: 'None', sub: block.priority ? 'Back to the block as it was before' : null, onClick: () => pickPriority(null) }].concat(
+          actions={[{ label: 'None', sub: block.priority ? 'Back to the programme as it was before' : null, onClick: () => pickPriority(null) }].concat(
             priorityChoices.map(m => ({ label: Training.MUSCLE_LABEL[m], sub: block.priority === m ? 'Current choice' : null, onClick: () => pickPriority(m) })))} />
       )}
 
@@ -698,7 +698,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           "share my training diary". */}
       <button onClick={() => setShare(!share)} className="w-full flex items-center justify-between gap-3 pixel-box p-4 mb-4 text-left" style={{ background: 'var(--card)' }}>
         <span className="min-w-0">
-          <span className="block text-[13px] font-semibold">Share this block</span>
+          <span className="block text-[13px] font-semibold">Share this programme</span>
           <span className="block text-[12px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>
             Puts the plan in the library for other members to run. Your sessions, weights and name stay private.
           </span>
@@ -740,10 +740,10 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
       </div>
 
       {confirmLeave && (
-        <ConfirmDialog title={isNew ? 'Throw this block away?' : 'Leave without saving?'}
+        <ConfirmDialog title={isNew ? 'Throw this programme away?' : 'Leave without saving?'}
           body={isNew
             ? 'It has not been saved yet, so leaving loses it. "Save for later" puts it on your shelf without starting it.'
-            : 'The changes you have made to this block have not been written yet. Leaving now loses them.'}
+            : 'The changes you have made to this programme have not been written yet. Leaving now loses them.'}
           confirmLabel={isNew ? 'Throw it away' : 'Discard changes'} confirmKind="danger"
           onConfirm={onBack} onClose={() => setConfirmLeave(false)} />
       )}
@@ -752,7 +752,7 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
           lands one row low on "Save changes" must not find "Delete". Ruled off and quiet, at the end. */}
       {!isNew && (
         <div className="mt-8 pt-4 text-center" style={{ borderTop: '2px solid var(--border)' }}>
-          <button onClick={() => setConfirmDelete(true)} className="py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete this block</button>
+          <button onClick={() => setConfirmDelete(true)} className="py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete this programme</button>
         </div>
       )}
 
@@ -773,11 +773,11 @@ function BlockBuilder({ db, update, showToast, isPremium, onUpgrade, blockId, dr
             onClose={() => setPicking(null)} />
         );
       })()}
-      {confirmDelete && <ConfirmDialog title="Delete this block?" body="The sessions you already logged are kept. Only the plan goes."
+      {confirmDelete && <ConfirmDialog title="Delete this programme?" body="The sessions you already logged are kept. Only the plan goes."
         onConfirm={remove} onClose={() => setConfirmDelete(false)} />}
       {confirmReset && fromProgramme && (
         <ConfirmDialog title={'Back to ' + fromProgramme.name + '?'}
-          body="Every change you have made to this block goes, and it comes back exactly as the programme is written. Nothing that is saved or logged is touched."
+          body="Every change you have made to this programme goes, and it comes back exactly as the programme is written. Nothing that is saved or logged is touched."
           confirmLabel="Start again" confirmKind="danger"
           onConfirm={resetToProgramme} onClose={() => setConfirmReset(false)} />
       )}
@@ -905,7 +905,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       }
     });
     const to = Training.byId(exId, t.custom);
-    if (showToast) showToast(scope === 'block' ? 'Swapped for the rest of the block.' : (to ? to.name : 'Swapped') + ' for this session.');
+    if (showToast) showToast(scope === 'block' ? 'Swapped for the rest of the programme.' : (to ? to.name : 'Swapped') + ' for this session.');
   }
 
   // Answering an "or" line from the session screen. From this week on, and every day that shares the
@@ -1162,15 +1162,15 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           <ActionSheet kicker="Replace" title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
             onClose={() => setSwapScope(null)}
             actions={[
-              { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),
+              { label: 'Just this session', sub: 'The rest of the programme keeps ' + (from ? from.name : 'the original'),
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'session') },
               sc.offer && { label: 'Always at ' + gymNow.name,
-                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The block itself is not changed.',
+                sub: 'Any plan that asks for ' + (from ? from.name : 'it') + ' gets ' + (to ? to.name : 'this') + ' here. The programme itself is not changed.',
                 onClick: () => {
                   rememberAtGym(update, gymNow.id, sc.fromId, sc.exId);
                   if (showToast) showToast((to ? to.name : 'It') + ' is your ' + (from ? from.name : 'machine') + ' at ' + gymNow.name + ' now.');
                 } },
-              sc.reach > 1 && { label: 'The rest of the block',
+              sc.reach > 1 && { label: 'The rest of the programme',
                 sub: 'Changes ' + sc.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
                 onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'block') },
             ]} />
@@ -1297,7 +1297,7 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
         if (b) Training.reschedule(b, dows, today);
       });
     }
-    showToast && showToast(fresh ? 'Your block is ready. First session is waiting.' : 'Your week is set.');
+    showToast && showToast(fresh ? 'Your programme is ready. First session is waiting.' : 'Your week is set.');
     onBack();
   }
   return (
@@ -1305,7 +1305,7 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
       <SubHeader back={onBack} backLabel="Train" title={fresh ? 'When do you train?' : 'Your training days'} />
       <div className="text-[12.5px] mb-5 leading-snug" style={{ color: 'var(--muted)' }}>
         {fresh
-          ? 'Your block is built. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.'
+          ? 'Your programme is set up. The last thing it needs is your week: the plan decides what you do and how hard, and you decide which days you do it on.'
           : 'Same sessions, same order, same volume. This only moves them around your week, and the only thing training cares about is the gap between them.'}
       </div>
 

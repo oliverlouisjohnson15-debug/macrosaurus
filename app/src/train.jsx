@@ -30,7 +30,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
     // does not outlive the copy you can see.
     if (block.shared) retractPublicBlock(block.id);
     trainUpdate(update, (tr, d) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); tombstone(d, [block.id]); });
-    showToast && showToast('Block deleted.');   // ConfirmDialog closes itself once onConfirm returns
+    showToast && showToast('Programme deleted.');   // ConfirmDialog closes itself once onConfirm returns
   }
 
   // Load a block file: a plan somebody already owns, brought straight in. It goes into THEIR blocks
@@ -49,7 +49,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
       const res = sheet ? await blocksFromSpreadsheet(file, t.custom) : Training.blocksFromFile(await file.text(), { custom: t.custom, fileName: file.name });
       if (!res || !res.blocks.length) throw new Error('I could not find a written programme in that. A block file, or a spreadsheet with a week marker, a day name and one movement a row.');
       addOwnedBlocks(update, res);
-      showToast && showToast(res.blocks.length === 1 ? 'Block added.' : res.blocks.length + ' blocks added.');
+      showToast && showToast(res.blocks.length === 1 ? 'Programme added.' : res.blocks.length + ' programmes added.');
       setLoadBusy(res.problems.length ? res.problems.slice(0, 3).join('. ') + '.' : '');
     } catch (e) {
       setLoadBusy((e && e.message) || 'That file could not be read.');
@@ -65,11 +65,11 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Train" title="Your blocks" />
-      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Built, imported and archived</div>
-      <h1 className="pf text-lg mb-2">Your blocks</h1>
+      <SubHeader back={onBack} backLabel="Train" title="Saved programmes" />
+      <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Started, saved and finished</div>
+      <h1 className="pf text-lg mb-2">Saved programmes</h1>
       <div className="text-[12.5px] mb-4 leading-relaxed" style={{ color: 'var(--muted)' }}>
-        Everything you have built or imported. Tap one to change it, or delete one you made by mistake. The sessions you logged against a block are kept either way.
+        Every programme you have started or saved. Tap one to change it, or delete one you made by mistake. The sessions you logged against it are kept either way.
       </div>
 
       {/* The design's empty slot: a dashed frame, not a solid card. A card says "here is a thing";
@@ -90,7 +90,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           nothing about it is published or shared. */}
       <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] mb-4 ' + (loadBusy === 'Reading it...' ? 'opacity-60' : 'cursor-pointer')}
         style={{ background: 'var(--surface2)' }}>
-        {loadBusy === 'Reading it...' ? loadBusy : 'Load a block file or spreadsheet'}
+        {loadBusy === 'Reading it...' ? loadBusy : 'Load a programme file or spreadsheet'}
         <input type="file" className="hidden" accept=".json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={loadBusy === 'Reading it...'}
           onChange={e => { loadBlockFile(e.target.files && e.target.files[0]); e.target.value = ''; }} />
       </label>
@@ -147,7 +147,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
                 has for the strongest intent on the row. */}
             <div className="flex gap-2 mt-3">
               {!block.startISO && (
-                <button onClick={() => onStart(block)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--accent)', color: 'var(--on-accent)' }}>Start this block</button>
+                <button onClick={() => onStart(block)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--accent)', color: 'var(--on-accent)' }}>Start this programme</button>
               )}
               <button onClick={() => onCoverage(block.id)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--surface2)' }}>What it covers</button>
               {comp.done > 0 && (
@@ -169,7 +169,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
         const list = Training.blockFixes(fixing, t.custom);
         const LABEL = {
           dayName: 'Name the days for what they train',
-          blockName: 'Name the block for what it is',
+          blockName: 'Name the programme for what it is',
           asWritten: 'Run it as its author wrote it',
         };
         function applyKinds(kinds, msg) {
@@ -188,7 +188,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           actions.push({
             label: 'All of it',
             sub: 'Applies the ' + list.length + ' changes above',
-            onClick: () => applyKinds(list.map(f => f.kind), 'Block brought up to date.'),
+            onClick: () => applyKinds(list.map(f => f.kind), 'Programme brought up to date.'),
           });
         }
         return <ActionSheet kicker="Repairs" title={'Bring "' + fixing.name + '" up to date'} actions={actions} onClose={() => setFixing(null)} />;
@@ -397,7 +397,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   const units = t.prefs.units;
   const [prose, setProse] = useState(null);
   const [busy, setBusy] = useState(false);
-  if (!block) return <div className="fade-in"><SubHeader back={onBack} backLabel="Back" title="How it went" /><div className="text-[13px]">That block is gone.</div></div>;
+  if (!block) return <div className="fade-in"><SubHeader back={onBack} backLabel="Back" title="How it went" /><div className="text-[13px]">That programme is gone.</div></div>;
   const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
 
   async function writeUp() {
@@ -654,8 +654,8 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
   if (!block || !plan || !rot) {
     return (
       <div className="fade-in">
-        <SubHeader back={onBack} backLabel="Back" title="Block" />
-        <div className="text-[13px]">That block is not here any more.</div>
+        <SubHeader back={onBack} backLabel="Back" title="Programme" />
+        <div className="text-[13px]">That programme is not here any more.</div>
       </div>
     );
   }
@@ -1805,13 +1805,13 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Back" title="Community blocks" />
+      <SubHeader back={onBack} backLabel="Back" title="Community programmes" />
       
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         Blocks other members are running. Whatever you pick gets rebuilt around your kit and the volume you recover from.
       </div>
 
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search blocks"
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search programmes"
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
 
       {/* One row of filters, the two that actually decide whether a block fits your life. */}
@@ -1899,7 +1899,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
 
   return (
     <div className="fade-in">
-      <SubHeader back={onBack} backLabel="Programmes" title="Shared block" />
+      <SubHeader back={onBack} backLabel="Programmes" title="Shared programme" />
       <h1 className="text-[19px] font-bold leading-tight mb-2">{pub.title}</h1>
       <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
         {pub.days_per_week} days a week · {SPLIT_LABEL[pub.split] || 'Custom split'}
@@ -2234,33 +2234,29 @@ function HowItWorks({ onBack }) {
   const [openRule, setOpenRule] = useState(0);
   const rows = [
     ['Four weeks, then decide',
-      'A block runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'],
+      'A programme runs four weeks and you stay on it. Changing things every time a session feels hard is the most reliable way to make no progress at all, because nothing gets long enough to work. Four weeks is enough to know whether something is working and short enough that being wrong costs little.'],
     ['A lighter week when you have earned one',
-      'We do not put a light week into every block on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'],
+      'We do not put a light week into every programme on principle. Coaches in strength and physique sports take them roughly every four to eight weeks, and about as often when the athlete needs one as on a fixed schedule. So at the end of a block we look at what actually happened: whether lifts have stopped moving, whether the same sets are costing you more than they did, how much you got to, how close to your ceiling you have been running, and whether you are dieting or short on sleep. If enough of that lines up, we ask for a lighter week. If it does not, you carry on. A deload you have not earned just spends a good week.'],
     ['Volume, in hard sets',
       'Every muscle has three numbers: the least that grows it, the range where growth is best, and the point where fatigue outruns what you can recover from. Your plan aims at the middle band and is never allowed past the top one.'],
     ['Two ways to train, and one of them is the default',
-      'Min-max is what a new block is built as. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'],
+      'Min-max is how the programmes are written. Four to ten hard sets a muscle a week, one or two per movement, and the last set of every movement taken to the point where the weight stops moving. It leans on machines and cables because failing safely is what makes an all-out set a training decision rather than a gamble, and it runs upper, lower, rest, upper, lower, arms, rest on five days a week, or full body, rest, upper, lower, arms on four. The other way is the volume model: more sets, each stopping a rep or two short, climbing week by week. Neither is wrong. If you are eating in a deficit the app will point you at min-max, because there is less recovery to go around down there and low volume holds muscle perfectly well.'],
     ['On min-max, the weight is the progression',
       'There are no sets to add, so the last week looks exactly like the first on paper and everything that changed is on the bar. Every movement runs a rep window: 6 to 8 on a muscle\'s first session of the week, 8 to 10 on its second. Hit the top of the window and the weight goes up by the smallest jump the kit allows. Land inside it and the weight stays and the job is one more rep than last time. Fall under the bottom of it and the weight comes down about ten percent, because a weight you cannot get six reps with is a test rather than a stimulus. Where both sets of a movement are taken to failure, the app puts 15 percent less on the second one: an all-out first set means a second at the same weight would miss the window by three reps.'],
     ['The last set is the one that goes',
       'Not literally every set. Where a movement has two, the first stops a rep short on anything you could get hurt failing - a squat, a press - and goes all the way on isolation, where failing a cable curl costs you nothing. The last set always goes. And a block opens with an easier week, a rep or two further back on everything, which is not a courtesy: it is what lets the five weeks after it be as hard as they are. Six weeks, one easier and five hard, is the shape the method is written for.'],
     ['Stalling is a movement problem, not a volume problem',
       'Three sessions at the same weight for the same reps and the app stops asking for more and offers you a different movement instead. On a normal programme a stall is often a sign to take volume away; on min-max there is no volume to take, and grinding at a lift that has stopped moving is where people get hurt. A biomechanically similar movement resets the progression cycle without resetting your training.'],
-    ['Changing a movement between blocks',
-      'At the end of a block you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'],
+    ['Changing a movement between runs',
+      'At the end of a programme you can rotate any movement for another way of doing the same job, and the app has an opinion about which ones are worth it. Varying exercises is not a growth lever on its own: head to head, changing them and keeping them produce much the same strength and size. What the reviews do support is that systematic variation helps a little and random variation hurts, and they name the two ways it goes wrong. One is swapping for something that gives the same stimulus. The other is changing too often. So a shortlist is built from movements that share the pattern and the lead muscle, and the number of changes is capped, with anything over the line offered as a choice rather than applied.'],
     ['A swap restarts the number, not the muscle',
       'This is the part worth being clear about, because it is the thing people expect a swap to do and it does not. Progressive overload is a property of the muscle, not the barbell. Changing an incline dumbbell press for the Smith version does not continue your run on it, it restarts the number you were reading the run from. The muscle keeps everything it built. So a rotation says so where the cost is real, the history is kept as one continuous run with the change marked, and the first sessions on a new movement are treated as finding the weight rather than as a step backwards. Early neural adaptation runs two to four weeks, which in a four-week block is a quarter to half of it, so a movement you change is changed at the start and held for the whole block.'],
     ['The big lifts are the expensive ones to change',
       'Which is the opposite of how it feels. Strength is skill as well as stimulus, so the heaviest, most technical movement in each pattern is also the one carrying your clearest read on whether anything is working at all. That one is treated as an anchor: it is never switched on for you, however the evidence reads, and it is always there to switch on yourself if you want to. Accessories cost almost nothing to rotate and are the first thing offered. And a movement being new and sore is not evidence it worked: the first time you do anything you get more soreness from the novelty, which is damage rather than stimulus.'],
-    ['Every muscle, twice a week',
-      'Before a single set is added anywhere for volume, every muscle is guaranteed two sessions a week. When a muscle needs more work, the extra comes from a second exposure on another day rather than from piling more sets into the one session that already trains it. Spreading the same weekly volume over two sessions rather than one is the part of the frequency research that is actually settled.'],
-    ['A plan you bring is a starting point, not a stencil',
-      'Bring a coach\'s programme, a PDF or a handful of screenshots and what gets kept is the part only its author could give you: the movements they chose, the order they put them in, the rep ranges and tempos they wrote, and whatever the block was plainly built around. What does not get kept is how many days it happened to be written across, how many sets somebody else needed, and whether it trains everything often enough. Those are yours, and they come from your day count, your landmarks and your recovery. If you would rather have the plan exactly as its author wrote it, choose "As brought" and nothing of ours is added to it.'],
     ['Half a set for helping',
       'A movement gives a full set to what it mainly works and half a set to what it assists. It is how a coach counts, and it is what stops a push day looking like it covers your triceps when it does not.'],
     ['Effort in reps left, not "to failure"',
-      'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the block goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'],
+      'Sets are prescribed by how many reps you should have left. Week one leaves about three and that walks down as the programme goes on, so the hardest weeks land when you are ready for them. Somewhere between none and about four reps left captures nearly all of the growth for a fraction of the fatigue that training to failure every set costs.'],
     ['Warm-ups follow your number, they do not set it',
       'The app never puts a working weight in the box. What it will do is build the ramp up to one: type the weight you are aiming for into set one and a warm-up appears above the table, scaled to that load and to the movement. Heavy compounds earn several rungs, isolation earns one easy set at most, and where your plan states how many warm-up sets a movement wants, the author\u2019s number wins. Nothing is logged and nothing is ticked. If you would rather warm up your own way, ignore it and nothing changes.'],
     ['Reps before weight',
@@ -2364,9 +2360,9 @@ function signOffLine(praise, facts, who, units) {
   if (!praise) return null;
   const k = praise.kind;
   if (k === 'first') return { head: 'Your first one', body: 'That is your first session in the book, ' + praise.sets + ' sets of it. Everything from here has something to be measured against, which is the part most people never get to.' };
-  if (k === 'block_done') return { head: 'Block finished', body: 'That was the last session of ' + (facts.blockName ? '"' + facts.blockName + '"' : 'the block') + '. Four weeks, all the way through. Go and see what moved before you build the next one.' };
+  if (k === 'block_done') return { head: 'Programme finished', body: 'That was the last session of ' + (facts.blockName ? '"' + facts.blockName + '"' : 'the programme') + '. Four weeks, all the way through. Go and see what moved before you build the next one.' };
   if (k === 'pr') return { head: praise.prs === 1 ? 'A new best' : praise.prs + ' new bests', body: praise.prs === 1 ? 'You lifted something today you have never lifted before. I was watching.' : 'Two of your movements went past anything you had done before. Days like this are not the norm, so enjoy it.' };
-  if (k === 'week_done') return { head: 'Week done', body: 'That is all ' + praise.weekOf + ' sessions this week, in the bag. Weeks like this one are what the block is actually made of.' };
+  if (k === 'week_done') return { head: 'Week done', body: 'That is all ' + praise.weekOf + ' sessions this week, in the bag. Weeks like this one are what the programme is actually made of.' };
   if (k === 'big') return { head: 'Heavy day', body: 'You moved about ' + praise.pct + '% more than your usual session today. Eat properly tonight and I will put it to work.' };
   if (k === 'short') return { head: 'In and out', body: praise.sets + (praise.sets === 1 ? ' set' : ' sets') + ' and gone. A short session you actually did beats the perfect one you skipped, every time.' };
   return { head: 'Logged', body: praise.sessionsLast7 >= 3 ? praise.sets + ' sets down, and that is ' + praise.sessionsLast7 + ' sessions this week. You are in a proper rhythm.' : praise.sets + ' sets down and all of it recorded. Get some protein in while you are still warm.' };
