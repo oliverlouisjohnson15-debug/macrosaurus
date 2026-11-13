@@ -1292,6 +1292,22 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
   // Month ticks under the chart, rather than two raw ISO dates at its ends: "Jun / Jul / Aug" is
   // what anybody scanning the shape of a run actually reads it against.
   const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const today = Store.todayISO();
+  // The three numbers MacroFactor and TrainHeroic lead a lift with: your best estimate, your best
+  // set, and how often you have done it. Records are rebuilt from the logs (Training.computePRs), so
+  // a mistyped set that was corrected cannot leave a phantom best behind.
+  const pr = Training.computePRs(t.logs)[exerciseId] || null;
+  const cue = ex ? Training.cueSource(ex, t.custom) : null;
+  // "yesterday" / "3 days ago" sit mid-sentence in lower case; a written date ("5 Nov") keeps its
+  // capital and takes "on".
+  const whenIn = (iso) => { const r = relativeDay(iso, today); return /^\d+ [A-Z]/.test(r) ? 'on ' + r : r.toLowerCase(); };
+  const stats = [
+    !pinned && pr && { v: Training.toMachine(pr.e1rm, wholeSpec), unit: machineSuffix(wholeSpec, units), l: 'Best est. 1RM' },
+    pr && (pr.weightKg > 0
+      ? { v: Training.toMachine(pr.weightKg, spec), unit: machineSuffix(spec, units), tail: ' × ' + pr.reps, l: 'Best set, ' + whenIn(pr.dateISO) }
+      : { v: pr.reps, unit: ' reps', l: 'Best set, ' + whenIn(pr.dateISO) }),
+    { v: own.length, l: own.length === 1 ? 'Session' : 'Sessions' },
+  ].filter(Boolean);
   const monthTicks = [];
   shownHist.forEach((h, i) => {
     const m = MONTH[parseInt(h.dateISO.slice(5, 7), 10) - 1];
@@ -1305,10 +1321,31 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
         <h1 className="text-[19px] font-bold leading-tight">{ex ? ex.name : exerciseId}</h1>
         {/* The PR moment the block review celebrates gets a home outside the session too. */}
         {isPB && (
-          <span className="pf text-[11px] uppercase shrink-0 px-2 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.08em' }}>PB ▲</span>
+          <span className="pf text-[12px] shrink-0 px-2 py-1" style={{ background: 'var(--seg-on)', color: 'var(--seg-on-text)' }}>Best yet ▲</span>
         )}
       </div>
-      <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
+      <div className="mb-4"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
+      {hist.length > 0 && (
+        <div className="grid gap-2 mb-5" style={{ gridTemplateColumns: 'repeat(' + stats.length + ', minmax(0, 1fr))' }}>
+          {stats.map(st => (
+            <div key={st.l} className="px-2.5 py-2.5" style={{ background: 'var(--sunk)' }}>
+              {/* The figure in Silkscreen, its unit and the reps in Plex beside it (DESIGN.md, Type). */}
+              <div className="whitespace-nowrap">
+                <span className="text-[16px] num tnum">{st.v}</span>
+                {st.unit && <span className="text-[12px]" style={{ marginLeft: 2 }}>{st.unit}</span>}
+                {st.tail && <span className="text-[13px]" style={{ fontWeight: 600 }}>{st.tail}</span>}
+              </div>
+              <div className="text-[11px] mt-1 leading-tight" style={{ color: 'var(--muted)' }}>{st.l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {cue && (
+        <Section title="How to do it" className="mb-5">
+          <p className="text-[15px] leading-snug py-3">{cue.text}</p>
+          {cue.from && <div className="text-[12px] -mt-1 mb-2" style={{ color: 'var(--muted)' }}>From {cue.from}, which this is a way of doing.</div>}
+        </Section>
+      )}
       {ex && ex.custom && update && t.custom.length > 1 && (
         <div className="mb-6">
           <Row title="Merge into another movement" sub="Saved this one twice? Move its sets into the one you keep" onClick={() => setMerging(true)} />
@@ -1334,7 +1371,8 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
                   height: Math.max(2, (Training.strengthOf(h) / max) * 100) + '%',
                   // The sessions on an earlier movement are shown, and shown as not-this-movement:
                   // the shape of the run is the useful part, but the bars are not comparable loads.
-                  background: h.exerciseId === exerciseId ? 'var(--accent)' : 'var(--surface3)',
+                  // Ink-purple, not gold: gold is a screen's one primary action (DESIGN.md, Colour).
+                  background: h.exerciseId === exerciseId ? 'var(--link)' : 'var(--surface3)',
                   borderLeft: h.changed ? '2px solid var(--warn)' : 'none',
                 }} />
             ))}
@@ -1351,7 +1389,7 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
         <Card className="p-4 mb-4">
           <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Rotated</div>
           <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-            You came here from {hist.filter(h => h.exerciseId !== exerciseId).slice(-1)[0].name.toLowerCase()} on {cameFrom.dateISO}.
+            You came here from {hist.filter(h => h.exerciseId !== exerciseId).slice(-1)[0].name.toLowerCase()} {whenIn(cameFrom.dateISO)}.
             The earlier sessions are in the chart in grey, because the muscle carried on from where it
             was but the weight on this movement started again.
           </div>
@@ -1369,7 +1407,7 @@ function ExerciseDetail({ db, update, showToast, exerciseId, onBack, onMerged })
         {hist.slice().reverse().map((h, i) => (
           <div key={i} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
-              {h.dateISO}
+              {relativeDay(h.dateISO, today)}
               {h.exerciseId !== exerciseId && <span className="block text-[11px]" style={{ color: 'var(--muted2)' }}>{h.name}</span>}
             </span>
             <span className="text-[12px]">{h.sets} sets · top {h.bw ? (h.topWeight > 0 ? '+' + Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units) : 'BW') : Training.toMachine(h.topWeight, spec) + machineSuffix(spec, units)} x {h.topReps}</span>

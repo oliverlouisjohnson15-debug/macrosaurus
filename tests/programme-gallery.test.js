@@ -69,3 +69,17 @@ test('starting a programme from Train saves it running and asks which days', () 
     assert.ok(ui.has('When do you train?'), 'straight to the days: ' + ui.text.slice(0, 200));
   } finally { ui.unmount(); }
 });
+
+test('a movement page leads with its best numbers and how to do it, with dates written out', () => {
+  const { render } = require('./helpers/app.js');
+  const db = accountWith(T.programmeBlock('qp5', { startISO: A.Store.todayISO() }));
+  db.training.logs = [{
+    id: 'x1', dateISO: '2026-03-05', blockId: null, sessionId: null, name: 'Legs A',
+    startedAt: '2026-03-05T10:00:00Z', endedAt: '2026-03-05T11:00:00Z',
+    sets: [{ exerciseId: 'seated_leg_curl', setIndex: 0, type: 'work', weightKg: 40, reps: 12, rir: 0, done: true }],
+  }];
+  const r = render(A.ExerciseDetail, { db, update() {}, showToast() {}, exerciseId: 'seated_leg_curl', onBack() {}, onMerged() {} });
+  assert.ok(r.has('Best est. 1RM') && r.has('Best set'), 'the records: ' + r.text.slice(0, 300));
+  assert.ok(r.has('How to do it') && r.has('stretch-biased curl'), 'and the form cue');
+  assert.ok(r.has('5 Mar') && !r.has('2026-03-05'), 'a written date, never a raw ISO one');
+});
