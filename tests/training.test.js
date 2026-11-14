@@ -3879,7 +3879,7 @@ test('a block reads back week by week, and an empty week is not an achievement',
 
 test('a shipped programme keeps the set counts its author wrote, past the style\'s own ceiling', () => {
   // Min-max caps the plans WE write at two sets a line. That cap was applied to as-written plans
-  // too, so "Standing Calf Raises, 4 sets" in Quinton Pulliam's split arrived as two.
+  // too, so a written "3x10" arrived as two.
   for (const p of T.PROGRAMMES) {
     const b = T.programmeBlock(p.key);
     for (let w = 1; w <= b.weeks; w++) {
@@ -3888,6 +3888,6 @@ test('a shipped programme keeps the set counts its author wrote, past the style\
       assert.deepEqual(got, want, p.name + ' week ' + w);
     }
   }
-  const calf = T.programmeBlock('qp5').sessions[4].exercises.find(e => e.exerciseId === 'standing_calf');
-  assert.equal(calf.target.sets, 4);
+  const lunge = T.programmeBlock('qp5').sessions.find(s => s.name === 'Legs B').exercises.find(e => e.exerciseId === 'walking_lunge');
+  assert.equal(lunge.target.repLow, 12);
 });

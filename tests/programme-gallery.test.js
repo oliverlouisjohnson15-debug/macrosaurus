@@ -24,8 +24,8 @@ test('every shipped programme has a card, and a card opens the whole week', () =
     }
     ui.click('PPL Plus');
     assert.ok(ui.has('Legs B') && ui.has('Quad focus'), 'the preview lists the days and what each is for: ' + ui.text.slice(0, 300));
-    assert.ok(ui.has('Pendulum squat or Back squat'), 'and says an either/or line is one');
-    assert.ok(ui.has('4 × 8-12') || ui.has('4 × 8–12'), 'with the written set counts: ' + ui.text.slice(-600));
+    assert.ok(ui.has('Hack squat or Leg press or Pendulum squat or Smith machine squat'), 'and says an either/or line is one');
+    assert.ok(ui.has('3 × 8-12') || ui.has('3 × 8–12'), 'with the written set counts: ' + ui.text.slice(-600));
     ui.click('Start this programme');
     assert.ok(ui.findEl('Next: your days'), 'one question - when - before the days');
     ui.clickEl(ui.findEl('Next: your days'));
