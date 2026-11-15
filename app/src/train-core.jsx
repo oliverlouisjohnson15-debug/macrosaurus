@@ -793,7 +793,10 @@ function ChoiceToggle({ item, custom, onPick, locked }) {
   const c = item && item.choice;
   const options = ((c && c.options) || []).filter(id => !!Training.byId(id, custom));
   if (options.length < 2) return null;
-  return (
+  // Two options say what the slot is by themselves ("Pendulum squat" / "Back squat"). A general line -
+  // "Flat press", with a machine, dumbbells, a barbell and a Smith to choose from - needs its own
+  // name over the buttons, or the screen reads as though the plan asked for the first one.
+  const chips = (
     <div className="flex gap-1.5 flex-wrap" role="group" aria-label={c.label || 'Your choice'}>
       {options.map(id => {
         const ex = Training.byId(id, custom);
@@ -812,6 +815,13 @@ function ChoiceToggle({ item, custom, onPick, locked }) {
           </button>
         );
       })}
+    </div>
+  );
+  if (options.length < 3 || !c.label) return chips;
+  return (
+    <div>
+      <div className="text-[12px] mb-1.5" style={{ color: 'var(--muted)', fontWeight: 600 }}>{c.label}. Pick what you are using:</div>
+      {chips}
     </div>
   );
 }

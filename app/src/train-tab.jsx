@@ -327,6 +327,9 @@ function programmeCards(custom) {
       lines: d.exercises.map(e => ({
         names: (e.choice && e.choice.options && e.choice.options.length > 1 ? e.choice.options : [e.exerciseId])
           .map(id => (Training.byId(id, custom) || {}).name || id),
+        // A general line ("Flat press" over four kinds of kit) reads as its own name, not as four
+        // movements strung together with "or".
+        label: e.choice && e.choice.options && e.choice.options.length > 2 ? e.choice.label || null : null,
         sets: Training.setsLabel(e.target), reps: Training.repLabel(e.target),
       })),
     })).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -367,7 +370,8 @@ function ProgrammePreview({ p, onStart, onClose }) {
             {d.lines.map((l, li) => (
               <div key={li} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
                 <span className="min-w-0" style={{ color: 'var(--text2)' }}>
-                  {l.names.length > 1
+                  {l.label ? l.label
+                    : l.names.length > 1
                     ? l.names.map((n, ni) => <React.Fragment key={ni}>{ni ? <span style={{ color: 'var(--muted)' }}> or </span> : null}{n}</React.Fragment>)
                     : l.names[0]}
                 </span>
