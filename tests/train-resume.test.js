@@ -549,6 +549,35 @@ test('setting your training days on the screen moves every week of the block', (
   } finally { ui.unmount(); }
 });
 
+test('you can choose which session goes on which of your days', () => {
+  const block = T.generateBlock({
+    daysPerWeek: 4, weeks: 4, shape: 'build4',
+    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+  });
+  const live = accountWith(block);
+  const ui = mount(A.ScheduleDays, {
+    db: live, showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {},
+    update(fn) { fn(live); },
+  });
+  try {
+    const rows = T.scheduleOf(block, A.Store.todayISO());
+    const full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const firstDay = full[rows[0].dayOfWeek];
+    const change = Array.from(ui.host.querySelectorAll('button')).filter(b => (b.getAttribute('aria-label') || '').indexOf('Change the session on ' + firstDay) === 0)[0];
+    assert.ok(change, 'a training day can be opened to change its session');
+    ui.clickEl(change);
+    const second = rows[1].name.split(' - ')[0];
+    const pick = Array.from(ui.host.querySelectorAll('[role="group"][aria-label="Session on ' + firstDay + '"] button')).filter(b => b.textContent === second)[0];
+    assert.ok(pick, 'every session is offered for that day');
+    ui.clickEl(pick);
+    ui.click('Save these days');
+    const wk = live.training.blocks[0].sessions.filter(s => s.week === 1);
+    const byId = (id) => wk.filter(s => s.id === id)[0];
+    assert.equal(byId(rows[1].id).dayOfWeek, rows[0].dayOfWeek, 'the chosen session moved onto that day');
+    assert.equal(byId(rows[0].id).dayOfWeek, rows[1].dayOfWeek, 'and the one it displaced took its old day');
+  } finally { ui.unmount(); }
+});
+
 test('a brand new block asks which days before it hands you the plan', () => {
   // The default week is a good guess and still only a guess about somebody's Tuesdays. The moment it
   // is cheapest to correct is before the first session has been run against it.
