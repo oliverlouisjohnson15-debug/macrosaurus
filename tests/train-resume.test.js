@@ -7,7 +7,7 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { app, render, mount, accountWith } = require('./helpers/app.js');
+const { app, render, mount, accountWith, React } = require('./helpers/app.js');
 
 const A = app();
 const T = A.Training;
@@ -519,41 +519,42 @@ test('there is a way to finish whether or not every set is ticked', () => {
 
 // ---- choosing which days you train -------------------------------------------------------------
 
-test('setting your training days on the screen moves every week of the block', () => {
-  const block = T.generateBlock({
-    daysPerWeek: 4, weeks: 4, shape: 'build4',
-    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
-  });
-  const db = accountWith(block);
-  let live = db;
+const FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const fourDay = () => T.generateBlock({
+  daysPerWeek: 4, weeks: 4, shape: 'build4',
+  targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
+});
+const byLabel = (ui, start) => Array.from(ui.host.querySelectorAll('button')).filter(b => (b.getAttribute('aria-label') || '').indexOf(start) === 0)[0];
+
+test('moving a session onto a rest day moves it in every week of the block', () => {
+  const block = fourDay();
+  const live = accountWith(block);
   const ui = mount(A.ScheduleDays, {
     db: live, showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {},
     update(fn) { fn(live); },
   });
   try {
     assert.ok(ui.has('Upper A'), 'every session of the week is listed: ' + ui.text.slice(0, 200));
-    // Nothing to commit until something changes - the default is already what the block runs.
     assert.ok(ui.has('Nothing to change'), 'and it opens with nothing to save');
-    // One question - which days - not seven buttons per session: drop the first day, add Saturday.
-    const first = T.scheduleOf(block, A.Store.todayISO())[0].dayOfWeek;
-    const btn = (name) => Array.from(ui.host.querySelectorAll('button[aria-pressed]')).filter(b => b.getAttribute('aria-label') === name)[0];
-    ui.clickEl(btn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][first]));
-    assert.ok(ui.has('Pick 1 more'), 'it says what is missing');
-    ui.clickEl(btn('Saturday'));
+    const rows = T.scheduleOf(block, A.Store.todayISO());
+    const rest = [0, 1, 2, 3, 4, 5, 6].filter(d => rows.every(r => r.dayOfWeek !== d))[0];
+    const first = rows[0];
+    // Tap the session, then tap the day: the same move as a drag, without one.
+    ui.clickEl(byLabel(ui, 'Move ' + first.name.split(' - ')[0] + ', on '));
+    assert.ok(ui.has('Tap the day it goes on'), 'it says what to do next');
+    ui.clickEl(byLabel(ui, 'Move ' + first.name.split(' - ')[0] + ' to ' + FULL[rest]));
     ui.click('Save these days');
     for (let w = 1; w <= 4; w++) {
-      const days = live.training.blocks[0].sessions.filter(s => s.week === w).map(s => s.dayOfWeek);
-      assert.ok(days.indexOf(5) !== -1, 'week ' + w + ' trains Saturday');
-      assert.ok(days.indexOf(first) === -1, 'and not the day that was dropped');
+      const wk = live.training.blocks[0].sessions.filter(s => s.week === w);
+      const days = wk.map(s => s.dayOfWeek);
+      assert.ok(days.indexOf(rest) !== -1, 'week ' + w + ' trains ' + FULL[rest]);
+      assert.ok(days.indexOf(first.dayOfWeek) === -1, 'and not the day it left');
     }
   } finally { ui.unmount(); }
 });
 
-test('you can choose which session goes on which of your days', () => {
-  const block = T.generateBlock({
-    daysPerWeek: 4, weeks: 4, shape: 'build4',
-    targets: T.defaultTargets({ experience: 'intermediate' }), name: 'X', startISO: '2026-08-17',
-  });
+test('moving a session onto another session swaps them', () => {
+  const block = fourDay();
   const live = accountWith(block);
   const ui = mount(A.ScheduleDays, {
     db: live, showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {},
@@ -561,20 +562,29 @@ test('you can choose which session goes on which of your days', () => {
   });
   try {
     const rows = T.scheduleOf(block, A.Store.todayISO());
-    const full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const firstDay = full[rows[0].dayOfWeek];
-    const change = Array.from(ui.host.querySelectorAll('button')).filter(b => (b.getAttribute('aria-label') || '').indexOf('Change the session on ' + firstDay) === 0)[0];
-    assert.ok(change, 'a training day can be opened to change its session');
-    ui.clickEl(change);
-    const second = rows[1].name.split(' - ')[0];
-    const pick = Array.from(ui.host.querySelectorAll('[role="group"][aria-label="Session on ' + firstDay + '"] button')).filter(b => b.textContent === second)[0];
-    assert.ok(pick, 'every session is offered for that day');
-    ui.clickEl(pick);
+    const a = rows[0], b = rows[1];
+    ui.clickEl(byLabel(ui, 'Move ' + b.name.split(' - ')[0] + ', on '));
+    ui.clickEl(byLabel(ui, 'Swap ' + b.name.split(' - ')[0] + ' with ' + a.name.split(' - ')[0] + ' on ' + FULL[a.dayOfWeek]));
     ui.click('Save these days');
     const wk = live.training.blocks[0].sessions.filter(s => s.week === 1);
-    const byId = (id) => wk.filter(s => s.id === id)[0];
-    assert.equal(byId(rows[1].id).dayOfWeek, rows[0].dayOfWeek, 'the chosen session moved onto that day');
-    assert.equal(byId(rows[0].id).dayOfWeek, rows[1].dayOfWeek, 'and the one it displaced took its old day');
+    const at = (id) => wk.filter(s => s.id === id)[0].dayOfWeek;
+    assert.equal(at(b.id), a.dayOfWeek, 'the moved session took the day');
+    assert.equal(at(a.id), b.dayOfWeek, 'and the one it landed on took its old day');
+  } finally { ui.unmount(); }
+});
+
+test('the grip moves a session a day at a time from the keyboard', () => {
+  const block = fourDay();
+  const ui = mount(A.ScheduleDays, {
+    db: accountWith(block), showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {}, update() {},
+  });
+  try {
+    const rows = T.scheduleOf(block, A.Store.todayISO());
+    const last = rows[rows.length - 1];
+    const grip = byLabel(ui, 'Move ' + last.name.split(' - ')[0] + ', on ');
+    React.act(() => { grip.dispatchEvent(new grip.ownerDocument.defaultView.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+    assert.ok(byLabel(ui, 'Move ' + last.name.split(' - ')[0] + ', on ' + FULL[last.dayOfWeek + 1]), 'it is a day later');
+    assert.ok(ui.has('Save these days'));
   } finally { ui.unmount(); }
 });
 

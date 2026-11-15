@@ -1280,46 +1280,126 @@ function TargetSheet({ row, name, onChange, onClose }) {
  * week in front of you only would undo itself the moment the week turned over, which is the opposite
  * of answering "I train Mondays".
  */
+/* Your week IS the picker (design: Train: programmes and community, screen 5, reworked).
+ *
+ * Seven rows, Monday to Sunday, each holding its session or "Rest". You put a session on a day by
+ * moving it there: drag it by the grip, or tap it and then tap the day. Landing on a rest day moves
+ * it; landing on another session swaps the two. That one gesture answers both questions the screen
+ * has ever asked - which days you train AND which session goes on which of them - where the earlier
+ * versions split them: seven buttons per session (fiddly), then tap-your-days with the sessions
+ * poured in in order (no say over which went where).
+ *
+ * The drag shows its outcome live: the week is redrawn as it would be if you let go here, so a swap
+ * is visible before it happens. Tap-then-tap is the same move without a gesture, and the grip's
+ * arrow keys move a session a day earlier or later, so nothing here is drag-only.
+ */
+function weekMove(ds, i, d) {
+  const from = ds[i];
+  if (from === d) return ds;
+  const n = ds.slice();
+  ds.forEach((x, j) => { if (j !== i && x === d) n[j] = from; });
+  n[i] = d;
+  return n;
+}
+
 function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
   const today = Store.todayISO();
   const rows = Training.scheduleOf(block, today);
   const need = rows.length;
-  /* Tap the days you can train; the sessions fill in, in order (design: Train: programmes and
-     community, screen 5). It used to be a seven-button row for EVERY session - five rows of seven
-     for a five-day plan - to answer what is really one question: which days are yours. */
-  const initial = Array.from(new Set(rows.map(r => r.dayOfWeek))).sort((x, y) => x - y);
-  const [chosen, setChosen] = useState(initial);
-  const days = chosen.slice().sort((x, y) => x - y);
-  const ready = days.length === need;
-  /* Which session goes on which picked day. `order[k]` is the session (its index in `rows`) on the
-     k-th picked day, earliest first. It opens on the week as it runs now - so a week somebody has
-     already rearranged comes back rearranged - and tapping a day lets you put a different session
-     there (the one it displaces takes its old day). Moving the days keeps the sessions' order. */
-  const [order, setOrder] = useState(() => rows.map((r, i) => i).sort((a, b) => (rows[a].dayOfWeek - rows[b].dayOfWeek) || (a - b)));
-  const [picking, setPicking] = useState(null);
-  const dows = ready ? rows.map((r, i) => days[order.indexOf(i)]) : rows.map(r => r.dayOfWeek);
-  // A written programme's own week IS the recommendation: offering a different "week this plan is
-  // written for" than the one its author wrote contradicted the plan on its own days screen.
+  const [dows, setDows] = useState(() => rows.map(r => r.dayOfWeek));
+  const [held, setHeld] = useState(null);          // tap-to-move: the session picked up
+  const [drag, setDrag] = useState(null);          // { i, over } while a drag is live
+  const dragRef = useRef(null);
+  const stopDrag = useRef(null);
+  const droppedAt = useRef(0);
+  const dayEls = useRef({});
+  useEffect(() => () => { if (stopDrag.current) stopDrag.current(); }, []);
+
+  // A written programme's own week IS the recommendation, session for session.
   const prog = block.sourceRef && block.sourceRef.kind === 'programme' ? Training.programmeOf(block.sourceRef.name) : null;
-  const written = prog && prog.template.length === need ? prog.template.map(d => d.dayOfWeek).sort((x, y) => x - y) : null;
+  const written = prog && prog.template.length === need ? prog.template.map(d => d.dayOfWeek) : null;
   const recommended = written || Training.recommendedDows(block, need);
   const ownCadence = Training.prescribesDays(block);
-  const dirty = ready && dows.some((d, i) => d !== rows[i].dayOfWeek);
-  const inOrder = order.every((x, k) => x === k);
-  const isRecommended = inOrder && recommended.slice().sort((x, y) => x - y).join() === days.join();
-  function toggle(d) {
-    setPicking(null);
-    setChosen(xs => xs.indexOf(d) !== -1 ? xs.filter(x => x !== d) : (xs.length < need ? xs.concat([d]) : xs));
+  const dirty = dows.some((d, i) => d !== rows[i].dayOfWeek);
+  const isRecommended = dows.every((d, i) => d === recommended[i]);
+  const shown = drag ? weekMove(dows, drag.i, drag.over) : dows;
+  const restCount = 7 - new Set(shown).size;
+  const doubled = shown.filter((d, i) => shown.indexOf(d) !== i).length;
+
+  const label = (r) => r.name.split(' - ')[0];
+  const focusOf = (r) => r.focus || ((block.sessions || []).filter(x => x.id === r.id || x.name === r.name)[0] || {}).focus || null;
+
+  function moveTo(i, d) {
+    if (d < 0 || d > 6) return;
+    setDows(ds => weekMove(ds, i, d));
+    setHeld(null);
   }
-  // Put session `i` on the k-th picked day; whatever was there swaps onto i's old day.
-  function place(k, i) {
-    setOrder(o => {
-      const n = o.slice(); const j = n.indexOf(i);
-      n[j] = n[k]; n[k] = i;
-      return n;
-    });
-    setPicking(null);
+  function dayAt(y) {
+    let best = null, gap = Infinity;
+    for (let d = 0; d < 7; d++) {
+      const el = dayEls.current[d];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const g = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+      if (g < gap) { gap = g; best = d; }
+    }
+    return best;
   }
+  function startDrag(i, e) {
+    if (e.button != null && e.button !== 0) return;
+    e.stopPropagation();
+    if (stopDrag.current) stopDrag.current();
+    setHeld(null);
+    const home = dows[i];
+    dragRef.current = { i, over: home };
+    setDrag(dragRef.current);
+    let lastY = e.clientY;
+    const move = (ev) => {
+      lastY = ev.clientY;
+      const d = dayAt(lastY);
+      if (d != null && dragRef.current && d !== dragRef.current.over) {
+        dragRef.current = { i, over: d };
+        setDrag(dragRef.current);
+      }
+    };
+    // Once the finger is ours the page must not scroll out from under it (same reason as useDragList).
+    const block = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+    const scroller = setInterval(() => {
+      const dy = lastY < 140 ? -12 : lastY > window.innerHeight - 130 ? 12 : 0;
+      if (dy) { window.scrollBy(0, dy); move({ clientY: lastY }); }
+    }, 16);
+    const prevSel = document.body.style.userSelect;
+    function clean() {
+      clearInterval(scroller);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('touchmove', block);
+      document.body.style.userSelect = prevSel;
+      stopDrag.current = null;
+    }
+    function finish(commit) {
+      clean();
+      const st = dragRef.current;
+      dragRef.current = null;
+      setDrag(null);
+      if (commit && st && st.over !== home) { droppedAt.current = Date.now(); moveTo(st.i, st.over); }
+    }
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    stopDrag.current = () => finish(false);
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('touchmove', block, { passive: false });
+    document.body.style.userSelect = 'none';
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+  }
+  function tapSession(i) {
+    if (Date.now() - droppedAt.current < 400) return;   // the click that ends a drag is not a tap
+    setHeld(h => (h === i ? null : i));
+  }
+
   function save() {
     if (dirty) {
       trainUpdate(update, (tr) => {
@@ -1330,101 +1410,117 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
     showToast && showToast(fresh ? 'Your programme is ready. First session is waiting.' : 'Your week is set.');
     onBack();
   }
-  const label = (r) => r.name.split(' - ')[0];
-  const focusOf = (r) => r.focus || ((block.sessions || []).filter(x => x.id === r.id || x.name === r.name)[0] || {}).focus || null;
+
+  const heldName = held != null ? label(rows[held]) : null;
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title={fresh ? 'Which days?' : 'Your training days'} />
       <p className="text-[15px] leading-snug mb-5">
-        Tap the {need} days you can train. The sessions fill in, in order; tap a day in your week to
-        choose which session goes there.
+        Drag each session to the day you want it, or tap it and then tap a day. Drop it on a rest day
+        to move it there, or on another session to swap them.
       </p>
 
-      <div className="grid gap-1.5 mb-2" role="group" aria-label="Training days" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-        {WEEKDAYS_FULL.map((full, d) => {
-          const on = days.indexOf(d) !== -1;
-          return (
-            <button key={d} onClick={() => toggle(d)} aria-pressed={on} aria-label={full}
-              className="pixel-box text-[15px]" style={{
-                minHeight: 48, fontWeight: 700,
-                background: on ? 'var(--seg-on)' : 'var(--card)',
-                color: on ? 'var(--seg-on-text)' : 'var(--text)',
-              }}>
-              {(WEEKDAYS[d] || '')[0]}
-            </button>
-          );
-        })}
-      </div>
-      <div className="text-[13px] mb-5" style={{ color: 'var(--muted)' }}>
-        {ready ? 'All ' + need + ' sessions placed.' : 'Pick ' + (need - days.length) + ' more.'}
-      </div>
+      {held != null && (
+        <div className="flex items-center gap-3 px-3 mb-2 text-[13px]" role="status"
+          style={{ minHeight: 44, background: 'var(--sunk)' }}>
+          <span className="min-w-0 flex-1">Moving <b>{heldName}</b>. Tap the day it goes on.</span>
+          <button onClick={() => setHeld(null)} className="shrink-0" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Cancel</button>
+        </div>
+      )}
 
-      <Section title="Your week" className="mb-4">
+      <Section title="Your week" right={restCount + ' rest day' + (restCount === 1 ? '' : 's')} className="mb-4">
         {WEEKDAYS.map((dow, d) => {
-          const k = ready ? days.indexOf(d) : -1;
-          const at = ready ? (k === -1 ? -1 : order[k]) : rows.findIndex(r => r.dayOfWeek === d);
-          const r = at === -1 ? null : rows[at];
-          const open = ready && k !== -1 && picking === k;
-          const body = r
-            ? <span className="text-[15px] min-w-0 truncate" style={{ fontWeight: 600 }}>{label(r)}{focusOf(r) ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {focusOf(r)}</span> : null}</span>
-            : <span className="text-[15px]" style={{ color: 'var(--muted)' }}>Rest</span>;
+          const here = shown.map((x, i) => (x === d ? i : -1)).filter(i => i !== -1);
+          const isTarget = drag && drag.over === d;
+          const holdingHere = held != null && dows[held] === d;
+          // While a session is picked up, every other day is a place to put it.
+          const dropAction = held != null && !holdingHere
+            ? (dows.indexOf(d) === -1 ? 'Move here' : 'Swap')
+            : null;
+          const dayLabel = <span className="text-[13px] w-9 shrink-0" style={{ color: 'var(--muted)', fontWeight: 600 }}>{dow}</span>;
+          const rowStyle = {
+            minHeight: 56, borderBottom: '1px solid var(--hairline)',
+            background: isTarget ? 'color-mix(in srgb, var(--accent) 14%, var(--card))' : null,
+            transition: 'background 120ms',
+          };
+          if (dropAction) {
+            return (
+              <button key={d} ref={el => { dayEls.current[d] = el; }} data-day={d} onClick={() => moveTo(held, d)}
+                aria-label={(dropAction === 'Swap' ? 'Swap ' + heldName + ' with ' + here.map(i => label(rows[i])).join(' and ') + ' on ' : 'Move ' + heldName + ' to ') + WEEKDAYS_FULL[d]}
+                className="w-full flex items-center gap-3 text-left" style={rowStyle}>
+                {dayLabel}
+                {here.length
+                  ? <span className="text-[15px] min-w-0 truncate" style={{ fontWeight: 600 }}>{here.map(i => label(rows[i])).join(' + ')}</span>
+                  : <span className="text-[15px]" style={{ color: 'var(--muted)' }}>Rest</span>}
+                <span className="ml-auto shrink-0 text-[13px]" style={{ color: 'var(--link)', fontWeight: 600 }}>{dropAction}</span>
+              </button>
+            );
+          }
           return (
-            <div key={d} style={{ borderBottom: '1px solid var(--hairline)' }}>
-              {ready && r ? (
-                <button onClick={() => setPicking(open ? null : k)} aria-expanded={open}
-                  aria-label={'Change the session on ' + WEEKDAYS_FULL[d] + ', now ' + label(r)}
-                  className="w-full flex items-center gap-3 text-left" style={{ minHeight: 48 }}>
-                  <span className="text-[13px] w-9 shrink-0" style={{ color: 'var(--muted)', fontWeight: 600 }}>{dow}</span>
-                  {body}
-                  <span className="ml-auto text-[13px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>{open ? 'Done' : 'Change'}</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-3" style={{ minHeight: 48 }}>
-                  <span className="text-[13px] w-9 shrink-0" style={{ color: 'var(--muted)', fontWeight: 600 }}>{dow}</span>
-                  {body}
-                </div>
-              )}
-              {open && (
-                <div className="flex flex-wrap gap-1.5 pb-3 pl-12" role="group" aria-label={'Session on ' + WEEKDAYS_FULL[d]}>
-                  {rows.map((s, i) => {
-                    const on = i === at;
+            <div key={d} ref={el => { dayEls.current[d] = el; }} data-day={d} className="flex items-center gap-3" style={rowStyle}>
+              {dayLabel}
+              {here.length ? (
+                <div className="flex-1 min-w-0 flex flex-col gap-1 py-1">
+                  {here.map(i => {
+                    const r = rows[i];
+                    const lifted = (drag && drag.i === i) || held === i;
                     return (
-                      <button key={s.id || i} onClick={() => place(k, i)} aria-pressed={on}
-                        className="pixel-box text-[13px] px-3" style={{
-                          minHeight: 44, fontWeight: 600,
-                          background: on ? 'var(--seg-on)' : 'var(--card)',
-                          color: on ? 'var(--seg-on-text)' : 'var(--text)',
-                        }}>
-                        {label(s)}
-                      </button>
+                      <div key={r.id || i} className="pixel-box flex items-center min-w-0" style={{
+                        background: lifted ? 'var(--seg-on)' : 'var(--card)',
+                        color: lifted ? 'var(--seg-on-text)' : 'var(--text)',
+                        transform: drag && drag.i === i ? 'translateX(6px)' : null,
+                      }}>
+                        <button type="button" onPointerDown={(e) => startDrag(i, e)} onClick={() => tapSession(i)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowUp') { e.preventDefault(); moveTo(i, dows[i] - 1); }
+                            else if (e.key === 'ArrowDown') { e.preventDefault(); moveTo(i, dows[i] + 1); }
+                          }}
+                          aria-label={'Move ' + label(r) + ', on ' + WEEKDAYS_FULL[d] + '. Drag to a day, tap then tap a day, or use the up and down arrow keys.'}
+                          className="shrink-0 flex items-center justify-center"
+                          style={{ touchAction: 'none', minWidth: 44, minHeight: 44, cursor: 'grab' }}>
+                          <Grip color={lifted ? 'var(--seg-on-text)' : 'var(--muted2)'} />
+                        </button>
+                        <button type="button" onClick={() => tapSession(i)} aria-pressed={held === i}
+                          className="flex-1 min-w-0 text-left pr-3 truncate text-[15px]" style={{ minHeight: 44, fontWeight: 600, color: 'inherit' }}>
+                          {label(r)}
+                          {focusOf(r) ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · {focusOf(r)}</span> : null}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
+              ) : (
+                <span className="text-[15px]" style={{ color: 'var(--muted)' }}>Rest</span>
               )}
             </div>
           );
         })}
       </Section>
 
+      {doubled > 0 && (
+        <div className="text-[13px] mb-3 leading-snug" style={{ color: 'var(--warn-ink)' }}>
+          Two sessions share a day. That is allowed, but it is a long day and anything trained twice gets no gap.
+        </div>
+      )}
+
       {!isRecommended && (
-        <button onClick={() => { setChosen(recommended.slice()); setOrder(rows.map((r, i) => i)); setPicking(null); }} className="w-full text-[13px] mb-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+        <button onClick={() => { setDows(recommended.slice()); setHeld(null); }} className="w-full text-[13px] mb-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
           {written || ownCadence ? 'Back to the week this plan is written for' : 'Use the week we recommend'}
         </button>
       )}
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
         {written
-          ? 'This programme is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + '. Move it to suit your week, and swap sessions between days if you need to.'
+          ? 'This programme is written around ' + recommended.slice().sort((x, y) => x - y).map(d => WEEKDAYS[d]).join(', ') + '. Move and swap sessions to suit your week.'
           : ownCadence
-          ? 'This plan is written around ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': training everything to failure needs the day off in the middle. You can still move it.'
-          : 'We suggest ' + recommended.map(d => WEEKDAYS[d]).join(', ') + ': a break in the middle of the week rather than every rest day stacked at the end of it.'}
+          ? 'This plan is written around ' + recommended.slice().sort((x, y) => x - y).map(d => WEEKDAYS[d]).join(', ') + ': training everything to failure needs the day off in the middle. You can still move it.'
+          : 'We suggest ' + recommended.slice().sort((x, y) => x - y).map(d => WEEKDAYS[d]).join(', ') + ': a break in the middle of the week rather than every rest day stacked at the end of it.'}
       </div>
 
       {/* On a brand new programme this is the way OUT, so confirming the default is always a real
           answer. On one already running there is nothing to commit until something changes. */}
-      <Btn className="w-full" onClick={save} disabled={!ready || (!dirty && !fresh)}
-        style={!ready || (!dirty && !fresh) ? { background: 'var(--sunk)', color: 'var(--muted)' } : null}>
-        {!ready ? 'Pick ' + (need - days.length) + ' more ' + (need - days.length === 1 ? 'day' : 'days')
-          : fresh ? 'Start ' + block.name : dirty ? 'Save these days' : 'Nothing to change'}
+      <Btn className="w-full" onClick={save} disabled={!dirty && !fresh}
+        style={!dirty && !fresh ? { background: 'var(--sunk)', color: 'var(--muted)' } : null}>
+        {fresh ? 'Start ' + block.name : dirty ? 'Save these days' : 'Nothing to change'}
       </Btn>
       <div className="text-[12px] mt-3 leading-snug" style={{ color: 'var(--muted)' }}>
         This sets every week of {block.name}. To move one session in one week only, open that day from
