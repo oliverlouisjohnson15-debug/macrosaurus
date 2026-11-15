@@ -1308,13 +1308,15 @@ function KitStep({ db, update, showToast, block, fresh, onBack, onNext }) {
     });
   }
   const openRow = rows.filter(r => r.key === open)[0] || null;
-  const tag = (r) => r.by === 'memory' ? 'usual' : r.by === 'gym' ? 'only one here' : null;
+  const tag = (r) => r.by === 'last' ? 'last time' : r.by === 'memory' ? 'usual' : r.by === 'gym' ? 'only one here' : null;
   return (
     <div className="fade-in">
       <SubHeader back={onBack} backLabel="Train" title="Your kit" />
       <p className="text-[15px] leading-snug mb-5">
         {fresh
-          ? live.name + ' leaves ' + rows.length + ' lines up to you. Pick them now, or at the gym the first time each one comes up. Either way it is set for the rest of the programme until you change it.'
+          ? (left === 0 && rows.some(r => r.by === 'last')
+            ? 'What you used last time is filled in. Keep it, or tap a line to pick something else.'
+            : live.name + ' leaves ' + rows.length + ' lines up to you. Pick them now, or at the gym the first time each one comes up. Either way it is set for the rest of the programme until you change it.')
           : 'What you use for each of the lines ' + live.name + ' leaves up to you. A change applies from ' + (fromWeek > 1 ? 'week ' + fromWeek : 'the start') + ' on.'}
       </p>
 

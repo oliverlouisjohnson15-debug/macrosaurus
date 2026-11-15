@@ -94,7 +94,9 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   // The questions a new programme still has, in order: the kit its general lines leave open, then
   // the days. A programme with no slots goes straight to the days, as it always has.
   function afterStart(blk) {
-    if (blk && Training.unfilledSlots(blk).length) go('kit', { blockId: blk.id, fresh: true });
+    // Any programme with kit lines shows them, picked or not: a re-run arrives with last time's
+    // picks filled in, to keep with one tap or change.
+    if (blk && Training.blockSlots(blk).length) go('kit', { blockId: blk.id, fresh: true });
     else go('schedule', { blockId: blk.id, fresh: true });
   }
   function startProgramme(key, startISO) {
@@ -219,6 +221,13 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   }
   if (screen.name === 'schedule') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
+    // A new programme with kit lines shows Your kit before its days, whichever screen started it:
+    // the builder hands over a block id before this render has the block in hand, so the router
+    // decides here rather than trusting every caller to.
+    if (blk && screen.fresh && !screen.kitSeen && Training.blockSlots(blk).length) {
+      return page(<KitStep db={db} update={update} showToast={showToast} block={blk} fresh
+        onBack={() => go('home')} onNext={() => go('schedule', { blockId: blk.id, fresh: true, kitSeen: true })} />);
+    }
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
     onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
@@ -228,7 +237,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   if (screen.name === 'kit') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
     if (blk) return page(<KitStep db={db} update={update} showToast={showToast} block={blk} fresh={!!screen.fresh}
-      onBack={() => go(screen.fresh ? 'home' : 'block')} onNext={() => go('schedule', { blockId: blk.id, fresh: true })} />);
+      onBack={() => go(screen.fresh ? 'home' : 'block')} onNext={() => go('schedule', { blockId: blk.id, fresh: true, kitSeen: true })} />);
   }
   if (screen.name === 'how') {
     return page(<HowItWorks onBack={() => go('block')} />);

@@ -3250,7 +3250,7 @@
               sourceName: item.sourceName || null,
               // A general line ("Incline press") is a SLOT: the person fills it before the block
               // starts. A template carries only the key; whether it is answered belongs to a block.
-              slot: item.slot ? { key: typeof item.slot === 'string' ? item.slot : item.slot.key, answered: false, by: null } : null,
+              slot: item.slot ? { key: typeof item.slot === 'string' ? item.slot : item.slot.key, answered: !!item.slotPicked, by: item.slotPicked ? 'last' : null } : null,
               target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
                 { sets: sets, rir: pair ? pair.rir : effort },
                 pair ? { rirLast: pair.rirLast } : {}),
@@ -5920,7 +5920,10 @@
                 // volume-model block wearing its movements.
                 choice: e.choice || null, alts: e.alts || null, technique: e.technique || null,
                 warmups: e.warmups || null, planNote: e.planNote || null, sourceName: e.sourceName || null,
-                slot: e.slot ? e.slot.key : null,
+                // The slot and, on a re-run, what filled it last time: offered back pre-filled
+                // ("last time") rather than asked from scratch. A shared payload drops the pick.
+                slot: lineSlot(block, e) ? lineSlot(block, e).key : null,
+                slotPicked: !!(lineSlot(block, e) && lineSlot(block, e).answered),
                 target: {
                   sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
                   setsOptional: e.target.setsOptional || 0,
@@ -6076,7 +6079,11 @@
    * reads, an object is the new one and carries the style with the days.
    */
   function templatePayload(block) {
-    return { v: 2, style: (block && block.style) || null, days: templateOf(block) };
+    // Your kit is yours: whoever adopts a shared programme picks their own.
+    var days = templateOf(block).map(function (d) {
+      return Object.assign({}, d, { exercises: d.exercises.map(function (e) { return e.slot ? Object.assign({}, e, { slotPicked: false }) : e; }) });
+    });
+    return { v: 2, style: (block && block.style) || null, days: days };
   }
   function templateDays(payload) {
     if (Array.isArray(payload)) return payload;                 // everything published before v2

@@ -49,11 +49,15 @@ test('a PPL Hybrid started before slots existed is never asked again', () => {
   assert.equal(T.blockSlots(b).length, 7, 'but its lines are still known as slots, so they can be changed');
 });
 
-test('sharing or re-running a programme keeps its slots open for whoever starts it', () => {
+test('re-running a programme brings back last time\'s picks; sharing it does not', () => {
   const b = T.programmeBlock('pplh5');
   T.fillSlot(b, 'flat_press', 'db_bench');
   const again = T.blockFromTemplate(T.templateOf(b), { shape: 'as-written', style: 'minmax', weeks: 4 });
-  assert.equal(T.unfilledSlots(again).length, 7);
+  const flat = T.blockSlots(again).find(r => r.key === 'flat_press');
+  assert.deepEqual([flat.answered, flat.by, flat.exerciseId], [true, 'last', 'db_bench']);
+  assert.equal(T.unfilledSlots(again).length, 6, 'the ones never picked stay open');
+  const shared = T.blockFromTemplate(T.templatePayload(b).days, { shape: 'as-written', style: 'minmax', weeks: 4 });
+  assert.equal(T.unfilledSlots(shared).length, 7, 'whoever adopts it picks their own');
 });
 
 test('starting PPL Hybrid offers the kit before the days, and nothing has to be picked yet', () => {
