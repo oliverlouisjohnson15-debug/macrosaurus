@@ -350,6 +350,7 @@ function programmeCards(custom) {
         // A slot ("Incline press") is named as the job it is, and marked as yours to pick: no machine
         // is chosen for you before you have said which kit you use.
         slot: e.slot && Training.slotOf(e.slot) ? Training.slotOf(e.slot).name : null,
+        slotKey: e.slot || null,
         sets: Training.setsLabel(e.target), reps: Training.repLabel(e.target),
       })),
     })).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -358,7 +359,7 @@ function programmeCards(custom) {
 }
 
 // The whole week of one programme, before you commit to it. The recipe hub's preview sheet, for a plan.
-function ProgrammePreview({ p, onStart, onClose }) {
+function ProgrammePreview({ p, onStart, onClose, kit, custom }) {
   const mins = Math.round(p.days.reduce((a, d) => a + d.mins, 0) / Math.max(1, p.days.length));
   return (
     <Sheet title={p.name} onClose={onClose} wide z={85}>
@@ -390,7 +391,9 @@ function ProgrammePreview({ p, onStart, onClose }) {
             {d.lines.map((l, li) => (
               <div key={li} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
                 <span className="min-w-0" style={{ color: 'var(--text2)' }}>
-                  {l.slot ? <>{l.slot}<span style={{ color: 'var(--muted)' }}> · your pick</span></>
+                  {l.slot ? <>{l.slot}<span style={{ color: 'var(--muted)' }}> · {kit && kit[l.slotKey] && Training.byId(kit[l.slotKey], custom)
+                      ? Training.slotKit(l.slotKey, kit[l.slotKey], custom).toLowerCase() + ' (usual)'
+                      : 'your pick'}</span></>
                     : l.names.length > 1
                     ? l.names.map((n, ni) => <React.Fragment key={ni}>{ni ? <span style={{ color: 'var(--muted)' }}> or </span> : null}{n}</React.Fragment>)
                     : l.names[0]}
@@ -509,7 +512,7 @@ function ProgrammeGallery({ db, onStart, onCustomise, onCommunity, onCommunityAl
           Running one of your own? Share it from My programme and it lands here, credited to you.
         </p>
       </Section>
-      {openP && !starting && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
+      {openP && !starting && <ProgrammePreview p={openP} kit={t.prefs.kit} custom={t.custom} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
       {starting && openP && (
         <StartProgrammeSheet db={db} name={openP.name} by={programmeBy(openP)} onClose={() => setStarting(null)} kitFirst={Training.programmeHasSlots(openP.key)}
           onStart={(iso) => { const key = openP.key; setStarting(null); setOpen(null); onStart(key, iso); }}
@@ -735,7 +738,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         {!viewingAhead && next && (
           <Card hero className="mb-6">
             <div className="p-4">
-              <div className="flex items-baseline justify-between gap-2 text-[13px]" style={{ fontWeight: 600 }}><span style={{ color: 'var(--link)' }}>{live ? 'In progress' : 'Next'}{WEEKDAYS_FULL[next.session.dayOfWeek] ? ' · ' + WEEKDAYS_FULL[next.session.dayOfWeek] : ''}</span><span className="tnum" style={{ color: 'var(--muted)', fontWeight: 400 }}>about {sessionMins(next.session.exercises)} min</span></div>
+              <div className="flex items-baseline justify-between gap-2 text-[13px]" style={{ fontWeight: 600 }}><span style={{ color: 'var(--link)' }}>{live ? 'In progress' : 'Next'}{WEEKDAYS_FULL[next.session.dayOfWeek] ? ' · ' + WEEKDAYS_FULL[next.session.dayOfWeek] : ''}</span><span className="tnum" style={{ color: 'var(--muted)', fontWeight: 400 }}>about {sessionMins(next.session.exercises, t.prefs.restSec)} min</span></div>
               <button onClick={() => onOpen(next.session, block)} className="block text-left text-[24px] leading-tight mt-1" style={{ fontWeight: 700, minHeight: 44 }} aria-label={'Open ' + next.session.name.split(' - ')[0]}>{next.session.name.split(' - ')[0]}</button>
               {next.session.focus && <div className="text-[15px] -mt-0.5 mb-1" style={{ color: 'var(--text2)', fontWeight: 600 }}>{next.session.focus}</div>}
               <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
@@ -1087,7 +1090,7 @@ function BlockPlace({ db, block, go }) {
         <div className="text-[13px] mb-4" style={{ color: 'var(--muted)' }}>Week {prog.week} of {block.weeks} · {weekRangeLabel(block.startISO, prog.week)}</div>
         <Section title="Schedule" right={{ label: 'Move days', onClick: () => go('schedule', { blockId: block.id }) }}>
           {days.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i).map(s => (
-            <Row key={s.id} title={s.name.split(' - ')[0]} sub={(s.focus ? s.focus + ' · ' : '') + (s.exercises || []).length + ' exercises · about ' + sessionMins(s.exercises) + ' min'}
+            <Row key={s.id} title={s.name.split(' - ')[0]} sub={(s.focus ? s.focus + ' · ' : '') + (s.exercises || []).length + ' exercises · about ' + sessionMins(s.exercises, t.prefs.restSec) + ' min'}
               icon={<span className="text-[13px]" style={{ color: 'var(--text2)', fontWeight: 600 }}>{WEEKDAYS[s.dayOfWeek]}</span>}
               onClick={() => go('preview', { sessionId: s.id, blockId: block.id })} />))}
         </Section>

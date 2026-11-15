@@ -836,7 +836,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const items = Training.sessionItems(live);
   const codes = Training.sessionCodes(items);
   const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
-  const mins = sessionMins(items);
+  const mins = sessionMins(items, t.prefs.restSec);
   // The most recent log against this session, and whether it is one you are still IN. The screen
   // used to take any log at all as "carry on where you left off" and then hand you a brand-new empty
   // session for today, because the runner only ever resumes a log from today. Two different things,
@@ -1423,7 +1423,6 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
     if (e.button != null && e.button !== 0) return;
     e.stopPropagation();
     if (stopDrag.current) stopDrag.current();
-    setHeld(null);
     const home = dows[i];
     dragRef.current = { i, over: home };
     setDrag(dragRef.current);
@@ -1432,6 +1431,9 @@ function ScheduleDays({ db, update, showToast, block, fresh, onBack }) {
       lastY = ev.clientY;
       const d = dayAt(lastY);
       if (d != null && dragRef.current && d !== dragRef.current.over) {
+        // Only a real drag puts down a session picked up by a tap. Clearing it on the press itself
+        // meant tapping a held session to put it back down picked it straight up again.
+        setHeld(null);
         dragRef.current = { i, over: d };
         setDrag(dragRef.current);
       }

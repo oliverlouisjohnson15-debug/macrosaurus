@@ -573,6 +573,21 @@ test('moving a session onto another session swaps them', () => {
   } finally { ui.unmount(); }
 });
 
+test('tapping a picked-up session again puts it back down', () => {
+  const block = fourDay();
+  const ui = mount(A.ScheduleDays, {
+    db: accountWith(block), showToast() {}, isPremium: true, onUpgrade() {}, block, onBack() {}, update() {},
+  });
+  try {
+    const name = T.scheduleOf(block, A.Store.todayISO())[0].name.split(' - ')[0];
+    const grip = () => byLabel(ui, 'Move ' + name + ', on ');
+    ui.clickEl(grip());
+    assert.ok(ui.has('Tap the day it goes on'));
+    ui.clickEl(grip());
+    assert.ok(!ui.has('Tap the day it goes on'), 'the second tap cancels');
+  } finally { ui.unmount(); }
+});
+
 test('the grip moves a session a day at a time from the keyboard', () => {
   const block = fourDay();
   const ui = mount(A.ScheduleDays, {
