@@ -231,10 +231,12 @@ function fmtRest(secs) {
 // How long a session will take, from its own prescription: every set costs its rest plus about
 // forty seconds of work. Written out inline in three places before this, which meant the block
 // preview and the session list could quietly disagree about the same session.
-function sessionMins(exercises) {
+// `restSec` is the person's own rest (Train settings), which the timer uses in place of the plan's,
+// so the estimate has to use it too or "about 62 min" disagrees with the session you then run.
+function sessionMins(exercises, restSec) {
   return Math.round((exercises || []).reduce((a, e) => {
     const sets = (e.target && e.target.sets) || 0;
-    const rest = (e.target && e.target.restSec) || 120;
+    const rest = +restSec > 0 ? +restSec : ((e.target && e.target.restSec) || 120);
     // A last-set technique is another two or three minutes of work and recovery on that movement -
     // two drop sets and their rests, or a set extended past failure. Counting it keeps "about 50
     // minutes" honest on the block that adds them, which is the block people are most likely to run

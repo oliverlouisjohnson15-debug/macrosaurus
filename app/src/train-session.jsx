@@ -1386,7 +1386,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 )}
                 {/* Your own machine setup stays in view until the first set: it is short, it is
                     yours, and it is what you need while adjusting the seat. */}
-                {!work.some(x => x.done) && setupOf(it.exerciseId) && (
+                {!(it.slot && !it.slot.answered) && !work.some(x => x.done) && setupOf(it.exerciseId) && (
                   <div className="text-[13px] mb-2 leading-snug" style={{ color: 'var(--text2)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Setup: </span>{setupOf(it.exerciseId)}
                   </div>
@@ -1456,7 +1456,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     `warmupSets` short-circuits on the real number - isolation under 15kg gets nothing
                     at all - so the flat probe promised a ramp to somebody whose lateral raise is 10kg
                     and then produced none, which is the one thing an offer must not do. */}
-                {!t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0)
+                {!(it.slot && !it.slot.answered) && !t.prefs.sawWarmupHint && warmups.length === 0 && !work.some(x => x.done) && work[0] && !(work[0].weightKg > 0)
                   && Training.warmupSets((work[0].lastTime && work[0].lastTime.weightKg) || 60, ex, { count: it.warmups }).length > 0 && (
                   <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
                     Got a weight in mind? Put it in set 1 and a warm-up is worked out for it.
@@ -1465,7 +1465,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
                 {/* Warm-up, only until you have started. Once the first working set is in, telling
                     you what to warm up with is stale advice taking up a third of the card. */}
-                {warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
+                {!(it.slot && !it.slot.answered) && warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
                   && Training.warmupSets(work[0].weightKg, ex, { count: it.warmups }).length > 0 && (
                   <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Warm up: </span>
@@ -1484,7 +1484,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     you to lock in, above a set you have already finished, is noise. */}
                 {/* ONE line of coaching above the table: the progression note when there is one
                     (it is about THIS lift, today), and this when there is not. */}
-                {style.toFailure && !it.note && !work.some(x => x.done) && tgt && (
+                {!(it.slot && !it.slot.answered) && style.toFailure && !it.note && !work.some(x => x.done) && tgt && (
                   <div className="text-[12px] mb-3 px-2.5 py-2 leading-snug"
                     style={{ borderLeft: '3px solid var(--accent)', background: 'var(--surface2)', color: 'var(--text2)' }}>
                     {(tgt.rirLast == null ? tgt.rir : tgt.rirLast) > 0

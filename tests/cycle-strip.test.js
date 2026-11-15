@@ -85,7 +85,12 @@ test('the verdict it shows is the one Progress shows', () => {
 });
 
 test('a due check-in puts the button on Today, not three taps away', () => {
-  const r = strip(cutting({ last_checkin: iso(9) }));
+  // Due on the person's check-in day. Without pinning the day, a check-in nine days ago is only due
+  // on some weekdays - when the default Monday is a day or two away the app rightly waits for it
+  // (checkinReadyOn) - so this test passed or failed depending on what day CI happened to run.
+  const db = cutting({ last_checkin: iso(9) });
+  db.profile.checkinDay = new Date(Store.todayISO() + 'T00:00:00').getDay();
+  const r = strip(db);
   assert.ok(r.has('Weekly check-in due'), 'it should say so: ' + r.text.slice(0, 200));
   assert.ok(r.has('Check in'), 'and offer it: ' + r.text.slice(0, 200));
 });
