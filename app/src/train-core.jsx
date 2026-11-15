@@ -816,6 +816,77 @@ function ChoiceToggle({ item, custom, onPick, locked }) {
   );
 }
 
+/* ---- filling a slot: which kit does this job ----------------------------------------------------
+ * One sheet for every place a slot is answered: the Your kit step, My programme's Your kit page, and
+ * the session's Change. A slot is a job ("Incline press"), so the rows lead with the KIT (Machine,
+ * Dumbbells, Barbell) - which is how people decide in a gym - with the movement it means under it.
+ * One tap answers it; there is no confirm step. Kit the current gym has not got goes last, dimmed and
+ * saying so, but stays choosable: equipment lists are often incomplete and people train in two gyms.
+ */
+function SlotSheet({ db, update, slot, where, current, gym, remember, onPick, onClose, z }) {
+  const t = tdb(db);
+  const [keep, setKeep] = useState(remember !== false);
+  const [other, setOther] = useState(false);
+  const eq = gym ? Training.gymEquipment(gym).equipment : null;
+  const has = (id) => { const ex = Training.byId(id, t.custom); return !eq || (ex && eq.indexOf(ex.equipment) !== -1); };
+  const options = slot.options.slice().sort((a, b) => (has(b.id) ? 1 : 0) - (has(a.id) ? 1 : 0));
+  const pick = (id) => { onPick(id, keep); onClose(); };
+  const offList = current && !slot.options.some(o => o.id === current);
+  if (other) {
+    return <ExercisePicker db={db} update={update} title={slot.name} basedOn={slot.options[0].id} z={(z || 88) + 2}
+      onPick={(id) => { setOther(false); pick(id); }} onClose={() => setOther(false)} />;
+  }
+  return (
+    <Sheet title={slot.name} onClose={onClose} z={z || 88}>
+      {where && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{where}</div>}
+      <div role="radiogroup" aria-label={'Kit for ' + slot.name}>
+        {options.map((o) => {
+          const ex = Training.byId(o.id, t.custom);
+          const on = current === o.id;
+          const here = has(o.id);
+          return (
+            <button key={o.id} type="button" role="radio" aria-checked={on} onClick={() => pick(o.id)}
+              className="w-full flex items-center gap-2 text-left"
+              style={{ minHeight: 56, borderBottom: '1px solid var(--hairline)', opacity: here ? 1 : 0.55 }}>
+              <span className="w-3 shrink-0 flex" style={{ color: 'var(--cursor)' }}>{on && <Cursor />}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px]" style={{ fontWeight: 600 }}>{o.kit}</span>
+                <span className="block text-[13px] truncate" style={{ color: 'var(--muted)' }}>
+                  {here ? ex.name : 'Not at ' + gym.name + ' · ' + ex.name}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => setOther(true)} className="w-full flex items-center gap-2 text-left" style={{ minHeight: 56 }}>
+          <span className="w-3 shrink-0 flex" style={{ color: 'var(--cursor)' }}>{offList && <Cursor />}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px]" style={{ fontWeight: 600, color: 'var(--link)' }}>Something else</span>
+            <span className="block text-[13px] truncate" style={{ color: 'var(--muted)' }}>
+              {offList ? (Training.byId(current, t.custom) || {}).name : 'A branded machine, or your own exercise'}
+            </span>
+          </span>
+        </button>
+      </div>
+      {remember !== null && (
+        <button type="button" onClick={() => setKeep(k => !k)} aria-pressed={keep}
+          className="w-full flex items-center gap-3 text-left" style={{ minHeight: 56 }}>
+          <span className="min-w-0 flex-1 text-[13px] leading-snug">
+            Use this for {slot.name.toLowerCase()} in other programmes too
+          </span>
+          <Toggle on={keep} />
+        </button>
+      )}
+    </Sheet>
+  );
+}
+// Where a slot sits and what it asks for: "Upper · 2 × 6–10", or "Upper, Push · …" across two days.
+function slotWhere(row) {
+  const days = row.where.map(w => w.session.split(' - ')[0]).filter((x, i, a) => a.indexOf(x) === i);
+  const tg = row.where[0] && row.where[0].target;
+  return days.join(', ') + (tg ? ' · ' + Training.setsLabel(tg) + ' × ' + Training.repLabel(tg) : '');
+}
+
 /* Drag something onto one of several places, rather than up and down a list: the week strip, where a
    session is held and dropped onto another weekday. Same hold-to-pick-up as `useDragList` and for the
    same reasons. The place under the finger is found with elementsFromPoint, skipping the floating

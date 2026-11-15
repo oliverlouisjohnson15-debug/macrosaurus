@@ -3248,6 +3248,9 @@
               technique: item.technique || null, planNote: item.planNote || null,
               warmups: item.warmups == null ? null : item.warmups,
               sourceName: item.sourceName || null,
+              // A general line ("Incline press") is a SLOT: the person fills it before the block
+              // starts. A template carries only the key; whether it is answered belongs to a block.
+              slot: item.slot ? { key: typeof item.slot === 'string' ? item.slot : item.slot.key, answered: !!item.slotPicked, by: item.slotPicked ? 'last' : null } : null,
               target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target,
                 { sets: sets, rir: pair ? pair.rir : effort },
                 pair ? { rirLast: pair.rirLast } : {}),
@@ -5178,7 +5181,8 @@
    * Quinton Pulliam's PPL Plus with Olly Johnson's leg days: an upper day, a hack-squat and
    * split-squat lower day, push, pull, and a pendulum-squat and hyperextension leg day, with
    * Wednesday and Sunday off. The Push day is Quinton's, line for line. The rows are Olly's picks:
-   * the Prime Extreme row on Upper and the T-bar row on Pull. Transcribed exactly as Olly wrote it,
+   * the Prime Extreme row on Upper and the T-bar row on Pull. A line written as a general movement
+   * ("Flat Press", "Shrugs") is a SLOT: the person picks the kit before the first session. Transcribed exactly as Olly wrote it,
    * with no form notes added. A "2-3 sets" line is two sets plus an optional third (setsOptional),
    * which the workout shows as a row to tick if you have it in you. Both leg days open
    * with hanging knee raises and finish with the machine crunch. Rest is three minutes on every
@@ -5188,10 +5192,10 @@
   { key: "pplh5", name: "PPL Hybrid", author: "Quinton Pulliam & Olly Johnson", type: "Upper / PPL / legs", blurb: "Olly's leg days", daysPerWeek: 5, setting: "Full gym",
     about: "Quinton Pulliam's push, pull and legs with an upper day and Olly's leg days: Lower 1 for the hack squat and split squat, Legs 2 for the pendulum squat and hyperextension. Day 3 is core and recovery, with abs every other training day; day 7 is rest and meal prep.",
     template: [
-    {"name": "Upper", "kind": "upper", "dayOfWeek": 0, "exercises": [{"exerciseId": "machine_incline", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["smith_machine_incline_press", "db_incline"], "warmups": 3, "sourceName": "Incline Press"}, {"exerciseId": "machine_press", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["bb_bench", "db_bench"], "warmups": 2, "sourceName": "Flat Press"}, {"exerciseId": "lat_pulldown", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["close_grip_lat_pulldown", "machine_pulldown"], "warmups": 2, "sourceName": "Lat Pulldown"}, {"exerciseId": "prime_row", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["chest_supported_machine_row", "machine_row"], "warmups": 2, "sourceName": "Prime Extreme Row"}, {"exerciseId": "pec_deck", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_fly", "db_fly"], "warmups": 1, "sourceName": "Pec Deck"}, {"exerciseId": "machine_overhead_extension", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180, "setsOptional": 1}, "alts": ["overhead_ext_cable", "rope_pushdown"], "warmups": 1, "sourceName": "Overhead Machine Triceps Extension"}, {"exerciseId": "db_curl", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180, "setsOptional": 1}, "alts": ["standing_dumbbell_curl", "bayesian_curl"], "warmups": 1, "sourceName": "Dumbbell Curl"}, {"exerciseId": "db_lateral", "target": {"sets": 3, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_lateral", "machine_lateral"], "warmups": 1, "sourceName": "Dumbbell Lateral Raise"}]},
+    {"name": "Upper", "kind": "upper", "dayOfWeek": 0, "exercises": [{"exerciseId": "machine_incline", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "warmups": 3, "sourceName": "Incline Press", "slot": "incline_press"}, {"exerciseId": "machine_press", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "warmups": 2, "sourceName": "Flat Press", "slot": "flat_press"}, {"exerciseId": "lat_pulldown", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["close_grip_lat_pulldown", "machine_pulldown"], "warmups": 2, "sourceName": "Lat Pulldown"}, {"exerciseId": "prime_row", "target": {"sets": 2, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["chest_supported_machine_row", "machine_row"], "warmups": 2, "sourceName": "Prime Extreme Row"}, {"exerciseId": "pec_deck", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_fly", "db_fly"], "warmups": 1, "sourceName": "Pec Deck"}, {"exerciseId": "machine_overhead_extension", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180, "setsOptional": 1}, "alts": ["overhead_ext_cable", "rope_pushdown"], "warmups": 1, "sourceName": "Overhead Machine Triceps Extension"}, {"exerciseId": "db_curl", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180, "setsOptional": 1}, "alts": ["standing_dumbbell_curl", "bayesian_curl"], "warmups": 1, "sourceName": "Dumbbell Curl"}, {"exerciseId": "db_lateral", "target": {"sets": 3, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_lateral", "machine_lateral"], "warmups": 1, "sourceName": "Dumbbell Lateral Raise"}]},
     {"name": "Lower 1", "focus": "Hack squat & split squat focus", "kind": "legs", "dayOfWeek": 1, "exercises": [{"exerciseId": "hanging_knee_raise", "target": {"sets": 2, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["hanging_leg_raise", "captains_chair_leg_raise"], "warmups": 0, "sourceName": "Hanging Knee Raises"}, {"exerciseId": "standing_calf", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["leg_press_calf", "smith_calf"], "warmups": 1, "sourceName": "Standing Calf Raise"}, {"exerciseId": "leg_extension", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["reverse_nordic", "sissy_squat"], "warmups": 1, "sourceName": "Leg Extension"}, {"exerciseId": "hack_squat", "target": {"sets": 2, "repLow": 6, "repHigh": 8, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["pendulum_squat", "leg_press"], "warmups": 3, "sourceName": "Hack Squat"}, {"exerciseId": "split_squat", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["bulgarian", "smith_split_squat"], "warmups": 1, "sourceName": "Split Squats (2 Dumbbells)"}, {"exerciseId": "hip_adduction", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_adduction", "seated_machine_adduction"], "warmups": 1, "sourceName": "Machine Hip Adduction"}, {"exerciseId": "machine_crunch2", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_crunch", "machine_crunch"], "warmups": 1, "sourceName": "Machine Crunch"}]},
-    {"name": "Push", "kind": "push", "dayOfWeek": 3, "exercises": [{"exerciseId": "machine_incline", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["smith_machine_incline_press", "db_incline"], "warmups": 3, "planNote": "Set the seat height so your hands line up with your lower chest. Focus on driving your elbows inward toward each other to maximize chest contraction.", "sourceName": "Incline Chest Press Machine"}, {"exerciseId": "db_lateral", "target": {"sets": 3, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_lateral", "machine_lateral"], "warmups": 1, "planNote": "Control the weight with zero momentum. Lead slightly with your elbows and maintain a slight forward lean to keep constant tension on the side delts.", "sourceName": "Lateral Raises"}, {"exerciseId": "db_ohp", "target": {"sets": 3, "repLow": 10, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["machine_ohp", "seated_machine_press"], "warmups": 2, "planNote": "Keep your core braced and ribs tucked down so you do not arch your lower back as you press overhead.", "sourceName": "Shoulder Press"}, {"exerciseId": "machine_overhead_extension", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["overhead_ext_cable", "rope_pushdown"], "warmups": 1, "planNote": "Keep your elbows locked in a fixed position by your sides. Do not let them flare outward during the movement.", "sourceName": "Triceps Machine Extension"}, {"exerciseId": "overhead_ext_cable", "target": {"sets": 2, "repLow": 12, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["rope_pushdown", "overhead_cable_triceps_extension"], "warmups": 1, "planNote": "Step slightly back from the stack to keep tension even at the top of the movement. Fully lock out and squeeze the triceps.", "sourceName": "Cable Extension"}, {"exerciseId": "pec_deck", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_fly", "db_fly"], "warmups": 1, "planNote": "Focus on a deep stretch in the open position and try to touch your biceps together at peak contraction.", "sourceName": "Pec Deck"}]},
-    {"name": "Pull", "kind": "pull", "dayOfWeek": 4, "exercises": [{"exerciseId": "tbar_row", "target": {"sets": 3, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["tbar_row_supported", "bb_row"], "warmups": 2, "sourceName": "T-Bar Row"}, {"exerciseId": "lat_pulldown", "target": {"sets": 3, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["close_grip_lat_pulldown", "machine_pulldown"], "warmups": 2, "sourceName": "Lat Pulldown"}, {"exerciseId": "hammer_curl", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["rope_hammer", "crossbody_curl"], "warmups": 1, "sourceName": "Hammer Curl"}, {"exerciseId": "db_curl", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "choice": {"key": "curl", "label": "Supinated curl or Bayesian cable curl", "options": ["db_curl", "bayesian_curl"]}, "warmups": 1, "sourceName": "Supinated Curl or Bayesian Cable Curl"}, {"exerciseId": "shrug_db", "target": {"sets": 3, "repLow": 10, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["shrug_machine", "shrug_bb"], "warmups": 1, "sourceName": "Shrugs"}, {"exerciseId": "high_to_low_row", "target": {"sets": 2, "repLow": 12, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["machine_pulldown", "1_arm_cable_pulldown"], "warmups": 1, "sourceName": "High-to-Low Row"}]},
+    {"name": "Push", "kind": "push", "dayOfWeek": 3, "exercises": [{"exerciseId": "machine_incline", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["smith_machine_incline_press", "db_incline"], "warmups": 3, "planNote": "Set the seat height so your hands line up with your lower chest. Focus on driving your elbows inward toward each other to maximize chest contraction.", "sourceName": "Incline Chest Press Machine"}, {"exerciseId": "db_lateral", "target": {"sets": 3, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "warmups": 1, "planNote": "Control the weight with zero momentum. Lead slightly with your elbows and maintain a slight forward lean to keep constant tension on the side delts.", "sourceName": "Lateral Raises", "slot": "lateral_raise"}, {"exerciseId": "db_ohp", "target": {"sets": 3, "repLow": 10, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "warmups": 2, "planNote": "Keep your core braced and ribs tucked down so you do not arch your lower back as you press overhead.", "sourceName": "Shoulder Press", "slot": "shoulder_press"}, {"exerciseId": "machine_overhead_extension", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["overhead_ext_cable", "rope_pushdown"], "warmups": 1, "planNote": "Keep your elbows locked in a fixed position by your sides. Do not let them flare outward during the movement.", "sourceName": "Triceps Machine Extension"}, {"exerciseId": "overhead_ext_cable", "target": {"sets": 2, "repLow": 12, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "warmups": 1, "planNote": "Step slightly back from the stack to keep tension even at the top of the movement. Fully lock out and squeeze the triceps.", "sourceName": "Cable Extension", "slot": "cable_extension"}, {"exerciseId": "pec_deck", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_fly", "db_fly"], "warmups": 1, "planNote": "Focus on a deep stretch in the open position and try to touch your biceps together at peak contraction.", "sourceName": "Pec Deck"}]},
+    {"name": "Pull", "kind": "pull", "dayOfWeek": 4, "exercises": [{"exerciseId": "tbar_row", "target": {"sets": 3, "repLow": 6, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["tbar_row_supported", "bb_row"], "warmups": 2, "sourceName": "T-Bar Row"}, {"exerciseId": "lat_pulldown", "target": {"sets": 3, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["close_grip_lat_pulldown", "machine_pulldown"], "warmups": 2, "sourceName": "Lat Pulldown"}, {"exerciseId": "hammer_curl", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["rope_hammer", "crossbody_curl"], "warmups": 1, "sourceName": "Hammer Curl"}, {"exerciseId": "db_curl", "target": {"sets": 2, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "warmups": 1, "sourceName": "Supinated Curl or Bayesian Cable Curl", "slot": "supinated_curl"}, {"exerciseId": "shrug_db", "target": {"sets": 3, "repLow": 10, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "warmups": 1, "sourceName": "Shrugs", "slot": "shrugs"}, {"exerciseId": "high_to_low_row", "target": {"sets": 2, "repLow": 12, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["machine_pulldown", "1_arm_cable_pulldown"], "warmups": 1, "sourceName": "High-to-Low Row"}]},
     {"name": "Legs 2", "focus": "Pendulum squat & hyperextension focus", "kind": "legs", "dayOfWeek": 5, "exercises": [{"exerciseId": "hanging_knee_raise", "target": {"sets": 2, "repLow": 10, "repHigh": 15, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["hanging_leg_raise", "captains_chair_leg_raise"], "warmups": 0, "sourceName": "Hanging Knee Raises"}, {"exerciseId": "seated_leg_curl", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["lying_leg_curl", "standing_leg_curl"], "warmups": 2, "sourceName": "Seated Hamstring Curl"}, {"exerciseId": "standing_calf", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["leg_press_calf", "smith_calf"], "warmups": 1, "sourceName": "Standing Calf Raise"}, {"exerciseId": "pendulum_squat", "target": {"sets": 2, "repLow": 6, "repHigh": 8, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["hack_squat", "leg_press"], "warmups": 3, "sourceName": "Pendulum Squat"}, {"exerciseId": "leg_extension", "target": {"sets": 3, "repLow": 8, "repHigh": 12, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["reverse_nordic", "sissy_squat"], "warmups": 1, "sourceName": "Leg Extension"}, {"exerciseId": "machine_hyperextension", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["45_hyperextension", "back_extension"], "warmups": 1, "sourceName": "Machine Hyperextension"}, {"exerciseId": "machine_hip_thrust", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 1, "rirLast": 0, "restSec": 180}, "alts": ["hip_thrust", "smith_hip_thrust"], "warmups": 2, "sourceName": "Machine Hip Thrust"}, {"exerciseId": "machine_crunch2", "target": {"sets": 2, "repLow": 8, "repHigh": 10, "rir": 0, "rirLast": 0, "restSec": 180}, "alts": ["cable_crunch", "machine_crunch"], "warmups": 1, "sourceName": "Machine Crunch"}]},
   ] }
 ];
@@ -5272,6 +5276,140 @@
     return out;
   }
 
+  /* ---- slots: a general line is a job, and the person picks the kit that does it ---------------
+   * "Incline Press" in a written plan is not a movement. A machine, two dumbbells, a barbell or a
+   * Smith machine all do it, and which one is the person's call, made once before the first session
+   * (the Your kit step) rather than answered for them. Slots are keyed by the JOB, not the
+   * programme, so an answer given for one programme pre-fills every other programme that asks the
+   * same question (`prefs.kit`). See design-plans/39-pick-your-kit.md.
+   *
+   * A template line names its slot and keeps the first option as `exerciseId`: a placeholder that
+   * every option shares the muscles of, so volume, coverage and the time estimate are right before
+   * anything is picked. A block may not START with an unanswered slot (`unfilledSlots`), which is
+   * the rule that stops the placeholder ever being lifted as though somebody chose it.
+   */
+  var SLOTS = {
+    incline_press: { name: 'Incline press', options: [
+      { kit: 'Machine', id: 'machine_incline' }, { kit: 'Dumbbells', id: 'db_incline' },
+      { kit: 'Barbell', id: 'bb_incline' }, { kit: 'Smith machine', id: 'smith_machine_incline_press' }] },
+    flat_press: { name: 'Flat press', options: [
+      { kit: 'Machine', id: 'machine_press' }, { kit: 'Dumbbells', id: 'db_bench' },
+      { kit: 'Barbell', id: 'bb_bench' }, { kit: 'Smith machine', id: 'smith_bench' }] },
+    shoulder_press: { name: 'Shoulder press', options: [
+      { kit: 'Dumbbells', id: 'db_ohp' }, { kit: 'Machine', id: 'machine_ohp' },
+      { kit: 'Seated machine', id: 'seated_machine_press' }, { kit: 'Barbell', id: 'bb_ohp' }] },
+    lateral_raise: { name: 'Lateral raises', options: [
+      { kit: 'Dumbbells', id: 'db_lateral' }, { kit: 'Cable', id: 'cable_lateral' }, { kit: 'Machine', id: 'machine_lateral' }] },
+    cable_extension: { name: 'Cable extension', options: [
+      { kit: 'Overhead', id: 'overhead_ext_cable' }, { kit: 'Rope pushdown', id: 'rope_pushdown' }, { kit: 'Bar pushdown', id: 'triceps_pressdown' }] },
+    shrugs: { name: 'Shrugs', options: [
+      { kit: 'Dumbbells', id: 'shrug_db' }, { kit: 'Machine', id: 'shrug_machine' },
+      { kit: 'Barbell', id: 'shrug_bb' }, { kit: 'Smith machine', id: 'smith_shrug' }] },
+    supinated_curl: { name: 'Supinated curl', options: [
+      { kit: 'Dumbbells', id: 'db_curl' }, { kit: 'EZ-bar', id: 'ez_curl' },
+      { kit: 'Cable', id: 'cable_curl' }, { kit: 'Bayesian cable', id: 'bayesian_curl' }] },
+  };
+  function slotOf(key) { return SLOTS[key] || null; }
+  // The kit word for a movement in a slot ("Dumbbells"), or its own name when it was picked from the
+  // library ("Hoist incline press").
+  function slotKit(key, exerciseId, custom) {
+    var sl = slotOf(key), hit = sl ? sl.options.filter(function (o) { return o.id === exerciseId; })[0] : null;
+    if (hit) return hit.kit;
+    var ex = byId(exerciseId, custom);
+    if (ex && ex.variantOf && sl) {
+      var via = sl.options.filter(function (o) { return o.id === ex.variantOf; })[0];
+      if (via) return ex.name;
+    }
+    return ex ? ex.name : exerciseId;
+  }
+  // A line's slot. Blocks started before slots existed (PPL Hybrid from its first release) carry
+  // none, so the line is matched to its programme's template by the author's name for it, and
+  // counts as already answered: nobody is asked again halfway through a programme.
+  function lineSlot(block, line) {
+    if (!line) return null;
+    if (line.slot && line.slot.key) return line.slot;
+    var ref = block && block.sourceRef;
+    if (!ref || ref.kind !== 'programme' || !line.sourceName) return null;
+    var prog = programmeOf(ref.name);
+    if (!prog) return null;
+    for (var d = 0; d < prog.template.length; d++) {
+      var ex = prog.template[d].exercises;
+      for (var i = 0; i < ex.length; i++) {
+        if (ex[i].slot && ex[i].sourceName === line.sourceName) return { key: ex[i].slot, answered: true, by: 'you', inferred: true };
+      }
+    }
+    return null;
+  }
+  // Every slot in a block, once each, with where it appears and what fills it.
+  function blockSlots(block, custom) {
+    var seen = {}, out = [];
+    var first = Math.min.apply(null, ((block && block.sessions) || []).map(function (s) { return +s.week || 1; }).concat([99]));
+    ((block && block.sessions) || []).forEach(function (s) {
+      if ((+s.week || 1) !== first) return;
+      (s.exercises || []).slice().sort(function (a, b) { return a.order - b.order; }).forEach(function (e) {
+        var sl = lineSlot(block, e);
+        if (!sl || !slotOf(sl.key)) return;
+        var row = seen[sl.key];
+        if (!row) {
+          row = seen[sl.key] = {
+            key: sl.key, name: slotOf(sl.key).name, options: slotOf(sl.key).options.filter(function (o) { return !!byId(o.id, custom); }),
+            exerciseId: e.exerciseId, answered: !!sl.answered, by: sl.by || null, where: [],
+          };
+          out.push(row);
+        }
+        row.where.push({ session: s.name, target: e.target });
+      });
+    });
+    return out;
+  }
+  function unfilledSlots(block) {
+    return blockSlots(block).filter(function (x) { return !x.answered; });
+  }
+  // Fill a slot everywhere it appears, from `fromWeek` on (weeks already trained keep what was
+  // lifted). Mutates the block. Returns how many lines changed.
+  function fillSlot(block, key, exerciseId, opts) {
+    opts = opts || {};
+    var from = opts.fromWeek || 1, n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      if ((+s.week || 1) < from) return;
+      (s.exercises || []).forEach(function (e) {
+        var sl = lineSlot(block, e);
+        if (!sl || sl.key !== key) return;
+        if (e.exerciseId !== exerciseId) {
+          e.exerciseId = exerciseId;
+          // A slot's movement is the person's own answer, not a replacement of the author's: no
+          // "instead of", and the author's line-specific note never applied to a kit they did not name.
+          delete e.baseExerciseId; delete e.basePlanNote;
+          e.alts = null;
+        }
+        e.slot = { key: key, answered: true, by: opts.by || 'you' };
+        n++;
+      });
+    });
+    return n;
+  }
+  // Pre-fill a fresh block's slots from what the person picked before, then from the gym: a gym that
+  // has only one of the options answers the slot by itself. Pre-filled is still shown, and changeable.
+  function prefillSlots(block, opts) {
+    opts = opts || {};
+    var kit = opts.kit || {};
+    var eq = opts.gym ? gymEquipment(opts.gym).equipment : null;
+    blockSlots(block, opts.custom).forEach(function (row) {
+      if (row.answered) return;
+      var mine = kit[row.key];
+      if (mine && byId(mine, opts.custom)) { fillSlot(block, row.key, mine, { by: 'memory' }); return; }
+      if (eq) {
+        var here = row.options.filter(function (o) { var ex = byId(o.id, opts.custom); return ex && eq.indexOf(ex.equipment) !== -1; });
+        if (here.length === 1) fillSlot(block, row.key, here[0].id, { by: 'gym' });
+      }
+    });
+    return block;
+  }
+  function programmeHasSlots(key) {
+    var p = programmeOf(key);
+    return !!p && p.template.some(function (d) { return d.exercises.some(function (e) { return !!e.slot; }); });
+  }
+
   function programmeOf(key) {
     var found = PROGRAMMES.filter(function (p) { return p.key === key; });
     return found.length ? found[0] : null;
@@ -5293,6 +5431,7 @@
     });
     block.archived = false;
     block.shared = false;
+    prefillSlots(block, { kit: opts.kit, gym: opts.gym, custom: opts.custom });
     return block;
   }
   // What to say about one on a card, without hard-coding numbers that would rot the moment a sheet
@@ -5781,8 +5920,13 @@
                 // volume-model block wearing its movements.
                 choice: e.choice || null, alts: e.alts || null, technique: e.technique || null,
                 warmups: e.warmups || null, planNote: e.planNote || null, sourceName: e.sourceName || null,
+                // The slot and, on a re-run, what filled it last time: offered back pre-filled
+                // ("last time") rather than asked from scratch. A shared payload drops the pick.
+                slot: lineSlot(block, e) ? lineSlot(block, e).key : null,
+                slotPicked: !!(lineSlot(block, e) && lineSlot(block, e).answered),
                 target: {
                   sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
+                  setsOptional: e.target.setsOptional || 0,
                   // Week 1's RIR is the author's starting effort. The receiving block walks it down
                   // again from there, so carrying week 3's RIR would start someone at 1 RIR.
                   rir: e.target.rir, rirLast: e.target.rirLast == null ? null : e.target.rirLast,
@@ -5935,7 +6079,11 @@
    * reads, an object is the new one and carries the style with the days.
    */
   function templatePayload(block) {
-    return { v: 2, style: (block && block.style) || null, days: templateOf(block) };
+    // Your kit is yours: whoever adopts a shared programme picks their own.
+    var days = templateOf(block).map(function (d) {
+      return Object.assign({}, d, { exercises: d.exercises.map(function (e) { return e.slot ? Object.assign({}, e, { slotPicked: false }) : e; }) });
+    });
+    return { v: 2, style: (block && block.style) || null, days: days };
   }
   function templateDays(payload) {
     if (Array.isArray(payload)) return payload;                 // everything published before v2
@@ -7570,6 +7718,8 @@
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf, setsLabel: setsLabel,
+    SLOTS: SLOTS, slotOf: slotOf, slotKit: slotKit, lineSlot: lineSlot, blockSlots: blockSlots, unfilledSlots: unfilledSlots,
+    fillSlot: fillSlot, prefillSlots: prefillSlots, programmeHasSlots: programmeHasSlots,
     liftTrends: liftTrends,
     recommendedDows: recommendedDows, prescribesDays: prescribesDays,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets,

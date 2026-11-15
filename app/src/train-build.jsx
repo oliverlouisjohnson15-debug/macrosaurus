@@ -1280,6 +1280,80 @@ function TargetSheet({ row, name, onChange, onClose }) {
  * week in front of you only would undo itself the moment the week turned over, which is the opposite
  * of answering "I train Mondays".
  */
+/* ---- Your kit: fill a programme's slots before the first session ----------------------------------
+ * design-plans/39-pick-your-kit.md. A written plan that says "Incline press" has asked a question,
+ * and this is where it is answered: after "When do you start?", before "Which days?". It only exists
+ * for a programme that has slots, and it cannot be skipped - a skipped slot is a machine nobody
+ * chose, which is the bug this replaces - so it is made cheap instead: anything answered before is
+ * already filled ("usual"), and a gym with only one of the options fills that slot itself ("gym").
+ *
+ * `fresh` is the step in the start flow (Next goes to the days). Without it this is My programme's
+ * Your kit page: same rows, every pick saved as it is made, changing the weeks still to come.
+ */
+function KitStep({ db, update, showToast, block, fresh, onBack, onNext }) {
+  const t = tdb(db);
+  const gym = currentGym(db);
+  const live = (t.blocks || []).filter(b => b.id === block.id)[0] || block;
+  const rows = Training.blockSlots(live, t.custom);
+  const [open, setOpen] = useState(null);
+  const today = Store.todayISO();
+  const pg = Training.blockProgress(live, today);
+  const fromWeek = !fresh && pg && !pg.notStarted && !pg.done ? pg.week : 1;
+  const left = rows.filter(r => !r.answered).length;
+  function pick(key, id, remember) {
+    trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === live.id)[0];
+      if (b) Training.fillSlot(b, key, id, { fromWeek: fromWeek, by: 'you' });
+      if (remember) tr.prefs = Object.assign({}, tr.prefs, { kit: Object.assign({}, tr.prefs.kit, { [key]: id }) });
+    });
+  }
+  const openRow = rows.filter(r => r.key === open)[0] || null;
+  const tag = (r) => r.by === 'last' ? 'last time' : r.by === 'memory' ? 'usual' : r.by === 'gym' ? 'only one here' : null;
+  return (
+    <div className="fade-in">
+      <SubHeader back={onBack} backLabel="Train" title="Your kit" />
+      <p className="text-[15px] leading-snug mb-5">
+        {fresh
+          ? (left === 0 && rows.some(r => r.by === 'last')
+            ? 'What you used last time is filled in. Keep it, or tap a line to pick something else.'
+            : live.name + ' leaves ' + rows.length + ' lines up to you. Pick them now, or at the gym the first time each one comes up. Either way it is set for the rest of the programme until you change it.')
+          : 'What you use for each of the lines ' + live.name + ' leaves up to you. A change applies from ' + (fromWeek > 1 ? 'week ' + fromWeek : 'the start') + ' on.'}
+      </p>
+
+      <Section title={fresh ? 'Pick one for each' : 'Your picks'} right={left ? left + ' to pick' : 'All set'} className="mb-5">
+        {rows.map(r => (
+          <Row key={r.key} title={r.name} sub={slotWhere(r)} onClick={() => setOpen(r.key)}
+            aria-label={r.name + ': ' + (r.answered ? Training.slotKit(r.key, r.exerciseId, t.custom) : 'not picked yet')}
+            value={r.answered
+              ? <span className="text-right">
+                  <span className="block" style={{ color: 'var(--text)', fontWeight: 600 }}>{Training.slotKit(r.key, r.exerciseId, t.custom)}</span>
+                  {tag(r) && <span className="block text-[12px]" style={{ color: 'var(--muted)', fontWeight: 400 }}>{tag(r)}</span>}
+                </span>
+              : <span style={{ color: 'var(--link)', fontWeight: 600 }}>Choose</span>} />
+        ))}
+      </Section>
+
+      {fresh && (
+        <>
+          <Btn className="w-full" onClick={onNext}>Next: your days</Btn>
+          <div className="text-[12px] mt-3 leading-snug" style={{ color: 'var(--muted)' }}>
+            {left > 0
+              ? 'The ' + left + ' you leave will be asked at the gym, the first time each comes up. '
+              : ''}
+            Picks fill in by themselves the next time a programme asks the same thing.
+          </div>
+        </>
+      )}
+
+      {openRow && (
+        <SlotSheet db={db} update={update} slot={openRow} where={slotWhere(openRow)} gym={gym}
+          current={openRow.answered ? openRow.exerciseId : null}
+          onPick={(id, remember) => pick(openRow.key, id, remember)} onClose={() => setOpen(null)} />
+      )}
+    </div>
+  );
+}
+
 /* Your week IS the picker (design: Train: programmes and community, screen 5, reworked).
  *
  * Seven rows, Monday to Sunday, each holding its session or "Rest". You put a session on a day by

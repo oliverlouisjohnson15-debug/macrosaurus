@@ -89,10 +89,18 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
       tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
       tr.blocks.push(blk);
     });
-    go('schedule', { blockId: blk.id, fresh: true });
+    afterStart(blk);
+  }
+  // The questions a new programme still has, in order: the kit its general lines leave open, then
+  // the days. A programme with no slots goes straight to the days, as it always has.
+  function afterStart(blk) {
+    // Any programme with kit lines shows them, picked or not: a re-run arrives with last time's
+    // picks filled in, to keep with one tap or change.
+    if (blk && Training.blockSlots(blk).length) go('kit', { blockId: blk.id, fresh: true });
+    else go('schedule', { blockId: blk.id, fresh: true });
   }
   function startProgramme(key, startISO) {
-    startBlock(Training.programmeBlock(key, { custom: t.custom, startISO: startISO }));
+    startBlock(Training.programmeBlock(key, { custom: t.custom, startISO: startISO, kit: t.prefs.kit, gym: currentGym(db) }));
   }
   // On the shelf, not running: competes with nothing until it is started from Saved programmes.
   function saveBlockForLater(blk) {
@@ -101,7 +109,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
     showToast && showToast('Saved to your programmes. Start it whenever you like.');
     go('blocks', { from: 'home' });
   }
-  const customiseProgramme = (key, from) => go('builder', { from: from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO() }) });
+  const customiseProgramme = (key, from) => go('builder', { from: from || 'home', draft: Training.programmeBlock(key, { custom: t.custom, startISO: Store.todayISO(), kit: t.prefs.kit, gym: currentGym(db) }) });
 
   // Looking is not starting. A tap on a day opens the plan; the button on that screen begins it.
   function previewSession(session, blk) {
@@ -148,7 +156,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       blockId={screen.blockId} draft={screen.draft} onBack={() => go(screen.from || 'home')}
-      onSchedule={(id) => go('schedule', { blockId: id, fresh: true })}
+      onSchedule={(id) => { const b = (tdb(db).blocks || []).filter(x => x.id === id)[0]; if (b) afterStart(b); else go('schedule', { blockId: id, fresh: true }); }}
       onStart={screen.blockId ? startSession : null} />);
   }
   // The programme gallery as a page of its own, for the routes that arrive from somewhere other than
@@ -213,11 +221,23 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   }
   if (screen.name === 'schedule') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
+    // A new programme with kit lines shows Your kit before its days, whichever screen started it:
+    // the builder hands over a block id before this render has the block in hand, so the router
+    // decides here rather than trusting every caller to.
+    if (blk && screen.fresh && !screen.kitSeen && Training.blockSlots(blk).length) {
+      return page(<KitStep db={db} update={update} showToast={showToast} block={blk} fresh
+        onBack={() => go('home')} onNext={() => go('schedule', { blockId: blk.id, fresh: true, kitSeen: true })} />);
+    }
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
     onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
     return page(<ScheduleDays db={db} update={update} showToast={showToast}
       block={blk} fresh={!!screen.fresh} onBack={() => go(screen.fresh ? 'home' : 'block')} />);
+  }
+  if (screen.name === 'kit') {
+    const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
+    if (blk) return page(<KitStep db={db} update={update} showToast={showToast} block={blk} fresh={!!screen.fresh}
+      onBack={() => go(screen.fresh ? 'home' : 'block')} onNext={() => go('schedule', { blockId: blk.id, fresh: true, kitSeen: true })} />);
   }
   if (screen.name === 'how') {
     return page(<HowItWorks onBack={() => go('block')} />);
@@ -327,6 +347,9 @@ function programmeCards(custom) {
       lines: d.exercises.map(e => ({
         names: (e.choice && e.choice.options && e.choice.options.length > 1 ? e.choice.options : [e.exerciseId])
           .map(id => (Training.byId(id, custom) || {}).name || id),
+        // A slot ("Incline press") is named as the job it is, and marked as yours to pick: no machine
+        // is chosen for you before you have said which kit you use.
+        slot: e.slot && Training.slotOf(e.slot) ? Training.slotOf(e.slot).name : null,
         sets: Training.setsLabel(e.target), reps: Training.repLabel(e.target),
       })),
     })).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -367,7 +390,8 @@ function ProgrammePreview({ p, onStart, onClose }) {
             {d.lines.map((l, li) => (
               <div key={li} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
                 <span className="min-w-0" style={{ color: 'var(--text2)' }}>
-                  {l.names.length > 1
+                  {l.slot ? <>{l.slot}<span style={{ color: 'var(--muted)' }}> · your pick</span></>
+                    : l.names.length > 1
                     ? l.names.map((n, ni) => <React.Fragment key={ni}>{ni ? <span style={{ color: 'var(--muted)' }}> or </span> : null}{n}</React.Fragment>)
                     : l.names[0]}
                 </span>
@@ -382,7 +406,7 @@ function ProgrammePreview({ p, onStart, onClose }) {
       <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-1 flex flex-col gap-1.5" style={{ background: 'var(--card)', boxShadow: '0 -2px 0 0 var(--border)' }}>
         <Btn className="w-full" onClick={() => onStart(p.key)}>Start this programme</Btn>
         <div className="text-[13px] text-center leading-snug" style={{ color: 'var(--muted)' }}>
-          Two quick questions: when, and which days.
+          {Training.programmeHasSlots(p.key) ? 'Three quick questions: when, your kit, and which days.' : 'Two quick questions: when, and which days.'}
         </div>
       </div>
     </Sheet>
@@ -399,7 +423,7 @@ function nextMondayISO(todayISO) {
   const dow = (d.getUTCDay() + 6) % 7;            // Monday-first, like every dayOfWeek here
   return new Date(d.getTime() + ((7 - dow) % 7 || 7) * 86400000).toISOString().slice(0, 10);
 }
-function StartProgrammeSheet({ db, name, by, onStart, onCustomise, onClose }) {
+function StartProgrammeSheet({ db, name, by, onStart, onCustomise, onClose, kitFirst }) {
   const today = Store.todayISO();
   const monday = nextMondayISO(today);
   const isMonday = ((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7) === 0;
@@ -414,15 +438,15 @@ function StartProgrammeSheet({ db, name, by, onStart, onCustomise, onClose }) {
       <Seg value={when} onChange={setWhen} options={opts.map(([v, l]) => ({ v: v, l: l }))} />
       <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
         {when === today
-          ? 'Week one starts today. Next, pick which days you train.'
-          : 'Week one starts ' + WEEKDAYS_FULL[0] + ' ' + new Date(monday + 'T00:00:00Z').getUTCDate() + ' ' + MONTHS[new Date(monday + 'T00:00:00Z').getUTCMonth()] + '. Next, pick which days you train.'}
+          ? 'Week one starts today. ' + (kitFirst ? 'Next, pick your kit and which days you train.' : 'Next, pick which days you train.')
+          : 'Week one starts ' + WEEKDAYS_FULL[0] + ' ' + new Date(monday + 'T00:00:00Z').getUTCDate() + ' ' + MONTHS[new Date(monday + 'T00:00:00Z').getUTCMonth()] + '. ' + (kitFirst ? 'Next, pick your kit and which days you train.' : 'Next, pick which days you train.')}
       </div>
       {replaces && (
         <div className="px-3 py-2.5 text-[13px] leading-snug" style={{ background: 'var(--sunk)' }}>
           This replaces {replaces.name}, which is in week {runningProg.week} of {replaces.weeks}. Your logged sessions are kept.
         </div>
       )}
-      <Btn className="w-full" onClick={() => onStart(when)}>Next: your days</Btn>
+      <Btn className="w-full" onClick={() => onStart(when)}>{kitFirst ? 'Next: your kit' : 'Next: your days'}</Btn>
       {onCustomise && <button onClick={onCustomise} className="w-full text-[13px] text-center" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
         Customise first
       </button>}
@@ -487,7 +511,7 @@ function ProgrammeGallery({ db, onStart, onCustomise, onCommunity, onCommunityAl
       </Section>
       {openP && !starting && <ProgrammePreview p={openP} onClose={() => setOpen(null)} onStart={(key) => setStarting(key)} />}
       {starting && openP && (
-        <StartProgrammeSheet db={db} name={openP.name} by={programmeBy(openP)} onClose={() => setStarting(null)}
+        <StartProgrammeSheet db={db} name={openP.name} by={programmeBy(openP)} onClose={() => setStarting(null)} kitFirst={Training.programmeHasSlots(openP.key)}
           onStart={(iso) => { const key = openP.key; setStarting(null); setOpen(null); onStart(key, iso); }}
           onCustomise={() => { const key = openP.key; setStarting(null); setOpen(null); onCustomise(key); }} />
       )}
@@ -733,7 +757,9 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                         ? 'stopping short this week'
                         : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
                       : lead.target.rir + ' RIR';
-                    return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' '
+                    const leadSlot = Training.lineSlot(block, lead);
+                    const leadName = leadSlot && !leadSlot.answered && Training.slotOf(leadSlot.key) ? Training.slotOf(leadSlot.key).name : (leadEx ? leadEx.name : lead.exerciseId);
+                    return 'Opens with ' + leadName + ' '
                       + Training.setsLabel(lead.target) + '×' + Training.repLabel(lead.target) + ' · ' + effort
                       + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
                   })()}
@@ -1068,6 +1094,14 @@ function BlockPlace({ db, block, go }) {
       </>}
       {block && !done && (
         <Section title="This programme">
+          {Training.blockSlots(block, t.custom).length > 0 && (() => {
+            const ks = Training.blockSlots(block, t.custom);
+            return <Row icon={<Icon.sliders width="24" />} title="Your kit"
+              sub={(() => { const open = ks.filter(k => !k.answered).length; return open
+                ? open + ' of ' + ks.length + ' still to pick, here or at the gym'
+                : ks.map(k => k.name + ': ' + Training.slotKit(k.key, k.exerciseId, t.custom).toLowerCase()).slice(0, 2).join(' · ') + (ks.length > 2 ? ' · +' + (ks.length - 2) : ''); })()}
+              onClick={() => go('kit', { blockId: block.id })} />;
+          })()}
           <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />
           <Row icon={<Icon.trophy width="24" />} title="Review this programme" sub="How it went, and what comes next" onClick={() => go('review', { blockId: block.id, from: 'block' })} />
         </Section>
