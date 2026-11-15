@@ -327,7 +327,7 @@ function programmeCards(custom) {
       lines: d.exercises.map(e => ({
         names: (e.choice && e.choice.options && e.choice.options.length > 1 ? e.choice.options : [e.exerciseId])
           .map(id => (Training.byId(id, custom) || {}).name || id),
-        sets: e.target.sets, reps: Training.repLabel(e.target),
+        sets: Training.setsLabel(e.target), reps: Training.repLabel(e.target),
       })),
     })).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
     return Object.assign({}, sum, { days: days });
@@ -734,7 +734,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                         : (lead.target.rir > 0 ? 'last set to failure' : 'to failure'))
                       : lead.target.rir + ' RIR';
                     return 'Opens with ' + (leadEx ? leadEx.name : lead.exerciseId) + ' '
-                      + lead.target.sets + '×' + Training.repLabel(lead.target) + ' · ' + effort
+                      + Training.setsLabel(lead.target) + '×' + Training.repLabel(lead.target) + ' · ' + effort
                       + (items.length > 1 ? ', then ' + (items.length - 1) + ' more.' : '.');
                   })()}
               </div>

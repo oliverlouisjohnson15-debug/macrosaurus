@@ -1506,6 +1506,12 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
           <Field label="Rest timer" hint="Starts when you tick a working set. Stays quiet after a drop set or mid-superset, where the point is not to rest.">
             <Seg value={prefs.restTimer ? 'on' : 'off'} onChange={v => set('restTimer', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>
+          {prefs.restTimer && (
+            <Field label="Rest between sets" hint="Your standard rest, on every set of every programme. Plan uses the time each programme writes on its own lines.">
+              <Seg value={+prefs.restSec > 0 ? +prefs.restSec : 0} onChange={v => set('restSec', v || null)}
+                options={[{ v: 0, l: 'Plan' }, { v: 120, l: '2:00' }, { v: 150, l: '2:30' }, { v: 180, l: '3:00' }]} />
+            </Field>
+          )}
           <Field label="Keep the screen on" hint="Stops the phone sleeping between sets while a session is open. Nothing is held once you step out of it.">
             <Seg value={prefs.keepAwake === false ? 'off' : 'on'} onChange={v => set('keepAwake', v === 'on')} options={[{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }]} />
           </Field>
@@ -1957,7 +1963,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt, onStartBlock, onSaveBloc
             {Training.sessionItems(d).map(e => (
               <div key={e.id} className="flex items-baseline justify-between gap-3 text-[13px] leading-snug py-0.5">
                 <span className="min-w-0" style={{ color: 'var(--text2)' }}><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
-                <span className="tnum shrink-0" style={{ color: 'var(--muted)' }}>{e.target.sets} × {Training.repLabel(e.target)}</span>
+                <span className="tnum shrink-0" style={{ color: 'var(--muted)' }}>{Training.setsLabel(e.target)} × {Training.repLabel(e.target)}</span>
               </div>
             ))}
           </div>

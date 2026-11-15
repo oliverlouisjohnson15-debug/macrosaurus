@@ -105,3 +105,16 @@ test('a community programme runs as its author wrote it, started the same way as
   const got = started.sessions.filter(s => s.week === 1).flatMap(s => s.exercises.map(e => e.target.sets));
   assert.deepEqual(got, want, 'the author\'s set counts, untouched');
 });
+
+test('PPL Hybrid: Quinton\'s split with Olly\'s leg days, on the week it was written for', () => {
+  const p = T.programmeOf('pplh5');
+  assert.ok(p, 'it ships');
+  assert.deepEqual(p.template.map(d => [d.name, d.dayOfWeek]),
+    [['Upper', 0], ['Lower 1', 1], ['Push', 3], ['Pull', 4], ['Legs 2', 5]], 'Wednesday and Sunday off');
+  const ids = (name) => p.template.find(d => d.name === name).exercises.map(e => e.exerciseId);
+  assert.ok(ids('Upper').includes('prime_row'), 'the Prime Extreme row on Upper');
+  assert.equal(ids('Pull')[0], 'tbar_row', 'and the T-bar row leads Pull');
+  assert.deepEqual(ids('Push'), T.programmeOf('qp5').template.find(d => d.name === 'Push').exercises.map(e => e.exerciseId),
+    'the Push day is Quinton\'s, line for line');
+  assert.ok(ids('Lower 1').includes('hack_squat') && ids('Legs 2').includes('pendulum_squat'));
+});
