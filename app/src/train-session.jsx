@@ -242,6 +242,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           // The technique is the exception, because it belongs to the slot rather than to whatever
           // is filling it - a line written to finish with a drop set still does.
           alts: same ? (e.alts || null) : null, choice: same ? (e.choice || null) : null,
+          slot: e ? Training.lineSlot(block, e) : null,
           planNote: same ? (e.planNote || null) : null,
           technique: (e && e.technique) || null,
           warmups: e && e.warmups != null ? e.warmups : null,
@@ -257,6 +258,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       const pre = Training.prefillSets(e, t.logs, t.custom, preFor(e.exerciseId));
       return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), swap: pre.stalled ? e.exerciseId : null,
         choice: e.choice || null, alts: e.alts || null, technique: e.technique || null, planNote: e.planNote || null,
+        slot: Training.lineSlot(block, e),
         // What the plan asked for before anybody replaced it, so the picker can offer the way back
         // from inside the gym as well as from the plan.
         baseExerciseId: e.baseExerciseId || null, basePlanNote: e.basePlanNote || null,
@@ -275,6 +277,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const barRef = useRef(null);   // the session bar, so the observer measures the chrome rather than assuming it
   const [openOffScreen, setOpenOffScreen] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [slotFor, setSlotFor] = useState(null);   // index of the movement whose kit is being changed
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null);  // index of the exercise whose options are open
@@ -707,7 +710,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     const row = {
       _k: old._k, id: old.id || ('swap_' + trainUid()), exerciseId: old.exerciseId, target: old.target,
       sets: pre.sets, note: coachNote(pre), superset: old.superset,
-      alts: old.alts || null, choice: old.choice || null,
+      alts: old.alts || null, choice: old.choice || null, slot: old.slot || null,
       // The technique and the warm-ups belong to the SLOT rather than to whatever is filling it: a
       // block built to finish this line with a drop set still finishes it with a drop set when the
       // machine is busy and you are on the dumbbells instead.
@@ -733,6 +736,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     trainUpdate(update, (tr) => {
       const i = tr.blocks.findIndex(b => b.id === block.id);
       if (i >= 0) Training.applyChoiceFrom(tr.blocks[i], row.choice.key, exId, session.week || 1);
+    });
+  }
+  /* Changing what fills a slot mid-programme. Same rule as an "or" line: today's row is rebuilt from
+     that movement's own history, and the programme takes the answer from this week on (weeks already
+     trained keep what was lifted). It is the person's own answer, never "instead of" anything. */
+  function pickSlot(ii, exId, remember) {
+    const row = items[ii];
+    if (!row || !row.slot || row.exerciseId === exId) return;
+    if ((row.sets || []).some(x => x.done)) return;
+    mutate(n => { n[ii] = Object.assign(replacedRow(n[ii], exId), { baseExerciseId: null, basePlanNote: null, alts: null }); });
+    trainUpdate(update, (tr) => {
+      if (remember) tr.prefs = Object.assign({}, tr.prefs, { kit: Object.assign({}, tr.prefs.kit, { [row.slot.key]: exId }) });
+      if (past || !block || !session) return;
+      const i = tr.blocks.findIndex(b => b.id === block.id);
+      if (i >= 0) Training.fillSlot(tr.blocks[i], row.slot.key, exId, { fromWeek: session.week || 1 });
     });
   }
   function swapExercise(ii, exId) {
@@ -1279,9 +1297,25 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   </span>
                 </div>
 
+                {/* A slot: the job the plan named and the kit you picked for it, with the way to
+                    change it. Locked once a set is ticked, like an "or" line. */}
+                {it.slot && Training.slotOf(it.slot.key) && (() => {
+                  const locked = (it.sets || []).some(x => x.done);
+                  return (
+                    <div className="flex items-center gap-2 mb-2 text-[13px]" style={{ minHeight: 32 }}>
+                      <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--muted)' }}>
+                        {Training.slotOf(it.slot.key).name} · <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{Training.slotKit(it.slot.key, it.exerciseId, t.custom)}</span>
+                      </span>
+                      {!locked && (
+                        <button onClick={() => setSlotFor(ii)} className="shrink-0 px-1" aria-label={'Change the kit for ' + Training.slotOf(it.slot.key).name}
+                          style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Change</button>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* An "or" line: the author's options, answered here. Locked once a set is ticked,
                     because by then what you lifted has answered it. */}
-                {it.choice && (
+                {it.choice && !it.slot && (
                   <div className="mb-2">
                     <ChoiceToggle item={it} custom={t.custom} onPick={(id) => pickChoice(ii, id)}
                       locked={(it.sets || []).some(x => x.done)} />
@@ -1880,6 +1914,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       )}
       {pastFor && <PastSets db={db} update={update} showToast={showToast} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
+      {slotFor != null && items[slotFor] && items[slotFor].slot && Training.slotOf(items[slotFor].slot.key) && (
+        <SlotSheet db={db} update={update} gym={gym} current={items[slotFor].exerciseId}
+          slot={Object.assign({ key: items[slotFor].slot.key }, Training.slotOf(items[slotFor].slot.key))}
+          where={past || !session ? null : 'Changes this session and the rest of ' + ((block && block.name) || 'the programme') + ' from this week.'}
+          onPick={(id, remember) => pickSlot(slotFor, id, remember)} onClose={() => setSlotFor(null)} />
+      )}
       {swapping != null && (
         <ExercisePicker db={db} update={update} title="Replace movement"
           basedOn={items[swapping] && items[swapping].exerciseId}

@@ -335,3 +335,23 @@ before this is built. That is a judgement for Olly.
 Engine + tests about 1 day. Your kit screen + sheet about 1 day. Session/preview/My programme/builder
 wiring about half a day. Total about 2.5 days of focused work, in three PRs (engine → screens →
 session/cleanup) or one if done together.
+
+## As built (differences from the plan above)
+
+- **No null `exerciseId`.** A template slot line keeps its first option as a placeholder, and
+  `slot.answered` is the gate. Every option in a slot shares the placeholder's muscles, so volume,
+  coverage and the time estimate need no special path. The placeholder is never shown: the preview
+  says "Incline press · your pick", the home card says "Opens with Incline press" with its button
+  reading "Pick your kit first", and starting a session, or reaching Which days?, routes to Your kit
+  while any slot is open.
+- **Session Change** applies from this week to the rest of the programme, like an author's "or" line.
+  There is no Just today / Rest of programme question: a one-off swap is still Replace in the
+  movement's More menu.
+- **No step counter**, matching Which days?, which never had one. The start sheet and the preview
+  footer say what is coming ("Next: your kit", "Three quick questions: when, your kit, and which
+  days").
+- **No home banner.** The next-session card's own button covers it.
+- PR #167's label line over `ChoiceToggle` and its preview label are reverted. Author either/or lines
+  are as they were before #167.
+- Also fixed on the way: `templateOf` now carries `setsOptional`, so sharing or re-running a
+  programme keeps its "2-3 sets" lines.
