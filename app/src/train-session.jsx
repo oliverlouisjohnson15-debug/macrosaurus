@@ -56,6 +56,13 @@ function setsSummary(sets, fmt) {
   return runs.map(r => (r.kg > 0 ? fmt(r.kg) : 'BW') + ' \u00d7 ' + r.reps.join(', ')).join(' \u00b7 ');
 }
 
+/* Work still to do is every set but a warm-up and an optional set nobody has ticked. An optional
+   row (the third of a "2-3 sets" line) counts once it is done and is invisible to every count until
+   then, so a movement whose two sets are in reads as finished. */
+function isWorkRow(s) {
+  return (s.type || 'work') !== 'warmup' && !(s.optional && !s.done);
+}
+
 function nextUnfinished(items, from) {
   const n = (items || []).length;
   for (let step = 1; step <= n; step++) {
@@ -66,7 +73,7 @@ function nextUnfinished(items, from) {
     // had added a warm-up to reading as unfinished for ever - and sent both the auto-advance and the
     // rest bar's "next" button to a card of green ticks, which is the exact failure this exists to
     // prevent.
-    if (it && it.sets && it.sets.some(s => !s.done && (s.type || 'work') !== 'warmup')) return i;
+    if (it && it.sets && it.sets.some(s => !s.done && isWorkRow(s))) return i;
   }
   return -1;
 }
@@ -87,6 +94,9 @@ function withKeys(rows) {
 
 function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, openLogId, onExit, onFinish, onFocusMode, gym }) {
   const t = tdb(db);
+  // How long to rest after a set: your own standard when you have set one in Train settings, and
+  // otherwise what the plan wrote on the line.
+  const restFor = (tg) => (+t.prefs.restSec > 0 ? +t.prefs.restSec : ((tg && tg.restSec) || 120));
   const today = Store.todayISO();
   const units = t.prefs.units;
   const block = blockId ? t.blocks.filter(b => b.id === blockId)[0] : null;
@@ -371,7 +381,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           id: s.id || undefined,
           weightKg: +s.weightKg || 0, reps: s.reps == null ? null : +s.reps,
           rir: s.rir == null ? null : +s.rir, done: !!s.done,
-        }, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null, +s.bwKg > 0 ? { bwKg: +s.bwKg } : null));
+        }, s.optional ? { optional: true } : null, specOf(it.exerciseId).unit === 'pin' ? { unit: 'pin' } : null, +s.bwKg > 0 ? { bwKg: +s.bwKg } : null));
       });
     });
     // One prescription per MOVEMENT, not per set: a handful of small objects against a session,
@@ -614,11 +624,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // technique they just chose.
     const skipRest = type === 'drop' || nextType === 'drop' || (it.superset && items.some(x => x !== it && x.superset === it.superset));
     if (t.prefs.restTimer && !skipRest) {
-      const secs = (it.target && it.target.restSec) || 120;
+      const secs = restFor(it.target);
       // What the rest is FOR. A bare countdown tells you when to move but not what to move to, and
       // the answer is not si + 1: rows get ticked in any order, so the next set is the first one
       // still unlogged. When there is none left, the movement is done and saying so is the point.
-      const workRows = it.sets.map((s, i) => ({ s: s, i: i })).filter(x => (x.s.type || 'work') !== 'warmup');
+      const workRows = it.sets.map((s, i) => ({ s: s, i: i })).filter(x => x.i === si || isWorkRow(x.s));
       const nextPos = workRows.findIndex(x => x.i !== si && !x.s.done);
       // Where it is, as well as what it is called: the line naming your next set is the one thing on
       // this bar you might want to ACT on, and it was text.
@@ -632,7 +642,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
     // Same rule as nextUnfinished: an unticked warm-up is not outstanding work, and treating it as
     // such meant the advance never fired at all on those movements.
-    const allDone = it.sets.every((s, i) => (i === si ? true : s.done || (s.type || 'work') === 'warmup'));
+    const allDone = it.sets.every((s, i) => (i === si ? true : s.done || !isWorkRow(s)));
     if (allDone) {
       // A distinct double-buzz for finishing a movement, against the single tap for a set. Two
       // different events should never feel like the same event through a pocket, and this is the one
@@ -775,7 +785,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   // Which movements can be dragged: the ones still to do, minus the one that is open.
   const queueKeys = items.filter((it, ii) => {
     if (ii === focus) return false;
-    const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+    const work = it.sets.filter(isWorkRow);
     return !(work.length > 0 && work.every(s => s.done));
   }).map(it => it._k);
   // A drop inside "Up next" reorders the queue only: the queued movements swap among the slots the
@@ -928,7 +938,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     setSignOff(facts);
   }
 
-  const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
+  const totalSets = items.reduce((a, it) => a + it.sets.filter(isWorkRow).length, 0);
   const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup').length, 0);
   /* The session as its MOVEMENTS: one cell each, in the order they will be done.
    *
@@ -937,7 +947,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
    * sixteen that know nothing about which lift they belong to. Warm-ups are left out here exactly as
    * they are left out of both counts. */
   const spine = items.map(it => {
-    const w = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+    const w = it.sets.filter(isWorkRow);
     const d = w.filter(s => s.done).length;
     return { total: w.length, done: d, complete: w.length > 0 && d === w.length, frac: w.length ? d / w.length : 0 };
   }).filter(x => x.total > 0);
@@ -961,13 +971,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
      Deliberately a fact and not a pace judgement. "Running long" is a number plus an opinion about
      how you should be spending your evening, and this app does not hold opinions about that. */
   const minsLeft = Math.round(items.reduce((a, it) => {
-    const left = it.sets.filter(sx => !sx.done && (sx.type || 'work') !== 'warmup').length;
-    return a + left * ((((it.target && it.target.restSec) || 120) + 40) / 60);
+    const left = it.sets.filter(sx => !sx.done && isWorkRow(sx)).length;
+    return a + left * ((restFor(it.target) + 40) / 60);
   }, 0));
   // The movement you are on, for the bar to name once its card has scrolled away.
   const focusIt = items[focus];
   const focusEx = focusIt && Training.byId(focusIt.exerciseId, t.custom);
-  const focusWork = focusIt ? focusIt.sets.filter(sx => (sx.type || 'work') !== 'warmup') : [];
+  const focusWork = focusIt ? focusIt.sets.filter(isWorkRow) : [];
   const focusNext = focusWork.findIndex(sx => !sx.done);
 
   return (
@@ -1177,7 +1187,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         const ex = Training.byId(it.exerciseId, t.custom);
         const tgt = it.target;
         const open = ii === focus;
-        const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+        const work = it.sets.filter(isWorkRow);
         const done = work.length > 0 && work.every(s => s.done);
         const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
@@ -1233,7 +1243,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       : 'Set ' + ((work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length)
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? wStr(work[0].weightKg, it.exerciseId) : 'BW') + ' logged'
-                      : work.length + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
+                      : Training.setsLabel({ sets: work.length, setsOptional: it.sets.filter(x => x.optional && !x.done).length }) + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
               {open
@@ -1259,7 +1269,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       onHelp={() => setHelp('failure')} hideHelp={t.prefs.hideHelp} />
                     : <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />)}
                   {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
-                  {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
+                  {tgt && <MetaBit label={fmtRest(restFor(tgt))} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
                   {/* The buddy used to stand at the end of this row, where three cues plus the
                       prescription plus a 36px sprite did not fit a 375px card and it hung over the
                       border. It lives in the header now, where it is on screen for the whole session
@@ -1443,7 +1453,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   // Taller and larger now the Prev column is not stealing the width.
                   const cell = 'h-12 pixel-box text-[15px] text-center tnum min-w-0 px-0.5';
                   return (
-                    <div key={si} className="mb-2 -mx-1 px-1 py-0.5">
+                    <div key={si} className="mb-2 -mx-1 px-1 py-0.5" style={s.optional && !s.done ? { opacity: 0.6 } : null}>
+                      {s.optional && !s.done && (
+                        <div className="text-[11px] pl-11 mb-0.5" style={{ color: 'var(--muted)', fontWeight: 600 }}>
+                          Optional: tick it if you have another set in you
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         {/* Tap the number to change what kind of set it is. Warm-ups stay out of the
                             volume maths; a drop set suppresses the rest timer. */}
@@ -1513,7 +1528,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                           reps under the window and teaches nobody anything, so the app has already
                           taken 15% off. Said out loud, because a weight the app quietly lowered
                           reads as a bug rather than as the protocol it is. */}
-                      {style.toFailure && !s.done && (s.backOff || s.targetRir > 0) && (
+                      {style.toFailure && !s.done && !s.optional && (s.backOff || s.targetRir > 0) && (
                         <div className="text-[11px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
                           {s.backOff
                             ? 'Back-off set: 15% lighter, taken to failure again.'
@@ -1590,7 +1605,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       const doneRows = [], queueRows = [];
       items.forEach((it, ii) => {
         if (ii === focus) return;
-        const work = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+        const work = it.sets.filter(isWorkRow);
         ((work.length > 0 && work.every(s => s.done)) ? doneRows : queueRows).push({ it, ii });
       });
 
@@ -1754,7 +1769,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
             {
               label: 'Sets and reps',
               sub: items[menuOpen].target
-                ? items[menuOpen].target.sets + ' × ' + Training.repLabel(items[menuOpen].target) + ' at ' + items[menuOpen].target.rir + ' RIR'
+                ? Training.setsLabel(items[menuOpen].target) + ' × ' + Training.repLabel(items[menuOpen].target) + ' at ' + items[menuOpen].target.rir + ' RIR'
                 : 'Set the prescription for today',
               disabled: !items[menuOpen].target,
               onClick: () => setTargetFor(menuOpen),

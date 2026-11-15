@@ -941,7 +941,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
           <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-            {it.target.sets} x {Training.repLabel(it.target)} &middot; {it.target.rir} RIR
+            {Training.setsLabel(it.target)} x {Training.repLabel(it.target)} &middot; {it.target.rir} RIR
             {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
           </span>
           {useId !== it.exerciseId && (
@@ -975,7 +975,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       <span className="flex items-center justify-between gap-3 min-w-0 flex-1">
         <span className="min-w-0 truncate text-[13px] font-semibold">{ex ? ex.name : it.exerciseId}</span>
         <span className="pf text-[11px] tnum shrink-0 px-2 py-1" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
-          {it.target.sets} x {Training.repLabel(it.target)}
+          {Training.setsLabel(it.target)} x {Training.repLabel(it.target)}
         </span>
       </span>
     );
@@ -1099,7 +1099,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <ActionSheet kicker="Movement" title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
           actions={[
             { label: 'Replace it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
-            { label: 'Sets and reps', sub: item.target.sets + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
+            { label: 'Sets and reps', sub: Training.setsLabel(item.target) + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
             {
               label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
               sub: item.supersetGroup ? 'Do it on its own again' : (items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup
