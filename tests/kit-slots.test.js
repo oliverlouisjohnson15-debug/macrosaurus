@@ -56,7 +56,7 @@ test('sharing or re-running a programme keeps its slots open for whoever starts 
   assert.equal(T.unfilledSlots(again).length, 7);
 });
 
-test('starting PPL Hybrid asks for the kit before the days, and the button says what is missing', () => {
+test('starting PPL Hybrid offers the kit before the days, and nothing has to be picked yet', () => {
   const db = accountWith(T.programmeBlock('qp5'));
   db.training.blocks = [];
   let live = db;
@@ -64,14 +64,39 @@ test('starting PPL Hybrid asks for the kit before the days, and the button says 
   try {
     ui.click('PPL Hybrid');
     ui.click('Start this programme');
-    assert.ok(ui.findEl('Next: your kit'), 'the start sheet says the kit comes next');
     ui.clickEl(ui.findEl('Next: your kit'));
-    assert.ok(ui.has('Pick 7 more'), 'seven to pick: ' + ui.text.slice(0, 400));
+    assert.ok(ui.has('7 to pick'), 'seven open: ' + ui.text.slice(0, 400));
     assert.ok(ui.has('Incline press') && ui.has('Upper · 2 × 6-10'), 'each slot named, with where it is');
     ui.clickEl(ui.host.querySelector('[aria-label="Incline press: not picked yet"]'));
     ui.clickEl(Array.from(ui.host.ownerDocument.querySelectorAll('[role="radio"]')).find(b => /Dumbbells/.test(b.textContent)));
-    assert.ok(ui.has('Pick 6 more'));
+    assert.ok(ui.has('6 to pick'));
     assert.equal(live.training.prefs.kit.incline_press, 'db_incline', 'remembered for next time');
-    assert.equal(live.training.blocks[live.training.blocks.length - 1].sessions.find(s => s.name === 'Upper').exercises[0].exerciseId, 'db_incline');
+    assert.ok(ui.has('The 6 you leave will be asked at the gym'), 'and the rest can wait for the gym');
+    ui.clickEl(ui.findEl('Next: your days'));
+    assert.ok(ui.has('Which days?'), 'nothing blocks the days');
+  } finally { ui.unmount(); }
+});
+
+test('at the gym an unpicked line asks which kit, and the answer holds for the rest of the programme', () => {
+  const block = T.programmeBlock('pplh5', { startISO: A.Store.todayISO() });
+  let live = accountWith(block);
+  live.training.blocks[0].startISO = A.Store.todayISO();
+  const session = T.weekSessions(live.training.blocks[0], 1).find(s => s.name === 'Upper');
+  const ui = mount(A.SessionPlayer, {
+    db: live, showToast() {}, onExit() {}, onFinish() {}, onFocusMode() {},
+    sessionId: session.id, blockId: block.id, update(fn) { fn(live); },
+  });
+  try {
+    assert.ok(ui.has('What are you using?'), 'the first line asks: ' + ui.text.slice(0, 500));
+    assert.ok(ui.has('The plan says incline press'));
+    ui.clickEl(ui.findEl('Barbell'));
+    assert.ok(!ui.has('What are you using?') || ui.has('Flat press'), 'answered');
+    const b = live.training.blocks[0];
+    for (let w = 1; w <= 4; w++) {
+      const line = T.weekSessions(b, w).find(s => s.name === 'Upper').exercises.find(e => e.sourceName === 'Incline Press');
+      assert.equal(line.exerciseId, 'bb_incline', 'week ' + w);
+      assert.ok(line.slot.answered);
+    }
+    assert.equal(live.training.prefs.kit.incline_press, 'bb_incline');
   } finally { ui.unmount(); }
 });

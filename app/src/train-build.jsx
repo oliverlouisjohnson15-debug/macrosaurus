@@ -1314,11 +1314,11 @@ function KitStep({ db, update, showToast, block, fresh, onBack, onNext }) {
       <SubHeader back={onBack} backLabel="Train" title="Your kit" />
       <p className="text-[15px] leading-snug mb-5">
         {fresh
-          ? live.name + ' leaves ' + rows.length + ' lines up to you. Pick what you will use for each; you can change any of them later.'
+          ? live.name + ' leaves ' + rows.length + ' lines up to you. Pick them now, or at the gym the first time each one comes up. Either way it is set for the rest of the programme until you change it.'
           : 'What you use for each of the lines ' + live.name + ' leaves up to you. A change applies from ' + (fromWeek > 1 ? 'week ' + fromWeek : 'the start') + ' on.'}
       </p>
 
-      <Section title={fresh ? 'Pick one for each' : 'Your picks'} right={fresh ? (left ? left + ' to go' : 'All set') : null} className="mb-5">
+      <Section title={fresh ? 'Pick one for each' : 'Your picks'} right={left ? left + ' to pick' : 'All set'} className="mb-5">
         {rows.map(r => (
           <Row key={r.key} title={r.name} sub={slotWhere(r)} onClick={() => setOpen(r.key)}
             aria-label={r.name + ': ' + (r.answered ? Training.slotKit(r.key, r.exerciseId, t.custom) : 'not picked yet')}
@@ -1333,12 +1333,12 @@ function KitStep({ db, update, showToast, block, fresh, onBack, onNext }) {
 
       {fresh && (
         <>
-          <Btn className="w-full" onClick={onNext} disabled={left > 0}
-            style={left > 0 ? { background: 'var(--sunk)', color: 'var(--muted)' } : null}>
-            {left > 0 ? 'Pick ' + left + ' more' : 'Next: your days'}
-          </Btn>
+          <Btn className="w-full" onClick={onNext}>Next: your days</Btn>
           <div className="text-[12px] mt-3 leading-snug" style={{ color: 'var(--muted)' }}>
-            Picks you make here fill in by themselves the next time a programme asks the same thing.
+            {left > 0
+              ? 'The ' + left + ' you leave will be asked at the gym, the first time each comes up. '
+              : ''}
+            Picks fill in by themselves the next time a programme asks the same thing.
           </div>
         </>
       )}

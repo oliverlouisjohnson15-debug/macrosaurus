@@ -743,9 +743,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
      trained keep what was lifted). It is the person's own answer, never "instead of" anything. */
   function pickSlot(ii, exId, remember) {
     const row = items[ii];
-    if (!row || !row.slot || row.exerciseId === exId) return;
+    if (!row || !row.slot || (row.exerciseId === exId && row.slot.answered)) return;
     if ((row.sets || []).some(x => x.done)) return;
-    mutate(n => { n[ii] = Object.assign(replacedRow(n[ii], exId), { baseExerciseId: null, basePlanNote: null, alts: null }); });
+    const answered = { key: row.slot.key, answered: true, by: 'you' };
+    mutate(n => { n[ii] = Object.assign(replacedRow(n[ii], exId), { baseExerciseId: null, basePlanNote: null, alts: null, slot: answered }); });
     trainUpdate(update, (tr) => {
       if (remember) tr.prefs = Object.assign({}, tr.prefs, { kit: Object.assign({}, tr.prefs.kit, { [row.slot.key]: exId }) });
       if (past || !block || !session) return;
@@ -994,7 +995,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   }, 0));
   // The movement you are on, for the bar to name once its card has scrolled away.
   const focusIt = items[focus];
-  const focusEx = focusIt && Training.byId(focusIt.exerciseId, t.custom);
+  const focusEx = focusIt && (focusIt.slot && !focusIt.slot.answered && Training.slotOf(focusIt.slot.key)
+    ? { name: Training.slotOf(focusIt.slot.key).name }
+    : Training.byId(focusIt.exerciseId, t.custom));
   const focusWork = focusIt ? focusIt.sets.filter(isWorkRow) : [];
   const focusNext = focusWork.findIndex(sx => !sx.done);
 
@@ -1238,7 +1241,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   : { width: 30, height: 30, border: '2px solid var(--border)', background: done ? 'var(--good)' : 'var(--card)', color: done ? '#fff' : 'var(--accent-ink)' }}>{codes[ii]}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-bold leading-tight" style={{ color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)' }}>
-                  {ex ? ex.name : it.exerciseId}
+                  {it.slot && !it.slot.answered && Training.slotOf(it.slot.key) ? Training.slotOf(it.slot.key).name : (ex ? ex.name : it.exerciseId)}
                   {/* A line Macrosaurus added to somebody else's programme says so, so it is never
                       mistaken for the author's. */}
                   {it.id && session && (session.exercises || []).some(x => x.id === it.id && x.addedBy) && (
@@ -1299,7 +1302,39 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
 
                 {/* A slot: the job the plan named and the kit you picked for it, with the way to
                     change it. Locked once a set is ticked, like an "or" line. */}
-                {it.slot && Training.slotOf(it.slot.key) && (() => {
+                {/* Not picked yet: the plan named a job, so the first time it comes up the card asks
+                    which kit, one tap, before there is anything to log. Whatever is picked here is
+                    set for the rest of the programme, like a pick made on Your kit. */}
+                {it.slot && !it.slot.answered && Training.slotOf(it.slot.key) && (() => {
+                  const sl = Training.slotOf(it.slot.key);
+                  const eq = gym ? Training.gymEquipment(gym).equipment : null;
+                  const opts = sl.options.filter(o => Training.byId(o.id, t.custom));
+                  return (
+                    <div className="mb-3 p-3" style={{ background: 'var(--sunk)' }}>
+                      <div className="text-[15px] mb-1" style={{ fontWeight: 700 }}>What are you using?</div>
+                      <div className="text-[13px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+                        The plan says {sl.name.toLowerCase()}. Pick the kit and it stays for the rest of {(block && block.name) || 'the programme'}.
+                      </div>
+                      <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }} role="group" aria-label={'Kit for ' + sl.name}>
+                        {opts.map(o => {
+                          const ex2 = Training.byId(o.id, t.custom);
+                          const away = eq && ex2 && eq.indexOf(ex2.equipment) === -1;
+                          return (
+                            <button key={o.id} type="button" onClick={() => pickSlot(ii, o.id, true)}
+                              className="pixel-box text-left px-2.5 py-2" style={{ minHeight: 56, background: 'var(--card)', opacity: away ? 0.55 : 1 }}>
+                              <span className="block text-[15px]" style={{ fontWeight: 600 }}>{o.kit}</span>
+                              <span className="block text-[12px] truncate" style={{ color: 'var(--muted)' }}>{away ? 'Not at ' + gym.name : ex2.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button type="button" onClick={() => setSlotFor(ii)} className="text-[13px] mt-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
+                        Something else
+                      </button>
+                    </div>
+                  );
+                })()}
+                {it.slot && it.slot.answered && Training.slotOf(it.slot.key) && (() => {
                   const locked = (it.sets || []).some(x => x.done);
                   return (
                     <div className="flex items-center gap-2 mb-2 text-[13px]" style={{ minHeight: 32 }}>
@@ -1468,7 +1503,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                     and three tools, and while those are on screen the card counts as visible even
                     though every row you could log into has gone. Watching the rows asks the question
                     the bar actually answers, which is "can I still reach my next set from here". */}
-                <div ref={open ? openRowsRef : null}>
+                <div ref={open ? openRowsRef : null} style={it.slot && !it.slot.answered ? { display: 'none' } : null}>
                 <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[11px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
                   <div className="flex-1 pf text-[11px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{(isBodyweightLift(it.exerciseId, t.custom) ? '+' : '') + machineSuffix(specOf(it.exerciseId), units).trim()}</div>
@@ -1915,7 +1950,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       {pastFor && <PastSets db={db} update={update} showToast={showToast} exerciseId={pastFor} spec={specOf(pastFor)} onClose={() => setPastFor(null)} />}
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
       {slotFor != null && items[slotFor] && items[slotFor].slot && Training.slotOf(items[slotFor].slot.key) && (
-        <SlotSheet db={db} update={update} gym={gym} current={items[slotFor].exerciseId}
+        <SlotSheet db={db} update={update} gym={gym} current={items[slotFor].slot.answered ? items[slotFor].exerciseId : null}
           slot={Object.assign({ key: items[slotFor].slot.key }, Training.slotOf(items[slotFor].slot.key))}
           where={past || !session ? null : 'Changes this session and the rest of ' + ((block && block.name) || 'the programme') + ' from this week.'}
           onPick={(id, remember) => pickSlot(slotFor, id, remember)} onClose={() => setSlotFor(null)} />

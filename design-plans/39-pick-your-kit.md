@@ -338,19 +338,25 @@ session/cleanup) or one if done together.
 
 ## As built (differences from the plan above)
 
+- **Not forced (Olly's call after the plan).** Your kit is offered between "When do you start?" and
+  "Which days?", and "Next: your days" is always available ("The N you leave will be asked at the
+  gym"). An unpicked line opens in the session as **What are you using?**: the kit as four 56px
+  buttons, plus "Something else". Its set rows stay hidden until something is picked. A pick made
+  there or on Your kit fills that line from this week to the end of the programme and is
+  remembered, so it is all defined during week one and set after that unless changed.
 - **No null `exerciseId`.** A template slot line keeps its first option as a placeholder, and
-  `slot.answered` is the gate. Every option in a slot shares the placeholder's muscles, so volume,
-  coverage and the time estimate need no special path. The placeholder is never shown: the preview
-  says "Incline press · your pick", the home card says "Opens with Incline press" with its button
-  reading "Pick your kit first", and starting a session, or reaching Which days?, routes to Your kit
-  while any slot is open.
+  `slot.answered` says whether anyone picked it. Every option in a slot shares the placeholder's
+  muscles, so volume, coverage and the time estimate need no special path. The placeholder is never
+  shown as a pick: the preview says "Incline press · your pick", the home card "Opens with Incline
+  press", and the session card and its sticky bar say "Incline press" until it is answered.
 - **Session Change** applies from this week to the rest of the programme, like an author's "or" line.
   There is no Just today / Rest of programme question: a one-off swap is still Replace in the
   movement's More menu.
 - **No step counter**, matching Which days?, which never had one. The start sheet and the preview
   footer say what is coming ("Next: your kit", "Three quick questions: when, your kit, and which
-  days").
-- **No home banner.** The next-session card's own button covers it.
+  days"). My programme's Your kit row says "N of 7 still to pick, here or at the gym" until done.
+- **No home banner and no gate.** Nothing stops a session starting with lines unpicked; they are
+  answered on the card.
 - PR #167's label line over `ChoiceToggle` and its preview label are reverted. Author either/or lines
   are as they were before #167.
 - Also fixed on the way: `templateOf` now carries `setsOptional`, so sharing or re-running a

@@ -64,9 +64,6 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   // Starting a session is the single most common action, so it is one call from anywhere. If more
   // than one gym is saved we ask which one first, because that is the whole point of saving two.
   function startSession(session, blk) {
-    // A programme whose kit is not picked has nothing real to lift on those lines yet.
-    const owner = blk || block;
-    if (owner && Training.unfilledSlots(owner).length) { go('kit', { blockId: owner.id, fresh: true }); return; }
     const gyms = gymsOf(db);
     if (gyms.length > 1) {
       setPendingStart({ sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
@@ -222,11 +219,6 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode }) 
   }
   if (screen.name === 'schedule') {
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : block;
-    // Every route into a new programme's days passes the kit first, whichever screen started it.
-    if (blk && screen.fresh && Training.unfilledSlots(blk).length) {
-      return page(<KitStep db={db} update={update} showToast={showToast} block={blk} fresh
-        onBack={() => go('home')} onNext={() => go('schedule', { blockId: blk.id, fresh: true })} />);
-    }
     if (!blk) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} onResume={startSession} onFreeform={startFreeform} go={go}
     onStartProgramme={startProgramme} onCustomiseProgramme={customiseProgramme} />);
@@ -765,9 +757,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               </div>
               <button onClick={() => (onResume ? onResume(next.session, block) : onOpen(next.session, block))}
                 className="pixel-btn w-full mt-4 text-[15px] flex items-center justify-center gap-2" style={{ minHeight: 48, fontWeight: 700, background: 'var(--accent)', color: 'var(--on-accent)' }}>
-                {!live && Training.unfilledSlots(block).length
-                  ? 'Pick your kit first'
-                  : <><Icon.play width="16" /> {live ? 'Carry on with ' : 'Start '}{next.session.name.split(' - ')[0]}</>}
+                <Icon.play width="16" /> {live ? 'Carry on with ' : 'Start '}{next.session.name.split(' - ')[0]}
               </button>
             </div>
           </Card>
@@ -1098,7 +1088,9 @@ function BlockPlace({ db, block, go }) {
           {Training.blockSlots(block, t.custom).length > 0 && (() => {
             const ks = Training.blockSlots(block, t.custom);
             return <Row icon={<Icon.sliders width="24" />} title="Your kit"
-              sub={ks.map(k => k.name + ': ' + Training.slotKit(k.key, k.exerciseId, t.custom).toLowerCase()).slice(0, 2).join(' · ') + (ks.length > 2 ? ' · +' + (ks.length - 2) : '')}
+              sub={(() => { const open = ks.filter(k => !k.answered).length; return open
+                ? open + ' of ' + ks.length + ' still to pick, here or at the gym'
+                : ks.map(k => k.name + ': ' + Training.slotKit(k.key, k.exerciseId, t.custom).toLowerCase()).slice(0, 2).join(' · ') + (ks.length > 2 ? ' · +' + (ks.length - 2) : ''); })()}
               onClick={() => go('kit', { blockId: block.id })} />;
           })()}
           <Row icon={<Icon.grid width="24" />} title="Muscle coverage" sub="Sets per muscle this week" onClick={() => go('coverage', { blockId: block.id, from: 'block' })} />
