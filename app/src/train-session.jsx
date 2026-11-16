@@ -278,6 +278,16 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   const [openOffScreen, setOpenOffScreen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [slotFor, setSlotFor] = useState(null);   // index of the movement whose kit is being changed
+  // The Sets and reps sheet: how far an edit reaches, and the plan's lines as they were when it opened,
+  // so switching back to "Today only" undoes "Rest of programme" exactly.
+  const [targetScope, setTargetScope] = useState('today');
+  const [targetSnap, setTargetSnap] = useState(null);
+  function openTarget(ii) {
+    const row = items[ii];
+    setTargetScope('today');
+    setTargetSnap(!past && block && session && row && row.id ? Training.targetSnapshot(block, session.id, row.id, session.week || 1) : null);
+    setTargetFor(ii);
+  }
   const [swapping, setSwapping] = useState(null);
   const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null);  // index of the exercise whose options are open
@@ -1295,9 +1305,13 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       prescription plus a 36px sprite did not fit a 375px card and it hung over the
                       border. It lives in the header now, where it is on screen for the whole session
                       instead of only for whichever movement happens to be open. */}
-                  <span className="ml-auto shrink-0 text-[12px] text-right" style={{ color: 'var(--muted)' }}>
+                  {/* The prescription is also the way to change it: one tap from the card rather than
+                      two menus deep. */}
+                  <button type="button" onClick={() => tgt && openTarget(ii)} disabled={!tgt}
+                    aria-label={'Change sets and reps, now ' + work.length + ' sets of ' + (tgt ? tgt.repLow + ' to ' + tgt.repHigh : '') + ' reps'}
+                    className="ml-auto shrink-0 text-[12px] text-right" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
                     {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps
-                  </span>
+                  </button>
                 </div>
 
                 {/* A slot: the job the plan named and the kit you picked for it, with the way to
@@ -1841,7 +1855,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 ? Training.setsLabel(items[menuOpen].target) + ' × ' + Training.repLabel(items[menuOpen].target) + ' at ' + items[menuOpen].target.rir + ' RIR'
                 : 'Set the prescription for today',
               disabled: !items[menuOpen].target,
-              onClick: () => setTargetFor(menuOpen),
+              onClick: () => openTarget(menuOpen),
             },
             { label: 'Machine setup', sub: setupOf(items[menuOpen].exerciseId) || 'Seat height, pad position, handles. Shown before your first set.', onClick: () => setSetupFor(menuOpen) },
             { label: 'Machine units', sub: specOf(items[menuOpen].exerciseId).explicit ? Training.specLabel(specOf(items[menuOpen].exerciseId)) : 'Follows your settings (' + unitLabel(units) + '). Tap if this one reads in pounds, pins or plates.', onClick: () => setUnitsFor(menuOpen) },
@@ -1863,24 +1877,49 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       {/* Changing the prescription changes the SETS as well, or the number in the header and the
           number of rows underneath it disagree, which is the app arguing with itself. Rows already
           logged are never taken away: dropping a set you have done would delete work you did. */}
-      {targetFor != null && items[targetFor] && items[targetFor].target && (
-        <TargetSheet row={items[targetFor]} name={(Training.byId(items[targetFor].exerciseId, t.custom) || {}).name}
-          onClose={() => setTargetFor(null)}
-          onChange={(patch) => mutate(n => {
-            const it2 = n[targetFor];
-            it2.target = Object.assign({}, it2.target, patch);
-            if (patch.sets != null) {
-              const work = it2.sets.filter(s => (s.type || 'work') !== 'warmup');
-              const want = Math.max(work.filter(s => s.done).length, patch.sets);
-              while (work.length > want) { const drop = work.pop(); it2.sets.splice(it2.sets.indexOf(drop), 1); }
-              while (work.length < want) {
-                const last = work[work.length - 1] || { type: 'work' };
-                const row = Object.assign({}, last, { done: false, reps: null, rir: null, type: 'work' });
-                it2.sets.push(row); work.push(row);
-              }
-            }
-          })} />
-      )}
+      {targetFor != null && items[targetFor] && items[targetFor].target && (() => {
+        const row = items[targetFor];
+        const canScope = !!(targetSnap && targetSnap.length);
+        const plan = canScope ? targetSnap[0].target : null;
+        const reach = canScope ? targetSnap.map(x => x.sessionId).filter((x, i, a) => a.indexOf(x) === i).length : 0;
+        const toRest = (nt) => trainUpdate(update, (tr) => {
+          const b = tr.blocks.filter(x => x.id === block.id)[0];
+          if (b) Training.setTargetInBlock(b, session.id, row.id, nt, session.week || 1);
+        });
+        return (
+          <TargetSheet row={row} name={(Training.byId(row.exerciseId, t.custom) || {}).name}
+            onClose={() => { setTargetFor(null); setTargetSnap(null); }}
+            scope={targetScope} reach={reach}
+            keeps={plan ? Training.setsLabel(plan) + ' × ' + Training.repLabel(plan) : null}
+            onScope={canScope ? (v) => {
+              setTargetScope(v);
+              if (v === 'rest') toRest(row.target);
+              else trainUpdate(update, (tr) => { const b = tr.blocks.filter(x => x.id === block.id)[0]; if (b) Training.restoreTargets(b, targetSnap); });
+            } : null}
+            onChange={(patch) => {
+              // Changing the prescription changes the SETS as well, or the number in the header and
+              // the rows underneath disagree. Rows already logged are never taken away.
+              const nt = Training.patchTarget(row.target, patch);
+              mutate(n => {
+                const it2 = n[targetFor];
+                const before = it2.target && it2.target.sets;
+                it2.target = nt;
+                if (nt.sets !== before) {
+                  const work = it2.sets.filter(s => (s.type || 'work') !== 'warmup' && !s.optional);
+                  const want = Math.max(work.filter(s => s.done).length, nt.sets);
+                  while (work.length > want) { const drop = work.pop(); it2.sets.splice(it2.sets.indexOf(drop), 1); }
+                  while (work.length < want) {
+                    const last = work[work.length - 1] || { type: 'work' };
+                    const nrow = Object.assign({}, last, { done: false, reps: null, rir: null, type: 'work', optional: false });
+                    const at = work.length ? it2.sets.indexOf(last) + 1 : it2.sets.length;
+                    it2.sets.splice(at, 0, nrow); work.push(nrow);
+                  }
+                }
+              });
+              if (canScope && targetScope === 'rest') toRest(nt);
+            }} />
+        );
+      })()}
 
       {/* The session's own options, off the header. Everything here is about the whole session
           rather than one movement, which is why it was homeless before: adding a movement was a

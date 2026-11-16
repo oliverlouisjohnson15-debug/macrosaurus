@@ -826,6 +826,13 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const gymNow = currentGym(db);
   const [menuFor, setMenuFor] = useState(null);   // item id whose options sheet is open
   const [tuning, setTuning] = useState(null);     // item id whose sets/reps editor is open
+  const [tuneScope, setTuneScope] = useState('today');
+  const [tuneSnap, setTuneSnap] = useState(null);
+  function openTuning(itemId) {
+    setTuneScope('today');
+    setTuneSnap(block ? Training.targetSnapshot(block, live.id, itemId, live.week || 1) : null);
+    setTuning(itemId);
+  }
   const [picking, setPicking] = useState(null);   // { mode: 'add' } | { mode: 'swap', itemId }
   const [dayPick, setDayPick] = useState(false);
   const [swapScope, setSwapScope] = useState(null);
@@ -1099,7 +1106,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
         <ActionSheet kicker="Movement" title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
           actions={[
             { label: 'Replace it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
-            { label: 'Sets and reps', sub: Training.setsLabel(item.target) + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
+            { label: 'Sets and reps', sub: Training.setsLabel(item.target) + ' x ' + Training.repLabel(item.target) + ' at ' + item.target.rir + ' RIR', onClick: () => openTuning(item.id) },
             {
               label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
               sub: item.supersetGroup ? 'Do it on its own again' : (items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup
@@ -1120,9 +1127,28 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
           ]} />
       )}
 
-      {tuneRow && <TargetSheet row={tuneRow} name={(Training.byId(tuneRow.exerciseId, t.custom) || {}).name}
-        onChange={patch => edit(s => Training.setExerciseTarget(s, tuneRow.id, patch))}
-        onClose={() => setTuning(null)} />}
+      {tuneRow && (() => {
+        const canScope = !!(tuneSnap && tuneSnap.length > 1);
+        const plan = tuneSnap && tuneSnap[0] ? tuneSnap[0].target : null;
+        const reach = canScope ? tuneSnap.map(x => x.sessionId).filter((x, i, a) => a.indexOf(x) === i).length : 0;
+        return (
+          <TargetSheet row={tuneRow} name={(Training.byId(tuneRow.exerciseId, t.custom) || {}).name}
+            scope={tuneScope} reach={reach} todayLabel="This session only"
+            keeps={plan ? Training.setsLabel(plan) + ' × ' + Training.repLabel(plan) : null}
+            onScope={canScope ? (v) => {
+              setTuneScope(v);
+              edit((s, b) => {
+                if (v === 'rest') Training.setTargetInBlock(b, s.id, tuneRow.id, tuneRow.target, s.week || 1);
+                else { Training.restoreTargets(b, tuneSnap.filter(x => !(x.sessionId === s.id && x.itemId === tuneRow.id))); }
+              });
+            } : null}
+            onChange={patch => edit((s, b) => {
+              const nt = Training.setExerciseTarget(s, tuneRow.id, patch);
+              if (canScope && tuneScope === 'rest' && nt) Training.setTargetInBlock(b, s.id, tuneRow.id, nt, s.week || 1);
+            })}
+            onClose={() => { setTuning(null); setTuneSnap(null); }} />
+        );
+      })()}
 
       {picking && (
         <ExercisePicker db={db} update={update}
@@ -1197,65 +1223,101 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   );
 }
 
-/* The prescription, as four numbers you can actually change. This is the one edit in the module with
-   no obvious gesture: sets and reps are not a list to reorder or an item to pick, they are a dial.
-   Steppers rather than free text, because the range each one is allowed to take is narrow and known,
-   and a number pad on a phone for a value between 1 and 10 is three taps to do what one should. */
-function TargetSheet({ row, name, onChange, onClose }) {
-  useBackClose(onClose);
+/* The prescription, as numbers you can change, and HOW FAR the change reaches.
+ *
+ * Steppers rather than free text, because each number's range is narrow and known. The rep range
+ * also has the common ranges as one tap each, since "make this 10-15 for a while" is the usual edit
+ * and two steppers is four to eight taps to say it.
+ *
+ * `onScope` turns on the question every edit here really carries: just this session, or this line
+ * for the rest of the programme. It is a segmented control at the top rather than a question after
+ * the fact, so the person sees what an edit will touch before making it, and switching back to
+ * "Today only" puts the rest of the programme back exactly as it was (the caller keeps a snapshot).
+ */
+const REP_PRESETS = [[5, 8], [6, 10], [8, 12], [10, 15], [12, 20]];
+function TargetSheet({ row, name, onChange, onClose, scope, onScope, reach, todayLabel, keeps }) {
   const t = row.target || {};
   const Stepper = ({ label, value, sub, onMinus, onPlus, atMin, atMax }) => (
-    <div className="flex items-center gap-3 py-3" style={{ borderTop: '2px solid var(--border)' }}>
+    <div className="flex items-center gap-3" style={{ minHeight: 64, borderBottom: '1px solid var(--hairline)' }}>
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-semibold">{label}</span>
-        {sub && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>{sub}</span>}
+        <span className="block text-[15px]" style={{ fontWeight: 600 }}>{label}</span>
+        {sub && <span className="block text-[13px]" style={{ color: 'var(--muted)' }}>{sub}</span>}
       </span>
-      <button onClick={onMinus} disabled={atMin} aria-label={'Fewer ' + label.toLowerCase()}
-        className="pixel-box w-11 h-11 text-[15px] shrink-0" style={{ background: 'var(--surface2)', opacity: atMin ? 0.4 : 1 }}>-</button>
-      <span className="pf text-[13px] tnum w-14 text-center shrink-0">{value}</span>
-      <button onClick={onPlus} disabled={atMax} aria-label={'More ' + label.toLowerCase()}
-        className="pixel-box w-11 h-11 text-[15px] shrink-0" style={{ background: 'var(--surface2)', opacity: atMax ? 0.4 : 1 }}>+</button>
+      <button type="button" onClick={onMinus} disabled={atMin} aria-label={'Fewer ' + label.toLowerCase()}
+        className="pixel-box w-11 h-11 text-[17px] shrink-0" style={{ background: 'var(--card)', opacity: atMin ? 0.4 : 1, fontWeight: 700 }}>−</button>
+      <span className="pf text-[16px] tnum w-10 text-center shrink-0" aria-live="polite">{value}</span>
+      <button type="button" onClick={onPlus} disabled={atMax} aria-label={'More ' + label.toLowerCase()}
+        className="pixel-box w-11 h-11 text-[17px] shrink-0" style={{ background: 'var(--card)', opacity: atMax ? 0.4 : 1, fontWeight: 700 }}>+</button>
     </div>
   );
   return (
-    <div role="dialog" aria-modal="true" aria-label="Sets and reps" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="w-full max-w-sm pixel-box fade-in max-h-[80vh] overflow-y-auto p-4" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <div className="pf text-[11px] mb-1">Sets and reps</div>
-        <div className="text-[12px] mb-3" style={{ color: 'var(--muted)' }}>{name || 'This movement'}</div>
-        <Stepper label="Sets" value={t.sets}
-          atMin={t.sets <= Training.SETS_MIN} atMax={t.sets >= Training.SETS_MAX}
-          onMinus={() => onChange({ sets: t.sets - 1 })} onPlus={() => onChange({ sets: t.sets + 1 })} />
+    <Sheet title="Sets and reps" onClose={onClose} z={86}>
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{name || 'This movement'}</div>
+
+      {onScope && (
+        <div>
+          <Seg value={scope} onChange={onScope}
+            options={[{ v: 'today', l: todayLabel || 'Today only' }, { v: 'rest', l: 'Rest of programme' }]} />
+          <div className="text-[13px] leading-snug mt-2" style={{ color: 'var(--muted)' }}>
+            {scope === 'rest'
+              ? 'This line in ' + (reach || 1) + (reach === 1 ? ' session' : ' sessions') + ', from this week on. Weeks you have trained stay as they were.'
+              : 'Only this session changes.' + (keeps ? ' The programme keeps ' + keeps + '.' : '')}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="text-[15px] mb-2" style={{ fontWeight: 700 }}>Rep range</div>
+        <div className="grid gap-1.5" role="radiogroup" aria-label="Common rep ranges" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+          {REP_PRESETS.map(([lo, hi]) => {
+            const on = t.repLow === lo && t.repHigh === hi;
+            return (
+              <button key={lo + '-' + hi} type="button" role="radio" aria-checked={on} onClick={() => onChange({ repLow: lo, repHigh: hi })}
+                className="pixel-box text-[13px] tnum" style={{
+                  minHeight: 44, fontWeight: 600,
+                  background: on ? 'var(--seg-on)' : 'var(--card)', color: on ? 'var(--seg-on-text)' : 'var(--text)',
+                }}>{lo}–{hi}</button>
+            );
+          })}
+        </div>
         <Stepper label="Reps from" value={t.repLow} sub="The bottom of the range"
           atMin={t.repLow <= Training.REPS_MIN} atMax={t.repLow >= Training.REPS_MAX}
           onMinus={() => onChange({ repLow: t.repLow - 1 })} onPlus={() => onChange({ repLow: t.repLow + 1 })} />
-        <Stepper label="Reps to" value={t.repHigh} sub="The top of the range"
+        <Stepper label="Reps to" value={t.repHigh} sub="The top: hit it on every set and the weight goes up"
           atMin={t.repHigh <= Training.REPS_MIN} atMax={t.repHigh >= Training.REPS_MAX}
           onMinus={() => onChange({ repHigh: t.repHigh - 1 })} onPlus={() => onChange({ repHigh: t.repHigh + 1 })} />
+      </div>
+
+      <div>
+        <Stepper label="Sets" value={t.sets}
+          sub={t.setsOptional ? 'Plus ' + t.setsOptional + ' optional' : null}
+          atMin={t.sets <= Training.SETS_MIN} atMax={t.sets >= Training.SETS_MAX}
+          onMinus={() => onChange({ sets: t.sets - 1 })} onPlus={() => onChange({ sets: t.sets + 1 })} />
         {/* Two steppers where a movement runs a pair, one where it does not. A block written to take
             its LAST set to failure and the ones before it a rep short cannot say so through a single
-            number, so a movement added by hand to such a block silently prescribed something else -
-            the one thing the editor could not express was the thing the block was built on. */}
+            number. */}
         {t.rirLast == null ? (
-          <Stepper label="RIR" value={t.rir} sub="Reps you leave in the tank"
+          <Stepper label="Reps in reserve" value={t.rir} sub="Reps you leave in the tank"
             atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
             onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
         ) : (
           <React.Fragment>
-            <Stepper label="RIR, earlier sets" value={t.rir} sub={t.sets > 1 ? 'Reps left on the sets before the last one' : 'Not used: this movement is one set'}
+            <Stepper label="In reserve, earlier sets" value={t.rir} sub={t.sets > 1 ? 'Reps left on the sets before the last' : 'Not used: this is one set'}
               atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
               onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
-            <Stepper label="RIR, last set" value={t.rirLast} sub={t.rirLast === 0 ? 'To failure' : 'Reps left when it ends'}
+            <Stepper label="In reserve, last set" value={t.rirLast} sub={t.rirLast === 0 ? 'To failure' : 'Reps left when it ends'}
               atMin={t.rirLast <= 0} atMax={t.rirLast >= Training.RIR_MAX}
               onMinus={() => onChange({ rirLast: t.rirLast - 1 })} onPlus={() => onChange({ rirLast: t.rirLast + 1 })} />
           </React.Fragment>
         )}
-        {/* A sheet with a button at the bottom reads as a form with a Save on it, and this one is not:
-            every tap above has already been written. Saying so is the difference between closing it
-            confidently and closing it wondering. */}
-        <div className="text-[11px] text-center mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>Saved as you change it.</div>
-        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Done</button>
       </div>
-    </div>
+
+      {/* Every tap above is already written, so the button is a way out, not a Save. */}
+      <div>
+        <Btn className="w-full" onClick={onClose}>Done</Btn>
+        <div className="text-[12px] text-center mt-2" style={{ color: 'var(--muted)' }}>Saved as you change it.</div>
+      </div>
+    </Sheet>
   );
 }
 
