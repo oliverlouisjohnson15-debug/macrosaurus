@@ -180,7 +180,7 @@ test('replacing a movement leads with what the plan itself offers', () => {
   // list somebody searches around instead.
   assert.ok(r.text.indexOf('Replace with') < r.text.indexOf('Smith machine incline press'),
     'the heading introduces the list rather than trailing it');
-  assert.ok(r.text.indexOf('Smith machine incline press') < r.text.indexOf('Make a variation'),
+  assert.ok(r.text.indexOf('Smith machine incline press') < r.text.indexOf('All movements'),
     'and the plan\'s answer comes before the library\'s');
 });
 

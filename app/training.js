@@ -1397,28 +1397,70 @@
    * something its parent's name does not: "t-bar row neutral" wants the neutral one, "row" does not.
    * The picker offers the folded-away ones under their parent, so nothing is unreachable.
    */
+  /* Search, as somebody standing at a machine types it.
+   *
+   * Every word typed has to START a word in the movement's name, brand or variation label, in any
+   * order: "incline press" finds "Incline machine press", "hammer strength" finds a machine saved as
+   * "Incline press" with Hammer Strength as its brand. Word starts rather than substrings, so "row"
+   * is not found inside "narrow". The person's OWN exercises are never folded away and always rank
+   * first: they are the ones being looked for, and when a saved machine could not be found the only
+   * way forward was to save it again, which is how one machine ended up saved three times. The
+   * library's own variations still only surface when the query names their grip, stance or handle.
+   */
   function search(q, custom, limit) {
     var n = norm(q);
     var pool = all(custom);
-    if (!n) pool = pool.filter(function (e) { return !e.variantOf; });
-    if (!n) return pool.slice(0, limit || 30);
-    var starts = [], contains = [];
-    for (var i = 0; i < pool.length; i++) {
-      // A custom machine's maker is searchable even when the person never typed it into the name.
-      var nm = norm(pool[i].name + (pool[i].brand ? ' ' + pool[i].brand : ''));
-      if (nm.indexOf(n) === 0) starts.push(pool[i]);
-      else if (nm.indexOf(n) !== -1) contains.push(pool[i]);
-    }
-    // A variation surfaces only when the query names its grip, stance or handle as a WHOLE word.
-    // Whole word matters: the list is matched on substrings, and without it a search for "row"
-    // returns four narrow-stance squats, because "row" is inside "narrow".
+    if (!n) return pool.filter(function (e) { return !e.variantOf; }).slice(0, limit || 30);
     var qt = n.split(' ').filter(Boolean);
-    var hits = starts.concat(contains).filter(function (e) {
-      if (!e.variantOf) return true;
-      var mod = norm(e.variantLabel || '').split(' ').filter(Boolean);
-      return mod.some(function (m) { return qt.indexOf(m) >= 0; });
+    var scored = [];
+    for (var i = 0; i < pool.length; i++) {
+      var e = pool[i];
+      var hay = norm(e.name + ' ' + (e.brand || '') + ' ' + (e.variantLabel || ''));
+      var words = hay.split(' ');
+      var every = qt.every(function (t) { return words.some(function (w) { return w.indexOf(t) === 0; }); });
+      if (!every) continue;
+      if (e.variantOf && !e.custom) {
+        var mod = norm(e.variantLabel || '').split(' ').filter(Boolean);
+        if (!mod.some(function (m) { return qt.indexOf(m) >= 0; })) continue;
+      }
+      var nm = norm(e.name);
+      var rank = (e.custom ? 0 : 10) + (nm.indexOf(n) === 0 ? 0 : (' ' + nm).indexOf(' ' + n) !== -1 ? 1 : 2);
+      scored.push({ e: e, rank: rank, i: i });
+    }
+    scored.sort(function (x, y) { return x.rank - y.rank || x.i - y.i; });
+    return scored.slice(0, limit || 30).map(function (x) { return x.e; });
+  }
+  // The person's own exercises, most recently used first, with the date each was last logged. What
+  // the picker opens on, because the machine you are looking for is nearly always one you have used.
+  function yourExercises(custom, logs) {
+    var last = {};
+    (logs || []).forEach(function (l) {
+      (l.sets || []).forEach(function (s) {
+        if (!s.done || !s.exerciseId) return;
+        if (!last[s.exerciseId] || l.dateISO > last[s.exerciseId]) last[s.exerciseId] = l.dateISO;
+      });
     });
-    return hits.slice(0, limit || 30);
+    return (custom || []).filter(function (e) { return !isCardio(e); })
+      .map(function (e, i) { return { ex: e, lastISO: last[e.id] || null, i: i }; })
+      .sort(function (a, b) {
+        if (a.lastISO && b.lastISO) return a.lastISO < b.lastISO ? 1 : a.lastISO > b.lastISO ? -1 : 0;
+        if (a.lastISO || b.lastISO) return a.lastISO ? -1 : 1;
+        return b.i - a.i;                                     // never used: newest saved first
+      });
+  }
+  // Library movements logged lately, newest first: the other half of "what was I doing".
+  function recentExercises(logs, custom, limit) {
+    var seen = {}, out = [];
+    (logs || []).slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : a.dateISO > b.dateISO ? -1 : 0; })
+      .forEach(function (l) {
+        (l.sets || []).forEach(function (s) {
+          if (!s.done || !s.exerciseId || seen[s.exerciseId]) return;
+          var ex = byId(s.exerciseId, custom);
+          if (!ex || ex.custom || isCardio(ex)) return;
+          seen[s.exerciseId] = 1; out.push(ex);
+        });
+      });
+    return out.slice(0, limit || 8);
   }
 
   // ---- volume --------------------------------------------------------------------------------
@@ -7727,7 +7769,7 @@
   var Training = {
     MUSCLES: MUSCLES, MUSCLE_LABEL: MUSCLE_LABEL, REGION: REGION, LANDMARKS: LANDMARKS,
     SHAPES: SHAPES, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
-    byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve,
+    byId: byId, all: all, isCardio: isCardio, yourExercises: yourExercises, recentExercises: recentExercises, search: search, resolve: resolve,
     repLabel: repLabel,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
