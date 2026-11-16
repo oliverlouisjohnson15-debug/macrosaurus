@@ -54,6 +54,9 @@
   --danger: #C7472F;
   --good: #2E7D6B;
   --warn: #E0A21B;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
+  --warn-ink: #7a5600;       /* amber as TEXT: 5.6:1 on paper. A fill colour is never text (DESIGN.md), so warnings read in this */
+  --ink: var(--text);        /* DESIGN.md's names for the text tokens, so either spelling resolves */
+  --ink-dim: var(--muted);
   --sleep: #5B4FA6;          /* sleep identity: the chrome purple */
   --sleep-deep: #3F3577;     /* deep / N3: indigo */
   --sleep-rem: #2E7D6B;      /* REM: green */
@@ -192,6 +195,9 @@
   --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy. The
                                 import has no amber of its own - its `warn` slot is the red - but the
                                 app needs a third, genuinely middling colour, so it keeps one. */
+  --warn-ink: #FFB020;       /* on the dark stage the amber itself reads, 9:1 */
+  --ink: var(--text);
+  --ink-dim: var(--muted);
   --sleep: #9B7BFF;
   --sleep-deep: #7C5CFF;
   --sleep-rem: #35E0E8;
