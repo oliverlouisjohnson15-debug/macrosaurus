@@ -2457,171 +2457,168 @@ function restAlert(prefs) {
 }
 
 // ---- exercise picker --------------------------------------------------------------------------
+/* ---- picking an exercise -------------------------------------------------------------------------
+ * The same shape as Food's search, which is the one people already know: a search field, filter
+ * chips, then Sections of Rows. It opens on what you are most likely looking for, before you type:
+ *
+ *   Replace with    the programme's own substitutions (when replacing a line)
+ *   Your <movement> machines   your saved machines for the thing being replaced, this gym's first
+ *   Your machines   everything you have saved, most recently used first, this gym's first
+ *   Recent          library movements you have logged lately
+ *   All movements   the library, filterable by muscle
+ *
+ * A saved machine used to be folded under its library movement and missing from search, so the way
+ * to find it again was to save it again. Now it is the first thing on screen and the first result
+ * for its name OR its brand (Training.search), and it says when you last used it so two similar ones
+ * can be told apart.
+ */
 function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, offer, z }) {
   useBackClose(onClose);
   const t = tdb(db);
-  // Opening on the plan's own wording for a movement means the search has already been run and the
-  // create form is already named. Nobody should retype a line the app just showed them.
   const [q, setQ] = useState(seed || '');
   const [muscle, setMuscle] = useState('');
   const [creating, setCreating] = useState(false);   // true, or a parent id to vary
+  const [allMine, setAllMine] = useState(false);
   const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
-  // Every way of doing the movement being swapped: the plain version and each of its grips, stances
-  // or handles. Asked from a variation it returns its siblings, which is the case that matters, since
-  // "this grip is not working today" is a thought you have while already on a variation.
-  // The machines this gym has been taught come first: at a Hoist-and-Hammer-Strength gym the one you
-  // are about to pick is nearly always one of them.
   const pickGym = currentGym(db);
   const hereIds = pickGym && pickGym.machines ? Object.keys(pickGym.machines).map(k => pickGym.machines[k].use).filter(Boolean) : [];
-  const siblings = (basedOn ? Training.variantsOf(basedOn, t.custom) : []).slice()
-    .sort((a, b) => (hereIds.indexOf(b.id) !== -1 ? 1 : 0) - (hereIds.indexOf(a.id) !== -1 ? 1 : 0));
-  let list = Training.search(q, t.custom, 200);
-  if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
-  if (!q) list = list.concat(Training.CARDIO);
+  const atGym = (id) => hereIds.indexOf(id) !== -1;
+  const today = Store.todayISO();
+  const ago = (iso) => {
+    if (!iso) return 'Not used yet';
+    const d = Math.round((new Date(today + 'T00:00:00Z') - new Date(iso + 'T00:00:00Z')) / 86400000);
+    return d <= 0 ? 'Used today' : d === 1 ? 'Used yesterday' : d < 14 ? 'Used ' + d + ' days ago' : d < 60 ? 'Used ' + Math.round(d / 7) + ' weeks ago' : 'Used ' + Math.round(d / 30) + ' months ago';
+  };
+  const muscles = (e) => (e.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ');
+  const byMuscle = (e) => !muscle || (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1;
+
+  // The library family of the movement being replaced: the movement, its parent, and its siblings.
+  const family = parent ? [parent.id, parent.variantOf].concat(Training.variantsOf(parent.variantOf || parent.id, t.custom).map(v => v.id)).filter(Boolean) : [];
+  const mineAll = Training.yourExercises(t.custom, t.logs).filter(r => byMuscle(r.ex))
+    .sort((a, b) => (atGym(b.ex.id) ? 1 : 0) - (atGym(a.ex.id) ? 1 : 0));
+  const mineForThis = parent ? mineAll.filter(r => r.ex.id !== basedOn && family.indexOf(r.ex.variantOf) !== -1) : [];
+  const mineRest = mineAll.filter(r => mineForThis.indexOf(r) === -1);
+  const recent = Training.recentExercises(t.logs, t.custom, 6).filter(byMuscle);
+  const siblings = (basedOn ? Training.variantsOf(basedOn, t.custom) : []).filter(v => !v.custom);
+
+  let found = q ? Training.search(q, t.custom, 200) : Training.search('', t.custom, 400).concat(Training.CARDIO);
+  found = found.filter(byMuscle);
+  const foundMine = q ? found.filter(e => e.custom) : [];
+  const foundLib = q ? found.filter(e => !e.custom) : found;
+
+  const myRow = (r, key) => (
+    <Row key={key || r.ex.id} title={r.ex.name} onClick={() => onPick(r.ex.id)} chevron={false}
+      sub={[r.ex.brand && norm2(r.ex.name).indexOf(norm2(r.ex.brand)) === -1 ? r.ex.brand : null, ago(r.lastISO)].filter(Boolean).join(' · ')}
+      value={atGym(r.ex.id) && pickGym ? <span style={{ color: 'var(--link)', fontWeight: 600 }}>At {pickGym.name}</span> : null} />
+  );
+  const libRow = (e) => {
+    const ways = Training.variantsOf(e.id, t.custom).filter(v => v.id !== e.id && !v.custom);
+    return (
+      <div key={e.id}>
+        <Row title={e.name} onClick={() => onPick(e.id)} chevron={false}
+          sub={Training.isCardio(e) ? 'Cardio, not counted in lifting volume' : muscles(e) + (e.equipment ? ' · ' + e.equipment : '')} />
+        {q && ways.length > 0 && (
+          <div className="flex flex-wrap gap-1 pb-2 -mt-1">
+            {ways.map(v => <button key={v.id} type="button" onClick={() => onPick(v.id)} className="ms-chip">{v.variantLabel || v.name}</button>)}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const newRow = (
+    <Row icon={<Icon.plus width="24" />} title={q ? 'New: “' + q + '”' : 'New machine or exercise'}
+      sub={q ? 'Save it as yours: a brand, a machine at your gym, or a movement we have not got' : 'A brand of machine at your gym, or a movement we have not got'}
+      onClick={() => setCreating(true)} />
+  );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)', zIndex: z || undefined }}>
-      <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
-        <button onClick={onClose} className="pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>Close</button>
-        <div className="pf text-[11px] flex-1 text-center">{title || 'Add exercise'}</div>
-        <button onClick={() => setCreating(true)} className="pf text-[11px] uppercase" style={{ color: 'var(--link)' }}>New</button>
+    <div role="dialog" aria-modal="true" aria-label={title || 'Pick an exercise'} className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--page)', zIndex: z || undefined }}>
+      <div className="flex items-center gap-2 pl-4 pr-1 shrink-0" style={{ minHeight: 52, background: 'var(--header)', color: 'var(--header-text)', boxShadow: '0 2px 0 0 var(--border)' }}>
+        <h2 className="flex-1 min-w-0 truncate text-[17px]" style={{ fontWeight: 600 }}>{title || 'Add an exercise'}</h2>
+        <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0"><Icon.close width="24" /></button>
       </div>
-      <div className="p-3">
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search movements" autoFocus
-          className="w-full pixel-box px-3 py-3 text-[14px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setMuscle('')} className="pixel-box px-3 py-2 text-[11px] whitespace-nowrap" style={{ background: muscle ? 'var(--surface2)' : '#fff', color: muscle ? 'var(--text2)' : '#111' }}>All</button>
+      <div className="px-4 pt-3 shrink-0">
+        <div className="flex items-center gap-2 pl-3 pr-1 field-focus" style={{ minHeight: 52, margin: 2 }}>
+          <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
+          <input autoFocus type="text" enterKeyHint="search" value={q} onChange={e => setQ(e.target.value)} aria-label="Search exercises and brands"
+            placeholder="Search, or type a brand" className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
+          {q && <button onClick={() => setQ('')} aria-label="Clear the search" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }}><Icon.close width="20" /></button>}
+        </div>
+        <div className="flex gap-1 overflow-x-auto py-2 -mx-1 px-1" role="group" aria-label="Filter by muscle">
+          <button type="button" onClick={() => setMuscle('')} aria-pressed={!muscle} className={'ms-chip' + (!muscle ? ' on' : '')}>All</button>
           {Training.MUSCLES.map(m => (
-            <button key={m} onClick={() => setMuscle(muscle === m ? '' : m)} className="pixel-box px-3 py-2 text-[11px] whitespace-nowrap"
-              style={{ background: muscle === m ? '#fff' : 'var(--surface2)', color: muscle === m ? '#111' : 'var(--text2)' }}>
-              {Training.MUSCLE_LABEL[m]}
-            </button>
+            <button key={m} type="button" onClick={() => setMuscle(muscle === m ? '' : m)} aria-pressed={muscle === m}
+              className={'ms-chip' + (muscle === m ? ' on' : '')}>{Training.MUSCLE_LABEL[m]}</button>
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
-        {/* What to replace this movement with, before any searching happens. A written programme
-            names a substitution or two against each movement, and those beat anything a search can
-            rank because the author picked them for this slot; the rest is worked out from the muscle
-            and the movement pattern. The two are drawn apart rather than blended into one list: "your
-            plan says you can do this instead" and "this looks similar to us" are different claims,
-            and somebody deciding at a busy machine deserves to know which one they are reading.
 
-            Only shown before you start typing. Once you are searching you have something else in
-            mind, and a list of our ideas is then just in the way. */}
+      <div className="flex-1 overflow-y-auto px-4 pb-8">
+        {!q && parent && (mineForThis.length > 0 || siblings.length > 1) && (
+          <Section title="Your machines for this" className="mt-2">
+            {mineForThis.map(r => myRow(r))}
+            {siblings.length > 1 && (
+              <div className="py-2">
+                <div className="text-[13px] mb-1" style={{ color: 'var(--muted)' }}>Or another way to do it</div>
+                <div className="flex flex-wrap gap-1">
+                  {siblings.map(v => (
+                    <button key={v.id} type="button" onClick={() => onPick(v.id)} disabled={v.id === basedOn}
+                      className={'ms-chip' + (v.id === basedOn ? ' on' : '')}>{v.variantLabel || 'As written'}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Section>
+        )}
+
         {!q && (offer || []).length > 0 && (() => {
+          // The programme's own substitutions beat anything ranked: the author picked them for this
+          // line. Ours ("does the same job") are said apart from them, never blended in.
           const rows = (offer || []).map(o => (typeof o === 'string' ? { id: o, kind: 'plan' } : o))
             .map(o => ({ o, ex: Training.byId(o.id, t.custom) })).filter(r => r.ex);
           const written = rows.filter(r => r.o.kind !== 'suggested');
           const worked = rows.filter(r => r.o.kind === 'suggested');
-          /* The plan's own answers are tinted and our worked-out ones are not, which is the same
-             device the "Ways to do this one" panel below already uses to mark a set of options as
-             the authoritative one. Two headings over two identical stacks of cards put the whole
-             distinction on a line of 8px type that anybody scrolling goes straight past - and it
-             also left no way to see where the short curated list ended and the library began. */
           const row = ({ o, ex }) => (
-            <button key={o.id} onClick={() => onPick(o.id)} className="w-full text-left pixel-box p-3 mb-2 flex items-center gap-2"
-              style={{ background: o.kind === 'suggested' ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-semibold truncate">{ex.name}</span>
-                <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>
-                  {(ex.primary || []).map(m => Training.MUSCLE_LABEL[m]).join(', ')} · {ex.equipment}
-                </span>
-              </span>
-              {/* The one option that is not an alternative at all: it is the movement the plan asked
-                  for in the first place, and saying so is what makes a replacement undoable. */}
-              {o.kind === 'original' && (
-                <span className="pf text-[11px] uppercase shrink-0 px-1.5 py-1"
-                  style={{ border: '1px solid var(--accent)', color: 'var(--accent-ink)', letterSpacing: '0.08em' }}>As written</span>
-              )}
-            </button>
+            <Row key={o.id} title={ex.name} onClick={() => onPick(o.id)} chevron={false}
+              sub={muscles(ex) + ' · ' + ex.equipment}
+              value={o.kind === 'original' ? <span style={{ color: 'var(--link)', fontWeight: 600 }}>As written</span> : null} />
           );
           return (
-            <div className="mb-3">
-              {written.length > 0 && (
-                <>
-                  <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>Replace with</div>
-                  {written.map(row)}
-                </>
-              )}
-              {worked.length > 0 && (
-                <>
-                  <div className="pf text-[11px] uppercase mb-2 mt-3" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>
-                    {written.length ? 'Or something that does the same job' : 'Does the same job'}
-                  </div>
-                  {worked.map(row)}
-                </>
-              )}
-            </div>
+            <>
+              {written.length > 0 && <Section title="Replace with" className="mt-4">{written.map(row)}</Section>}
+              {worked.length > 0 && <Section title={written.length ? 'Or something that does the same job' : 'Does the same job'} className="mt-4">{worked.map(row)}</Section>}
+            </>
           );
         })()}
-        {/* The commonest reason a movement is not in the library is that it is a variation of one
-            that is: a grip, a stance, an attachment. Making it from its parent inherits what it
-            trains, which is the part nobody standing at a machine wants to fill in. */}
-        {/* Swapping FROM a movement that has ways of being done: offer them before anything else.
-            "Same lift, different grip" is far and away the commonest swap somebody makes standing at
-            a machine, and it used to mean searching the library again from scratch. */}
-        {parent && siblings.length > 1 && (
-          <div className="pixel-box p-3 mb-2" style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
-            <div className="pf text-[11px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
-            <div className="flex flex-wrap gap-2">
-              {siblings.map(v => (
-                <button key={v.id} onClick={() => onPick(v.id)} disabled={v.id === basedOn}
-                  className="pixel-box px-3 h-11 text-[12px]"
-                  style={{ background: v.id === basedOn ? 'var(--accent)' : 'var(--surface2)',
-                    color: v.id === basedOn ? 'var(--on-accent)' : 'var(--text2)', opacity: v.id === basedOn ? 0.7 : 1 }}>
-                  {v.variantLabel ? v.variantLabel : 'as written'}
-                  {hereIds.indexOf(v.id) !== -1 ? ' · at ' + pickGym.name : ''}
-                </button>
-              ))}
-            </div>
-          </div>
+
+        {!q && mineRest.length > 0 && (
+          <Section title="Your machines" className="mt-4"
+            right={mineRest.length > 5 ? { label: allMine ? 'Fewer' : 'All ' + mineRest.length, onClick: () => setAllMine(v => !v) } : null}>
+            {(allMine ? mineRest : mineRest.slice(0, 5)).map(r => myRow(r))}
+          </Section>
         )}
-        {parent && (
-          <button onClick={() => setCreating(basedOn)} className="w-full text-left pixel-box p-3 mb-2"
-            style={{ background: 'var(--surface2)' }}>
-            <div className="text-[13px] font-bold">Make a variation of {parent.name}</div>
-            <div className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>A grip, stance or attachment we have not got. Keeps what it trains.</div>
-          </button>
+
+        {!q && recent.length > 0 && (
+          <Section title="Recent" className="mt-4">{recent.map(libRow)}</Section>
         )}
-        {list.map(e => {
-          // The ways of doing THIS movement, offered right on its row. Search folds them away so a
-          // hunt for "row" is not eleven ways to hold a T-bar, and this is where they come back:
-          // one tap, on the movement you were already looking at, with no second search.
-          const ways = Training.variantsOf(e.id, t.custom).filter(v => v.id !== e.id);
-          return (
-            <div key={e.id} className="pixel-box p-3 mb-2" style={{ background: 'var(--surface2)' }}>
-              <button onClick={() => onPick(e.id)} className="w-full text-left">
-                <div className="text-[13px] font-bold">{e.name}</div>
-                {e.brand && !norm2(e.name).includes(norm2(e.brand)) && (
-                  <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>{e.brand}</div>
-                )}
-                {Training.isCardio(e)
-                  ? <span className="text-[11px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
-                  : <MuscleTags exerciseId={e.id} custom={t.custom} />}
-              </button>
-              {ways.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-                  {ways.map(v => (
-                    <button key={v.id} onClick={() => onPick(v.id)} className="pixel-box px-3 h-11 text-[12px]"
-                      style={{ background: 'var(--card)', color: 'var(--accent-ink)' }}>
-                      {v.variantLabel || v.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {!list.length && (
-          <div className="text-center py-8">
-            <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>Nothing matches "{q}".</div>
-            <button onClick={() => setCreating(true)} className="pixel-box px-4 py-3 text-[12px]" style={{ background: 'var(--surface2)' }}>Create it</button>
-          </div>
+
+        {q && foundMine.length > 0 && (
+          <Section title="Yours" className="mt-2">
+            {foundMine.map(e => myRow(Training.yourExercises(t.custom, t.logs).filter(r => r.ex.id === e.id)[0] || { ex: e, lastISO: null }))}
+          </Section>
         )}
+
+        <Section title={q ? (foundLib.length ? (foundMine.length ? 'From the library' : 'Results') : 'Not it?') : 'All movements'} className="mt-4">
+          {q && !foundLib.length && !foundMine.length && (
+            <div className="text-[13px] py-3" style={{ color: 'var(--muted)' }}>Nothing called “{q}” yet.</div>
+          )}
+          {!q && newRow}
+          {foundLib.slice(0, q ? 60 : 400).map(libRow)}
+          {q && newRow}
+        </Section>
       </div>
       {creating && <CustomExercise db={db} update={update} initialName={q}
-        basedOn={typeof creating === 'string' ? creating : null}
+        basedOn={typeof creating === 'string' ? creating : (basedOn || null)}
         onDone={(id) => { setCreating(false); onPick(id); }} onClose={() => setCreating(false)} />}
     </div>
   );
