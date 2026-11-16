@@ -3999,7 +3999,15 @@
     var list = sessionItems(session);
     var i = indexOfItem(list, itemId);
     if (i < 0 || !patch) return null;
-    var t = Object.assign({}, list[i].target || {});
+    list[i].target = patchTarget(list[i].target, patch);
+    return list[i].target;
+  }
+  // A prescription with an edit applied and held to the rules: each number in its range, the range
+  // the right way up, the last set never easier than the ones before it. Pure, so a session's row
+  // and the plan's line are changed by exactly the same arithmetic.
+  function patchTarget(target, patch) {
+    var t = Object.assign({}, target || {});
+    patch = patch || {};
     if (patch.sets != null) t.sets = clamp(Math.round(+patch.sets || 0), SETS_MIN, SETS_MAX);
     if (patch.repLow != null) t.repLow = clamp(Math.round(+patch.repLow || 0), REPS_MIN, REPS_MAX);
     if (patch.repHigh != null) t.repHigh = clamp(Math.round(+patch.repHigh || 0), REPS_MIN, REPS_MAX);
@@ -4015,8 +4023,35 @@
     if (t.repLow != null && t.repHigh != null && t.repLow > t.repHigh) {
       if (patch.repLow != null) t.repHigh = t.repLow; else t.repLow = t.repHigh;
     }
-    list[i].target = t;
     return t;
+  }
+  /* One line's prescription for the rest of the programme: this line in every week from `fromWeek`
+   * on (slotRows - the weeks behind it are a record and are never touched). `snapshot` is what to put
+   * back if the person changes their mind before closing the sheet, so "Today only" after "Rest of
+   * programme" is a true undo rather than a second edit. */
+  function targetSnapshot(block, sessionId, itemId, fromWeek) {
+    return slotRows(block, sessionId, itemId, fromWeek).map(function (hit) {
+      return { sessionId: hit.session.id, itemId: hit.item.id, target: Object.assign({}, hit.item.target) };
+    });
+  }
+  function setTargetInBlock(block, sessionId, itemId, target, fromWeek) {
+    var keys = ['sets', 'repLow', 'repHigh', 'rir', 'rirLast'];
+    var n = 0;
+    slotRows(block, sessionId, itemId, fromWeek).forEach(function (hit) {
+      var patch = {};
+      keys.forEach(function (k) { if (target[k] != null) patch[k] = target[k]; });
+      hit.item.target = patchTarget(hit.item.target, patch);
+      n++;
+    });
+    return n;
+  }
+  function restoreTargets(block, snapshot) {
+    (snapshot || []).forEach(function (row) {
+      ((block && block.sessions) || []).forEach(function (s) {
+        if (s.id !== row.sessionId) return;
+        (s.exercises || []).forEach(function (e) { if (e.id === row.itemId) e.target = Object.assign({}, row.target); });
+      });
+    });
   }
   // Which weekday a session falls on. Per-week by construction, because every week carries its own
   // session rows, so moving this Thursday's legs to Friday leaves next Thursday exactly where it was.
@@ -7718,6 +7753,7 @@
     bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     blockSpine: blockSpine, blockWeeks: blockWeeks, reschedule: reschedule, scheduleOf: scheduleOf, setsLabel: setsLabel,
+    patchTarget: patchTarget, targetSnapshot: targetSnapshot, setTargetInBlock: setTargetInBlock, restoreTargets: restoreTargets,
     SLOTS: SLOTS, slotOf: slotOf, slotKit: slotKit, lineSlot: lineSlot, blockSlots: blockSlots, unfilledSlots: unfilledSlots,
     fillSlot: fillSlot, prefillSlots: prefillSlots, programmeHasSlots: programmeHasSlots,
     liftTrends: liftTrends,
