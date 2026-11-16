@@ -114,7 +114,10 @@ test('PPL Hybrid: Quinton\'s split with Olly\'s leg days, on the week it was wri
   const ids = (name) => p.template.find(d => d.name === name).exercises.map(e => e.exerciseId);
   assert.ok(ids('Upper').includes('prime_row'), 'the Prime Extreme row on Upper');
   assert.equal(ids('Pull')[0], 'tbar_row', 'and the T-bar row leads Pull');
-  assert.deepEqual(ids('Push'), T.programmeOf('qp5').template.find(d => d.name === 'Push').exercises.map(e => e.exerciseId),
-    'the Push day is Quinton\'s, line for line');
+  // Quinton's Push day, line for line, with Olly's flat press after the incline.
+  const quinton = T.programmeOf('qp5').template.find(d => d.name === 'Push').exercises.map(e => e.exerciseId);
+  const push = p.template.find(d => d.name === 'Push').exercises;
+  assert.equal(push[1].slot, 'flat_press', 'a flat press second, after the incline');
+  assert.deepEqual(push.filter((e, i) => i !== 1).map(e => e.exerciseId), quinton);
   assert.ok(ids('Lower 1').includes('hack_squat') && ids('Legs 2').includes('pendulum_squat'));
 });

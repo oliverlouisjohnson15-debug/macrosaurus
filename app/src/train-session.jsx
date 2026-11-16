@@ -2532,7 +2532,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed, off
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={title || 'Pick an exercise'} className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--page)', zIndex: z || undefined }}>
+    <div role="dialog" aria-modal="true" aria-label={title || 'Pick an exercise'} className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)', zIndex: z || undefined }}>
       <div className="flex items-center gap-2 pl-4 pr-1 shrink-0" style={{ minHeight: 52, background: 'var(--header)', color: 'var(--header-text)', boxShadow: '0 2px 0 0 var(--border)' }}>
         <h2 className="flex-1 min-w-0 truncate text-[17px]" style={{ fontWeight: 600 }}>{title || 'Add an exercise'}</h2>
         <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0"><Icon.close width="24" /></button>
