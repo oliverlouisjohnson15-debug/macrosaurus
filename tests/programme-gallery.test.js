@@ -123,6 +123,7 @@ test('PPL Hybrid: Quinton\'s split with Olly\'s leg days, on the week it was wri
   const shop = T.programmeOf('mach5').template;
   for (const name of ['Legs 1', 'Legs 2']) {
     const mine = p.template.find(d => d.name === name), theirs = shop.find(d => d.name === name);
-    assert.deepEqual(mine.exercises, theirs.exercises, name + ' is Machine Shop\'s');
+    const restless = (list) => list.map(e => Object.assign({}, e, { target: Object.assign({}, e.target, { restSec: 180 }) }));
+    assert.deepEqual(mine.exercises, restless(theirs.exercises), name + ' is Machine Shop\'s, at three minutes\' rest');
   }
 });

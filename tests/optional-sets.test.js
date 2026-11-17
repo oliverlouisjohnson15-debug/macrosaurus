@@ -22,7 +22,7 @@ test('PPL Hybrid: "2-3 sets" lines are two plus an optional third, rest is three
     const e = upper.find(x => x.exerciseId === id);
     assert.deepEqual([e.target.sets, e.target.setsOptional], [2, 1], id);
   }
-  for (const d of p.template) if (d.kind !== 'legs') for (const e of d.exercises) assert.equal(e.target.restSec, 180, d.name + ' ' + e.exerciseId);
+  for (const d of p.template) for (const e of d.exercises) assert.equal(e.target.restSec, 180, d.name + ' ' + e.exerciseId);
   for (const name of ['Legs 1', 'Legs 2']) {
     const ids = p.template.find(d => d.name === name).exercises.map(e => e.exerciseId);
     assert.equal(ids[ids.length - 1], 'machine_crunch2', name + ' finishes with the machine crunch');
