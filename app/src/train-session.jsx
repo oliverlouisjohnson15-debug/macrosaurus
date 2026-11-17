@@ -1274,6 +1274,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                       : 'Set ' + ((work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length)
                     : done
                       ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? wStr(work[0].weightKg, it.exerciseId) : 'BW') + ' logged'
+                      // Started and stepped away from: how far you got, so it reads as unfinished
+                      // business rather than a fresh prescription you have not touched.
+                      : work.some(s => s.done)
+                        ? work.filter(s => s.done).length + ' of ' + work.length + ' sets logged · ' + (work.length - work.filter(s => s.done).length) + ' to go'
                       : Training.setsLabel({ sets: work.length, setsOptional: it.sets.filter(x => x.optional && !x.done).length }) + ' x ' + (tgt ? Training.repLabel(tgt) : '–') + (tgt ? (style.toFailure ? (tgt.rir > 0 ? ' · last set to failure' : ' to failure') : ' at ' + tgt.rir + ' RIR') : ' reps')}
                 </span>
               </span>
@@ -1685,24 +1689,42 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // was behind it, and it hid the very rows it invited you to tap ("tap to jump"). Eight compact
       // rows are about 300px of a page you are already scrolling; the cost of showing them is scroll,
       // which is free, and the cost of hiding them was a decision.
-      const doneRows = [], queueRows = [];
-      items.forEach((it, ii) => {
-        if (ii === focus) return;
-        const work = it.sets.filter(isWorkRow);
-        ((work.length > 0 && work.every(s => s.done)) ? doneRows : queueRows).push({ it, ii });
-      });
+      //
+      // ...and every row stays in PROGRAMME ORDER. The bands used to be "finished, then open, then
+      // the rest", which is only programme order while you work straight down the list. Open B1 with
+      // A1 half done and B1 jumped above A1, A1 fell into "Up next" beneath it still wearing its full
+      // prescription, and the letters down the left read B1, A1, B2, C1: the one guide to the order
+      // on the screen contradicting itself. Now the open movement simply expands where it lives. What
+      // comes before it is one compact "Earlier" card (finished rows and anything you have stepped
+      // past), what comes after is "Up next", and A, B, C reads top to bottom at all times.
+      //
+      // During a drag the queued rows are shown in the drag's preview order, laid back into the slots
+      // the queue occupies, so a row dragged past the open card moves to the other side of it.
+      const isDone = (it) => { const w = it.sets.filter(isWorkRow); return w.length > 0 && w.every(s => s.done); };
+      const queued = {};
+      queueKeys.forEach(k => { queued[k] = true; });
+      const byKey = {};
+      items.forEach((it, ii) => { byKey[it._k] = { it, ii }; });
+      let qi = 0;
+      const shown = items.map(it => (queued[it._k] ? byKey[dnd.order[qi++]] : null) || byKey[it._k]);
+      const before = focus >= 0 && items[focus] ? shown.slice(0, focus) : shown;
+      const after = focus >= 0 && items[focus] ? shown.slice(focus + 1) : [];
+      const row = ({ it, ii }) => renderRow(it, ii, true, queued[it._k] ? dnd.rowProps(it._k) : undefined);
+      const group = (title, right, rows) => rows.length > 0 && (
+        <div className="pixel-box mb-4 overflow-hidden" style={{ background: 'var(--card)' }}>
+          <CardHead title={title} right={right} rightTone="muted" />
+          {rows.map(row)}
+        </div>
+      );
+      const leftBefore = before.filter(r => !isDone(r.it)).length;
 
       return (
         <>
-          {doneRows.map(({ it, ii }) => renderRow(it, ii, false))}
-          {items[focus] != null && renderRow(items[focus], focus, false)}
-          {queueRows.length > 0 && (
-            <div className="pixel-box mb-4 overflow-hidden" style={{ background: 'var(--card)' }}>
-              <CardHead title="Up next" right={String(queueRows.length)} />
-              {dnd.order.map(k => queueRows.filter(q => q.it._k === k)[0]).filter(Boolean)
-                .map(({ it, ii }) => renderRow(it, ii, true, dnd.rowProps(it._k)))}
-            </div>
-          )}
+          {focus >= 0 && items[focus]
+            ? group('Earlier', leftBefore ? leftBefore + ' to come back to' : 'All done', before)
+            : group(items.some(isDone) ? 'The session' : 'Up next', String(items.filter(it => !isDone(it)).length) + ' to do', before)}
+          {focus >= 0 && items[focus] != null && renderRow(items[focus], focus, false)}
+          {group('Up next', String(after.filter(r => !isDone(r.it)).length), after)}
         </>
       );
       })()}
