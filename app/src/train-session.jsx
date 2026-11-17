@@ -63,6 +63,34 @@ function isWorkRow(s) {
   return (s.type || 'work') !== 'warmup' && !(s.optional && !s.done);
 }
 
+/* One logged set against the same set last time. Heavier or more reps at the same weight is ahead;
+   a lighter set is only ahead if its estimated 1RM is (twelve at 40 beats six at 45, nine does not).
+   `fmt` formats a weight for this movement's machine. Returns null with nothing to compare. */
+function vsLastTime(s, fmt) {
+  const lt = s && s.lastTime;
+  if (!lt || !(+lt.reps > 0) || !s.done || !(+s.reps > 0)) return null;
+  const w = +s.weightKg || 0, lw = +lt.weightKg || 0, r = +s.reps, lr = +lt.reps;
+  if (Math.abs(w - lw) < 0.01) {
+    if (r > lr) return { tone: 'ahead', text: '+' + (r - lr) + (r - lr === 1 ? ' rep' : ' reps') + ' on last time' };
+    if (r === lr) return { tone: 'level', text: 'Matched last time' };
+    return { tone: 'behind', text: 'Last time ' + (lw > 0 ? fmt(lw) : 'BW') + ' × ' + lr };
+  }
+  if (w > lw && r >= lr) return { tone: 'ahead', text: '+' + fmt(Math.round((w - lw) * 100) / 100) + ' on last time' };
+  const e = (kg, reps) => kg * (1 + reps / 30);
+  const ahead = w > 0 && lw > 0 && e(w, r) > e(lw, lr) * 1.005;
+  return { tone: ahead ? 'ahead' : 'behind', text: 'Last time ' + (lw > 0 ? fmt(lw) : 'BW') + ' × ' + lr };
+}
+// The movement so far, in one line, for the place the pre-lift coaching note used to be.
+function soFarLine(work, fmt) {
+  const cmp = work.filter(x => x.done).map(x => vsLastTime(x, fmt || String)).filter(Boolean);
+  if (!cmp.length) return null;
+  const n = cmp.length, a = cmp.filter(c => c.tone === 'ahead').length, lv = cmp.filter(c => c.tone === 'level').length;
+  if (a === n) return { ahead: true, text: n === 1 ? 'Ahead of last time on that set.' : (n === 2 ? 'Both sets so far' : 'All ' + n + ' sets so far') + ' ahead of last time.' };
+  if (a > 0) return { ahead: true, text: a + ' of ' + n + ' sets so far ahead of last time.' };
+  if (lv === n) return { ahead: false, text: 'Level with last time so far.' };
+  return { ahead: false, text: 'Under last time so far. Some days are like that.' };
+}
+
 function nextUnfinished(items, from) {
   const n = (items || []).length;
   for (let step = 1; step <= n; step++) {
@@ -498,8 +526,26 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
     setTimeout(scrollToOpen, 60);
   }
 
+  /* A back-off set is 15% under the top set you ACTUALLY lifted, not under the one the plan guessed.
+     It used to be fixed when the session opened, so typing 45 into set one left set two at 35 - 22%
+     under, beside a note promising 15. Re-derived whenever a top-set weight changes; a back-off row
+     you have typed into yourself is yours and stops being re-derived. */
+  function syncBackOff(row) {
+    const work = row.sets.filter(isWorkRow);
+    const top = Math.max(0, ...work.filter(x => !x.backOff).map(x => +x.weightKg || 0));
+    if (!(top > 0)) return;
+    const w = Training.backOffLoad(top, Training.byId(row.exerciseId, t.custom), specOf(row.exerciseId));
+    work.forEach(x => { if (x.backOff && !x.done && w > 0) x.weightKg = w; });
+  }
   function setField(ii, si, key, value) {
-    mutate(n => { n[ii].sets[si][key] = value; });
+    mutate(n => {
+      const row = n[ii].sets[si];
+      row[key] = value;
+      if (key === 'weightKg') {
+        if (row.backOff) row.backOff = false;
+        else syncBackOff(n[ii]);
+      }
+    });
     // Typing a weight by hand is the moment the warm-up hint has done its job, so it retires itself
     // rather than repeating on all eight movements of every session forever. A hint that outstays
     // the thing it is teaching stops reading as help and starts reading as chrome. The rule itself
@@ -602,6 +648,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       // likely truth, and it is written into the field in plain sight where one tap corrects it.
       // With no last time there is nothing honest to write, so it stays empty.
       if (s.done && !(+s.weightKg > 0) && s.lastTime && +s.lastTime.weightKg > 0) s.weightKg = +s.lastTime.weightKg;
+      if (!s.done) delete s.pr;
+      if (s.done && !s.backOff) syncBackOff(n[ii]);
     });
     if (wasDone) return;   // un-ticking should never start a rest, or claim a record
 
@@ -626,6 +674,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         try { if (navigator.vibrate) navigator.vibrate([30, 50, 30, 50, 90]); } catch (_) {}
         prFanfare(t.prefs);
         setPr({ exerciseId: items[ii].exerciseId, weightKg: filled.weightKg, bwKg: bwKg, reps: filled.reps, kind: hit.kind, label: hit.label });
+        // And kept on the row, so the record is still there when the flash has gone and you look back
+        // down the card - the moment the flash covers is the one moment you were not looking.
+        mutate(n => { if (n[ii] && n[ii].sets[si]) n[ii].sets[si].pr = hit.label || 'Best yet'; });
       }
     }
 
@@ -648,7 +699,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
       const nextMovement = nextUnfinished(items, ii);
       setRest({
         endsAt: Date.now() + secs * 1000, seconds: secs, alerted: false,
-        from: nextPos < 0 ? null : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length,
+        // When this movement is finished, the next one by name: "Next movement is ready" made you
+        // tap through to find out what it was.
+        from: nextPos < 0
+          ? (nextMovement >= 0 ? codes[nextMovement] + ' · ' + ((Training.byId(items[nextMovement].exerciseId, t.custom) || {}).name || 'next movement') : null)
+          : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length,
         goIi: nextPos < 0 ? (nextMovement >= 0 ? nextMovement : null) : ii,
       });
     }
@@ -1014,7 +1069,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
   return (
     // Finish rides at the end of the list now, so the only thing to clear is the rest bar, and only
     // while it is up. Nothing is pinned over the session otherwise.
-    <div className="fade-in" style={{ paddingBottom: rest ? '132px' : '24px' }}>
+    <div className="fade-in" style={{ paddingBottom: rest ? '112px' : '24px' }}>
       {/* ---- SESSION BAR, per `Session.dc.html` ----
           A live session is the one screen in the app that owns the phone for an hour, and the design
           gives it its own chrome to say so: the header's purple, the session's name, and the whole
@@ -1222,6 +1277,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
         const done = work.length > 0 && work.every(s => s.done);
         const warmups = it.sets.filter(s => (s.type || 'work') === 'warmup');
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
+        // The set you are about to do: its tick is the gold one, and it gets the steppers.
+        const activeSi = open ? it.sets.findIndex(x => isWorkRow(x) && !x.done) : -1;
         return (
           <div key={it._k || it.exerciseId + '_' + ii}
             ref={drag ? drag.ref : (open ? openCardRef : null)}
@@ -1312,9 +1369,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   {/* The prescription is also the way to change it: one tap from the card rather than
                       two menus deep. */}
                   <button type="button" onClick={() => tgt && openTarget(ii)} disabled={!tgt}
-                    aria-label={'Change sets and reps, now ' + work.length + ' sets of ' + (tgt ? tgt.repLow + ' to ' + tgt.repHigh : '') + ' reps'}
+                    aria-label={'Change sets and reps, now ' + work.length + ' sets of ' + (tgt ? Training.repLabel(tgt).replace('-', ' to ') : '') + ' reps'}
                     className="ml-auto shrink-0 text-[12px] text-right" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>
-                    {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps
+                    {/* repLabel, so a fixed target reads "10 reps" and not "10–10 reps". */}
+                    {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? Training.repLabel(tgt).replace('-', '–') : '–'} reps
                   </button>
                 </div>
 
@@ -1375,7 +1433,16 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                   </div>
                 )}
 
-                {it.note && (
+                {/* The note is advice for BEFORE you lift. Once a set is in, "only 6 last time, ten
+                    percent off" is about a session that is over, so it gives way to one line on how
+                    today is going against last time. A stall note stays: it is asking for a decision. */}
+                {it.note && !it.swap && work.some(x => x.done) && (() => {
+                  const line = soFarLine(work, kg => wStr(kg, it.exerciseId));
+                  return line ? (
+                    <div className="text-[12px] mb-2 leading-snug" style={{ color: line.ahead ? 'var(--good-ink)' : 'var(--muted)', fontWeight: 600 }}>{line.text}</div>
+                  ) : null;
+                })()}
+                {it.note && (it.swap || !work.some(x => x.done)) && (
                   <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     {it.note}
                     {/* A stall is the one note that asks for a decision rather than reporting one,
@@ -1439,15 +1506,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 {/* How the machine is set up for you, until you have started: it is what you need while
                     you are adjusting the seat and no use once you are under the weight. */}
                 {(() => {
-                  const lts = it.sets.map(x => x.lastTime).filter(Boolean);
-                  if (lts.length) {
-                    return (
-                      <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-                        <span style={{ color: 'var(--muted2)' }}>Last time: </span>
-                        {lts.map(l => (l.weightKg > 0 ? wStr(l.weightKg, it.exerciseId) : 'BW') + ' × ' + l.reps).join(', ')}
-                      </div>
-                    );
-                  }
+                  // Each row now carries its own "last time" under it, where you are actually
+                  // looking when you type, so the summary line above the table would only repeat it.
+                  if (it.sets.some(x => x.lastTime)) return null;
                   // A grip you have never done has no history, so the line borrows the movement it
                   // came from and says whose number it is. Deliberately only the LINE: the weight box
                   // stays empty, because a wide-grip row is not the weight of a plain one and a
@@ -1599,29 +1660,84 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                             // Green, not gold. The design keeps gold for the one thing you are being
                             // asked to press next; a column of gold ticks for sets already behind you
                             // competed with Finish for the loudest colour on the screen.
-                            background: s.done ? 'var(--good)' : 'var(--surface2)',
-                            color: s.done ? '#ffffff' : 'var(--muted2)',
+                            // ...and gold for the one set that IS next: a tick on an empty row logs
+                            // the numbers shown faintly in it, so this is the one-tap way to log a set.
+                            background: s.done ? 'var(--good)' : si === activeSi ? 'var(--accent)' : 'var(--surface2)',
+                            color: s.done ? '#ffffff' : si === activeSi ? 'var(--on-accent)' : 'var(--muted2)',
                             // Faint enough to read as an outline of what the button does rather than
                             // as a set already ticked. At 0.85 a card of untouched sets looked like a
                             // card of finished ones, which is the worst thing this screen can lie
                             // about - and it lied about it hardest on the very first set of a block.
-                            opacity: s.done ? 1 : 0.32,
+                            opacity: s.done || si === activeSi ? 1 : 0.32,
                             transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)',
                           }}>
                           <Tick size={12} />
                         </button>
                       </div>
-                      {/* A second working set at the same weight as an all-out first one lands three
-                          reps under the window and teaches nobody anything, so the app has already
-                          taken 15% off. Said out loud, because a weight the app quietly lowered
-                          reads as a bug rather than as the protocol it is. */}
-                      {style.toFailure && !s.done && !s.optional && (s.backOff || s.targetRir > 0) && (
-                        <div className="text-[11px] mt-0.5 pl-11 leading-snug" style={{ color: 'var(--muted2)' }}>
-                          {s.backOff
-                            ? 'Back-off set: 15% lighter, taken to failure again.'
-                            : 'Leave ' + s.targetRir + (s.targetRir === 1 ? ' rep' : ' reps') + ' in the tank on this one.'}
-                        </div>
-                      )}
+                      {/* One quiet line under each working row: what this set did last time (or, once
+                          logged, how it compares), and what the row is FOR when that is not obvious.
+                          It replaces a "Last time: a, b, c" summary above the table that you had to
+                          match up with the rows by counting.
+
+                          A back-off set is said out loud, with the weight it is under, because a
+                          weight the app quietly lowered reads as a bug rather than as the protocol. */}
+                      {(() => {
+                        if ((s.type || 'work') === 'warmup') return null;
+                        const fmt = kg => wStr(kg, it.exerciseId);
+                        const parts = [];
+                        let tone = 'var(--muted2)';
+                        if (s.done) {
+                          const c = vsLastTime(s, fmt);
+                          if (s.pr) { parts.push('Record: ' + s.pr); tone = 'var(--good-ink)'; }
+                          else if (c) { parts.push(c.text); if (c.tone === 'ahead') tone = 'var(--good-ink)'; }
+                        } else {
+                          if (s.lastTime && +s.lastTime.reps > 0) parts.push('Last time ' + (s.lastTime.weightKg > 0 ? fmt(s.lastTime.weightKg) : 'BW') + ' × ' + s.lastTime.reps);
+                          if (style.toFailure && !s.optional) {
+                            if (s.backOff) {
+                              const top = Math.max(0, ...it.sets.filter(x => isWorkRow(x) && !x.backOff).map(x => +x.weightKg || 0));
+                              parts.push(top > 0 ? 'back-off, 15% under your ' + fmt(top) + ' top set' : 'back-off, 15% lighter');
+                            } else if (s.targetRir > 0) parts.push(s.targetRir + ' in the tank');
+                          }
+                        }
+                        if (!parts.length) return null;
+                        const text = parts.join(' · ');
+                        return (
+                          <div className="text-[11px] mt-0.5 pl-11 leading-snug tnum" style={{ color: tone, fontWeight: tone === 'var(--muted2)' ? 400 : 600 }}>
+                            {text.charAt(0).toUpperCase() + text.slice(1)}
+                          </div>
+                        );
+                      })()}
+                      {/* Steppers on the set you are about to do, so most sets are a nudge and a tick
+                          rather than a keyboard with chalk on your fingers. They start from what the
+                          row shows, typed or faint, and step by the smallest jump this kit allows. */}
+                      {si === activeSi && (() => {
+                        const spec = specOf(it.exerciseId);
+                        const step = Training.loadUnit(ex, spec) || 2.5;
+                        const baseW = +s.weightKg || (s.lastTime ? +s.lastTime.weightKg || 0 : 0);
+                        const baseR = s.reps != null && s.reps !== '' ? +s.reps : (tgt ? tgt.repHigh : (s.lastTime ? s.lastTime.reps : 0)) || 0;
+                        const btn = 'flex-1 h-10 text-[13px] tnum';
+                        const bs = { background: 'var(--card)', color: 'var(--text2)', border: '2px solid var(--border)', fontWeight: 600 };
+                        const stepLabel = String(Training.toMachine(step, spec));
+                        return (
+                          <div className="flex items-center gap-2 mt-1.5" data-no-drag>
+                            <div className="w-11 shrink-0" />
+                            <div className="flex-1 flex gap-1 min-w-0">
+                              <button type="button" className={btn} style={bs} aria-label={'Weight down ' + stepLabel}
+                                onClick={() => setField(ii, si, 'weightKg', Math.max(0, Math.round((baseW - step) * 100) / 100))}>−{stepLabel}</button>
+                              <button type="button" className={btn} style={bs} aria-label={'Weight up ' + stepLabel}
+                                onClick={() => setField(ii, si, 'weightKg', Math.round((baseW + step) * 100) / 100)}>+{stepLabel}</button>
+                            </div>
+                            <div className="flex-1 flex gap-1 min-w-0">
+                              <button type="button" className={btn} style={bs} aria-label="One rep fewer"
+                                onClick={() => setField(ii, si, 'reps', Math.max(0, baseR - 1))}>−1</button>
+                              <button type="button" className={btn} style={bs} aria-label="One rep more"
+                                onClick={() => setField(ii, si, 'reps', baseR + 1)}>+1</button>
+                            </div>
+                            {!style.toFailure && <div className="w-11 shrink-0" />}
+                            <div className="w-11 shrink-0" />
+                          </div>
+                        );
+                      })()}
                       {setMenu === ii + ':' + si && (
                         <div className="flex gap-1 flex-wrap mt-1 mb-2 pl-1">
                           {SET_TYPES.map(st => (
@@ -1783,8 +1899,16 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
           exactly that moment sat in a file. The digits stay - a ring is a shape, and the seconds are
           read across a gym. */}
       {rest && (
-        <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-3"
-          style={{ background: 'var(--cardhead-bg)', borderColor: 'var(--border)', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
+        <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-2"
+          style={{ background: 'var(--cardhead-bg)', borderColor: 'var(--border)', paddingBottom: 'calc(8px + env(safe-area-inset-bottom))' }}>
+          {/* The countdown as a strip along the bar's top edge rather than a framed bar of its own
+              underneath: the same information, without a third row covering the session. */}
+          <div aria-hidden="true" className="absolute left-0 right-0" style={{ top: 0, height: 4, background: 'rgba(255,253,247,0.14)' }}>
+            <div style={{
+              height: '100%', background: 'var(--accent)', transition: 'width 1s linear',
+              width: (rest.seconds > 0 ? Math.max(0, restLeft / rest.seconds * 100) : 0) + '%',
+            }} />
+          </div>
           {/* Two rows, because the five things on this bar do not share one.
               The ring, a 20px pixel clock and three 44px targets are all fixed-width and all
               non-negotiable - the clock is read across a gym, and the buttons are pressed one-handed
@@ -1825,7 +1949,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
               "about 76 min" on the card you started from - and it is a fact, not a verdict. It reads
               off remaining WORK rather than off the clock, so a long chat with somebody at the water
               fountain does not turn into the app telling you that you are behind. */}
-          <div className="mt-2 flex items-baseline gap-3">
+          <div className="mt-1.5 flex items-baseline gap-3">
             {rest.goIi != null ? (
               <button onClick={() => { goTo(rest.goIi); setRest(null); }}
                 className="flex-1 min-w-0 text-left text-[12px] leading-snug truncate"
@@ -1842,12 +1966,6 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, op
                 ~{minsLeft} min left
               </span>
             )}
-          </div>
-          <div className="mt-2" style={{ height: 8, border: '2px solid var(--cardhead-text)', background: 'rgba(255,253,247,0.14)' }}>
-            <div style={{
-              height: '100%', background: 'var(--accent)', transition: 'width 1s linear',
-              width: (rest.seconds > 0 ? Math.max(0, restLeft / rest.seconds * 100) : 0) + '%',
-            }} />
           </div>
         </div>
       )}
