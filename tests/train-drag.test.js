@@ -168,3 +168,25 @@ test('grabbing the grip and moving past a row reports the drop, and a superset t
     assert.equal(dropped.length, 0);
   } finally { ui.unmount(); }
 });
+
+test('opening a movement further down keeps the session in programme order around it', () => {
+  const block = minmax();
+  const d = accountWith(block);
+  const items = T.sessionItems(T.weekSessions(block, 1)[0]);
+  const ui = mount(A.SessionPlayer, playerProps(block, d));
+  try {
+    const target = nameOf(items[2]);
+    const header = Array.from(ui.host.querySelectorAll('button')).filter(b => b.textContent.indexOf(target) !== -1 && !/^Reorder/.test(b.getAttribute('aria-label') || ''))[0];
+    ui.clickEl(header);
+    assert.ok(new RegExp(target.replace(/[()]/g, '.') + '\\s*Set 1 of').test(ui.text), 'the third movement is open');
+    // Every movement appears in the order the programme gives, the open one included.
+    const at = items.map(it => ui.text.indexOf(nameOf(it)));
+    assert.ok(at.every(i => i >= 0), 'every movement is on screen');
+    assert.deepEqual(at.slice().sort((a, b) => a - b), at, 'drawn in programme order');
+    // The two it stepped past sit above it, labelled as such, and are still to do.
+    const earlier = ui.text.indexOf('Earlier');
+    assert.ok(earlier >= 0 && earlier < at[0], 'an Earlier card heads the movements before the open one');
+    assert.ok(ui.has('2 to come back to'));
+    assert.ok(ui.text.indexOf('Up next') > at[2], 'Up next is what comes after the open one');
+  } finally { ui.unmount(); }
+});

@@ -20737,8 +20737,10 @@ function BarBuddy({ buddy, phase, away, onOpenPlay }) {
     else if (m === 'pacer') {
       const tick = () => {
         const left = rest ? rest.endsAt - Date.now() : 0, total = rest ? rest.seconds * 1000 : 1;
-        if (left <= 0) { set({ anim: 'wave', x: maxX(), fps: 7, prop: 'track', label: 'GO' }); return; }
-        set({ anim: 'move', x: maxX() * Math.min(1, Math.max(0, 1 - left / total)), ms: 520, prop: 'track', label: fmtClock(Math.ceil(left / 1000)) });
+        // No digits in the lane: the session's rest bar is THE clock. Two clocks on separate ticks
+        // read a second apart ("2:23" up here, "2:24" down there), which makes both look wrong.
+        if (left <= 0) { set({ anim: 'wave', x: maxX(), fps: 7, prop: 'track' }); return; }
+        set({ anim: 'move', x: maxX() * Math.min(1, Math.max(0, 1 - left / total)), ms: 520, prop: 'track' });
         later(tick, 500);
       };
       tick();
