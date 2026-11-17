@@ -110,7 +110,7 @@ test('PPL Hybrid: Quinton\'s split with Olly\'s leg days, on the week it was wri
   const p = T.programmeOf('pplh5');
   assert.ok(p, 'it ships');
   assert.deepEqual(p.template.map(d => [d.name, d.dayOfWeek]),
-    [['Upper', 0], ['Lower 1', 1], ['Push', 3], ['Pull', 4], ['Legs 2', 5]], 'Wednesday and Sunday off');
+    [['Upper', 0], ['Legs 1', 1], ['Push', 3], ['Pull', 4], ['Legs 2', 5]], 'Wednesday and Sunday off');
   const ids = (name) => p.template.find(d => d.name === name).exercises.map(e => e.exerciseId);
   assert.ok(ids('Upper').includes('prime_row'), 'the Prime Extreme row on Upper');
   assert.equal(ids('Pull')[0], 'tbar_row', 'and the T-bar row leads Pull');
@@ -119,5 +119,10 @@ test('PPL Hybrid: Quinton\'s split with Olly\'s leg days, on the week it was wri
   const push = p.template.find(d => d.name === 'Push').exercises;
   assert.equal(push[1].slot, 'flat_press', 'a flat press second, after the incline');
   assert.deepEqual(push.filter((e, i) => i !== 1).map(e => e.exerciseId), quinton);
-  assert.ok(ids('Lower 1').includes('hack_squat') && ids('Legs 2').includes('pendulum_squat'));
+  // Both leg days are Machine Shop's, line for line.
+  const shop = T.programmeOf('mach5').template;
+  for (const name of ['Legs 1', 'Legs 2']) {
+    const mine = p.template.find(d => d.name === name), theirs = shop.find(d => d.name === name);
+    assert.deepEqual(mine.exercises, theirs.exercises, name + ' is Machine Shop\'s');
+  }
 });
