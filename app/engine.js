@@ -974,6 +974,10 @@
   // stand plans every week on a burn one to three weeks stale, which in simulation left a perfectly
   // compliant dieter losing ~0.49 kg a week against a 0.6 goal. The result carries `kg`, the weight
   // it is now true at, so the next check-in can carry it on again.
+  var SETTLED_N = 4;          // cycles learned before the burn counts as settled
+  var SETTLED_GAIN = 0.35;    // how far one settled week moves the burn toward its own read
+  var SURPRISE_KCAL = 250;    // a gap up to this is ordinary week-to-week noise, taken in full
+  var SURPRISE_KEEP = 0.4;    // share of the gap beyond that a one-off surprise is allowed to carry
   function updateExpenditure(prior, estimate, conf, quality, ref) {
     var est = +estimate;
     if (!isFinite(est)) return prior || null;
@@ -988,7 +992,11 @@
     var n = (prior && isFinite(+prior.n)) ? Math.max(0, +prior.n) : 0;
     var qc = quality === undefined ? c : (quality === null ? null : clamp(+quality, 0, 1));
     if (pk == null) return Object.assign({ kcal: round(est), n: 1, k: 1, q: qc == null ? null : round(qc, 3) }, kgOut);
-    var ramp = clamp((n + 1) / 5, 0.2, 0.6);
+    // Early on the estimate is mostly formula, so fresh reads earn weight quickly (0.2 -> 0.6). Once
+    // it is SETTLED (four or more cycles learned) a single week only moves it 35% of the way: a
+    // week's weight change is mostly water, salt and glycogen, and a burn that swings with it hands
+    // that noise straight to the targets. This is the MacroFactor-style long memory.
+    var ramp = n >= SETTLED_N ? SETTLED_GAIN : clamp((n + 1) / 5, 0.2, 0.6);
     // Let recent, better data outweigh the old estimate. People get better at tracking, and a burn
     // built on their early, patchier cycles shouldn't keep 40%+ of the say once they log fully.
     //  - quality lift: `q` is the running confidence of the cycles that BUILT the estimate. A cycle
@@ -1004,7 +1012,21 @@
     var staleLift = clamp((age - 7) / 28, 0, 0.25);
     var k = c * Math.min(0.85, ramp + Math.max(qualityLift, staleLift));
     var qNew = qc == null ? q : (q == null ? qc : q + 0.5 * (qc - q));
-    return Object.assign({ kcal: round(pk + k * (est - pk)), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) }, kgOut);
+    // Surprise damping. A settled burn that one week suddenly reads far from is far more likely
+    // looking at a water swing (a whoosh after a high, a salty weekend draining) than at a body
+    // whose burn jumped hundreds of calories in seven days. The first SURPRISE_KCAL of the gap is
+    // taken as it is; beyond that only SURPRISE_KEEP of it counts. If the next week surprises the
+    // same way, that is a real change, not water, and it goes through undamped. `surp` remembers the
+    // direction of a damped surprise for exactly one cycle.
+    var gap = est - pk, surp = 0;
+    var lastSurp = (prior && (prior.surp === 1 || prior.surp === -1)) ? prior.surp : 0;
+    if (n >= SETTLED_N && Math.abs(gap) > SURPRISE_KCAL) {
+      var sgn = gap > 0 ? 1 : -1;
+      if (lastSurp !== sgn) { gap = sgn * (SURPRISE_KCAL + (Math.abs(gap) - SURPRISE_KCAL) * SURPRISE_KEEP); surp = sgn; }
+    }
+    var out = { kcal: round(pk + k * gap), n: n + 1, k: round(k, 3), q: qNew == null ? null : round(qNew, 3) };
+    if (surp) out.surp = surp;
+    return Object.assign(out, kgOut);
   }
 
   // A check-in held as TOO PATCHY TO READ says the weeks since the estimate was learned are not

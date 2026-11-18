@@ -744,7 +744,7 @@ test('weeklyAdjust rationale: slower-than-target cut whose burn moves calories U
   const r = E.weeklyAdjust({
     profile: cutProfile060, currentTargets: { kcal: 2095 },
     estimate: { tdee: 2911, weeklyChangeKg: -0.511, days: 7, avgKcal: 2349 },
-    expenditure: { kcal: 2755, n: 6 },
+    expenditure: { kcal: 2755, n: 2 }, // still learning: the full early weight, so the burn clearly moves
     adherenceDays: 6, weighDays: 7, periodDays: 7,
   });
   assert.strictEqual(r.direction, 'up');
