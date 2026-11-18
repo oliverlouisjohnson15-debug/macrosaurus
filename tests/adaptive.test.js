@@ -80,16 +80,20 @@ test('computeInitialTargets: opts.priorTdee replaces the formula TDEE', () => {
 });
 
 // ---- item 2: persistent smoothed expenditure ----
-test('updateExpenditure: blends from the prior toward the estimate, gain ramps with n and confidence', () => {
+test('updateExpenditure: blends from the prior toward the estimate, gain ramps early then settles', () => {
   const first = E.updateExpenditure({ kcal: 2500, n: 0 }, 3000, 1);
   near(first.kcal, 2500 + 0.2 * 500, 1); // n=0: lean the formula prior hard
   assert.strictEqual(first.n, 1);
   const second = E.updateExpenditure(first, 3000, 1);
   near(second.kcal, first.kcal + 0.4 * (3000 - first.kcal), 1); // n=1: k=0.4
-  const capped = E.updateExpenditure({ kcal: 2500, n: 10 }, 3000, 1);
-  near(capped.kcal, 2500 + 0.6 * 500, 1); // gain caps at 0.6
-  const lowConf = E.updateExpenditure({ kcal: 2500, n: 10 }, 3000, 0.5);
-  near(lowConf.kcal, 2500 + 0.3 * 500, 1); // confidence halves the move
+  const early = E.updateExpenditure({ kcal: 2500, n: 3 }, 3000, 1);
+  near(early.kcal, 2500 + 0.6 * 500, 1); // still learning: early gain caps at 0.6, no surprise damping
+  // Settled (n >= 4): one week moves the burn only 35% of the way. Gaps here are inside the
+  // surprise threshold, so the gain is all that is being measured.
+  const settled = E.updateExpenditure({ kcal: 2500, n: 10 }, 2700, 1);
+  near(settled.kcal, 2500 + 0.35 * 200, 1);
+  const lowConf = E.updateExpenditure({ kcal: 2500, n: 10 }, 2700, 0.5);
+  near(lowConf.kcal, 2500 + 0.175 * 200, 1); // confidence halves the move
   const seeded = E.updateExpenditure(null, 2800, 1);
   assert.strictEqual(seeded.kcal, 2800); // no prior: adopt the estimate
   assert.strictEqual(E.updateExpenditure({ kcal: 2500, n: 2 }, NaN, 1).kcal, 2500); // bad estimate ignored
@@ -98,15 +102,15 @@ test('updateExpenditure: blends from the prior toward the estimate, gain ramps w
 // Recent, better data earns more say: people improve at tracking, and an estimate that held weeks
 // left untouched for a month describes how they were eating back then.
 test('updateExpenditure: a better-tracked cycle than the ones that built the estimate gets extra weight', () => {
-  const plain = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 1);
-  near(plain.kcal, 2500 + 0.6 * 500, 1); // no improvement over the history: unchanged behaviour
-  const better = E.updateExpenditure({ kcal: 2500, n: 10, q: 0.6 }, 3000, 1);
-  near(better.kcal, 2500 + 0.85 * 500, 1); // 0.6 ramp + 0.4 lift, capped at 0.85
+  const plain = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 2700, 1);
+  near(plain.kcal, 2500 + 0.35 * 200, 1); // no improvement over the history: the settled gain
+  const better = E.updateExpenditure({ kcal: 2500, n: 10, q: 0.6 }, 2700, 1);
+  near(better.kcal, 2500 + 0.75 * 200, 1); // 0.35 settled + 0.4 lift
   assert.ok(better.q > 0.6 && better.q < 1, 'quality history moves toward the new cycle');
-  const worse = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 0.5);
-  near(worse.kcal, 2500 + 0.3 * 500, 1); // a patchier cycle never earns a lift
-  const legacy = E.updateExpenditure({ kcal: 2500, n: 10 }, 3000, 1);
-  near(legacy.kcal, 2500 + 0.6 * 500, 1); // old saved state without q: no lift, q seeded
+  const worse = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 2700, 0.5);
+  near(worse.kcal, 2500 + 0.175 * 200, 1); // a patchier cycle never earns a lift
+  const legacy = E.updateExpenditure({ kcal: 2500, n: 10 }, 2700, 1);
+  near(legacy.kcal, 2500 + 0.35 * 200, 1); // old saved state without q: no lift, q seeded
   assert.strictEqual(legacy.q, 1);
 });
 
@@ -118,22 +122,60 @@ test('updateExpenditure: deliberate discounts are not recorded as tracking quali
   const next = E.updateExpenditure(early, 3000, 1);
   near(next.kcal, early.kcal + 0.4 * (3000 - early.kcal), 1); // plain ramp, no lift
   // Overlap discount: conf lowered, tracking quality full. Quality history follows tracking.
-  const overlap = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 3000, 0.7, 1);
-  near(overlap.kcal, 2500 + 0.7 * 0.6 * 500, 1);
+  const overlap = E.updateExpenditure({ kcal: 2500, n: 10, q: 1 }, 2700, 0.7, 1);
+  near(overlap.kcal, 2500 + 0.7 * 0.35 * 200, 1);
   assert.strictEqual(overlap.q, 1);
 });
 
 test('updateExpenditure: an estimate left stale by held weeks yields faster, capped', () => {
-  const fresh = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 7 }, 3000, 1);
-  near(fresh.kcal, 2500 + 0.6 * 500, 1);
-  const threeWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 21 }, 3000, 1);
-  near(threeWeeks.kcal, 2500 + 0.85 * 500, 1); // 0.6 + min(0.25, 14/28)
-  const twoWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 14 }, 3000, 1);
-  near(twoWeeks.kcal, 2500 + 0.85 * 500, 1); // 0.6 + 0.25 cap
-  const tenDays = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 10 }, 3000, 1);
-  near(tenDays.kcal, 2500 + (0.6 + 3 / 28) * 500, 1);
-  const lowConf = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 35 }, 3000, 0.5);
-  near(lowConf.kcal, 2500 + 0.5 * 0.85 * 500, 1); // still scaled by this cycle's confidence
+  const fresh = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 7 }, 2700, 1);
+  near(fresh.kcal, 2500 + 0.35 * 200, 1);
+  const threeWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 21 }, 2700, 1);
+  near(threeWeeks.kcal, 2500 + 0.6 * 200, 1); // 0.35 + min(0.25, 14/28)
+  const twoWeeks = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 14 }, 2700, 1);
+  near(twoWeeks.kcal, 2500 + 0.6 * 200, 1); // 0.35 + 0.25 cap
+  const tenDays = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 10 }, 2700, 1);
+  near(tenDays.kcal, 2500 + (0.35 + 3 / 28) * 200, 1);
+  const lowConf = E.updateExpenditure({ kcal: 2500, n: 10, ageDays: 35 }, 2700, 0.5);
+  near(lowConf.kcal, 2500 + 0.5 * 0.6 * 200, 1); // still scaled by this cycle's confidence
+});
+
+// A settled burn that one week suddenly reads far from is usually looking at water (a whoosh after
+// a high, a salty weekend draining), not a burn that moved hundreds of calories in seven days.
+test('updateExpenditure: a one-off surprise on a settled burn is damped; a repeat goes through', () => {
+  // 592 over: the first 250 counts in full, 40% of the other 342, then the settled 0.35 gain.
+  const surprise = E.updateExpenditure({ kcal: 2677, n: 9, q: 1 }, 3269, 1);
+  near(surprise.kcal, 2677 + 0.35 * (250 + 0.4 * 342), 1);
+  assert.strictEqual(surprise.surp, 1, 'remembers it damped an upward surprise');
+  // The next week reads high again: that is a real change, so it is taken undamped.
+  const repeat = E.updateExpenditure(surprise, 3269, 1);
+  near(repeat.kcal, surprise.kcal + 0.35 * (3269 - surprise.kcal), 1);
+  assert.strictEqual(repeat.surp, undefined, 'an undamped week clears the memory');
+  // A surprise the OTHER way after an upward one is a fresh one-off, damped again.
+  const flip = E.updateExpenditure(surprise, 2300, 1);
+  near(flip.kcal, surprise.kcal - 0.35 * (250 + 0.4 * (surprise.kcal - 2300 - 250)), 1);
+  assert.strictEqual(flip.surp, -1);
+  // Ordinary gaps are untouched, and a burn still being learned is never damped.
+  assert.strictEqual(E.updateExpenditure({ kcal: 2677, n: 9 }, 2877, 1).surp, undefined);
+  const learning = E.updateExpenditure({ kcal: 2500, n: 2 }, 3100, 1);
+  near(learning.kcal, 2500 + 0.6 * 600, 1);
+  assert.strictEqual(learning.surp, undefined);
+});
+
+// The case that prompted the change: a cut at 0.81 kg/wk, burn settled at 2677, eating ~1890, and
+// a week that read -1.25 kg/wk off a water whoosh. The old 0.6 weighting pushed the burn to ~3015
+// and the target up ~290 kcal on what was mostly water.
+test('weeklyAdjust: a whoosh week on a settled burn nudges the target instead of jumping it', () => {
+  const r = E.weeklyAdjust({
+    profile: Object.assign({}, maleProfile, { weightKg: 83.25, heightCm: 175.26, bodyFatPct: 22.1, gymSessionsPerWeek: 5, avgSteps: 12000, rateKgPerWeek: 0.81 }),
+    currentTargets: { kcal: 1825, protein_g: 170 },
+    estimate: { tdee: 3269, weeklyChangeKg: -1.255, days: 5, avgKcal: 1889, kgMid: 84.52 },
+    expenditure: { kcal: 2677, n: 9, q: 1, kg: 84.39 },
+    adherenceDays: 5, logWindow: 5, weighDays: 5, periodDays: 5, minDays: 5,
+  });
+  assert.ok(r.expenditure.kcal < 2850, 'burn moved modestly, got ' + r.expenditure.kcal);
+  assert.strictEqual(r.expenditure.surp, 1);
+  assert.ok(!r.changed || r.deltaKcal <= 150, 'target nudged, not jumped: ' + r.deltaKcal);
 });
 
 test('weeklyAdjust: builds desired on the SMOOTHED expenditure when a prior is supplied', () => {
@@ -141,9 +183,9 @@ test('weeklyAdjust: builds desired on the SMOOTHED expenditure when a prior is s
     profile: maleProfile, currentTargets: { kcal: 2300 },
     estimate: { tdee: 3000, weeklyChangeKg: -0.6, days: 7, avgKcal: 2300 },
     adherenceDays: 7, weighDays: 7, periodDays: 7,
-    expenditure: { kcal: 2400, n: 5 },
+    expenditure: { kcal: 2400, n: 2 },
   });
-  // conf=1, n=5 -> k=0.6 -> smoothed 2760; desired 2760-550=2210; delta -90
+  // conf=1, n=2 (still learning, so no surprise damping) -> k=0.6 -> smoothed 2760; desired 2760-550=2210; delta -90
   assert.strictEqual(r.expenditure.kcal, 2760);
   near(r.newTargets.kcal, 2210, 2);
   assert.strictEqual(r.newTargets.estimatedTDEE, 2760);
@@ -961,9 +1003,9 @@ test('expenditureAfterHold: a held week keeps the burn but marks it less reliabl
 test('a fully tracked week after a PATCHY one sets most of the burn; tracked after tracked stays steady', () => {
   const afterHold = E.weeklyAdjust(onPlanOpts({ expenditure: Object.assign(E.expenditureAfterHold({ kcal: 2755, n: 6, q: 1 }), { ageDays: 7 }) }));
   near(afterHold.expenditure.kcal, 2755 + 0.85 * (2809 - 2755), 1);
-  // Someone who has tracked fully all along keeps the ordinary, stable 0.6.
+  // Someone who has tracked fully all along keeps the ordinary, settled 0.35.
   const steady = E.weeklyAdjust(onPlanOpts());
-  near(steady.expenditure.kcal, 2755 + 0.6 * (2809 - 2755), 1);
+  near(steady.expenditure.kcal, 2755 + 0.35 * (2809 - 2755), 1);
   // The lift fades as fully tracked weeks rebuild the estimate's standing.
   const again = E.updateExpenditure({ kcal: 2800, n: 7, q: afterHold.expenditure.q }, 2900, 1, 1);
   assert.ok(again.q > afterHold.expenditure.q && again.q <= 1);
