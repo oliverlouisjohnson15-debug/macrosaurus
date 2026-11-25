@@ -4309,13 +4309,14 @@
   }
 
   // A line as it will sit in the merged session: the source line's prescription, with a new id.
-  function mergedLine(src, sets, extra) {
+  function mergedLine(src, sets) {
     var e = JSON.parse(JSON.stringify(src));
     e.mergedFrom = src.id;
     e.supersetGroup = null;
     e.target = Object.assign({}, e.target, { sets: sets });
     if (sets < lineSets(src)) e.target.setsOptional = 0;
-    return Object.assign(e, extra || null);
+    if (!e.target.setsOptional) delete e.target.setsOptional;
+    return e;
   }
 
   function mergeKind(originals, ref) {
@@ -4402,12 +4403,16 @@
       slots.forEach(function (r, si) {
         var c = fill[si] != null ? pool[fill[si]] : null;
         if (c) {
-          rows.push({ line: mergedLine(c.item, lineSets(r), { setsOptional: r.target.setsOptional || 0 }), from: c.from, slotOf: shortName(r.sourceName || (byId(r.exerciseId, custom) || {}).name || '') });
+          // The slot's optional sets come with its set count: a "2-3" curl on the model day is a
+          // "2-3" curl here, whatever the source line wrote.
+          var ln = mergedLine(c.item, lineSets(r));
+          ln.target.setsOptional = (r.target && r.target.setsOptional) || 0;
+          rows.push({ line: ln, from: c.from, slotOf: shortName(r.sourceName || (byId(r.exerciseId, custom) || {}).name || '') });
         } else {
           rows.push({ line: mergedLine(r, lineSets(r)), from: shortName(ref.name), kept: true });
         }
       });
-      rows.forEach(function (row) { if (row.line.target.setsOptional === 0) delete row.line.target.setsOptional; });
+      rows.forEach(function (row) { if (!row.line.target.setsOptional) delete row.line.target.setsOptional; });
     } else {
       var n = originals.length;
       var scale = n ? 1 / n : 1;

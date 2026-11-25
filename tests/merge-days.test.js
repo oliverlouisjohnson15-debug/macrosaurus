@@ -42,6 +42,8 @@ test('Push + Pull mirror the Upper day: its volume, their movements', () => {
   // Every movement is one the Push or Pull day had.
   const theirs = new Set(push.exercises.concat(pull.exercises).map(e => e.exerciseId));
   r.session.exercises.forEach(e => assert.ok(theirs.has(e.exerciseId), e.exerciseId + ' is not from Push or Pull'));
+  // A "2-3" line on the model day is "2-3" in the merge too.
+  assert.deepEqual(r.session.exercises.map(e => T.setsLabel(e.target)), upper.exercises.map(e => T.setsLabel(e.target)));
   // Pull's T-bar row takes Upper's row slot, rather than Upper's own row being kept.
   assert.ok(r.session.exercises.some(e => e.exerciseId === 'tbar_row'));
   assert.ok(!r.session.exercises.some(e => e.exerciseId === 'prime_row'));
