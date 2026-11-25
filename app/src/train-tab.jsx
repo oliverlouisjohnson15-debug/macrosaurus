@@ -540,6 +540,87 @@ function ProgrammesScreen({ db, onBack, onStart, onCustomise, onCommunity, onCom
   );
 }
 
+/* Merge days: pick the sessions, see what one session made of them looks like, apply it to this
+   week only. Everything shown here is Training.mergePlan, which is also exactly what mergeSessions
+   applies, so the preview cannot promise a session the button does not build. */
+function MergeDaysSheet({ block, week, logs, custom, today, restSec, initial, onApply, onClose }) {
+  const open = Training.weekSessions(block, week).filter(s => !(logs || []).some(l => l && l.sessionId === s.id));
+  const suggestions = useMemo(() => Training.mergeSuggestions(block, week, { logs, custom, todayISO: today }), [block, week, logs, custom, today]);
+  const [ids, setIds] = useState(() => (initial && initial.length ? initial : (suggestions[0] ? suggestions[0].ids : [])));
+  const plan = ids.length >= 2 ? Training.mergePlan(block, ids, { logs, custom, todayISO: today }) : null;
+  const nm = (id) => (Training.byId(id, custom) || {}).name || id;
+  const short = (n) => String(n || '').split(' - ')[0];
+  const toggle = (id) => setIds(ids.indexOf(id) === -1 ? ids.concat([id]) : ids.filter(x => x !== id));
+  const MUSCLE = Training.MUSCLE_LABEL || {};
+  return (
+    <Sheet title="Merge days" onClose={onClose} wide z={85}>
+      <div className="text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>
+        One session instead of several, for week {week} only. The week after goes back to your normal plan.
+      </div>
+      <div>
+        <SheetLabel>Which sessions?</SheetLabel>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {open.map(s => {
+            const on = ids.indexOf(s.id) !== -1;
+            return (
+              <button key={s.id} onClick={() => toggle(s.id)} aria-pressed={on}
+                className="px-3 py-2 text-[13px]" style={{
+                  border: '2px solid ' + (on ? 'var(--accent)' : 'var(--border)'),
+                  background: on ? 'color-mix(in srgb, var(--accent) 16%, var(--card))' : 'var(--card)',
+                  fontWeight: on ? 600 : 400,
+                }}>
+                {short(s.name)}{WEEKDAYS[s.dayOfWeek] ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {WEEKDAYS[s.dayOfWeek]}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {ids.length < 2 && (
+        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Pick two or more.</div>
+      )}
+      {plan && !plan.ok && (
+        <div className="text-[13px]" style={{ color: 'var(--warn-ink)' }}>{plan.reason}</div>
+      )}
+      {plan && plan.ok && (
+        <>
+          <SheetBox className="p-3">
+            <div className="text-[15px] font-bold">{plan.name}</div>
+            <div className="text-[12px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>
+              <span className="tnum">{plan.sets} sets</span>, about {sessionMins(plan.rows.map(r => r.line), restSec)} min. Run separately they would be <span className="tnum">{plan.wasSets}</span>.{' '}
+              {plan.ref
+                ? 'Sized like your ' + plan.ref.name + ' day, using the ' + short(plan.name).replace(/ \+ /g, ' and ') + ' exercises.'
+                : 'No day in your week matches, so each muscle gets its share of one session.'}
+            </div>
+          </SheetBox>
+          <div>
+            {plan.rows.map((r, i) => (
+              <div key={i} className="flex items-baseline justify-between gap-3 py-2 text-[13px]" style={{ borderTop: i ? '1px solid var(--hairline)' : 'none' }}>
+                <span className="min-w-0">
+                  <span className="block truncate">{nm(r.line.exerciseId)}</span>
+                  <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>
+                    {r.kept ? 'Kept from ' + r.from + ': nothing you merged does this'
+                      : r.guard ? r.from + ', kept so ' + (MUSCLE[r.guard] || 'that muscle').toLowerCase() + ' still gets trained this week'
+                      : r.from}
+                  </span>
+                </span>
+                <span className="tnum shrink-0" style={{ color: 'var(--text2)' }}>{Training.setsLabel(r.line.target)} × {Training.repLabel(r.line.target)}</span>
+              </div>
+            ))}
+          </div>
+          {plan.left.length > 0 && (
+            <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+              Left out this week: {plan.left.map(l => nm(l.exerciseId)).join(', ')}.
+            </div>
+          )}
+          <button onClick={() => onApply(ids)} className="pixel-btn w-full text-[15px]" style={{ minHeight: 48, fontWeight: 700, background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            Merge for week {week}
+          </button>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onResume, onFreeform, go, onStartProgramme, onCustomiseProgramme }) {
   const t = tdb(db);
   const today = Store.todayISO();
@@ -622,6 +703,39 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
   const weeksDone = weeks.reduce((a, w) => a + w.done, 0);
   const weeksTotal = weeks.reduce((a, w) => a + w.total, 0);
   const [whyEmpty, setWhyEmpty] = useState(false);
+  /* ---- merging days: fewer gym days this week than the plan has ----
+     Two or more of the week's unlogged sessions become one, for THAT week only (Training.mergeSessions).
+     `mergeOpen` is the sheet, holding the ids it opens with: the best suggestion when the nudge opened
+     it, nothing when the footer did. */
+  const [mergeOpen, setMergeOpen] = useState(null);
+  const mergeWeek = block && prog && !blockDone ? shownWeek : null;
+  const mergeable = mergeWeek != null ? shownWeekPlan.filter(x => !x.log) : [];
+  const overbooked = !!(block && prog && !viewingAhead && Training.weekOverbooked(block, t.logs, today));
+  const mergeTop = overbooked ? (Training.mergeSuggestions(block, prog.week, { logs: t.logs, custom: t.custom, todayISO: today })[0] || null) : null;
+  function applyMerge(ids) {
+    let made = null;
+    trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === block.id)[0];
+      if (!b) return;
+      const r = Training.mergeSessions(b, ids, { logs: tr.logs, custom: tr.custom, todayISO: today });
+      if (r.ok) made = r.session;
+    });
+    setMergeOpen(null);
+    if (made && showToast) {
+      const id = made.id;
+      showToast(made.name + ' merged for this week.', 'Undo', () => trainUpdate(update, (tr) => {
+        const b = tr.blocks.filter(x => x.id === block.id)[0];
+        if (b) Training.splitSession(b, id, { logs: tr.logs });
+      }));
+    }
+  }
+  function splitMerge(session) {
+    trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === block.id)[0];
+      if (b) Training.splitSession(b, session.id, { logs: tr.logs });
+    });
+    if (showToast) showToast(session.name + ' split back into ' + session.merged.from.length + ' sessions.');
+  }
 
   /* ---- a session you stepped out of ----
      Stepping out of the player no longer ends anything, so the tab has to carry the session back.
@@ -884,6 +998,31 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             })}
           </div>
           {zone.ghostNode}
+          {/* Short on days. Only when the week plainly cannot fit otherwise - more sessions left than
+              days left - and only with a merge worth offering. The footer's "Merge days" is there
+              the rest of the time. */}
+          {overbooked && mergeTop && (
+            <div className="px-3 py-2.5 flex items-center justify-between gap-3" style={{ borderTop: '2px solid var(--border)', background: 'color-mix(in srgb, var(--accent) 10%, var(--surface2))' }}>
+              <span className="text-[12px] leading-snug min-w-0">
+                Short on days? Merge {mergeTop.name} into one session
+                {mergeTop.plan.ref ? ' the size of your ' + mergeTop.plan.ref.name + ' day' : ''}.
+              </span>
+              <button onClick={() => setMergeOpen({ ids: mergeTop.ids })} className="hit shrink-0 text-[12px]" style={{ color: 'var(--link)', fontWeight: 600 }}>
+                Show me
+              </button>
+            </div>
+          )}
+          {/* A merge is a one-off, and it says so, with the way back next to it. */}
+          {shownWeekPlan.filter(x => x.session.merged).map(({ session, log }) => (
+            <div key={session.id} className="px-3 py-2 flex items-center justify-between gap-3 text-[12px]" style={{ borderTop: '2px solid var(--border)' }}>
+              <span className="min-w-0 leading-snug" style={{ color: 'var(--muted)' }}>
+                {session.name} merged for this week. Next week is back to normal.
+              </span>
+              {!log && (
+                <button onClick={() => splitMerge(session)} className="hit shrink-0" style={{ color: 'var(--link)' }}>Split back</button>
+              )}
+            </div>
+          ))}
           {shownWeekPlan.some(x => !x.log) && (
             <div className="text-[11px] px-3 pb-2 leading-snug" style={{ color: 'var(--muted2)' }}>
               Hold a session and drag it to another day to move it, this week only.
@@ -903,10 +1042,22 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   reachable only by moving one session inside the builder, one week at a time, which
                   is a different act - that is "the gym was shut on Thursday", this is "I do not
                   train Thursdays". */}
-              <button onClick={() => go('schedule', { blockId: block.id })} className="hit shrink-0 flex items-center gap-1" style={{ color: 'var(--link)' }}>
-                Change days <Icon.chevron width="14" height="14" />
-              </button>
+              <span className="shrink-0 flex items-center gap-3">
+                {mergeable.length >= 2 && (
+                  <button onClick={() => setMergeOpen({ ids: [] })} className="hit" style={{ color: 'var(--link)' }}>
+                    Merge days
+                  </button>
+                )}
+                <button onClick={() => go('schedule', { blockId: block.id })} className="hit flex items-center gap-1" style={{ color: 'var(--link)' }}>
+                  Change days <Icon.chevron width="14" height="14" />
+                </button>
+              </span>
             </div>
+          )}
+          {viewingAhead && mergeable.length >= 2 && (
+            <button onClick={() => setMergeOpen({ ids: [] })} className="w-full py-2.5 text-[12px]" style={{ borderTop: '2px solid var(--border)', color: 'var(--link)' }}>
+              Fewer days in week {shownWeek}? Merge sessions
+            </button>
           )}
           {/* Anything the week cannot place. A session whose weekday is missing or out of range - an
               import with more days than a week has, an older block built before the day was clamped
@@ -944,6 +1095,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             </button>
           )}
         </Card>
+        {mergeOpen && mergeWeek != null && (
+          <MergeDaysSheet block={block} week={mergeWeek} logs={t.logs} custom={t.custom} today={today}
+            restSec={t.prefs.restSec} initial={mergeOpen.ids} onApply={applyMerge} onClose={() => setMergeOpen(null)} />
+        )}
 
       </>)}
 

@@ -1,6 +1,12 @@
 # Merge days: a 4-day week out of a 5-day block, this week only
 
-Status: **plan, awaiting approval.** Nothing below is built.
+Status: **built** (engine, tests, Train tab lever). Decided: a merge applies to ONE week only, and
+the next week is the normal plan without anything being undone; merging is repeatable (merge a merge,
+merge in any current or future week, split back at any time before the merged session is started).
+
+Shipped as: `Training.mergePlan / mergeSessions / splitSession / mergeSuggestions / weekOverbooked`,
+`MergeDaysSheet` + week-card wiring in `app/src/train-tab.jsx`, tests in `tests/merge-days.test.js`.
+Not built from §4: drag-one-session-onto-another (dropping on a day still means "move").
 
 ---
 

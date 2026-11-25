@@ -4140,22 +4140,47 @@
       if (from && (+s.week || 1) < from) return;
       (byWeek[s.week] = byWeek[s.week] || []).push(s);
     });
+    /* `dows` is parallel to the rows scheduleOf showed, which is ONE week - and a week with a merge
+       in it has fewer rows than the weeks around it. So rows are matched by where each session sits
+       in its week's UNMERGED order (expandedWeek), which for a week with no merge is simply its
+       index, as it always was. A merged session's own day is this week's business only; the days it
+       was made of keep theirs everywhere else, and their stashed copies follow the plan so that
+       splitting it later puts them where the plan now says. */
+    var shownWeek = scheduleWeekOf(block, todayISO);
+    var shown = (block.sessions || []).filter(function (s) { return (+s.week || 1) === shownWeek; });
+    var shownExp = expandedWeek(shown);
+    var posDow = {}, mergedDow = {};
+    shown.forEach(function (s, i) {
+      var d = dows[i];
+      if (d == null) return;
+      if (s.merged) { mergedDow[s.id] = d; return; }
+      shownExp.forEach(function (x, p) { if (x && x.session === s) posDow[p] = d; });
+    });
     var changed = false;
+    var setDay = function (s, d) {
+      if (d == null) return;
+      d = Math.round(+d);
+      if (!(d >= 0 && d <= 6) || s.dayOfWeek === d) return;
+      s.dayOfWeek = d;
+      changed = true;
+    };
     Object.keys(byWeek).forEach(function (w) {
-      byWeek[w].forEach(function (s, i) {
-        var d = dows[i];
-        if (d == null) return;
-        d = Math.round(+d);
-        if (!(d >= 0 && d <= 6) || s.dayOfWeek === d) return;
-        s.dayOfWeek = d;
-        changed = true;
+      expandedWeek(byWeek[w]).forEach(function (x, p) {
+        if (!x) return;
+        if (x.original == null) setDay(x.session, posDow[p]);
+        else setDay(mergeOriginals(x.session)[x.original], posDow[p]);
       });
+      byWeek[w].forEach(function (s) { if (s.merged) setDay(s, mergedDow[s.id]); });
     });
     // How many days a week this block trains is a fact about its schedule, and the blocks list and
     // the nutrition side both read it. Left alone it would still report the count the block was
-    // BUILT with after somebody doubled two sessions onto one day.
+    // BUILT with after somebody doubled two sessions onto one day. Read off the plan's days, not a
+    // one-off merge.
     if (changed) {
-      var wk1 = byWeek[Object.keys(byWeek).sort(function (a, b) { return a - b; })[0]] || [];
+      var wk1 = [];
+      (byWeek[Object.keys(byWeek).sort(function (a, b) { return a - b; })[0]] || []).forEach(function (s) {
+        mergeOriginals(s).forEach(function (o) { wk1.push(o); });
+      });
       block.daysPerWeek = uniq(wk1.map(function (s) { return s.dayOfWeek; })).length;
     }
     return changed;
@@ -4164,6 +4189,15 @@
   // The weekdays a block's week currently runs on, in session order: what `reschedule` would take to
   // leave it exactly as it is, and what an editor opens showing.
   function scheduleOf(block, todayISO) {
+    var sessions = (block && block.sessions) || [];
+    var want = scheduleWeekOf(block, todayISO);
+    // `week` has always been written by every producer, but a hand-edited or half-migrated block
+    // without it matched EVERY session here (undefined == null), returning the whole block as one
+    // week - sixteen rows on a four-week block, and a daysPerWeek of seven after a save.
+    return sessions.filter(function (s) { return (+s.week || 1) === want; })
+      .map(function (s) { return { id: s.id, name: s.name, dayOfWeek: s.dayOfWeek }; });
+  }
+  function scheduleWeekOf(block, todayISO) {
     var sessions = (block && block.sessions) || [];
     // The week being LOOKED at, which is the week you are in. Always reading week one meant that on
     // week three the screen showed week one's days: any one-off move made this week was invisible,
@@ -4180,11 +4214,7 @@
         if (want == null || w < want) want = w;
       });
     }
-    // `week` has always been written by every producer, but a hand-edited or half-migrated block
-    // without it matched EVERY session here (undefined == null), returning the whole block as one
-    // week - sixteen rows on a four-week block, and a daysPerWeek of seven after a save.
-    return sessions.filter(function (s) { return (+s.week || 1) === want; })
-      .map(function (s) { return { id: s.id, name: s.name, dayOfWeek: s.dayOfWeek }; });
+    return want;
   }
 
   // Anything else already on that day, so the move can say "Upper A is there too" rather than either
@@ -4193,6 +4223,389 @@
     return weekSessions(block, week).filter(function (s) {
       return s.id !== exceptId && s.dayOfWeek === dayOfWeek;
     }).map(function (s) { return s.name; });
+  }
+
+  /* ---- merging days: a short week out of a long one ---------------------------------------------
+   *
+   * "I can only get in four times this week" on a five-day block. Skipping a day halves the weekly
+   * frequency of everything on it; running two days back to back is the time you have not got; and
+   * dropping a day from the block (setDaysPerWeek) is permanent and takes it off the END of the week.
+   * None of those is what somebody means. They mean: give me ONE session, the length of a normal
+   * one, that still touches everything the two days would have.
+   *
+   * So a merge takes two or more of a week's unlogged sessions and replaces them, IN THAT WEEK ONLY,
+   * with one. Every week carries its own copy of every session, so the next week is untouched and
+   * reads as the plan again without anything having to put it back.
+   *
+   * How the merged session is built, in order of preference:
+   *
+   *   MIRROR. If another session that week already trains what the merged days train - Upper, for
+   *   Push + Pull - it is the volume model. Each of its lines becomes a slot: the slot keeps the
+   *   model's set count and takes the closest movement from the days being merged, so you run the
+   *   Push and Pull days' own picks at the Upper day's volume. A slot nothing being merged can fill
+   *   keeps the model's own movement.
+   *
+   *   BUDGET. No session fits (Pull + Legs 2). Each muscle gets the merged days' combined volume
+   *   scaled down to the length of one average session of the ones being merged, and lines are taken
+   *   alternately from each day, compounds first as written, until a muscle's share is spent. A line
+   *   is dropped rather than cut to one set: a single set still costs its warm-ups.
+   *
+   * Then, either way, the FREQUENCY GUARD: a muscle the merged days trained as a primary that would
+   * now get no primary work anywhere in the week gets its best left-out line back. Keeping every
+   * muscle's weekly touch is the whole reason to merge instead of skip.
+   *
+   * It is repeatable. Merging a session that is itself a merge starts again from the original days
+   * it was made of, so Push + Pull, then + Legs 2, is the three originals merged at once, and
+   * splitting it puts all three back. Nothing with a log against it is touched: a session you have
+   * started is a record, not a plan.
+   */
+  var MERGE_MIN_FIT = 0.6;
+
+  function mergeOriginals(s) {
+    return s && s.merged && s.merged.from && s.merged.from.length ? s.merged.from : [s];
+  }
+  function shortName(name) { return String(name || '').split(' - ')[0]; }
+  function lineSets(item) { return Math.max(0, Math.round((item && item.target && +item.target.sets) || 0)); }
+  function sessionSets(s) { return (s.exercises || []).reduce(function (n, e) { return n + lineSets(e); }, 0); }
+
+  // Primary-muscle volume only: what a muscle is TRAINED by, as opposed to what helps.
+  function primaryVolume(sessions, custom) {
+    var out = {};
+    (sessions || []).forEach(function (s) {
+      (s.exercises || []).forEach(function (e) {
+        var c = setContribution(byId(e.exerciseId, custom));
+        for (var m in c) if (c[m] >= PRIMARY_WEIGHT) out[m] = (out[m] || 0) + lineSets(e);
+      });
+    });
+    return out;
+  }
+
+  // How well one session stands in for the merged days: the share of their primary volume it
+  // trains, less the share of its own volume spent on muscles they do not train.
+  function mergeFit(ref, originals, custom) {
+    var want = primaryVolume(originals, custom), have = primaryVolume([ref], custom);
+    var wantTot = 0, covered = 0, haveTot = 0, extra = 0;
+    Object.keys(want).forEach(function (m) { wantTot += want[m]; if (have[m]) covered += want[m]; });
+    Object.keys(have).forEach(function (m) { haveTot += have[m]; if (!want[m]) extra += have[m]; });
+    if (!wantTot || !haveTot) return 0;
+    return covered / wantTot - extra / haveTot;
+  }
+
+  // How close movement `c` is to doing the job of movement `r`. 0 means it does not.
+  function slotScore(r, c, custom) {
+    if (r.exerciseId === c.exerciseId) return 100;
+    var R = byId(r.exerciseId, custom), C = byId(c.exerciseId, custom);
+    if (!R || !C) return 0;
+    var rb = r.baseExerciseId || baseOf(r.exerciseId, custom), cb = c.baseExerciseId || baseOf(c.exerciseId, custom);
+    if (rb === cb) return 90;
+    if (sameJobFor(r.exerciseId, custom).indexOf(c.exerciseId) !== -1) return 80;
+    var rp = R.primary || [], cp = C.primary || [];
+    if (!rp.length || rp[0] !== cp[0]) return 0;           // must at least lead with the same muscle
+    var s = 40;
+    s += 10 * rp.filter(function (m) { return cp.indexOf(m) !== -1; }).length;
+    s -= 8 * cp.filter(function (m) { return rp.indexOf(m) !== -1 ? false : true; }).length;
+    if (R.pattern && R.pattern === C.pattern) s += 15;
+    return Math.max(1, s);
+  }
+
+  // A line as it will sit in the merged session: the source line's prescription, with a new id.
+  function mergedLine(src, sets, extra) {
+    var e = JSON.parse(JSON.stringify(src));
+    e.mergedFrom = src.id;
+    e.supersetGroup = null;
+    e.target = Object.assign({}, e.target, { sets: sets });
+    if (sets < lineSets(src)) e.target.setsOptional = 0;
+    return Object.assign(e, extra || null);
+  }
+
+  function mergeKind(originals, ref) {
+    if (ref && ref.kind) return ref.kind;
+    var kinds = uniq(originals.map(function (s) { return s.kind || 'full'; }));
+    var up = ['upper', 'push', 'pull', 'arms'], down = ['legs', 'lower'];
+    if (kinds.every(function (k) { return up.indexOf(k) !== -1; })) return 'upper';
+    if (kinds.every(function (k) { return down.indexOf(k) !== -1; })) return 'lower';
+    return 'full';
+  }
+
+  /* What merging these sessions WOULD produce, without changing anything. The preview the sheet
+     shows, and the thing mergeSessions applies, so the two can never disagree. */
+  function mergePlan(block, sessionIds, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var all = (block && block.sessions) || [];
+    var picked = uniq(sessionIds || []).map(function (id) { return all.filter(function (s) { return s.id === id; })[0]; });
+    var fail = function (why) { return { ok: false, reason: why }; };
+    if (picked.length < 2) return fail('Pick at least two sessions to merge.');
+    if (picked.some(function (s) { return !s; })) return fail('One of those sessions is not in this block.');
+    var week = +picked[0].week || 1;
+    if (picked.some(function (s) { return (+s.week || 1) !== week; })) return fail('Only sessions in the same week can be merged.');
+    if (opts.todayISO && block.startISO) {
+      var pg = blockProgress(block, opts.todayISO);
+      if (pg.done || (!pg.notStarted && week < pg.week)) return fail('That week is behind you.');
+    }
+    var logged = {};
+    (opts.logs || []).forEach(function (l) { if (l && l.sessionId) logged[l.sessionId] = 1; });
+    var started = picked.filter(function (s) { return logged[s.id]; });
+    if (started.length) return fail(shortName(started[0].name) + ' already has sets logged, so it stays as it is.');
+
+    // Merging a merge starts again from what it was made of.
+    var originals = [];
+    picked.forEach(function (s) { mergeOriginals(s).forEach(function (o) { originals.push(o); }); });
+    var pickedIds = picked.map(function (s) { return s.id; });
+
+    // The volume model: the best-fitting OTHER session in the same week.
+    var others = all.filter(function (s) { return (+s.week || 1) === week && pickedIds.indexOf(s.id) === -1; });
+    var ref = null, fit = 0;
+    others.forEach(function (s) {
+      var f = mergeFit(s, originals, custom);
+      if (f > fit + 1e-9) { fit = f; ref = s; }
+    });
+    if (opts.refId) {
+      var forced = others.filter(function (s) { return s.id === opts.refId; })[0];
+      if (forced) { ref = forced; fit = mergeFit(forced, originals, custom); }
+    } else if (fit < MERGE_MIN_FIT) ref = null;
+
+    // Every candidate line, alternating between the days (A1, B1, A2, B2...) so neither day's
+    // compounds are crowded out by the other's, and an exercise both days share is one line.
+    var pool = [], seenEx = {};
+    var longest = Math.max.apply(null, originals.map(function (s) { return (s.exercises || []).length; }));
+    var sorted = originals.map(function (s) { return sessionItems(s); });
+    for (var i = 0; i < longest; i++) {
+      sorted.forEach(function (list, di) {
+        var e = list[i];
+        if (!e || !lineSets(e)) return;
+        if (seenEx[e.exerciseId]) { seenEx[e.exerciseId].sets = Math.max(seenEx[e.exerciseId].sets, lineSets(e)); return; }
+        var c = { item: e, from: shortName(originals[di].name), sets: lineSets(e), used: false };
+        seenEx[e.exerciseId] = c;
+        pool.push(c);
+      });
+    }
+
+    var rows = [];
+    if (ref) {
+      // Best pairs first across the whole session, so an early slot cannot take the movement a later
+      // slot needed more.
+      var slots = sessionItems(ref).filter(function (e) { return lineSets(e) > 0; });
+      var pairs = [];
+      slots.forEach(function (r, si) {
+        pool.forEach(function (c, ci) {
+          var sc = slotScore(r, c.item, custom);
+          if (sc > 0) pairs.push({ si: si, ci: ci, sc: sc });
+        });
+      });
+      pairs.sort(function (a, b) { return b.sc - a.sc || a.si - b.si || a.ci - b.ci; });
+      var fill = {};
+      pairs.forEach(function (p) {
+        if (fill[p.si] != null || pool[p.ci].used) return;
+        fill[p.si] = p.ci; pool[p.ci].used = true;
+      });
+      slots.forEach(function (r, si) {
+        var c = fill[si] != null ? pool[fill[si]] : null;
+        if (c) {
+          rows.push({ line: mergedLine(c.item, lineSets(r), { setsOptional: r.target.setsOptional || 0 }), from: c.from, slotOf: shortName(r.sourceName || (byId(r.exerciseId, custom) || {}).name || '') });
+        } else {
+          rows.push({ line: mergedLine(r, lineSets(r)), from: shortName(ref.name), kept: true });
+        }
+      });
+      rows.forEach(function (row) { if (row.line.target.setsOptional === 0) delete row.line.target.setsOptional; });
+    } else {
+      var n = originals.length;
+      var scale = n ? 1 / n : 1;
+      var budget = {};
+      var vol = plannedVolume(originals, custom);
+      for (var m in vol) if (vol[m] > 0) budget[m] = vol[m] * scale;
+      pool.forEach(function (c) {
+        var ex = byId(c.item.exerciseId, custom);
+        var lead = ex && ex.primary && ex.primary[0];
+        if (!lead) return;
+        var room = budget[lead] || 0;
+        var give = Math.min(c.sets, Math.round(room));
+        if (give < 2 && c.sets >= 2) give = room >= 1.25 ? 2 : 0;
+        if (give < 1) return;
+        var contrib = setContribution(ex);
+        for (var mm in contrib) budget[mm] = (budget[mm] || 0) - contrib[mm] * give;
+        c.used = true;
+        rows.push({ line: mergedLine(c.item, give), from: c.from });
+      });
+    }
+
+    // The frequency guard. What the rest of the week trains, plus what this session now does.
+    var weekHas = primaryVolume(others.concat([{ exercises: rows.map(function (r) { return r.line; }) }]), custom);
+    // Only muscles some line LEADS with: a hammer curl is a biceps movement that also trains the
+    // forearms, and adding one back for the forearms' sake would be the guard inventing a target the
+    // plan never set.
+    var trained = {};
+    originals.forEach(function (s) {
+      (s.exercises || []).forEach(function (e) {
+        var ex = byId(e.exerciseId, custom);
+        if (ex && ex.primary && ex.primary[0] && lineSets(e)) trained[ex.primary[0]] = 1;
+      });
+    });
+    Object.keys(trained).forEach(function (m) {
+      if (weekHas[m]) return;
+      var best = pool.filter(function (c) {
+        if (c.used) return false;
+        var ex = byId(c.item.exerciseId, custom);
+        return ex && (ex.primary || [])[0] === m;
+      })[0] || pool.filter(function (c) {
+        return !c.used && setContribution(byId(c.item.exerciseId, custom))[m] >= PRIMARY_WEIGHT;
+      })[0];
+      if (!best) return;
+      best.used = true;
+      var line = mergedLine(best.item, Math.min(2, best.sets));
+      rows.push({ line: line, from: best.from, guard: m });
+      var c2 = primaryVolume([{ exercises: [line] }], custom);
+      for (var k in c2) weekHas[k] = (weekHas[k] || 0) + c2[k];
+    });
+
+    var left = pool.filter(function (c) { return !c.used; })
+      .map(function (c) { return { exerciseId: c.item.exerciseId, sets: c.sets, from: c.from, item: c.item }; });
+    var name = uniq(originals.map(function (s) { return shortName(s.name); })).join(' + ');
+    var dows = originals.map(function (s) { return s.dayOfWeek; }).filter(function (d) { return d >= 0 && d <= 6; });
+    var dow = opts.dayOfWeek != null && opts.dayOfWeek >= 0 && opts.dayOfWeek <= 6
+      ? Math.round(+opts.dayOfWeek) : (dows.length ? Math.min.apply(null, dows) : 0);
+    var sets = rows.reduce(function (n, r) { return n + lineSets(r.line); }, 0);
+    return {
+      ok: true, week: week, mode: ref ? 'mirror' : 'budget',
+      ref: ref ? { id: ref.id, name: shortName(ref.name), sets: sessionSets(ref), fit: round(fit, 2) } : null,
+      name: name, kind: mergeKind(originals, ref), dayOfWeek: dow,
+      rows: rows, left: left, sets: sets,
+      wasSets: originals.reduce(function (n, s) { return n + sessionSets(s); }, 0),
+      sessionIds: pickedIds, originals: originals,
+    };
+  }
+
+  // Where each session of a week sits in its UNMERGED order: a merged session's originals keep the
+  // positions they were taken from. What lets a week with a merge in it still line up, row for row,
+  // with every week without one.
+  function expandedWeek(sessions) {
+    var count = 0;
+    sessions.forEach(function (s) { count += s.merged ? (s.merged.at || []).length || mergeOriginals(s).length : 1; });
+    var slots = new Array(count), taken = {};
+    sessions.forEach(function (s) {
+      if (!s.merged) return;
+      mergeOriginals(s).forEach(function (o, j) {
+        var p = s.merged.at && s.merged.at[j];
+        if (p != null && p < count && !taken[p]) { slots[p] = { session: s, original: j }; taken[p] = 1; }
+      });
+    });
+    var p = 0;
+    sessions.forEach(function (s) {
+      var place = function (orig) {
+        while (p < count && taken[p]) p++;
+        if (p < count) { slots[p] = { session: s, original: orig }; taken[p] = 1; }
+      };
+      if (!s.merged) { place(null); return; }
+      mergeOriginals(s).forEach(function (o, j) {
+        var already = slots.some(function (x) { return x && x.session === s && x.original === j; });
+        if (!already) place(j);
+      });
+    });
+    return slots;
+  }
+
+  /* Apply a merge: the picked sessions leave this week and the merged one takes the first one's
+     place. Mutates `block`, like swapInBlock and reschedule. Returns the plan with `session` set. */
+  function mergeSessions(block, sessionIds, opts) {
+    var plan = mergePlan(block, sessionIds, opts);
+    if (!plan.ok) return plan;
+    var all = block.sessions;
+    var weekList = all.filter(function (s) { return (+s.week || 1) === plan.week; });
+    var expanded = expandedWeek(weekList);
+    var at = [];
+    plan.sessionIds.forEach(function (id) {
+      expanded.forEach(function (x, p) { if (x && x.session.id === id) at.push(p); });
+    });
+    var n = 0, id;
+    do { id = block.id + '_w' + plan.week + 'm' + n++; } while (all.some(function (s) { return s.id === id; }));
+    var merged = {
+      id: id, week: plan.week, dayOfWeek: plan.dayOfWeek,
+      name: plan.name, kind: plan.kind,
+      focus: plan.ref ? plan.ref.name + ' volume, ' + plan.name.replace(/ \+ /g, ' & ') + ' picks' : 'Squeezed into one session',
+      deload: plan.originals.some(function (s) { return !!s.deload; }),
+      merged: {
+        from: JSON.parse(JSON.stringify(plan.originals)), at: at,
+        ref: plan.ref ? plan.ref.id : null, mode: plan.mode,
+      },
+      exercises: plan.rows.map(function (r, i) {
+        var e = r.line;
+        e.id = id + '_e' + i;
+        e.order = i;
+        return e;
+      }),
+    };
+    var first = all.indexOf(all.filter(function (s) { return plan.sessionIds.indexOf(s.id) !== -1; })[0]);
+    block.sessions = all.filter(function (s) { return plan.sessionIds.indexOf(s.id) === -1; });
+    block.sessions.splice(Math.min(first, block.sessions.length), 0, merged);
+    plan.session = merged;
+    return plan;
+  }
+
+  // Put a merged session's original days back. Refused once the merged session has been started.
+  function splitSession(block, sessionId, opts) {
+    opts = opts || {};
+    var all = (block && block.sessions) || [];
+    var s = all.filter(function (x) { return x.id === sessionId; })[0];
+    if (!s || !s.merged) return { ok: false, reason: 'That session is not a merge.' };
+    if ((opts.logs || []).some(function (l) { return l && l.sessionId === s.id; })) {
+      return { ok: false, reason: 'It already has sets logged, so it stays as it is.' };
+    }
+    var back = JSON.parse(JSON.stringify(s.merged.from));
+    var wk = +s.week || 1;
+    // Back where they came from in the week's order: expandedWeek knows the positions they left.
+    var rebuilt = [];
+    expandedWeek(all.filter(function (x) { return (+x.week || 1) === wk; })).forEach(function (x) {
+      if (!x) return;
+      if (x.session === s) rebuilt.push(back[x.original]);
+      else if (rebuilt.indexOf(x.session) === -1) rebuilt.push(x.session);
+    });
+    back.forEach(function (x) { if (rebuilt.indexOf(x) === -1) rebuilt.push(x); });
+    var out = [], placed = false;
+    all.forEach(function (x) {
+      if ((+x.week || 1) !== wk) { out.push(x); return; }
+      if (!placed) { placed = true; rebuilt.forEach(function (y) { out.push(y); }); }
+    });
+    block.sessions = out;
+    return { ok: true, sessions: back };
+  }
+
+  /* Which sessions to merge, best first, for "I can only get in N more times this week". Ranks every
+     pair of the week's unlogged sessions: a pair another session can stand in for (Push + Pull,
+     with Upper in the week) beats one that has to be budgeted, and two days that train DIFFERENT
+     muscles beat two that overlap, because merging two chest days loses a chest day. */
+  function mergeSuggestions(block, week, opts) {
+    opts = opts || {};
+    var custom = opts.custom;
+    var logged = {};
+    (opts.logs || []).forEach(function (l) { if (l && l.sessionId) logged[l.sessionId] = 1; });
+    var open = weekSessions(block, week).filter(function (s) { return !logged[s.id]; });
+    var out = [];
+    for (var a = 0; a < open.length; a++) {
+      for (var b = a + 1; b < open.length; b++) {
+        var plan = mergePlan(block, [open[a].id, open[b].id], opts);
+        if (!plan.ok) continue;
+        var va = primaryVolume(mergeOriginals(open[a]), custom), vb = primaryVolume(mergeOriginals(open[b]), custom);
+        var shared = 0, tot = 0;
+        Object.keys(va).forEach(function (m) { tot += va[m]; if (vb[m]) shared += Math.min(va[m], vb[m]); });
+        Object.keys(vb).forEach(function (m) { tot += vb[m]; });
+        var overlap = tot ? (2 * shared) / tot : 0;
+        var score = (plan.ref ? 1 + plan.ref.fit : 0) - overlap;
+        out.push({ ids: [open[a].id, open[b].id], name: plan.name, score: round(score, 3), plan: plan });
+      }
+    }
+    return out.sort(function (x, y) { return y.score - x.score; });
+  }
+
+  /* Should the week offer to squeeze? Only when it plainly cannot fit otherwise: more unlogged
+     sessions left than days left in the week, today included. */
+  function weekOverbooked(block, logs, todayISO) {
+    if (!block || !todayISO) return false;
+    var pg = blockProgress(block, todayISO);
+    if (pg.notStarted || pg.done) return false;
+    var logged = {};
+    (logs || []).forEach(function (l) { if (l && l.sessionId) logged[l.sessionId] = 1; });
+    var left = weekSessions(block, pg.week).filter(function (s) { return !logged[s.id]; }).length;
+    return left >= 2 && left > 7 - pg.dayIndex;
   }
 
   // ---- naming a block -------------------------------------------------------------------------
@@ -5983,7 +6396,11 @@
   // lifter's block cannot drop 25 weekly sets on a beginner. The author's day names, movements,
   // rep ranges and set counts all survive; only the week-on-week build is recomputed.
   function templateOf(block) {
-    return weekSessions(block, 1).slice().sort(function (a, b) { return a.dayOfWeek - b.dayOfWeek; })
+    // A week-one merge is a one-off, not the programme: what is shared, re-run or re-counted is the
+    // days it was made of.
+    var wk1 = [];
+    weekSessions(block, 1).forEach(function (s) { mergeOriginals(s).forEach(function (o) { wk1.push(o); }); });
+    return wk1.sort(function (a, b) { return a.dayOfWeek - b.dayOfWeek; })
       .map(function (s, i) {
         return {
           name: s.name, focus: s.focus || null, kind: s.kind || 'full', dayOfWeek: s.dayOfWeek == null ? i : s.dayOfWeek,
@@ -7771,7 +8188,8 @@
     SHAPES: SHAPES, CARDIO: CARDIO, EXERCISES: EXERCISES, ALIASES: ALIASES,
     byId: byId, all: all, isCardio: isCardio, yourExercises: yourExercises, recentExercises: recentExercises, search: search, resolve: resolve,
     repLabel: repLabel,
-    setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
+    setContribution: setContribution, plannedVolume: plannedVolume,
+    mergePlan: mergePlan, mergeSessions: mergeSessions, splitSession: splitSession, mergeSuggestions: mergeSuggestions, weekOverbooked: weekOverbooked, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, templatePayload: templatePayload, templateDays: templateDays, templateStyle: templateStyle, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus,
