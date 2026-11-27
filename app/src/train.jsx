@@ -230,11 +230,13 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
   const freq = block ? Training.frequency(Training.weekSessions(block, week), t.custom) : {};
 
   async function askAI() {
-    if (!isPremium) { onUpgrade && onUpgrade('coverage'); return; }
+    const taste = !isPremium && tasteLeft('coverage_advice');
+    if (!isPremium && !taste) { onUpgrade && onUpgrade('coverage'); return; }
     setBusy(true);
     try {
       const res = await coverageAdvice(db, cov, block, week);
       setAdvice(res);
+      if (taste) tasteUsed('coverage_advice');
     } catch (e) {
       setAdvice({ error: 'Could not reach ' + buddyName(db) + ' just now. The numbers above are still right.' });
     }
@@ -327,7 +329,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
             </div>
           ))}
           <button onClick={askAI} disabled={busy} className="pixel-btn w-full py-3 font-bold mt-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            {busy ? 'Thinking...' : isPremium ? 'Ask what to change' : 'Ask what to change · Premium'}
+            {busy ? 'Thinking...' : 'Ask what to change' + tasteSuffix('coverage_advice')}
           </button>
         </Card>
       )}
@@ -399,9 +401,10 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
   const review = Training.reviewBlock(block, t.logs, targets, t.custom, Store.todayISO());
 
   async function writeUp() {
-    if (!isPremium) { onUpgrade && onUpgrade('blockreview'); return; }
+    const taste = !isPremium && tasteLeft('block_review');
+    if (!isPremium && !taste) { onUpgrade && onUpgrade('blockreview'); return; }
     setBusy(true);
-    try { setProse(await blockReviewProse(db, review)); }
+    try { setProse(await blockReviewProse(db, review)); if (taste) tasteUsed('block_review'); }
     catch (e) { setProse('Could not reach ' + buddyName(db) + ' just now. The numbers below are still yours.'); }
     setBusy(false);
   }
@@ -518,7 +521,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
       {prose && <BuddySays db={db}>{prose}</BuddySays>}
       {!prose && (
         <Btn kind="ghost" onClick={writeUp} disabled={busy} className="w-full mb-4">
-          {busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'}
+          {busy ? 'Writing...' : 'Read it back to me' + (isPremium ? ' · ' + buddyName(db) : tasteSuffix('block_review'))}
         </Btn>
       )}
 

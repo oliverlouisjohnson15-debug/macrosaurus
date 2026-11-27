@@ -13,6 +13,23 @@ const SALE_COUPON = 'BLACKFRIDAY2026';
 const SALE_END = Date.parse('2026-12-02T00:00:00Z'); // end of Cyber Monday, UK time (GMT)
 const SALE_OFF_PENCE = 1999;
 
+// FIRST-YEAR OFFER (PREMIUM_GROWTH_PLAN.md §5): £10 off the first year of annual, so £29.99, for 48
+// hours straight after someone's free Premium week ends, and again for 48 hours once they open the
+// win-back (30+ days later). Personal and genuinely timed, never a standing sale. Checked here
+// against premium_trials, never trusted from the client. Keep OFFER_HOURS in sync with the app.
+const OFFER_COUPON = 'FIRSTYEAR2999';
+const OFFER_OFF_PENCE = 1000;
+const OFFER_HOURS = 48;
+function offerOpen(trial: { ends_at?: string | null; winback_at?: string | null } | null, now: number): boolean {
+  if (!trial) return false;
+  const inWindow = (iso?: string | null) => {
+    if (!iso) return false;
+    const t = Date.parse(iso);
+    return now >= t && now < t + OFFER_HOURS * 3600e3;
+  };
+  return inWindow(trial.ends_at) || inWindow(trial.winback_at);
+}
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   // supabase-js functions.invoke adds x-client-info / x-supabase-api-version, so they must be allowed
@@ -106,6 +123,21 @@ Deno.serve(async (req) => {
     // `discounts` together with `allow_promotion_codes`, so the sale session drops the code box.
     let discount: Record<string, unknown> = { allow_promotion_codes: true };
     const onSale = plan === 'annual' && Date.now() < SALE_END;
+    let offerCoupon = '';
+    if (!onSale && plan === 'annual') {
+      try {
+        const { data: trial } = await admin.from('premium_trials').select('ends_at, winback_at').eq('user_id', userId).maybeSingle();
+        if (offerOpen(trial, Date.now())) offerCoupon = OFFER_COUPON;
+      } catch { /* no offer, full price */ }
+    }
+    if (offerCoupon) {
+      try {
+        await stripe('coupons', key, { id: OFFER_COUPON, name: 'First year £29.99', amount_off: OFFER_OFF_PENCE, currency: 'gbp', duration: 'once' });
+      } catch (e) {
+        if (!/already exists/i.test((e as Error)?.message || '')) console.error('offer coupon', e);
+      }
+      discount = { 'discounts[0][coupon]': OFFER_COUPON };
+    }
     if (onSale) {
       try {
         await stripe('coupons', key, {
@@ -129,7 +161,8 @@ Deno.serve(async (req) => {
       'line_items[0][quantity]': 1,
       // The 7-day trial is applied here, not on the price, and the user id is stamped onto the
       // subscription so the webhook can attribute every future event without a lookup.
-      subscription_data: onSale ? saleData : trialData,
+      // They have just had a free week, so a discounted first year charges today, no second trial.
+      subscription_data: onSale ? saleData : offerCoupon ? { metadata: { user_id: userId, plan, offer: OFFER_COUPON } } : trialData,
       success_url: origin + '/?sub=success',
       cancel_url: origin + '/?sub=cancel',
     };

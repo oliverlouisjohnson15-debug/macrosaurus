@@ -2383,6 +2383,66 @@ function saleLeft() {
   const p = n => String(n).padStart(2, '0');
   return d > 0 ? d + 'd ' + p(h) + 'h ' + p(m) + 'm' : p(h) + 'h ' + p(m) + 'm';
 }
+/* ---- THE PREMIUM WEEK (reverse trial) and the first-year offer ------------------------------
+   PREMIUM_GROWTH_PLAN.md §1 and §5. Everyone who has never paid gets seven days of Premium, once,
+   no card (premium_trials, started by the start_premium_week RPC). When it ends they drop to Free
+   and, for 48 hours, the first year of annual is OFFER_PRICE_LABEL instead of PRICE_ANNUAL_LABEL.
+   The same 48-hour offer opens once more, 30+ days later, the first time they come back (win-back).
+   The server decides all of this (ai-proxy for access, billing for the price); these helpers only
+   describe it so the app can say so. Pure, so tests/premium-week.test.js runs them directly. */
+const PREMIUM_WEEK_DAYS = 7;
+const OFFER_PRICE_LABEL = '£29.99';
+const OFFER_HOURS = 48;            // must match OFFER_HOURS in supabase/functions/billing
+const WINBACK_AFTER_DAYS = 30;     // must match start_winback() in the premium_week migration
+function premiumWeekState(trial, now) {
+  now = now == null ? Date.now() : now;
+  if (!trial || !trial.ends_at) return { has: false, inWeek: false, offerEnds: null };
+  const end = Date.parse(trial.ends_at);
+  const start = trial.started_at ? Date.parse(trial.started_at) : end - PREMIUM_WEEK_DAYS * 864e5;
+  const inWeek = now < end;
+  const win = (iso) => { if (!iso) return null; const t = Date.parse(iso); const until = t + OFFER_HOURS * 36e5; return now >= t && now < until ? until : null; };
+  const winbackOffer = win(trial.winback_at);
+  const offerEnds = winbackOffer || win(trial.ends_at);
+  return {
+    has: true, inWeek, start, end,
+    msLeft: Math.max(0, end - now),
+    daysLeft: inWeek ? Math.max(1, Math.ceil((end - now) / 864e5)) : 0,
+    dayOf: inWeek ? Math.min(PREMIUM_WEEK_DAYS, Math.floor((now - start) / 864e5) + 1) : PREMIUM_WEEK_DAYS,
+    offerEnds, winback: !!winbackOffer,
+    winbackDue: !inWeek && !trial.winback_at && now - end >= WINBACK_AFTER_DAYS * 864e5,
+  };
+}
+/* ONE FREE TASTE (PREMIUM_GROWTH_PLAN.md §2). A free account's first block review, week plan,
+   coverage read and deeper dive are the real thing, once each, so the feature sells itself rather
+   than a padlock describing it. The server keeps the record (premium_tastes) and is the real gate;
+   these only decide what a button SAYS: "free once" while the taste is unused, "Premium" after. */
+function tasteLeft(feature) { return window.MISPREMIUM !== true && (window.MTASTES || []).indexOf(feature) < 0; }
+function tasteUsed(feature) { try { window.MTASTEUSED && window.MTASTEUSED(feature); } catch (_) {} }
+// The suffix a Premium-gated button wears: nothing for subscribers, "free once", then "Premium".
+function tasteSuffix(feature) { return window.MISPREMIUM === true ? '' : tasteLeft(feature) ? ' · free once' : ' · Premium'; }
+// "1d 04h" / "04h 12m": the countdown format the sale already uses, for any end time.
+function countdownLabel(untilMs, now) {
+  const ms = Math.max(0, untilMs - (now == null ? Date.now() : now));
+  const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60;
+  const p = n => String(n).padStart(2, '0');
+  return d > 0 ? d + 'd ' + p(h) + 'h' : p(h) + 'h ' + p(m) + 'm';
+}
+/* What someone actually did with their Premium week, from their own diary. Every line on the recap
+   is a thing they did, which is what makes it the most honest paywall the app shows. Rows with
+   nothing in them are left out rather than drawn as zeros. */
+const AI_SOURCES = ['ai_estimate', 'ai', 'label'];
+function premiumWeekRecap(db, startMs, endMs) {
+  const iso = (ms) => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const from = iso(startMs), to = iso(endMs);
+  const inRange = (d) => d && d >= from && d <= to;
+  const entries = (db.log_entries || []).filter(e => e && inRange(e.date));
+  const ai = entries.filter(e => AI_SOURCES.indexOf(e.source) >= 0).length;
+  const fibre = entries.filter(e => e.fiber_est).length;
+  const days = new Set(entries.map(e => e.date)).size;
+  const sessions = ((db.training && db.training.logs) || []).filter(l => l && inRange(l.dateISO) && (l.sets || []).some(x => x && x.done)).length;
+  const checkins = (db.checkins || []).filter(c => c && inRange(c.date)).length;
+  return { meals: entries.length, ai, fibre, days, sessions, checkins };
+}
 // Re-renders every 30s so the countdown moves and the sale vanishes on time without a reload.
 function useSaleClock() {
   const [, tick] = useState(0);
@@ -6466,10 +6526,12 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   async function parseFree() {
     const t = free.trim();
     if (!t || aiBusy) return;
-    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'weekplan' }); } catch (_) {} return; }
+    const taste = !isPremium && tasteLeft('weekplan');
+    if (!isPremium && !taste) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'weekplan' }); } catch (_) {} return; }
     setAiBusy(true); setAiErr('');
     try {
       const r = await aiParseWeekPlan(t, Store.todayISO());
+      if (taste) tasteUsed('weekplan');
       setSource('ai'); setKind(r.kind); setRange({ start: r.start, end: r.end }); setHigh(r.highDays);
       setAiLabel(r.label); setAiData(r.data); setAiHold(r.hold);
       // Land on the DATES, not past them. This used to jump to 'rate', which meant a model reading
@@ -6525,7 +6587,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
         setStep('what');
       }} />
     {/* Phase 6. Premium, and gated again server-side, so this is a hand-off not a hard stop. */}
-    <Collapsible variant="inline" label="Or just tell me in your own words" sub={isPremium ? 'Open' : 'Premium'} className="mt-1">
+    <Collapsible variant="inline" label="Or just tell me in your own words" sub={isPremium ? 'Open' : tasteLeft('weekplan') ? 'Free once' : 'Premium'} className="mt-1">
       <TextInput value={free} onChange={e => { setFree(e.target.value); setAiErr(''); }}
         placeholder="I'm in Ireland Mon to Fri, walking loads, eating out most nights"
         onKeyDown={e => { if (e.key === 'Enter') parseFree(); }} />
@@ -6534,7 +6596,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
         style={{ opacity: (free.trim() && !aiBusy) ? 1 : 0.5 }} onClick={parseFree}>
         {aiBusy ? 'Reading that…' : 'Sort it for me'}
       </Btn>
-      {!isPremium && <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">Premium reads a sentence like that and fills the whole thing in. You can always tap it out yourself above.</div>}
+      {!isPremium && <div className="text-[11px] text-[var(--muted)] mt-2 leading-snug">{tasteLeft('weekplan') ? 'Your first one is free: I read a sentence like that and fill the whole thing in.' : 'Premium reads a sentence like that and fills the whole thing in.'} You can always tap it out yourself above.</div>}
     </Collapsible>
   </div>);
 
@@ -10088,7 +10150,9 @@ function buddyProfile(db, streak, buddy, level) {
 // standing on the floor beside it. Ownership is db.buddy.cosmetics, what is actually worn is
 // db.buddy.equipped, and Game.equippedFor resolves the two (with the legacy own-it-is-wear-it
 // fallback for accounts that only ever bought auras).
-const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14' };
+const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14',
+  // Patron auras (Premium, one a month).
+  aura_patron: '#F0B429', aura_rose: '#ff8fc7', aura_tide: '#2fd3b0', aura_solar: '#ff9a1f', aura_violet: '#a77bff', aura_glacier: '#e8f6ff' };
 // Terrarium scenes: a two-stop sky, the glow pooled under the buddy, and the floor band + its edge.
 // Each scene is a lit diorama with its OWN fixed lighting rather than theme-following chrome, so a
 // bought Tar Pit looks like a tar pit in both themes; the unbought default is still the themed
@@ -11121,8 +11185,10 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
     prestige: fight.prestige || 0,
     belt: !!((db.game_awards || {})['belt']) || (fight.rank || 0) >= 10,
     founder: !!((db.game_awards || {})['trophy:founder'] || (db.items || {}).founder),
+    premium: window.MISPREMIUM === true,
   };
   const habitatOwned = (db.habitat || []);
+  const patron = Game.patronItems(today.slice(0, 7));
   // What they actually earn a day, so a habitat upgrade reads as "about 5 days" rather than a wall.
   const earnPerDay = (() => {
     const led = db.amber_ledger || [];
@@ -11161,7 +11227,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         <div className="min-w-0 flex-1 leading-tight">
           <div className="text-[12px] font-bold truncate">{c.name}</div>
           <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>{c.desc}</div>
-          {!open && <div className="pf text-[11px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
+          {!open && c.gate !== 'premium' && <div className="pf text-[11px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
         </div>
         {isOwned
           ? (isWorn
@@ -11169,6 +11235,12 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
             : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>Wear</button>)
           : ownedLabel
             ? <span className="pf text-[11px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
+            : c.gate === 'premium'
+            ? (open
+              ? <button onClick={() => buy(c.id)} className="pixel-btn px-2.5 py-1.5 text-[11px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Claim</button>
+              : <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'patron' }); } catch (_) {} }}
+                  className="pixel-btn px-2.5 py-1.5 text-[11px] shrink-0 inline-flex items-center gap-1" style={{ background: 'var(--surface2)', color: 'var(--link)' }}>
+                  <Icon.star width="16" height="16" /> Premium</button>)
             : <button onClick={onBuy || (() => buy(c.id))} disabled={!afford || !open}
                 className="pixel-btn px-2.5 py-1.5 text-[11px] shrink-0 inline-flex items-center gap-1"
                 style={{ background: (afford && open) ? 'var(--fat)' : 'var(--surface2)', color: (afford && open) ? '#1a1400' : 'var(--muted)', opacity: (afford && open) ? 1 : 0.7 }}>
@@ -11185,7 +11257,8 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   // only leaves the stall, which is scarcity without taking anything away.
   const stall = Game.weeklyStall(db.game_salt || '', Game.shopWeekKey(today), owned.concat(habitatOwned));
   const stallLeft = Game.stallDaysLeft(today);
-  const totalItems = Game.COSMETICS.length + Game.HABITAT.length;
+  // Not-yet-released Patron auras are not part of the collection yet, so they do not count against it.
+  const totalItems = Game.COSMETICS.filter(c => !c.month || c.month <= today.slice(0, 7)).length + Game.HABITAT.length;
   const ownedCount = owned.length + habitatOwned.length;
 
   function buyHabitat(id) {
@@ -11206,6 +11279,12 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
 
       {/* THIS WEEK'S STALL. Six tabs at 390px runs to 8px type and leaves the rotation nowhere to
           live, so the shop leads with a stall that changes on Monday and collapses the rest. */}
+      {/* THE PATRON SHELF: Premium's monthly aura, free to claim for supporters. First in the shop
+          because it is the one thing here that changes on the 1st, and a free account sees exactly
+          what Premium would add to the game, rather than a description of it. */}
+      {patron.released.length > 0 && <PlayPanel title="Premium · new each month" right={patron.next ? 'Next: ' + patron.next.name : null}>
+        <div className="p-2.5 space-y-2">{patron.released.map(c => <Row key={c.id} c={c} />)}</div>
+      </PlayPanel>}
       <PlayPanel title="This week's stall" right={stallLeft + (stallLeft === 1 ? ' day left' : ' days left')}>
         <div className="p-2.5 space-y-2">
           {stall.map(c => c.kind === 'habitat'
@@ -11218,7 +11297,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
       <PlayPanel title="Everything else" right={ownedCount + ' of ' + totalItems}>
         <div>
           {Game.COSMETIC_KINDS.map(kind => {
-            const items = Game.cosmeticsOfKind(kind);
+            const items = Game.cosmeticsOfKind(kind).filter(c => c.gate !== 'premium');
             const have = items.filter(c => owned.indexOf(c.id) >= 0).length;
             const meta = Game.COSMETIC_KIND_META[kind];
             const isOpen = openShelf === kind;
@@ -12226,9 +12305,17 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
   const [diving, setDiving] = useState(false);
   const [diveErr, setDiveErr] = useState('');
   function runDive() {
-    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'deepdive' }); } catch (_) {} return; }
+    const paywall = () => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'deepdive' }); } catch (_) {} };
+    if (!isPremium && !tasteLeft('deepdive')) { paywall(); return; }
     setDiving(true); setDiveErr('');
-    buddyDeepDive(db).then(t => { setDive(t || ''); setDiving(false); })
+    // A free account's one taste is claimed on the server before the call, so it cannot be repeated.
+    const claim = isPremium || !supa ? Promise.resolve(true)
+      : supa.rpc('use_premium_taste', { p_feature: 'deepdive' }).then(({ data, error }) => !error && data === true, () => false);
+    claim.then(ok => {
+      if (!isPremium) tasteUsed('deepdive');
+      if (!ok) { setDiving(false); paywall(); return Promise.reject({ aiError: true }); }
+      return buddyDeepDive(db);
+    }).then(t => { setDive(t || ''); setDiving(false); })
       .catch(e => { setDiving(false); if (!(e && e.aiError)) setDiveErr("Couldn't reach me for a deeper look just now. Try again in a bit."); });
   }
   return (
@@ -12248,7 +12335,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
             gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
         {dive
           ? <SheetBox className="p-3 text-[12px] leading-snug" style={{ background: 'var(--accent-dim)' }}><div className="pf text-[11px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.14em' }}>{who}'s deeper dive</div>{dive}</SheetBox>
-          : <SheetBtn tone="ghost" onClick={runDive} disabled={diving} style={diving ? { opacity: 0.6 } : null}>{diving ? 'Thinking…' : isPremium ? 'Ask ' + who + ' for a deeper dive' : 'Deeper dive · premium'}</SheetBtn>}
+          : <SheetBtn tone="ghost" onClick={runDive} disabled={diving} style={diving ? { opacity: 0.6 } : null}>{diving ? 'Thinking…' : 'Ask ' + who + ' for a deeper dive' + tasteSuffix('deepdive')}</SheetBtn>}
         {diveErr && <div className="text-[11px] leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
         <div className="text-center text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>It's all guidance, not gospel, so do what suits your day.</div>
     </Sheet>
@@ -13118,8 +13205,7 @@ function nudgeDismissed(db, trackKey) {
 function PremiumNudge({ db, update, headline, blurb, sub, action, reason, trackKey, className = '', compact }) {
   if (nudgeDismissed(db, trackKey)) return null;
   const open = () => {
-    try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
-    try { window.MTRACK && window.MTRACK('paywall_view', { reason: trackKey }); } catch (_) {}
+    try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual', source: trackKey }); } catch (_) {}
   };
   const dismiss = (e) => {
     e.stopPropagation();
@@ -13537,7 +13623,7 @@ function ValleyBuddy({ buddy, asleep, px = 3 }) {
    in a small scene (a ground line, two dunes, a cactus) with an emote over its head, and a wide window
    below carries a pixel tail pointing at it, its name in the pixel face, one line, and either a ▶ menu
    of answers or a blinking ▼. `sprite` is any node (BuddyAvatar, an egg); tapping it calls onSpeaker. */
-function Dialogue({ name, mood, emote = '!', sprite, onSpeaker, speakerLabel, onDismiss, children, text, className = '', scene, away, nest, skin, prop }) {
+function Dialogue({ name, mood, emote = '!', sprite, onSpeaker, speakerLabel, onDismiss, children, text, className = '', scene, away, nest, skin, prop, crest }) {
   const hasControls = React.Children.toArray(children).filter(Boolean).length > 0;
   const valley = scene === 'valley';
   const night = useNight();
@@ -13583,6 +13669,8 @@ function Dialogue({ name, mood, emote = '!', sprite, onSpeaker, speakerLabel, on
         <svg className="ms-tail" viewBox="0 0 12 7" aria-hidden="true"><path className="o" d="M5 0h2v1h1v1h1v1h1v1h1v1h1v2H0V5h1V4h1V3h1V2h1V1h1z" /><path className="i" d="M5 2h2v1h1v1h1v1h1v2H2V5h1V4h1V3h1z" /></svg>
         <div className="flex items-baseline gap-2 mb-1.5 min-h-[18px]">
           <span className="num text-[13px]" style={{ color: 'var(--link)' }}>{name}</span>
+          {/* The Patron crest: a paying supporter's buddy wears a ★ on its name plate (PREMIUM_GROWTH_PLAN.md §4). */}
+          {crest && <span className="self-center inline-flex" role="img" aria-label="Premium supporter" title="Premium supporter" style={{ color: 'var(--link)', lineHeight: 0 }}><Icon.star width="16" height="16" /></span>}
           {mood && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{mood}</span>}
           {onDismiss && <button onClick={onDismiss} aria-label="Not now" className="ml-auto -my-3 -mr-3 w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }}><Icon.close width="16" /></button>}
         </div>
@@ -13630,7 +13718,7 @@ function BuddyLine({ db, buddy, bp, onOpenPlay, tasks, msg, away, dueCheckin }) 
   if (text == null) return null;
   const vEq = equippedCosmetics(db.buddy);
   return (
-    <Dialogue className="mb-6" name={who} emote={incubating ? '?' : asleep ? 'z' : '!'}
+    <Dialogue className="mb-6" name={who} crest={window.MPAIDPREMIUM === true && !incubating} emote={incubating ? '?' : asleep ? 'z' : '!'}
       mood={incubating ? null : away ? 'foraging' : mood.label.toLowerCase()}
       scene="valley" away={away} nest={!incubating} skin={vEq.scene ? sceneArt(vEq.scene) : null} prop={vEq.prop ? PROP_ART[vEq.prop] : null}
       sprite={<ValleyBuddy buddy={db.buddy} px={3} asleep={asleep} />} onSpeaker={onOpenPlay} speakerLabel="Open Buddy and Play"
@@ -13683,7 +13771,7 @@ function PromptRow({ title, sub, action, onAction, tone = 'accent', onDismiss })
   </div>);
 }
 
-function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, onTalk, isPremium, aiCalls }) {
+function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, onTalk, isPremium, aiCalls, premWeek }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
@@ -14142,6 +14230,14 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               { when: !msgControls && phaseReviewDue(db, today), render: () => <PhaseReviewCard db={db} update={update} showToast={showToast} /> },
               { when: !msgControls && !db.paused && (dietBreakActive(db, today) || dietBreakStatus(db, today).eligible),
                 render: () => <DietBreakCard db={db} update={update} /> },
+              // The Premium week's last two days, then its 48-hour offer (and the win-back's). These
+              // outrank the everyday nudges: they are true for a short time and then never again.
+              { when: !msgControls && !!(premWeek && premWeek.inWeek && premWeek.daysLeft <= 2) && !nudgeDismissed(db, 'week_ending'),
+                render: () => <PremiumNudge compact db={db} update={update} reason="week_ending" trackKey="week_ending"
+                  headline={premWeek.daysLeft + (premWeek.daysLeft === 1 ? ' day' : ' days') + ' of Premium left'} sub={'Keep it all unlocked from ' + PRICE_ANNUAL_LABEL + ' a year'} action="Keep it" /> },
+              { when: !msgControls && !isPremium && !saleOn() && !!(premWeek && premWeek.offerEnds) && !nudgeDismissed(db, premWeek.winback ? 'offer_winback' : 'offer_end'),
+                render: () => <PremiumNudge compact db={db} update={update} reason="offer" trackKey={premWeek.winback ? 'offer_winback' : 'offer_end'}
+                  headline={(premWeek.winback ? 'Welcome back: ' : '') + 'Premium for ' + OFFER_PRICE_LABEL} sub={'Your first-year price · ' + countdownLabel(premWeek.offerEnds) + ' left'} action="See offer" /> },
               { when: !msgControls && !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
                 render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge compact db={db} update={update} reason="free_limit" trackKey="dash_ai_low"
                   headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"} />; } },
@@ -15464,6 +15560,30 @@ function suggestMealId(db, meals, now) {
    a row's name opens the amount screen. Every route the four tabs had is still here:
      search · barcode (in the field) · Quick add (plus the per-100 g manual form) · Estimate (describe,
      photo, a label scan or a menu link) · Drink (recents and new). */
+/* THE AI ALLOWANCE, as a meter (PREMIUM_GROWTH_PLAN.md §3). A free account gets FREE_AI_MONTHLY
+   snaps, scans and descriptions a month, and until now nobody saw the count until they hit the wall.
+   Drawn in the game's own instrument: one pip per log, lit for what is left, so "3 left" is a picture
+   before it is a sentence. Amber from 3 down, because that is when the choice is real. At 0 the two
+   ways forward sit side by side, and one of them is free: inviting a friend gives you both 5 more. */
+function AiAllowance({ used, bonus, onUpgrade, onInvite }) {
+  const left = Math.max(0, FREE_AI_MONTHLY - (used || 0));
+  const low = left <= 3, empty = left === 0;
+  return (
+    <div className="mb-3 pt-1 pb-2.5" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <span className="text-[13px]" style={{ fontWeight: 600 }}>{empty ? 'No free AI logs left' : 'Free AI logs'}</span>
+        <span className="text-[12px] tnum" style={{ color: low ? 'var(--warn-ink)' : 'var(--muted)' }}>
+          <span className="num text-[14px]">{left}</span> of {FREE_AI_MONTHLY} left{bonus > 0 ? ' + ' + bonus + ' bonus' : ''} · resets on the 1st
+        </span>
+      </div>
+      <PipMeter value={left} target={FREE_AI_MONTHLY} cells={FREE_AI_MONTHLY} scale={1} color={low ? 'var(--warn)' : 'var(--link)'} small />
+      <div className="flex items-center gap-5 mt-1">
+        <button onClick={onUpgrade} className="text-[13px]" style={{ color: 'var(--link)', fontWeight: 700, minHeight: 40 }}>Go unlimited</button>
+        {low && onInvite && <button onClick={onInvite} className="text-[13px]" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 40 }}>Invite a friend for 5 more</button>}
+      </div>
+    </div>
+  );
+}
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
   const hasDrinkRecents = (db.foods || []).some(f => f.is_alcohol);
   const [mode, setModeRaw] = useState(target.scan ? 'scan' : target.describe ? 'describe' : target.alc ? 'drink' : 'food');
@@ -15491,10 +15611,9 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const addedTotal = added.reduce((t, x) => ({ kcal: t.kcal + (+x.macros.kcal || 0), protein: t.protein + (+x.macros.protein || 0), carbs: t.carbs + (+x.macros.carbs || 0), fat: t.fat + (+x.macros.fat || 0), fiber: t.fiber + (+x.macros.fiber || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   const aiNote = !isPremium && (mode === 'scan' || mode === 'label' || mode === 'describe') && (() => {
     const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-    return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
-      <span className="text-[13px]">{n > 0 ? (n + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
-      <span className="text-[13px] shrink-0" style={{ color: 'var(--link)', fontWeight: 600 }}>Go unlimited</span>
-    </button>;
+    return <AiAllowance used={aiCalls} bonus={window.MBONUSAI || 0}
+      onUpgrade={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'ai' : 'free_limit' }); } catch (_) {} }}
+      onInvite={window.MINVITE ? () => { try { window.MINVITE('log_sheet'); } catch (_) {} } : null} />;
   })();
   const title = <Dropdown compact big value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />;
   const back = mode !== 'food' && <button onClick={() => setMode('food')} className="flex items-center gap-1 text-[13px] mb-2" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}><Icon.arrow_left width="16" /> Search</button>;
@@ -19338,7 +19457,7 @@ function PremiumHero({ onUpgrade, freeLeft }) {
     </Hero>
   );
 }
-function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn }) {
+function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn , week}) {
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
   useEffect(() => { if (initialScreen && onConsumeInitial) onConsumeInitial(); }, []);
@@ -19380,7 +19499,10 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} onExport={exportData} />,
     reset: () => <ResetScreen db={db} onBack={back} onConfirm={onReset} onExport={exportData} />,
   };
-  const planLine = isPremium
+  // The free Premium week is Premium with no Stripe subscription behind it: nothing to manage yet.
+  const weekOnly = !!(week && week.inWeek) && !(sub && (sub.status === 'active' || sub.status === 'trialing'));
+  const planLine = weekOnly ? 'Premium week \u00b7 ' + week.daysLeft + (week.daysLeft === 1 ? ' day' : ' days') + ' left'
+    : isPremium
     ? (sub && sub.status === 'trialing' ? 'Free trial \u00b7 ' + daysLeft(sub.trial_end) : 'Premium' + (sub && sub.cancel_at_period_end ? ' \u00b7 ends at the period end' : sub && sub.current_period_end ? ' \u00b7 renews ' + fmtDate(sub.current_period_end) : ''))
     : 'Free \u00b7 ' + freeLeft + ' of ' + FREE_AI_MONTHLY + ' AI logs left this month';
   // ACCOUNT, one level down from You (35-reset): who you are signed in as, Premium, your data, help,
@@ -19390,7 +19512,10 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
       <Row icon={<Icon.user width="24" />} title={<span className="break-all">{email || 'your account'}</span>} sub="Signed in" />
     </Section>
     <SettingsGroup title={isPremium ? 'Premium' : 'Free plan'}>
-      {isPremium
+      {weekOnly
+        ? <><Row icon={<Icon.star width="24" />} title="Premium week" sub={week.daysLeft + (week.daysLeft === 1 ? ' day' : ' days') + ' left · free, no card'} />
+            <div className="py-3"><Btn kind="accent" className="w-full" onClick={() => onUpgrade('account_week')}>Keep Premium after this week</Btn></div></>
+        : isPremium
         ? <Row icon={<Icon.star width="24" />} title={sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium' + (sub && sub.plan ? ' \u00b7 ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : '')}
             sub={sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period' : sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) : 'Unlimited AI logging and body-fat scans'}
             value="Manage" onClick={onManage} />
@@ -20803,7 +20928,7 @@ function appBarContext(view, db) {
   if (view === 'train') { const b = typeof activeBlock === 'function' ? activeBlock(db) : null; return (b && b.name) || 'Train'; }
   return ({ foodlog: 'Food', recipes: 'Food', goals: 'Progress', more: 'You', admin: 'Admin' })[view] || '';
 }
-function Sidebar({ view, setView, onAdd, onOpenPlay, onPremium }) {
+function Sidebar({ view, setView, onAdd, onOpenPlay, onPremium, week }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return (
@@ -20816,7 +20941,8 @@ function Sidebar({ view, setView, onAdd, onOpenPlay, onPremium }) {
       </div>
       {/* Premium on desktop: the same door as the app-bar button, at the foot of the nav. */}
       {onPremium && <button onClick={onPremium} className="pixel-box mt-auto flex items-center gap-3 px-3 py-2.5 text-sm text-left" style={{ background: 'var(--accent)', color: 'var(--on-accent)', fontWeight: 700 }}>
-        <Icon.star width="24" height="24" /><span>{saleOn() ? 'Get the ' + SALE_PRICE_LABEL + ' deal' : 'Try Premium free'}</span></button>}
+        <Icon.star width="24" height="24" /><span>{week && week.inWeek ? 'Premium week · ' + week.daysLeft + (week.daysLeft === 1 ? ' day' : ' days') + ' left'
+          : saleOn() ? 'Get the ' + SALE_PRICE_LABEL + ' deal' : week && week.offerEnds ? 'Keep Premium for ' + OFFER_PRICE_LABEL : 'Try Premium free'}</span></button>}
       <div className={(onPremium ? 'mt-3' : 'mt-auto') + ' pf text-[11px] text-[var(--muted)] px-1'}>{BRAND}</div>
     </div>
   );
@@ -20993,17 +21119,25 @@ function BarBuddy({ buddy, phase, away, onOpenPlay }) {
    It is words, not just an icon: a lone star or crown is decoration until you know what it means.
    During a sale it says the price instead, because "£20" is the reason to tap. Type on the bar
    uses --on-header-accent (the gold's on-bar twin), the same as the active tab label. */
-function BarPremium({ onOpen }) {
+// It says the one thing that is true for you right now: days left in your free week, your own offer
+// price while it lasts, the sale price during a sale, or just "Premium". A filled pill while the week
+// runs (you HAVE it), an outlined one otherwise (you could).
+function BarPremium({ onOpen, week }) {
   const sale = saleOn();
+  const inWeek = !!(week && week.inWeek);
+  const offer = !sale && !!(week && week.offerEnds && week.offerEnds > Date.now());
+  const label = inWeek ? week.daysLeft + (week.daysLeft === 1 ? ' day' : ' days')
+    : sale ? SALE_PRICE_LABEL + ' deal' : offer ? OFFER_PRICE_LABEL : 'Premium';
+  const aria = inWeek ? 'Premium week, ' + week.daysLeft + ' days left' : sale ? 'Premium, Black Friday deal' : offer ? 'Premium, your offer price' : 'Get Premium';
   return (
-    <button onClick={onOpen} aria-label={sale ? 'Premium, Black Friday deal' : 'Get Premium'}
-      className="ms-bar-premium shrink-0 flex items-center gap-1.5" style={{ color: 'var(--on-header-accent)' }}>
+    <button onClick={onOpen} aria-label={aria} className={'ms-bar-premium shrink-0 flex items-center gap-1.5' + (inWeek ? ' is-on' : '')}
+      style={{ color: 'var(--on-header-accent)' }}>
       <Icon.star width="16" height="16" />
-      <span className="text-[13px]" style={{ fontWeight: 700 }}>{sale ? SALE_PRICE_LABEL + ' deal' : 'Premium'}</span>
+      <span className="text-[13px] whitespace-nowrap" style={{ fontWeight: 700 }}>{label}</span>
     </button>
   );
 }
-function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away, onPremium }) {
+function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away, onPremium, week }) {
   // Who has the buddy: the valley while it is standing on Today's page, the lane otherwise. The hand-off
   // between the two is animated only when it was a scroll (BUDDY_SPOT.soft); a tab change just swaps.
   const spot = useBuddySpot();
@@ -21024,7 +21158,7 @@ function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away, onP
       <button onClick={onHome} aria-label="Macrosaurus, go to Today" className="w-11 h-11 flex items-center justify-center shrink-0"><PixelEgg size={32} /></button>
       <div className="truncate text-[15px] shrink-0" style={{ color: 'var(--header-text)', fontWeight: 600, maxWidth: onPremium ? '34vw' : '50vw' }}>{context}</div>
       <BarBuddy buddy={buddy} phase={phase} away={away} onOpenPlay={onOpenPlay} />
-      {onPremium && <BarPremium onOpen={onPremium} />}
+      {onPremium && <BarPremium onOpen={onPremium} week={week} />}
       <button onClick={onOpenYou} aria-label="You and settings" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--header-text)' }}>
         <Icon.gear width="24" height="24" />
       </button>
@@ -22517,6 +22651,10 @@ function paywallCopy(reason, feature) {
   const k = feature || reason;
   const C = {
     free_limit: ["You've used your free AI logs", `That's your ${FREE_AI_MONTHLY} free AI logs for this month. Premium makes AI logging unlimited.`],
+    ai: ['Snap, scan and describe without counting', `Free gets ${FREE_AI_MONTHLY} AI logs a month. Premium takes the limit away, along with everything in the table below.`],
+    week_ending: ['Keep Premium after this week', 'Everything you have unlocked this week stays unlocked. Choose a plan and nothing changes.'],
+    offer: ['Keep Premium', 'Everything in the table below, for good.'],
+    patron: ['A new aura every month', 'Premium supporters claim a new Patron aura on the 1st of every month, and a ★ on their buddy\'s name. Every one is yours to keep.'],
     fibre: ['Fibre on every food', 'Premium fills in the fibre your foods are missing, so your daily fibre is real rather than an undercount.'],
     bodyfat: ['Body-fat scans are Premium', 'Get an honest body-fat estimate from a progress photo.'],
     weekplan: ['Plan your week in a sentence', 'Tell your buddy about the week ahead and Premium reshuffles your targets around it.'],
@@ -22543,6 +22681,7 @@ const PREMIUM_COMPARE = [
   { t: 'Community recipes and fridge match', free: 'Your own', prem: 'All of them', keys: ['discover', 'fridge'] },
   { t: 'Fibre on every food', free: null, prem: true, keys: ['fibre'] },
   { t: 'Body-fat scans and deeper dives', free: null, prem: true, keys: ['bodyfat', 'deepdive'] },
+  { t: 'A new Patron aura every month', free: null, prem: true, keys: ['patron'] },
   { t: 'Barcode, database, programmes, the game', free: true, prem: true, keys: [] },
 ];
 function CompareCell({ v, strong }) {
@@ -22556,103 +22695,222 @@ function CompareCell({ v, strong }) {
    Premium table (the question people are actually asking), and the plans are inventory slots with
    the ▶ cursor. Plans, button and price are pinned below the scroll so the cost is never hidden.
    Checkout runs server-side (billing edge function): no Stripe code or keys live in the app. */
-function Paywall({ reason, feature, buddy, buddyLabel, onCheckout, onClose }) {
+// Re-renders every 30s while something on screen is counting down.
+function useTick(on) {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!on) return; const id = setInterval(() => tick(t => t + 1), 30000); return () => clearInterval(id); }, [on]);
+}
+/* THE PREMIUM FRAME. Every Premium sheet (the paywall, the week welcome, the week recap) is the same
+   object: a hero window rising from the bottom, the purple bar with the ★ and a title, a scrolling
+   body, and an optional footer pinned under it for the decision. One frame, so they read as one
+   place in the app rather than three pop-ups. */
+function PremiumFrame({ title, label, onClose, footer, children }) {
   useSheetOpenClass();
   useBackClose(onClose);
+  return (
+    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'var(--scrim, rgba(0,0,0,0.7))' }} onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={label || title} className="w-full max-w-md ms-hero flex flex-col max-h-[94vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between pl-5 pr-2 shrink-0" style={{ height: 52, background: 'var(--header)', color: 'var(--header-text)' }}>
+          <span className="flex items-center gap-2 text-[15px]" style={{ fontWeight: 700 }}><span style={{ color: 'var(--on-header-accent)' }}><Icon.star width="16" height="16" /></span>{title}</span>
+          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><Icon.close width="16" /></button>
+        </div>
+        <div className="px-5 pt-4 pb-3 overflow-y-auto min-h-0">{children}</div>
+        {footer && <div className="px-5 pt-3 shrink-0" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', paddingBottom: 'calc(0.9rem + env(safe-area-inset-bottom))' }}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
+// The buddy, speaking. Hatched buddies are themselves; an egg is an egg.
+function PremiumSpeaker({ buddy, buddyLabel, children }) {
+  const hatched = !(buddy && buddy.hatched === false);
+  return (
+    <Dialogue className="mb-4" name={buddyLabel || 'Your buddy'} emote="★"
+      sprite={hatched ? <BuddyAvatar buddy={buddy || {}} px={3} /> : <SpriteSheet palette="female" species="doux" group="egg" anim="move" px={3} fps={4} />}
+      text={children}><span /></Dialogue>
+  );
+}
+// The countdown strip a time-limited price wears: the sale, or someone's own 48-hour offer.
+function DealStrip({ title, sub }) {
+  return (
+    <div className="ms-deal mb-4 flex items-center gap-3 px-3 py-2.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: '0 0 0 2px var(--border)' }}>
+      <span className="ms-coin shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>{title}</div>
+        {sub && <div className="text-[12px] mt-0.5">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+/* The Premium sheet. Opened from the app-bar button, You, a Today prompt, the week recap, or by
+   tapping something locked; `reason`/`feature` say which. The buddy makes the pitch, the offer is a
+   Free vs Premium table, and the plans are inventory slots with the ▶ cursor, pinned below the
+   scroll so the cost is never hidden. The price follows whatever is true for THIS person right now:
+   the sale, their own 48-hour first-year offer, or the list price. Checkout runs server-side
+   (billing), which decides the real price again; nothing here is trusted for it. */
+function Paywall({ reason, feature, buddy, buddyLabel, week, onCheckout, onClose }) {
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
-  const sale = useSaleClock();   // ticks, so the countdown moves and the deal vanishes on time
-  // Opened on purpose during the sale, it leads with the deal; opened by a locked feature, with that.
+  const sale = useSaleClock();
+  const offer = !sale && !!(week && week.offerEnds && week.offerEnds > Date.now());
+  useTick(offer);
+  const deal = sale ? SALE_PRICE_LABEL : offer ? OFFER_PRICE_LABEL : null;
   const [headline, blurb] = sale && (reason === 'sale' || reason === 'manual')
     ? ['A year of Premium for ' + SALE_PRICE_LABEL, 'Half price on your first year, and everything in the table below. No code needed.']
+    : offer && (reason === 'offer' || reason === 'manual' || reason === 'week_ending')
+    ? ['Keep Premium for ' + OFFER_PRICE_LABEL, (week.winback ? 'Welcome back. ' : '') + 'Your first year for ' + OFFER_PRICE_LABEL + ' instead of ' + PRICE_ANNUAL_LABEL + '. This price is yours for the next ' + countdownLabel(week.offerEnds) + '.']
     : paywallCopy(reason, feature);
   const k = feature || reason;
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
-  // A sale annual checkout charges today with no trial (billing function, #177); everything else trials.
-  const payNow = sale && plan === 'annual';
+  // A discounted annual (sale or offer) charges today with no trial; full price keeps the 7-day trial.
+  const payNow = !!deal && plan === 'annual';
   const plans = [
-    { k: 'annual', price: sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, per: sale ? 'for the year' : 'a year', was: sale ? PRICE_ANNUAL_LABEL : null, tag: sale ? 'Half price · about 38p a week' : 'Best value · save 33%' },
+    { k: 'annual', price: deal || PRICE_ANNUAL_LABEL, per: deal ? 'your first year' : 'a year', was: deal ? PRICE_ANNUAL_LABEL : null,
+      tag: sale ? 'Half price · about 38p a week' : offer ? 'Your price · 25% off' : 'Best value · save 33%' },
     { k: 'monthly', price: PRICE_MONTHLY_LABEL, per: 'a month', was: null, tag: 'Billed monthly' },
   ];
-  const hatched = !(buddy && buddy.hatched === false);
-  return (
-    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'var(--scrim, rgba(0,0,0,0.7))' }} onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Macrosaurus Premium" className="w-full max-w-md ms-hero flex flex-col max-h-[94vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between pl-5 pr-2 shrink-0" style={{ height: 52, background: 'var(--header)', color: 'var(--header-text)' }}>
-          <span className="flex items-center gap-2 text-[15px]" style={{ fontWeight: 700 }}><span style={{ color: 'var(--on-header-accent)' }}><Icon.star width="16" height="16" /></span>Macrosaurus Premium</span>
-          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><Icon.close width="16" /></button>
-        </div>
-        <div className="px-5 pt-4 pb-3 overflow-y-auto min-h-0">
-          <Dialogue className="mb-4" name={buddyLabel || 'Your buddy'} emote="★"
-            sprite={hatched ? <BuddyAvatar buddy={buddy || {}} px={3} /> : <SpriteSheet palette="female" species="doux" group="egg" anim="move" px={3} fps={4} />}
-            text={<><b>{headline}.</b> {blurb}</>}>
-            <span />
-          </Dialogue>
-          {sale && <div className="ms-deal mb-4 flex items-center gap-3 px-3 py-2.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: '0 0 0 2px var(--border)' }}>
-            <span className="ms-coin shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>Black Friday ends in <span className="num">{saleLeft()}</span></div>
-              <div className="text-[12px] mt-0.5">First year {SALE_PRICE_LABEL}, usually {PRICE_ANNUAL_LABEL}</div>
+  const footer = (<>
+    <div role="radiogroup" aria-label="Plan" className="grid grid-cols-2 gap-2.5 mb-3">
+      {plans.map(pl => {
+        const on = plan === pl.k;
+        return (
+          <button key={pl.k} role="radio" aria-checked={on} onClick={() => setPlan(pl.k)} className="ms-slot text-left px-3 py-2.5"
+            style={{ background: on ? 'var(--accent-dim)' : 'var(--card)', boxShadow: on ? '0 0 0 3px var(--border)' : '0 0 0 2px var(--border)' }}>
+            <div className="flex items-center gap-1.5 min-h-[22px]">
+              <span style={{ color: 'var(--link)', visibility: on ? 'visible' : 'hidden' }}><Cursor /></span>
+              <span className="num text-[20px] leading-none">{pl.price}</span>
+              {pl.was && <span className="text-[12px] line-through" style={{ color: 'var(--muted)' }}>{pl.was}</span>}
             </div>
-          </div>}
-          <table className="w-full mb-2" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                <th className="text-left text-[13px] pb-2" style={{ fontWeight: 700 }}>What you get</th>
-                <th className="text-center text-[12px] pb-2 w-[64px]" style={{ fontWeight: 600, color: 'var(--muted)' }}>Free</th>
-                <th className="text-center text-[12px] pb-2 w-[76px]" style={{ fontWeight: 700, color: 'var(--link)' }}>Premium</th>
-              </tr>
-            </thead>
-            <tbody>
-              {PREMIUM_COMPARE.map(r => {
-                const on = r.keys.indexOf(k) >= 0;
-                return (
-                  <tr key={r.t} style={{ borderBottom: '1px solid var(--hairline)', background: on ? 'var(--sunk)' : null }}>
-                    <td className="py-2.5 pr-2 text-[13px] leading-snug" style={{ fontWeight: on ? 700 : 500 }}>
-                      <span className="flex items-center gap-1.5">{on && <span style={{ color: 'var(--link)' }}><Cursor /></span>}{r.t}</span>
-                    </td>
-                    <td className="py-2.5 text-center align-middle"><CompareCell v={r.free} /></td>
-                    <td className="py-2.5 text-center align-middle"><CompareCell v={r.prem} strong /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Everything free stays free. Premium adds to it, it never takes away.</div>
-        </div>
-        {/* THE DECISION, pinned: plans, button and price stay on screen however long the table runs. */}
-        <div className="px-5 pt-3 shrink-0" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', paddingBottom: 'calc(0.9rem + env(safe-area-inset-bottom))' }}>
-          <div role="radiogroup" aria-label="Plan" className="grid grid-cols-2 gap-2.5 mb-3">
-            {plans.map(pl => {
-              const on = plan === pl.k;
-              return (
-                <button key={pl.k} role="radio" aria-checked={on} onClick={() => setPlan(pl.k)} className="ms-slot text-left px-3 py-2.5"
-                  style={{ background: on ? 'var(--accent-dim)' : 'var(--card)', boxShadow: on ? '0 0 0 3px var(--border)' : '0 0 0 2px var(--border)' }}>
-                  <div className="flex items-center gap-1.5 min-h-[22px]">
-                    <span style={{ color: 'var(--link)', visibility: on ? 'visible' : 'hidden' }}><Cursor /></span>
-                    <span className="num text-[20px] leading-none">{pl.price}</span>
-                    {pl.was && <span className="text-[12px] line-through" style={{ color: 'var(--muted)' }}>{pl.was}</span>}
-                  </div>
-                  <div className="text-[13px] mt-1 pl-3">{pl.per}</div>
-                  <div className="text-[12px] mt-0.5 pl-3" style={{ color: on ? 'var(--link)' : 'var(--muted)', fontWeight: on ? 700 : 400 }}>{pl.tag}</div>
-                </button>
-              );
-            })}
-          </div>
-          <Btn kind="accent" className="w-full" onClick={go} disabled={busy}>{busy ? 'Starting…' : payNow ? 'Get my year for ' + SALE_PRICE_LABEL : 'Start my 7 days free'}</Btn>
-          <div className="text-[12px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            {payNow ? 'Pay ' + SALE_PRICE_LABEL + ' today for a full year of Premium. Renews at ' + PRICE_ANNUAL_LABEL + ' a year, cancel anytime.'
-              : 'Free for 7 days, then ' + (plan === 'annual' ? PRICE_ANNUAL_LABEL + ' a year' : PRICE_MONTHLY_LABEL + ' a month') + '. Cancel anytime.'}
-          </div>
-          {/* No "Restore": that is an App Store concept. Sales go through Stripe on the web and the
-              subscription is attached to the account, so signing in already restores it. */}
-          <div className="flex items-center justify-center gap-5 mt-1 text-[12px]">
-            <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Terms</a>
-            <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Privacy</a>
-          </div>
-        </div>
-      </div>
+            <div className="text-[13px] mt-1 pl-3">{pl.per}</div>
+            <div className="text-[12px] mt-0.5 pl-3" style={{ color: on ? 'var(--link)' : 'var(--muted)', fontWeight: on ? 700 : 400 }}>{pl.tag}</div>
+          </button>
+        );
+      })}
     </div>
+    <Btn kind="accent" className="w-full" onClick={go} disabled={busy}>{busy ? 'Starting…' : payNow ? 'Get my year for ' + deal : 'Start my 7 days free'}</Btn>
+    <div className="text-[12px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
+      {payNow ? 'Pay ' + deal + ' today for a full year of Premium. Renews at ' + PRICE_ANNUAL_LABEL + ' a year, cancel anytime.'
+        : 'Free for 7 days, then ' + (plan === 'annual' ? PRICE_ANNUAL_LABEL + ' a year' : PRICE_MONTHLY_LABEL + ' a month') + '. Cancel anytime.'}
+    </div>
+    {/* No "Restore": that is an App Store concept. Sales go through Stripe on the web and the
+        subscription is attached to the account, so signing in already restores it. */}
+    <div className="flex items-center justify-center gap-5 mt-1 text-[12px]">
+      <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Terms</a>
+      <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Privacy</a>
+    </div>
+  </>);
+  return (
+    <PremiumFrame title="Macrosaurus Premium" onClose={onClose} footer={footer}>
+      <PremiumSpeaker buddy={buddy} buddyLabel={buddyLabel}><b>{headline}.</b> {blurb}</PremiumSpeaker>
+      {sale && <DealStrip title={<>Black Friday ends in <span className="num">{saleLeft()}</span></>} sub={'First year ' + SALE_PRICE_LABEL + ', usually ' + PRICE_ANNUAL_LABEL} />}
+      {offer && <DealStrip title={<>Your price ends in <span className="num">{countdownLabel(week.offerEnds)}</span></>} sub={'First year ' + OFFER_PRICE_LABEL + ', usually ' + PRICE_ANNUAL_LABEL} />}
+      <CompareTable k={k} />
+    </PremiumFrame>
+  );
+}
+function CompareTable({ k }) {
+  return (<>
+    <table className="w-full mb-2" style={{ borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ borderBottom: '2px solid var(--border)' }}>
+          <th className="text-left text-[13px] pb-2" style={{ fontWeight: 700 }}>What you get</th>
+          <th className="text-center text-[12px] pb-2 w-[64px]" style={{ fontWeight: 600, color: 'var(--muted)' }}>Free</th>
+          <th className="text-center text-[12px] pb-2 w-[76px]" style={{ fontWeight: 700, color: 'var(--link)' }}>Premium</th>
+        </tr>
+      </thead>
+      <tbody>
+        {PREMIUM_COMPARE.map(r => {
+          const on = r.keys.indexOf(k) >= 0;
+          return (
+            <tr key={r.t} style={{ borderBottom: '1px solid var(--hairline)', background: on ? 'var(--sunk)' : null }}>
+              <td className="py-2.5 pr-2 text-[13px] leading-snug" style={{ fontWeight: on ? 700 : 500 }}>
+                <span className="flex items-center gap-1.5">{on && <span style={{ color: 'var(--link)' }}><Cursor /></span>}{r.t}</span>
+              </td>
+              <td className="py-2.5 text-center align-middle"><CompareCell v={r.free} /></td>
+              <td className="py-2.5 text-center align-middle"><CompareCell v={r.prem} strong /></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Everything free stays free. Premium adds to it, it never takes away.</div>
+  </>);
+}
+/* THE PREMIUM WEEK SHEET: the welcome when it starts (mode 'welcome') and the same sheet from the
+   app-bar chip while it runs (mode 'status'). The days left are a 7-pip meter, the game's own
+   instrument for "how much is left". No card, nothing to cancel: said plainly, because the fear of a
+   surprise charge is the thing that stops people trying. */
+function PremiumWeekSheet({ mode, week, buddy, buddyLabel, onClose, onKeep }) {
+  useTick(true);
+  const welcome = mode === 'welcome';
+  const line = welcome
+    ? <><b>Premium is yours for a week.</b> Snap anything, ask me anything, and I'll coach your training too. No card, and nothing to cancel.</>
+    : <><b>{week.daysLeft} {week.daysLeft === 1 ? 'day' : 'days'} of Premium left.</b> Everything below is unlocked until then. After that you go back to Free, and nothing is charged.</>;
+  const footer = (<>
+    <Btn kind="accent" className="w-full" onClick={welcome ? onClose : onKeep}>{welcome ? "Let's go" : 'Keep Premium after this week'}</Btn>
+    <div className="text-[12px] text-center mt-2 mb-1 leading-snug" style={{ color: 'var(--muted)' }}>
+      {welcome ? 'After 7 days you go back to Free. Nothing is charged.' : 'Ends in ' + countdownLabel(week.end) + '. Nothing is charged unless you choose a plan.'}
+    </div>
+  </>);
+  return (
+    <PremiumFrame title={welcome ? 'Your Premium week' : 'Premium week'} onClose={onClose} footer={footer}>
+      <PremiumSpeaker buddy={buddy} buddyLabel={buddyLabel}>{line}</PremiumSpeaker>
+      <div className="mb-5">
+        <div className="flex items-baseline justify-between mb-2">
+          <span className="text-[13px]" style={{ fontWeight: 600 }}>Day {week.dayOf} of {PREMIUM_WEEK_DAYS}</span>
+          <span className="text-[12px]" style={{ color: 'var(--muted)' }}><span className="num text-[14px]">{week.daysLeft}</span> {week.daysLeft === 1 ? 'day' : 'days'} left</span>
+        </div>
+        <PipMeter value={week.daysLeft} target={PREMIUM_WEEK_DAYS} cells={PREMIUM_WEEK_DAYS} scale={1} color="var(--link)" />
+      </div>
+      <Section title="Unlocked this week">
+        {PREMIUM_PERKS.map(p => (
+          <div key={p.t} className="ms-row">
+            <span className="ms-row-icon shrink-0 flex items-center justify-center" style={{ width: 24 }}><Tick size={12} /></span>
+            <span className="min-w-0 flex-1"><span className="ms-row-t">{p.t}</span><span className="ms-row-d" style={{ whiteSpace: 'normal' }}>{p.d}</span></span>
+          </div>
+        ))}
+      </Section>
+    </PremiumFrame>
+  );
+}
+/* THE WEEK RECAP: shown once, the first time someone opens the app after their Premium week ends.
+   Built from their own diary (premiumWeekRecap), so every number on it is something they did. Then,
+   plainly, what changes now, and the offer with its real countdown. The button opens the same
+   Premium sheet as everywhere else, so there is one checkout, priced in one place. */
+function PremiumRecapSheet({ week, db, buddy, buddyLabel, onClose, onKeep }) {
+  useTick(!!week.offerEnds);
+  const r = premiumWeekRecap(db, week.start, week.end);
+  const did = [
+    r.meals > 0 && ['Meals logged', r.meals, r.days > 1 ? 'Across ' + r.days + ' days' : null],
+    r.ai > 0 && ['Snapped, scanned or described', r.ai, 'No monthly limit'],
+    r.fibre > 0 && ['Foods with fibre filled in', r.fibre, null],
+    r.sessions > 0 && ['Training sessions', r.sessions, null],
+    r.checkins > 0 && ['Check-ins', r.checkins, null],
+  ].filter(Boolean);
+  const offer = week.offerEnds && week.offerEnds > Date.now();
+  const footer = (<>
+    <Btn kind="accent" className="w-full" onClick={onKeep}>{offer ? 'Keep Premium for ' + OFFER_PRICE_LABEL : 'See Premium'}</Btn>
+    <button onClick={onClose} className="w-full text-[13px] mt-1 mb-0.5" style={{ color: 'var(--muted)', fontWeight: 600, minHeight: 40 }}>Not now, carry on free</button>
+  </>);
+  return (
+    <PremiumFrame title="Your Premium week" onClose={onClose} footer={footer}>
+      <PremiumSpeaker buddy={buddy} buddyLabel={buddyLabel}>
+        {did.length ? <><b>That was your Premium week.</b> Here's what we got done together.</> : <><b>Your Premium week has ended.</b> Everything you logged is still here.</>}
+      </PremiumSpeaker>
+      {offer && <DealStrip title={<>Keep it for {OFFER_PRICE_LABEL} · <span className="num">{countdownLabel(week.offerEnds)}</span> left</>} sub={'Your first year, usually ' + PRICE_ANNUAL_LABEL + '. Only for the next 48 hours.'} />}
+      {did.length > 0 && <Section title="What you did">
+        {did.map(([t, n, d]) => (
+          <div key={t} className="ms-row">
+            <span className="min-w-0 flex-1"><span className="ms-row-t">{t}</span>{d && <span className="ms-row-d">{d}</span>}</span>
+            <span className="num text-[18px] shrink-0">{n}</span>
+          </div>
+        ))}
+      </Section>}
+      <Section title="What changes now">
+        <div className="ms-row"><span className="min-w-0 flex-1"><span className="ms-row-t">AI logging</span><span className="ms-row-d">Back to {FREE_AI_MONTHLY} a month</span></span></div>
+        <div className="ms-row"><span className="min-w-0 flex-1"><span className="ms-row-t">Training coach and week plans</span><span className="ms-row-d" style={{ whiteSpace: 'normal' }}>Locked again, but any you didn't try still get one free go</span></span></div>
+        <div className="ms-row"><span className="min-w-0 flex-1"><span className="ms-row-t">Everything you logged</span><span className="ms-row-d">Stays yours, on Free or Premium</span></span></div>
+      </Section>
+    </PremiumFrame>
   );
 }
 function App() {
@@ -22707,19 +22965,38 @@ function App() {
   // True once the subscription has actually been read. Until then `sub` is null for EVERYONE, so
   // anything that sells Premium (the app-bar button) waits for this rather than flashing at a subscriber.
   const [subKnown, setSubKnown] = useState(false);
+  const [trial, setTrial] = useState(null);       // premium_trials row: the free Premium week, or null
+  const [tastes, setTastes] = useState([]);       // features whose one free taste is used up
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason, feature } when the upsell sheet is open
   // Opening Premium on purpose (not because a locked feature was tapped). `source` says WHICH door,
   // so PostHog can show which placements earn their keep: paywall_view { reason: 'manual', source }.
-  const openPremium = (source) => { setPaywall({ reason: 'manual' }); try { window.MTRACK && MTRACK('paywall_view', { reason: 'manual', source: source }); } catch (_) {} };
+  // Which door the open paywall came through, so checkout_start and checkout_success can say which
+  // placements actually sell (PREMIUM_GROWTH_PLAN.md §6). Survives the Stripe round trip in sessionStorage.
+  const paywallSrc = useRef(null);
+  const openPremium = (source, reason) => { paywallSrc.current = source; setPaywall({ reason: reason || 'manual' }); try { window.MTRACK && MTRACK('paywall_view', { reason: reason || 'manual', source: source }); } catch (_) {} };
+  const [weekSheet, setWeekSheet] = useState(null);  // 'welcome' | 'status' while the Premium week sheet is open
+  const [recapOpen, setRecapOpen] = useState(false); // the "Your Premium week" recap, once, after it ends
   const [feedbackOpen, setFeedbackOpen] = useState(false); // App-level feedback sheet (opened by the buddy's Suggest nudge via window.MFEEDBACK)
   const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
+  const [inviteOpen, setInviteOpen] = useState(false); // the invite sheet, openable from anywhere (MINVITE)
   const rewardsSyncedRef = useRef(false);
   // `?demo&premium` previews the paid experience (plain `?demo` stays free, so the paywalls and
   // upsells can be checked too). Demo mode never touches the cloud, so this grants nothing real.
-  const isPremium = (DEMO && new URLSearchParams(window.location.search).has('premium'))
+  // `?demo&week` previews someone on day 3 of their Premium week, `?demo&weekend` the day it ended
+  // (recap + offer) and `?demo&winback` the win-back offer, so every state is reviewable.
+  const demoTrial = DEMO ? (() => {
+    const q = new URLSearchParams(window.location.search), n = Date.now(), d = 864e5;
+    if (q.has('week')) return { started_at: new Date(n - 2.2 * d).toISOString(), ends_at: new Date(n + 4.8 * d).toISOString() };
+    if (q.has('weekend')) return { started_at: new Date(n - 7.1 * d).toISOString(), ends_at: new Date(n - 0.1 * d).toISOString() };
+    if (q.has('winback')) return { started_at: new Date(n - 40 * d).toISOString(), ends_at: new Date(n - 33 * d).toISOString(), winback_at: new Date(n - 0.05 * d).toISOString() };
+    return null;
+  })() : null;
+  const week = premiumWeekState(DEMO ? demoTrial : trial);
+  const paidPremium = (DEMO && new URLSearchParams(window.location.search).has('premium'))
     || (!!sub && (sub.status === 'active' || sub.status === 'trialing'));
+  const isPremium = paidPremium || week.inWeek;
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
     // A reward never replaces a live Undo. The daily Amber toast fired straight after "Added ... Undo" and
     // took the Undo away with it; it now waits for that toast to run its course.
@@ -22796,6 +23073,10 @@ function App() {
       return Promise.all([
         supa.from('subscriptions').select('status, plan, trial_end, current_period_end, cancel_at_period_end').eq('user_id', uid).maybeSingle(),
         supa.from('ai_usage').select('calls').eq('user_id', uid).eq('period', period).maybeSingle(),
+        // The Premium week and the used tastes. Their errors are NOT retried and never block the
+        // subscription read: an app shipped before its migration must still work, just without them.
+        supa.from('premium_trials').select('started_at, ends_at, winback_at').eq('user_id', uid).maybeSingle(),
+        supa.from('premium_tastes').select('feature').eq('user_id', uid),
       ]).then(function (res) {
         if (cancelled) return;
         // maybeSingle() reports a genuine failure (401 on an expired token, network, RLS) in .error,
@@ -22803,6 +23084,8 @@ function App() {
         if ((res[0] && res[0].error) || (res[1] && res[1].error)) { retry(); return; }
         tries = 0;
         setSub(res[0].data || null); setSubKnown(true);
+        if (!res[2].error) setTrial(res[2].data || null);
+        if (!res[3].error) setTastes((res[3].data || []).map(r => r.feature));
         setAiCalls(Number((res[1].data && res[1].data.calls) || 0));
       }, function () { if (!cancelled) retry(); });
     }
@@ -22819,8 +23102,10 @@ function App() {
   }, [session]);
   // Let aiRequest (a top-level helper) open the paywall when the proxy reports a limit/premium error.
   useEffect(() => {
-    window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; const feature = (err && err.feature) || null; setPaywall({ reason: reason, feature: feature }); window.MTRACK && MTRACK('paywall_view', { reason: reason, feature: feature }); };
-    window.MFEEDBACK = function () { setFeedbackOpen(true); };  // the buddy's "suggest a feature" nudge opens feedback from anywhere
+    window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; const feature = (err && err.feature) || null; paywallSrc.current = (err && err.source) || feature || reason; setPaywall({ reason: reason, feature: feature }); window.MTRACK && MTRACK('paywall_view', { reason: reason, feature: feature, source: paywallSrc.current }); };
+    window.MFEEDBACK = function () { setFeedbackOpen(true); };
+    // Invite a friend from anywhere: the AI meter at zero offers it as the free way to more logs.
+    window.MINVITE = function (source) { setInviteOpen(true); try { window.MTRACK && MTRACK('invite_open', { source: source || 'other' }); } catch (_) {} };  // the buddy's "suggest a feature" nudge opens feedback from anywhere
     // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
     window.MGHCONNECT = function () { setGhConsentOpen(true); try { window.MTRACK && MTRACK('gh_disclosure_view'); } catch (_) {} };
     return function () { try { delete window.MPAYWALL; delete window.MGHCONNECT; } catch (_) {} };
@@ -22856,6 +23141,11 @@ function App() {
   // so nothing re-renders to correct them, and the locked variant sticks until something else
   // happens to re-render that subtree.
   window.MISPREMIUM = isPremium;
+  window.MPAIDPREMIUM = paidPremium;   // a real subscription (not the free week): the Patron crest
+  window.MPREMWEEK = week;           // the paywall reads the offer price and countdown from here
+  window.MTASTES = tastes;           // features whose free taste is used (see tasteLeft)
+  window.MTASTEUSED = (f) => setTastes(t => (t.indexOf(f) >= 0 ? t : t.concat([f])));
+  window.MBONUSAI = (rewards && rewards.bonus_ai_remaining) || 0;
   // Stamp the day Premium started, so quality scoring only ever reaches back to the day someone
   // actually subscribed and never spends AI calls filling in food they logged as a free user.
   // Cleared when Premium lapses, so a later resubscription starts its own clock rather than
@@ -22866,6 +23156,58 @@ function App() {
     if (isPremium && !stamped) update(d => { d.profile = d.profile || {}; d.profile.premiumSince = Store.todayISO(); });
     else if (!isPremium && stamped) update(d => { if (d.profile) d.profile.premiumSince = null; });
   }, [isPremium, db && (db.profile || {}).premiumSince]);
+  /* THE PREMIUM WEEK, started and followed up (PREMIUM_GROWTH_PLAN.md §1, §5).
+     Start: once setup is done, anyone who has never had a week and is not paying gets one. The
+       server decides eligibility (start_premium_week), so this just asks. The welcome sheet opens
+       once, the first time a week is seen on this account (stamped in the profile, so it syncs).
+     Recap: the first time the app opens after the week ends, once.
+     Win-back: 30+ days after the week, the first open starts the second 48-hour offer. */
+  const weekAsked = useRef(false);
+  const ob = (db && db.onboarding) || {};
+  const setupDone = !!(db && ob.welcomed && !ob.needsSetup);
+  useEffect(() => {
+    if (DEMO || !supa || !session || !subKnown || paidPremium || trial || !setupDone || showWelcome || weekAsked.current) return;
+    weekAsked.current = true;
+    supa.rpc('start_premium_week').then(({ data, error }) => {
+      if (error || !data || !data.ends_at) return;
+      setTrial(data);
+      try { window.MTRACK && MTRACK('premium_week_start'); } catch (_) {}
+    }, () => {});
+  }, [subKnown, paidPremium, !!trial, setupDone, showWelcome]);
+  const weekStamp = trial && trial.started_at;
+  const pw = (db && db.profile && db.profile.premiumWeek) || {};
+  // The welcome: once per week, and not on top of setup's own welcome.
+  useEffect(() => {
+    if (!db || !week.inWeek || showWelcome || weekSheet || paywall) return;
+    const key = DEMO ? 'demo' : weekStamp;
+    if (!key || pw.welcomed === key) return;
+    update(d => { d.profile = d.profile || {}; d.profile.premiumWeek = Object.assign({}, d.profile.premiumWeek, { welcomed: key }); });
+    if (!DEMO || new URLSearchParams(window.location.search).has('week')) setWeekSheet('welcome');
+  }, [week.inWeek, weekStamp, showWelcome, !!db]);
+  // The recap: once, after the week, for someone who did not buy during it.
+  useEffect(() => {
+    if (!db || !week.has || week.inWeek || paidPremium || recapOpen || showWelcome) return;
+    const key = DEMO ? 'demo' : weekStamp;
+    if (!key || pw.recapSeen === key) return;
+    if (DEMO && !new URLSearchParams(window.location.search).has('weekend')) return;
+    setRecapOpen(true);
+    try { window.MTRACK && MTRACK('premium_week_recap_view'); } catch (_) {}
+  }, [week.has, week.inWeek, paidPremium, weekStamp, showWelcome, !!db]);
+  function markRecapSeen() {
+    const key = DEMO ? 'demo' : weekStamp;
+    if (key) update(d => { d.profile = d.profile || {}; d.profile.premiumWeek = Object.assign({}, d.profile.premiumWeek, { recapSeen: key }); });
+  }
+  // The win-back: the server only opens it once, 30+ days after the week, for someone still free.
+  const winbackAsked = useRef(false);
+  useEffect(() => {
+    if (DEMO || !supa || !session || paidPremium || !week.winbackDue || winbackAsked.current) return;
+    winbackAsked.current = true;
+    supa.rpc('start_winback').then(({ data, error }) => {
+      if (error || !data) return;
+      setTrial(data);
+      try { window.MTRACK && MTRACK('premium_winback_start'); } catch (_) {}
+    }, () => {});
+  }, [week.winbackDue, paidPremium]);
   // Celebrate climbing a Chef level (the Cook game layer). Ref-guarded so it only fires on a real rise.
   const chefLvlRef = useRef(null);
   useEffect(() => {
@@ -22882,7 +23224,11 @@ function App() {
     const s = new URLSearchParams(window.location.search).get('sub');
     if (!s) return;
     try { const u = new URL(window.location.href); u.searchParams.delete('sub'); window.history.replaceState({}, '', u.pathname + u.search + u.hash); } catch (_) {}
-    if (s === 'success') { showToast('Welcome to Premium! Your subscription is active.'); window.MTRACK && MTRACK('checkout_success'); }
+    if (s === 'success') {
+      showToast('Welcome to Premium! Your subscription is active.');
+      let ctx = {}; try { ctx = JSON.parse(sessionStorage.getItem('m_checkout_ctx') || '{}'); sessionStorage.removeItem('m_checkout_ctx'); } catch (_) {}
+      window.MTRACK && MTRACK('checkout_success', ctx);
+    }
     else if (s === 'cancel') showToast('Checkout canceled, no charge was made.');
     const refresh = function () { window.MREFRESH_SUB && window.MREFRESH_SUB(); };
     refresh(); setTimeout(refresh, 2500); setTimeout(refresh, 6000); // the webhook may land a moment after redirect
@@ -22890,7 +23236,10 @@ function App() {
   // Start a subscription Checkout, or open the Stripe billing portal. Both return a hosted URL we
   // redirect to; the secret key never touches the client.
   async function startCheckout(plan) {
-    window.MTRACK && MTRACK('checkout_start', { plan: plan });
+    const price = saleOn() ? 'sale' : (week.offerEnds ? (week.winback ? 'winback' : 'offer') : 'list');
+    const ctx = { plan: plan, source: paywallSrc.current || 'unknown', reason: paywall && paywall.reason, price: plan === 'annual' ? price : 'list', in_week: week.inWeek };
+    window.MTRACK && MTRACK('checkout_start', ctx);
+    try { sessionStorage.setItem('m_checkout_ctx', JSON.stringify(ctx)); } catch (_) {}
     try {
       const r = await supa.functions.invoke('billing', { body: { action: 'checkout', plan: plan, origin: window.location.origin } });
       const url = r && r.data && r.data.url;
@@ -23455,7 +23804,7 @@ function App() {
   const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">
-      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} onPremium={isPremium || !subKnown ? null : () => openPremium('sidebar')} />
+      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} week={week} onPremium={paidPremium || !subKnown ? null : week.inWeek ? () => setWeekSheet('status') : () => openPremium('sidebar')} />
       {/* On EVERY screen, sessions included. It used to step aside for a session, which made the
           player the one place in the app with no brand bar and no way to reach Play or You without
           first leaving what you were doing. The tab bar still hides (see BottomNav below) and that
@@ -23466,7 +23815,7 @@ function App() {
           contiguous now: the session bar pins directly under this one at `--appbar-h` with no gap,
           which is the SubHeader relationship the rest of the app already uses for going INTO
           something. */}
-      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} away={forageFor(db, Store.todayISO()).status === 'away'} onPremium={isPremium || !subKnown ? null : () => openPremium('appbar')} />
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} away={forageFor(db, Store.todayISO()).status === 'away'} week={week} onPremium={paidPremium || !subKnown ? null : week.inWeek ? () => { setWeekSheet('status'); try { window.MTRACK && MTRACK('premium_week_view', { source: 'appbar' }); } catch (_) {} } : () => openPremium('appbar', week.offerEnds ? 'offer' : 'manual')} />
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
@@ -23476,7 +23825,7 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} premWeek={week} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} />}
       {view === 'recipes' && <Recipes onSwitch={(v) => setView(v === 'recipes' ? 'recipes' : 'foodlog')} db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}
@@ -23492,7 +23841,7 @@ function App() {
       {/* Progress is a tab (35-reset), so it is a root with no way back - except when You opened it,
           where Back returns there. */}
       {view === 'goals' && <Goals onBack={goalsFrom === 'more' ? () => setView('more') : undefined} backLabel="You" db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={(source) => openPremium(source || 'menu')} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} week={week} onUpgrade={(source) => openPremium(source || 'menu', week.inWeek ? 'week_ending' : week.offerEnds ? 'offer' : 'manual')} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
         backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
@@ -23525,8 +23874,14 @@ function App() {
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
-      {paywall && <Paywall reason={paywall.reason} feature={paywall.feature} buddy={db && db.buddy} buddyLabel={db ? buddyName(db) : null} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {weekSheet && week.has && <PremiumWeekSheet mode={weekSheet} week={week} buddy={db.buddy} buddyLabel={buddyName(db)}
+        onClose={() => setWeekSheet(null)} onKeep={() => { setWeekSheet(null); openPremium('week_sheet', 'week_ending'); }} />}
+      {recapOpen && week.has && <PremiumRecapSheet week={week} db={db} buddy={db.buddy} buddyLabel={buddyName(db)}
+        onClose={() => { setRecapOpen(false); markRecapSeen(); }}
+        onKeep={() => { setRecapOpen(false); markRecapSeen(); openPremium('week_recap', 'offer'); }} />}
+      {paywall && <Paywall week={week} reason={paywall.reason} feature={paywall.feature} buddy={db && db.buddy} buddyLabel={db ? buddyName(db) : null} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
+      {inviteOpen && <InviteSheet rewards={rewards} onClose={() => setInviteOpen(false)} toast={showToast} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onLog={() => { setDexOpen(false); setAdding({ date: Store.todayISO(), mealId: meals[0].id }); }} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}

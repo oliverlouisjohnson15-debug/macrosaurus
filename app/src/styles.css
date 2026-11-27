@@ -744,6 +744,10 @@ input[type="range"] { min-height: 44px; accent-color: var(--accent); }
 .ms-bar-premium { position: relative; min-height: 44px; padding: 0 10px; margin-right: 2px; }
 .ms-bar-premium::before { content: ''; position: absolute; inset: 6px 0; box-shadow: 0 0 0 2px currentColor; pointer-events: none; }
 .ms-bar-premium:active { opacity: .8; }
+/* During the Premium week the pill is FILLED: you have it now, and the label counts the days. */
+.ms-bar-premium.is-on::before { background: currentColor; }
+.ms-bar-premium > * { position: relative; }
+.ms-bar-premium.is-on > * { color: var(--header); }
 
 /* THE DEAL BANNER on the Premium sheet: it settles in with one stepped bump, and a pixel coin spins
    twice beside it. Stepped (steps()), like every other motion in the game; nothing loops forever,
