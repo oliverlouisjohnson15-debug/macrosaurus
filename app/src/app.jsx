@@ -2377,6 +2377,40 @@ const PRICE_ANNUAL_LABEL = '£39.99';
 const SALE_END = Date.parse('2026-12-02T00:00:00Z');
 const SALE_PRICE_LABEL = '£20';
 const saleOn = () => Date.now() < SALE_END;
+function saleLeft() {
+  const ms = Math.max(0, SALE_END - Date.now());
+  const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60;
+  const p = n => String(n).padStart(2, '0');
+  return d > 0 ? d + 'd ' + p(h) + 'h ' + p(m) + 'm' : p(h) + 'h ' + p(m) + 'm';
+}
+// Re-renders every 30s so the countdown moves and the sale vanishes on time without a reload.
+function useSaleClock() {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!saleOn()) return; const id = setInterval(() => tick(t => t + 1), 30000); return () => clearInterval(id); }, []);
+  return saleOn();
+}
+// Today-screen card for free users during the sale. Dismissal is remembered per device.
+function SaleCard() {
+  const on = useSaleClock();
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('m_sale_bf26') === '1'; } catch (_) { return false; } });
+  if (!on || hidden) return null;
+  const hide = (e) => { e.stopPropagation(); setHidden(true); try { localStorage.setItem('m_sale_bf26', '1'); } catch (_) {} };
+  const open = () => { window.MPAYWALL && window.MPAYWALL({ type: 'sale' }); };
+  return (
+    <div role="button" tabIndex={0} onClick={open} onKeyDown={e => { if (e.key === 'Enter') open(); }}
+      className="pixel-box mb-4 flex items-stretch cursor-pointer active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+      <div className="flex-1 min-w-0 p-3.5">
+        <div className="flex items-center gap-2">
+          <span className="num text-[11px] uppercase px-1.5 py-0.5" style={{ background: 'var(--on-accent)', color: 'var(--accent)', letterSpacing: '0.08em' }}>Black Friday</span>
+          <span className="num text-[11px]" style={{ opacity: 0.8 }}>Ends in {saleLeft()}</span>
+        </div>
+        <div className="text-[16px] font-bold leading-tight mt-2">A year of Premium for £20</div>
+        <div className="text-[12.5px] mt-0.5" style={{ opacity: 0.8 }}>Half price. No code needed. Tap to see it ›</div>
+      </div>
+      <button onClick={hide} aria-label="Hide offer" className="w-11 shrink-0 flex items-start justify-center pt-3" style={{ color: 'var(--on-accent)', opacity: 0.7 }}><Icon.close width="16" /></button>
+    </div>
+  );
+}
 
 // Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
 // verifies the signed-in user and enforces the free/premium AI tiers. Returns the raw
@@ -13951,6 +13985,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
+      {!isPremium && (!DEMO || new URLSearchParams(window.location.search).has('sale')) && <SaleCard />}
       {(() => {
         // The hero's footer: the two things on the plan card that are acted on, not just read.
         const adjRow = (et.cyc !== 0 || et.carry !== 0) && (() => {
@@ -22318,7 +22353,9 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
 function Paywall({ reason, onCheckout, onClose }) {
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
-  const headline = reason === 'fibre' ? 'Fibre on every food is Premium'
+  const sale = useSaleClock();
+  const headline = (sale && (reason === 'sale' || reason === 'manual')) ? 'A year of Premium for £20'
+    : reason === 'fibre' ? 'Fibre on every food is Premium'
     : reason === 'premium_required' ? 'Body-fat scans are Premium'
     : reason === 'free_limit' ? "You've used your free AI logs"
     : 'Unlock Macrosaurus Premium';
@@ -22328,6 +22365,7 @@ function Paywall({ reason, onCheckout, onClose }) {
     ? 'Premium fills in the fibre your foods are missing, so your daily fibre is real rather than an undercount.'
     : reason === 'premium_required'
     ? 'AI body-fat estimates from a progress photo are a Premium feature.'
+    : (sale && (reason === 'sale' || reason === 'manual')) ? 'Black Friday: half price on your first year. More AI, more insight, same honest coaching.'
     : 'More AI, more insight, same honest coaching.';
   const benefits = [
     ['Fibre on every food', 'Missing fibre filled in automatically, so your daily fibre is real'],
@@ -22336,17 +22374,8 @@ function Paywall({ reason, onCheckout, onClose }) {
     ['Everything in Free', 'Barcode, database, manual entry, the adaptive engine and the whole game'],
   ];
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
-  const sale = saleOn();
-  return (
-    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="p-5 overflow-y-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] uppercase pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-2xl leading-none"><Icon.close width="16" /></button>
-          </div>
-          <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
-          <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
+  // During the sale the price leads and the benefits follow, so the offer is above the fold.
+  const benefitsPanel = (<>
           {/* The benefits are ONE framed panel divided by rules, not four floating rows. Each tick is
               a filled accent chip rather than a bare glyph, which is what gives the list its weight:
               four gold squares down the left edge read as a specification, and four loose ticks read
@@ -22362,28 +22391,62 @@ function Paywall({ reason, onCheckout, onClose }) {
               </div>
             ))}
           </div>
-          {sale && <div className="pixel-box p-3 mb-3 text-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            <div className="pf text-[12px] uppercase" style={{ letterSpacing: '0.1em' }}>Black Friday</div>
-            <div className="text-[15px] font-semibold mt-1">Your first year of Premium for {SALE_PRICE_LABEL}</div>
-            <div className="text-[12px] mt-0.5" style={{ opacity: 0.85 }}>Annual plan, applied at checkout. Ends Monday night.</div>
-          </div>}
+  </>);
+  return (
+    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        {sale && <div className="flex items-center justify-between px-5 py-2.5 shrink-0" style={{ background: 'var(--text)', color: 'var(--bg)' }}>
+          <span className="num text-[12px] uppercase whitespace-nowrap" style={{ letterSpacing: '0.1em' }}>Black Friday</span>
+          <span className="num text-[12px] whitespace-nowrap" style={{ color: 'var(--accent)' }}>Ends in {saleLeft()}</span>
+        </div>}
+        <div className="p-5 overflow-y-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] uppercase pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
+            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-2xl leading-none"><Icon.close width="16" /></button>
+          </div>
+          <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
+          <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
+          {!sale && benefitsPanel}
+          {sale ? (<>
+            {/* Sale: annual is the hero, full width, with the saving spelled out. Monthly stays one tap
+                away underneath rather than competing side by side. */}
+            <button onClick={() => setPlan('annual')} className="w-full pixel-box box-tint p-4 text-left relative transition active:scale-[.99] mb-2.5"
+              style={{ background: plan === 'annual' ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === 'annual' ? 'var(--accent)' : 'var(--border)' }}>
+              <span className="absolute num text-[12px] px-2 py-1" style={{ top: -12, right: 12, background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}>-50%</span>
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="text-[14px] font-semibold">Annual · first year</div>
+                <div className="text-[12.5px]" style={{ color: 'var(--muted)' }}>about 38p a week</div>
+              </div>
+              <div className="flex items-baseline gap-2.5 mt-1.5">
+                <span className="num text-[34px] leading-none">{SALE_PRICE_LABEL}</span>
+                <span className="num text-[16px] line-through" style={{ color: 'var(--muted)' }}>{PRICE_ANNUAL_LABEL}</span>
+              </div>
+              <div className="text-[12.5px] mt-1.5" style={{ color: 'var(--muted)' }}>Then {PRICE_ANNUAL_LABEL}/year. Applied at checkout, no code.</div>
+            </button>
+            <button onClick={() => setPlan('monthly')} className="w-full pixel-box box-tint px-4 py-3 mb-3 flex items-center justify-between transition active:scale-[.99]"
+              style={{ background: plan === 'monthly' ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === 'monthly' ? 'var(--accent)' : 'var(--border)' }}>
+              <span className="text-[14px]">Monthly</span>
+              <span className="text-[14px]"><span className="num">{PRICE_MONTHLY_LABEL}</span><span style={{ color: 'var(--muted)' }}>/month</span></span>
+            </button>
+          </>) : (
           <div className="grid grid-cols-2 gap-2.5 mb-3">
-            {[['annual', sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, sale ? 'first year' : '/year', sale ? 'Half price' : 'Save 33%', sale ? PRICE_ANNUAL_LABEL : null], ['monthly', PRICE_MONTHLY_LABEL, '/month', '', null]].map(([k, price, per, tag, was]) => (
+            {[['annual', PRICE_ANNUAL_LABEL, '/year', 'Save 33%'], ['monthly', PRICE_MONTHLY_LABEL, '/month', '']].map(([k, price, per, tag]) => (
               <button key={k} onClick={() => setPlan(k)} className="pixel-box box-tint p-3 text-left transition active:scale-[.99]"
                 style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === k ? 'var(--accent)' : 'var(--border)' }}>
-                <div className="pf text-[17px] leading-none mb-1.5">{price}{was && <span className="text-[12px] ml-1.5 line-through" style={{ color: 'var(--muted)' }}>{was}</span>}</div>
+                <div className="pf text-[17px] leading-none mb-1.5">{price}</div>
                 <div className="text-[13px]" style={{ color: 'var(--text)' }}>{per}</div>
                 {tag ? <div className="pf text-[11px] uppercase mt-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>{tag}</div>
                      : <div className="text-[12px] mt-1.5" style={{ color: 'var(--muted)' }}>Billed monthly</div>}
               </button>
             ))}
-          </div>
+          </div>)}
           <button onClick={go} disabled={busy} className="w-full pixel-btn py-3.5 pf text-[12px] uppercase disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-            {busy ? 'Starting…' : 'Start 7-day free trial'}
+            {busy ? 'Starting…' : (sale && plan === 'annual') ? 'Claim my £20 year' : 'Start 7-day free trial'}
           </button>
           <div className="text-[12.5px] text-center mt-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
-            7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year, ' + PRICE_ANNUAL_LABEL + '/year after' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+            7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
           </div>
+          {sale && <div className="mt-4">{benefitsPanel}</div>}
           {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads
               receipts the store holds. Macrosaurus sells through Stripe on the web, where the
               subscription is attached to the account, so signing in already restores it and the
