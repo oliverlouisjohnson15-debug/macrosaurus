@@ -22421,7 +22421,7 @@ function Paywall({ reason, onCheckout, onClose }) {
                 <span className="num text-[34px] leading-none">{SALE_PRICE_LABEL}</span>
                 <span className="num text-[16px] line-through" style={{ color: 'var(--muted)' }}>{PRICE_ANNUAL_LABEL}</span>
               </div>
-              <div className="text-[12.5px] mt-1.5" style={{ color: 'var(--muted)' }}>Then {PRICE_ANNUAL_LABEL}/year. Applied at checkout, no code.</div>
+              <div className="text-[12.5px] mt-1.5" style={{ color: 'var(--muted)' }}>Pay {SALE_PRICE_LABEL} today, then {PRICE_ANNUAL_LABEL}/year. No code needed.</div>
             </button>
             <button onClick={() => setPlan('monthly')} className="w-full pixel-box box-tint px-4 py-3 mb-3 flex items-center justify-between transition active:scale-[.99]"
               style={{ background: plan === 'monthly' ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === 'monthly' ? 'var(--accent)' : 'var(--border)' }}>
@@ -22441,10 +22441,11 @@ function Paywall({ reason, onCheckout, onClose }) {
             ))}
           </div>)}
           <button onClick={go} disabled={busy} className="w-full pixel-btn py-3.5 pf text-[12px] uppercase disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-            {busy ? 'Starting…' : (sale && plan === 'annual') ? 'Claim my £20 year' : 'Start 7-day free trial'}
+            {busy ? 'Starting…' : (sale && plan === 'annual') ? 'Get my year for £20' : 'Start 7-day free trial'}
           </button>
           <div className="text-[12.5px] text-center mt-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
-            7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+            {(sale && plan === 'annual') ? SALE_PRICE_LABEL + ' today for a full year of Premium. Renews at ' + PRICE_ANNUAL_LABEL + '/year, cancel anytime.'
+              : '7 days free, then ' + (plan === 'annual' ? PRICE_ANNUAL_LABEL + '/year' : PRICE_MONTHLY_LABEL + '/month') + '. Cancel anytime.'}
           </div>
           {sale && <div className="mt-4">{benefitsPanel}</div>}
           {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads

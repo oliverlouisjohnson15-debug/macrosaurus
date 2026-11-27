@@ -105,7 +105,8 @@ Deno.serve(async (req) => {
     // Sale: make sure the coupon exists (idempotent by id), then attach it. Stripe rejects
     // `discounts` together with `allow_promotion_codes`, so the sale session drops the code box.
     let discount: Record<string, unknown> = { allow_promotion_codes: true };
-    if (plan === 'annual' && Date.now() < SALE_END) {
+    const onSale = plan === 'annual' && Date.now() < SALE_END;
+    if (onSale) {
       try {
         await stripe('coupons', key, {
           id: SALE_COUPON, name: 'Black Friday: first year £20', amount_off: SALE_OFF_PENCE, currency: 'gbp',
@@ -117,6 +118,9 @@ Deno.serve(async (req) => {
       discount = { 'discounts[0][coupon]': SALE_COUPON };
     }
 
+    // The sale is a straight £20 today with no trial; the full-price path keeps the 7-day trial.
+    const trialData = { trial_period_days: TRIAL_DAYS, metadata: { user_id: userId, plan } };
+    const saleData = { metadata: { user_id: userId, plan, offer: SALE_COUPON } };
     const base = {
       mode: 'subscription',
       customer: customerId,
@@ -125,7 +129,7 @@ Deno.serve(async (req) => {
       'line_items[0][quantity]': 1,
       // The 7-day trial is applied here, not on the price, and the user id is stamped onto the
       // subscription so the webhook can attribute every future event without a lookup.
-      subscription_data: { trial_period_days: TRIAL_DAYS, metadata: { user_id: userId, plan } },
+      subscription_data: onSale ? saleData : trialData,
       success_url: origin + '/?sub=success',
       cancel_url: origin + '/?sub=cancel',
     };
@@ -136,7 +140,7 @@ Deno.serve(async (req) => {
       // Never let the sale break checkout: if the discount is refused, sell at full price.
       if (!('discounts[0][coupon]' in discount)) throw e;
       console.error('sale checkout fell back to full price', e);
-      session = await stripe('checkout/sessions', key, { ...base, allow_promotion_codes: true });
+      session = await stripe('checkout/sessions', key, { ...base, subscription_data: trialData, allow_promotion_codes: true });
     }
     return json({ url: session.url });
   } catch (e) {
