@@ -74,6 +74,9 @@ Onboarding        Sign in · Hello · Egg · About you · Active · Goal · Plan
 | Log sheet: 4 tabs + 3 "can't find it" routes + "Scan a barcode" step | Search with a **barcode button in the field**, plus chips **Quick add · Estimate · Drink** | MacroFactor toolbar (P4) |
 | Log sheet: **Menu** tab and **Scan the label** | Inputs inside **Estimate** (describe / photo / menu link) | one AI route |
 | Label scan only inside Estimate (2 taps, easy to miss) | Also a **camera button in the search field**, beside the barcode: one tap to the label camera. Still reachable from Estimate | used as often as the barcode (2026-11) |
+| Repeating a meal: go back a day, meal ⋯, Copy to today | A **Same as yesterday** row at the top of Food (same-named meal, hidden once it's all logged). One tap, Undo on the toast | Lose It! keeps past foods to re-add; MyFitnessPal copies a meal from yesterday (2026-11) |
+| Favouriting: only on the amount screen's toggle | A **star on every one of your rows**, as the drinks list already had. Visible control, not long-press: a gesture has no signifier | MacroFactor Favourites Bar (research §1.4) (2026-11) |
+| Save as meal: only from the day screen's meal ⋯ | Also **Save as meal** in the "Added" strip once 2+ things are added. Saved meals also match a search | Saving belongs where the meal was just built (2026-11) |
 | Diary: ≡ menu on each entry | Tap the row → **Edit entry** (copy, move, delete) | its actions were already in the edit sheet |
 | Diary: day-total panel with 4 bars | A "left" headline, a thin HP meter and P/C/F left | Changed by 36-after-reset/01: Food leads with *left* too (§2.7) |
 | Cook: Discover \| Cookbook switch, contributor card | Cook root, with **Discover** as a row; contributor level at its foot | |

@@ -14824,7 +14824,7 @@ function FoodLog({ db, update, openLog, showToast, onSwitch }) {
       {nameSheet && <NameSheet title="Save as meal" hint="Save this meal for one-tap logging. Name it:" initial={nameSheet.meal.name} saveLabel="Save meal" onSave={(name) => {
         const items = nameSheet.entries.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros, fiberUnknown: !!e.fiber_pending, fiberEst: !!e.fiber_est }));
         update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
-        setNameSheet(null); toast('Saved "' + name + '", find it under Meals when logging');
+        setNameSheet(null); toast('Saved "' + name + '". It\u2019s under Saved meals when you add food');
       }} onClose={() => setNameSheet(null)} />}
       {copyTo && <CopyToModal key={(copyTo.entries[0] ? copyTo.entries[0].id : '') + '|' + (copyTo.pickMeal ? 'm' : 'd') + '|' + copyTo.title} title={copyTo.title} srcDate={copyTo.srcDate} entries={copyTo.entries} loggedDates={logSet} meals={copyTo.pickMeal ? meals : null} defaultMeal={copyTo.meal} onPick={(t, mealId) => copyEntriesTo(copyTo.entries, t, mealId)} onClose={() => setCopyTo(null)} />}
       {confirm && <ConfirmDialog title={confirm.title} body={confirm.body} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={() => setConfirm(null)} />}
@@ -15262,7 +15262,7 @@ function searchGenericFoods(list, query, limit) {
    tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
    match depends on is the app's own food search. */
 function cofidCheck(list, items) { return Cofid.check(searchGenericFoods, list, items); }
-function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, onQuick, onScan, onLabel, day }) {
+function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, onQuick, onScan, onLabel, again, day }) {
   const [q, setQ] = useState('');
   const [dbTry, setDbTry] = useState(0); const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -15349,9 +15349,21 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
   // nobody measured reads "?" (Premium fills it in once logged), an estimate wears a tilde.
   const foodFibre = (f) => ({ state: entryFibreState({ fiber_pending: f.fiber_unknown, fiber_est: f.fiber_est }) });
   const kcalLine = (mac, extra, fibre) => <span className="tnum">{extra ? extra + ' · ' : ''}{Math.round(mac.kcal)} kcal · <MacroStrip m={mac} fibre={fibre} plain /></span>;
+  // The star sits on the row itself (the drinks list already works this way). Favouriting used to live
+  // only at the foot of the amount screen, so the Favourites section never showed until you found it.
+  // A visible control, not a long-press: a gesture has no signifier, so nobody discovers it.
+  const StarBtn = ({ f }) => <button onClick={(ev) => { ev.stopPropagation(); star(f); }} aria-pressed={!!f.is_favorite} aria-label={(f.is_favorite ? 'Remove ' : 'Favourite ') + f.name}
+    title={f.is_favorite ? 'Remove from favourites' : 'Add to favourites'} className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: f.is_favorite ? 'var(--fat)' : 'var(--muted)', opacity: f.is_favorite ? 1 : 0.55 }}>
+    <Icon.star width="16" height="16" fill="currentColor" /></button>;
   const MyRow = (f) => (<Row key={f.id} title={f.name} sub={kcalLine(f.macros, f.last_qty, foodFibre(f))} onClick={() => (f.corrected && f.saved_base) ? pickMine(f) : setQtyFor(f)} chevron={false}
-    trailing={<><AddBtn label={f.name} onClick={(ev) => { ev && ev.stopPropagation && ev.stopPropagation(); (f.corrected && f.saved_base) ? pickMine(f) : quickMine(f); }} /></>} />);
+    trailing={<><StarBtn f={f} /><AddBtn label={f.name} onClick={(ev) => { ev && ev.stopPropagation && ev.stopPropagation(); (f.corrected && f.saved_base) ? pickMine(f) : quickMine(f); }} /></>} />);
   const usual = mealName ? 'Usual for ' + mealName.toLowerCase() : 'Recent';
+  const SavedRow = (sm) => { const t = mealTotal(sm.items); return (
+    <Row key={sm.id} title={sm.name} sub={<span className="tnum">{sm.items.length} item{sm.items.length === 1 ? '' : 's'} · {Math.round(t.kcal)} kcal</span>} onClick={() => onLogMeal(sm.items)} chevron={false}
+      trailing={<button onClick={(ev) => { ev.stopPropagation(); setConfirmDel(sm); }} className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }} aria-label="Delete saved meal"><Icon.trash width="16" /></button>} />); };
+  // Saved meals answer a search too: typing "chicken wrap" should find the wrap you saved, not only
+  // its ingredients. They used to vanish the moment you typed.
+  const savedHits = query ? savedMeals.filter(sm => (sm.name || '').toLowerCase().includes(query)) : [];
   return (<div>
     {/* Focused on open: searching is what this sheet is for. The barcode button sits INSIDE the
         field (MacroFactor's toolbar), so a scan is one tap from the sheet opening. The label camera sits
@@ -15370,14 +15382,19 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
       {onAlcohol && <button onClick={onAlcohol} className="ms-chip"><Icon.drink width="16" style={{ color: 'var(--link)' }} />Drink</button>}
     </div>
     {!query && <>
+      {/* The same meal as yesterday, one tap (Undo on the toast, like a saved meal). Repeating a meal
+          used to mean going back a day and copying it forward from there. */}
+      {again && <Section title="Same as yesterday" className="mt-5 !mb-0">
+        <Row title={'Yesterday\u2019s ' + (mealName || 'meal').toLowerCase()} sub={<span className="tnum">{again.items.length} item{again.items.length === 1 ? '' : 's'} · {Math.round(mealTotal(again.items).kcal)} kcal · {again.items.map(i => i.name).join(', ')}</span>}
+          onClick={() => onLogMeal(again.items)} chevron={false} trailing={<AddBtn label={'yesterday\u2019s ' + (mealName || 'meal').toLowerCase()} onClick={(ev) => { ev.stopPropagation(); onLogMeal(again.items); }} />} />
+      </Section>}
       {favs.length > 0 && <Section title="Favourites" className="mt-5 !mb-0">{favs.map(MyRow)}</Section>}
       {myShown.length > 0 && <Section title={usual} className="mt-5 !mb-0">{myShown.map(MyRow)}</Section>}
-      {savedMeals.length > 0 && <Section title="Saved meals" className="mt-5 !mb-0">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (
-        <Row key={sm.id} title={sm.name} sub={<span className="tnum">{sm.items.length} item{sm.items.length === 1 ? '' : 's'} · {Math.round(t.kcal)} kcal</span>} onClick={() => onLogMeal(sm.items)} chevron={false}
-          trailing={<button onClick={(ev) => { ev.stopPropagation(); setConfirmDel(sm); }} className="w-11 h-11 -mr-2 flex items-center justify-center shrink-0" style={{ color: 'var(--muted)' }} aria-label="Delete saved meal"><Icon.trash width="16" /></button>} />); })}</Section>}
-      {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center py-8"><div className="flex justify-center mb-3" style={{ color: 'var(--muted)' }}><Icon.search width="48" /></div><p className="text-[13px]" style={{ color: 'var(--muted)' }}>Foods you log show up here for one-tap logging.</p></div>}
+      {savedMeals.length > 0 && <Section title="Saved meals" className="mt-5 !mb-0">{savedMeals.map(SavedRow)}</Section>}
+      {!again && !favs.length && !myShown.length && !savedMeals.length && <div className="text-center py-8"><div className="flex justify-center mb-3" style={{ color: 'var(--muted)' }}><Icon.search width="48" /></div><p className="text-[13px]" style={{ color: 'var(--muted)' }}>Foods you log show up here for one-tap logging.</p></div>}
     </>}
     {query && <>
+      {savedHits.length > 0 && <Section title="Saved meals" className="mt-5 !mb-0">{savedHits.map(SavedRow)}</Section>}
       {myShown.length > 0 && <Section title="Your foods" className="mt-5 !mb-0">{myShown.map(MyRow)}</Section>}
       {/* Generic foods sit ABOVE the branded database: if you cooked it yourself, the plain entry is
           the answer you want. */}
@@ -15477,6 +15494,18 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const day = dayContextFor(db, target.date);
   const meal = meals.find(m => m.id === mealId) || {};
   const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
+  // Yesterday's same-named meal, offered as one row at the top of Food. Hidden once everything in it is
+  // already in this meal, so it never invites a double log.
+  const again = useMemo(() => {
+    const prev = shiftISO(target.date, -1);
+    const nm = (meal.name || '').trim().toLowerCase(); if (!nm) return null;
+    const pm = mealsForDay(db, prev).find(x => (x.name || '').trim().toLowerCase() === nm); if (!pm) return null;
+    const es = entriesOn(db, prev).filter(e => e.meal_id === pm.id); if (!es.length) return null;
+    const have = new Set(planned.map(e => (e.name || '').trim().toLowerCase()));
+    if (es.every(e => have.has((e.name || '').trim().toLowerCase()))) return null;
+    return { items: es.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros || {}, nq: e.nq || null, fiberUnknown: !!e.fiber_pending, fiberEst: !!e.fiber_est })) };
+  }, [db.log_entries, db.day_meals, db.meal_templates, target.date, meal.name, planned]);
+  const [saveName, setSaveName] = useState(false); const [savedAs, setSavedAs] = useState('');
   // A + keeps the sheet open; everything else closes it as it always did.
   // What the last + added, shown for a moment under each column of the day panel, so the effect of a
   // one-tap add on today is visible without opening anything.
@@ -15484,7 +15513,8 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(null), 1800); return () => clearTimeout(t); }, [flash]);
   const addKeep = (item) => {
     onAdd(mealId, Object.assign({}, item, { keepOpen: true }));
-    setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0), macros: item.macros || {} }]));
+    setAdded(a => a.concat([{ name: item.name, kcal: Math.round((item.macros && item.macros.kcal) || 0), macros: item.macros || {}, item }]));
+    setSavedAs('');
     setFlash({ m: item.macros || {}, n: Date.now() });
   };
   const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat), fiber: Math.round(day.target.fiber - day.rest.fiber) } : null;
@@ -15524,7 +15554,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
       <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {back}{aiNote}
         {mode === 'food' && <FoodTab db={db} update={update} mealName={meal.name} onPick={i => onAdd(mealId, i)} onPickMore={addKeep} onLogMeal={items => onAddMeal(mealId, items)}
-          onAskAI={() => setMode('describe')} onAlcohol={() => setMode('drink')} onQuick={() => setMode('quick')} onScan={() => setMode('scan')} onLabel={() => setMode('label')} day={day} />}
+          onAskAI={() => setMode('describe')} onAlcohol={() => setMode('drink')} onQuick={() => setMode('quick')} onScan={() => setMode('scan')} onLabel={() => setMode('label')} again={again} day={day} />}
         {mode === 'quick' && <QuickAddTab onPick={i => onAdd(mealId, i)} day={day} mealName={meal.name} />}
         {mode === 'describe' && <>
           <div className="mb-3"><Seg value={aiTab} onChange={setAiTab} options={[{ v: 'describe', l: 'Describe' }, { v: 'label', l: 'Label photo' }, { v: 'menu', l: 'Menu' }]} /></div>
@@ -15543,12 +15573,22 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
       </div>
       {added.length > 0 && <div className="flex-none flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--hairline)', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] truncate" style={{ fontWeight: 600 }}>Added {added.length} to {(meal.name || 'this meal').toLowerCase()} · <span className="num">{added.reduce((n, x) => n + x.kcal, 0)}</span> kcal</div>
+          <div className="text-[15px] truncate" style={{ fontWeight: 600 }}>Added {added.length}{added.length > 1 ? '' : ' to ' + (meal.name || 'this meal').toLowerCase()} · <span className="num">{added.reduce((n, x) => n + x.kcal, 0)}</span> kcal</div>
           <div className="text-[13px] truncate"><MacroStrip m={addedTotal} /></div>
           <div className="text-[12px] truncate" style={{ color: 'var(--muted)' }}>{added.map(x => x.name).join(', ')}</div>
         </div>
+        {/* Saving a meal used to be possible only from the day screen's meal menu, after the fact. Right
+            after logging two or more things together is when "I'll have this again" is on your mind. */}
+        {added.length > 1 && (savedAs
+          ? <span className="text-[13px] shrink-0" style={{ color: 'var(--muted)', fontWeight: 600 }}>Saved</span>
+          : <button onClick={() => setSaveName(true)} className="text-[13px] shrink-0 px-1" style={{ color: 'var(--link)', fontWeight: 600, minHeight: 44 }}>Save as meal</button>)}
         <Btn onClick={onClose}>Done</Btn>
       </div>}
+      {saveName && <NameSheet title="Save as meal" hint="Log all of these in one tap next time. Name it:" initial={meal.name || ''} saveLabel="Save meal" onSave={(name) => {
+        const items = added.map(x => x.item).filter(Boolean).map(it => ({ name: it.name, source: it.source, is_alcohol: !!it.is_alcohol, alcohol_split: it.alcohol_split, qtyLabel: it.qtyLabel || '', macros: it.macros || {}, nq: it.nq || null, fiberUnknown: !!it.fiberUnknown, fiberEst: !!it.fiberEst }));
+        update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
+        setSavedAs(name); setSaveName(false);
+      }} onClose={() => setSaveName(false)} />}
     </Sheet>
   );
 }

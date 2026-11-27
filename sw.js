@@ -13,7 +13,7 @@
      network; offline reads/writes are handled by the app's own IndexedDB store.
    VERSION is written by build.mjs. Do not edit it by hand: a stale VERSION would pin users to a
    cached shell, which is exactly what the content hash exists to make impossible. */
-const VERSION = 'd3d17a74914f';
+const VERSION = '47bb1e2a5d68';
 const CORE = 'macrosaurus-core-v' + VERSION;
 // The runtime cache holds sprites, fonts, icons, foods-uk.json and the Supabase CDN bundle: assets
 // at stable URLs whose contents do not change from one deploy to the next. It deliberately does NOT
