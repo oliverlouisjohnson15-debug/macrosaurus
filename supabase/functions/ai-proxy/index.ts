@@ -8,6 +8,11 @@ const FALLBACK_PREMIUM_CAP_USD = 3.00;                // premium fair-use ceilin
 const MAX_TOKENS_CEILING = 4096;                      // bound worst-case cost per call
 const MAX_TOOLS = 16;                                 // the buddy's tool belt, with room to grow
 const MAX_TOOLS_BYTES = 20000;                        // bound the definitions a client can send
+// ONE FREE TASTE of each of these, per person, ever (PREMIUM_GROWTH_PLAN.md §2). The first block
+// review, week plan and coverage read are the real thing for a free account, so the feature sells
+// itself; after that the usual gate applies. Claimed in premium_tastes before the call, released
+// again if the call fails, and never charged to the free monthly allowance.
+const TASTE_FEATURES = ['block_review', 'weekplan', 'coverage_advice'];
 
 // Price per token (USD). Update if Anthropic pricing changes.
 const PRICES: Record<string, { in: number; out: number }> = {
@@ -189,19 +194,23 @@ Deno.serve(async (req) => {
   // usedBonus: set when a free user spends one of their one-time referral bonus calls (drawn only
   // AFTER the monthly free allowance is exhausted), so we can decrement the pool after a good call.
   let usedBonus = false;
+  let tasteClaimed = false;
   if (!isOwner) {
-    const [{ data: usage }, { data: limit }, { data: cfg }, { data: sub }, { data: rewards }] = await Promise.all([
+    const [{ data: usage }, { data: limit }, { data: cfg }, { data: sub }, { data: rewards }, { data: trial }] = await Promise.all([
       admin.from('ai_usage').select('spend_usd, calls').eq('user_id', userId).eq('period', period).maybeSingle(),
       admin.from('user_limits').select('monthly_cap_usd').eq('user_id', userId).maybeSingle(),
       admin.from('app_config').select('default_cap_usd, free_ai_monthly, premium_cap_usd, enforce_tiers').eq('id', 1).maybeSingle(),
       admin.from('subscriptions').select('status').eq('user_id', userId).maybeSingle(),
       admin.from('user_rewards').select('bonus_ai_remaining').eq('user_id', userId).maybeSingle(),
+      admin.from('premium_trials').select('ends_at').eq('user_id', userId).maybeSingle(),
     ]);
     const bonusPool = Number(rewards?.bonus_ai_remaining ?? 0);
     const spent = Number(usage?.spend_usd ?? 0);
     const calls = Number(usage?.calls ?? 0);
     const override = limit ? Number(limit.monthly_cap_usd) : null;
-    const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
+    // The free Premium week (premium_trials) counts exactly like a subscription while it lasts.
+    const inPremiumWeek = !!trial?.ends_at && Date.parse(trial.ends_at) > Date.now();
+    const isPremium = inPremiumWeek || (!!sub && (sub.status === 'active' || sub.status === 'trialing'));
 
     if (cfg?.enforce_tiers) {
       if (isPremium) {
@@ -213,6 +222,15 @@ Deno.serve(async (req) => {
           } }, 429);
         }
       } else {
+        // A first free taste skips every gate below, the monthly count included.
+        if (TASTE_FEATURES.includes(feature) && hop === 0) {
+          const { data: claimed } = await admin.from('premium_tastes')
+            .upsert({ user_id: userId, feature }, { onConflict: 'user_id,feature', ignoreDuplicates: true })
+            .select('feature');
+          tasteClaimed = Array.isArray(claimed) && claimed.length > 0;
+        }
+      }
+      if (!isPremium && !tasteClaimed) {
         if (feature === 'bodyfat') {
           return json({ error: {
             type: 'premium_required', feature: 'bodyfat',
@@ -309,6 +327,9 @@ Deno.serve(async (req) => {
   const wantsStream = payload?.stream === true;
   if (wantsStream) anthBody.stream = true;
 
+  const releaseTaste = async () => {
+    try { await admin.from('premium_tastes').delete().eq('user_id', userId).eq('feature', feature); } catch (_) { /* non-fatal */ }
+  };
   // Forward to Anthropic with the SERVER key.
   let aRes: Response;
   try {
@@ -318,6 +339,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify(anthBody),
     });
   } catch (e) {
+    if (tasteClaimed) await releaseTaste();
     return json({ error: { message: 'Upstream AI request failed: ' + (e as Error).message } }, 502);
   }
 
@@ -333,8 +355,9 @@ Deno.serve(async (req) => {
     const settle = async () => {
       const price = PRICES[model];
       const c = inTok * price.in + outTok * price.out;
+      if (tasteClaimed && !acc) await releaseTaste();
       try {
-        if (hop === 0) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: c });
+        if (hop === 0 && !tasteClaimed) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: c });
         else await admin.rpc('add_ai_spend', { p_user: userId, p_period: period, p_cost: c });
         if (c > 0) await admin.rpc('add_ai_usage_model', { p_user: userId, p_period: period, p_model: model, p_cost: c });
         if (usedBonus) await admin.rpc('consume_referral_bonus', { p_user: userId });
@@ -380,6 +403,8 @@ Deno.serve(async (req) => {
   }
 
   const data = await aRes.json();
+  // A taste that did not produce an answer is handed back, so a failed call does not use it up.
+  if (tasteClaimed && !aRes.ok) await releaseTaste();
 
   // Record real cost + call count from token usage for EVERYONE, owner included.
   let cost = 0;
@@ -394,7 +419,8 @@ Deno.serve(async (req) => {
     // (hop 0) and later hops record spend only, which keeps the Premium fair-use ceiling honest
     // without lying to a free user about what they have left.
     try {
-      if (hop === 0) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: cost });
+      // A free taste records its spend but does not use up one of the free monthly logs.
+      if (hop === 0 && !tasteClaimed) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: cost });
       else await admin.rpc('add_ai_spend', { p_user: userId, p_period: period, p_cost: cost });
     } catch (_) { /* non-fatal */ }
     if (cost > 0) {

@@ -848,6 +848,15 @@
     { id: 'flourish_stomp', name: 'Stomp', kind: 'flourish', price: 160, desc: 'Lands hard, and a ring of dust rolls out.' },
     { id: 'flourish_confetti', name: 'Confetti Burst', kind: 'flourish', price: 180, desc: 'Pixel confetti, the same as a milestone.' },
     { id: 'flourish_meteor', name: 'Meteor', kind: 'flourish', price: 300, gate: 'prestige1', desc: 'A streak crosses the sky behind it.' },
+    // PATRON AURAS (PREMIUM_GROWTH_PLAN.md §4): one new one each month for Premium supporters, free
+    // to claim. Cosmetic only: nothing here makes the free game worse or a fight easier. A released
+    // one stays claimable for good, so joining late never means missing out on what came before.
+    { id: 'aura_patron', name: 'Patron Glow', kind: 'aura', price: 0, gate: 'premium', month: '2026-12', desc: 'A warm gold light. Thank you for backing Macrosaurus.' },
+    { id: 'aura_rose', name: 'Rose Quartz', kind: 'aura', price: 0, gate: 'premium', month: '2027-01', desc: 'A soft pink shimmer, like light through crystal.' },
+    { id: 'aura_tide', name: 'Tide Pool', kind: 'aura', price: 0, gate: 'premium', month: '2027-02', desc: 'Cool sea-green ripples around your buddy.' },
+    { id: 'aura_solar', name: 'Solar Flare', kind: 'aura', price: 0, gate: 'premium', month: '2027-03', desc: 'Bright orange sun-fire, for the long spring days.' },
+    { id: 'aura_violet', name: 'Violet Hour', kind: 'aura', price: 0, gate: 'premium', month: '2027-04', desc: 'The purple of the sky just after sunset.' },
+    { id: 'aura_glacier', name: 'Glacier', kind: 'aura', price: 0, gate: 'premium', month: '2027-05', desc: 'Pale ice-white, crisp and still.' },
   ];
   // The two slots that always have something in them, so a fight is never unpainted.
   var COSMETIC_DEFAULT = { arena: 'arena_pit', flourish: 'flourish_roar' };
@@ -865,9 +874,17 @@
     if (gate === 'prestige2') return (s.prestige || 0) >= 2;
     if (gate === 'belt') return !!s.belt;
     if (gate === 'founder') return !!s.founder;
+    if (gate === 'premium') return !!s.premium;
     return true;
   }
-  var GATE_LABEL = { prestige1: 'Prestige 1', prestige2: 'Prestige 2', belt: 'Champion Belt', founder: 'Founding member' };
+  var GATE_LABEL = { prestige1: 'Prestige 1', prestige2: 'Prestige 2', belt: 'Champion Belt', founder: 'Founding member', premium: 'Premium' };
+  // The Patron auras released by `monthKey` ('YYYY-MM'), newest first, and the next one to come.
+  function patronItems(monthKey) {
+    var all = COSMETICS.filter(function (c) { return c.gate === 'premium' && c.month; });
+    var out = all.filter(function (c) { return c.month <= monthKey; }).sort(function (a, b) { return a.month < b.month ? 1 : -1; });
+    var next = all.filter(function (c) { return c.month > monthKey; }).sort(function (a, b) { return a.month < b.month ? -1 : 1; })[0] || null;
+    return { released: out, next: next };
+  }
 
   /* ---- HABITAT UPGRADES: the sink that does not run out ----
      Not a slot. Each is bought once and changes the terrarium for good, so nothing here is ever
@@ -1379,6 +1396,7 @@
     COSMETIC_BY_ID: COSMETIC_BY_ID,
     gateMet: gateMet,
     GATE_LABEL: GATE_LABEL,
+    patronItems: patronItems,
     HABITAT: HABITAT,
     HABITAT_BY_ID: HABITAT_BY_ID,
     hasHabitat: hasHabitat,

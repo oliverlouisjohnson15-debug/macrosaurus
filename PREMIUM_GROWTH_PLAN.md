@@ -1,6 +1,12 @@
 # PREMIUM_GROWTH_PLAN.md · Selling Premium after Black Friday
 
-Status: proposal, 2026-11-27. Nothing here is built yet. #178 shipped the doors (app-bar button,
+Status: built 2026-11-27, except the lifecycle emails (see §5). Code map:
+`supabase/migrations/20261127200000_premium_week_and_tastes.sql` (premium_trials, premium_tastes,
+start_premium_week / start_winback / use_premium_taste), `ai-proxy` (week counts as Premium, one free
+taste of block_review / weekplan / coverage_advice), `billing` (FIRSTYEAR2999 in the 48-hour windows),
+and in `app/src/app.jsx`: premiumWeekState / premiumWeekRecap, PremiumWeekSheet, PremiumRecapSheet,
+PremiumFrame, AiAllowance, tasteLeft, the Patron shelf in ShopView and the crest on Dialogue.
+Tests: `tests/premium-week.test.js`. Demo: `?demo&week`, `?demo&weekend`, `?demo&winback`. #178 shipped the doors (app-bar button,
 You hero, redesigned sheet); this plan is about giving people a reason to walk through them, every
 week of the year, not only during a sale.
 
@@ -92,9 +98,11 @@ except the "Patron Saur" trophy.
 - **Trial-end offer:** for 48 hours after the reverse trial ends, the first year of annual is
   £29.99 instead of £39.99. It is personal and timed, and the countdown is real, so it is not a
   fake-urgency banner. Reuses the Black Friday coupon code path in `billing` with a second coupon.
-- **Win-back:** 30 days after a trial ends or a subscription is cancelled, one email and one Today
-  card with the same offer. Lifecycle emails already exist (`lifecycle_emails`). Add `trial_ending`,
-  `trial_offer` and `winback` kinds, and fix Hotmail deliverability first.
+- **Win-back:** the first time someone comes back 30+ days after their week, the same 48-hour offer
+  opens again, shown in the app (app-bar pill and a Today row).
+- **No offer emails, on purpose.** The lifecycle emails promise "service messages, not marketing: no
+  offers, no upsell" and "I'll only ever send two of these". Emailing offers would break that promise
+  and needs marketing consent under UK PECR. If that changes, it is a separate, opt-in decision.
 - No permanent sale. A sale that never ends teaches people to wait.
 
 ### 6. Measure every door
