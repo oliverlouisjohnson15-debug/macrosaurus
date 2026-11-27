@@ -2377,6 +2377,40 @@ const PRICE_ANNUAL_LABEL = '£39.99';
 const SALE_END = Date.parse('2026-12-02T00:00:00Z');
 const SALE_PRICE_LABEL = '£20';
 const saleOn = () => Date.now() < SALE_END;
+function saleLeft() {
+  const ms = Math.max(0, SALE_END - Date.now());
+  const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60;
+  const p = n => String(n).padStart(2, '0');
+  return d > 0 ? d + 'd ' + p(h) + 'h ' + p(m) + 'm' : p(h) + 'h ' + p(m) + 'm';
+}
+// Re-renders every 30s so the countdown moves and the sale vanishes on time without a reload.
+function useSaleClock() {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!saleOn()) return; const id = setInterval(() => tick(t => t + 1), 30000); return () => clearInterval(id); }, []);
+  return saleOn();
+}
+// Today-screen card for free users during the sale. Dismissal is remembered per device.
+function SaleCard() {
+  const on = useSaleClock();
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('m_sale_bf26') === '1'; } catch (_) { return false; } });
+  if (!on || hidden) return null;
+  const hide = (e) => { e.stopPropagation(); setHidden(true); try { localStorage.setItem('m_sale_bf26', '1'); } catch (_) {} };
+  const open = () => { window.MPAYWALL && window.MPAYWALL({ type: 'sale' }); };
+  return (
+    <div role="button" tabIndex={0} onClick={open} onKeyDown={e => { if (e.key === 'Enter') open(); }}
+      className="pixel-box mb-4 flex items-stretch cursor-pointer active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+      <div className="flex-1 min-w-0 p-3.5">
+        <div className="flex items-center gap-2">
+          <span className="num text-[11px] uppercase px-1.5 py-0.5" style={{ background: 'var(--on-accent)', color: 'var(--accent)', letterSpacing: '0.08em' }}>Black Friday</span>
+          <span className="num text-[11px]" style={{ opacity: 0.8 }}>Ends in {saleLeft()}</span>
+        </div>
+        <div className="text-[16px] font-bold leading-tight mt-2">A year of Premium for £20</div>
+        <div className="text-[12.5px] mt-0.5" style={{ opacity: 0.8 }}>Half price. No code needed. Tap to see it ›</div>
+      </div>
+      <button onClick={hide} aria-label="Hide offer" className="w-11 shrink-0 flex items-start justify-center pt-3" style={{ color: 'var(--on-accent)', opacity: 0.7 }}><Icon.close width="16" /></button>
+    </div>
+  );
+}
 
 // Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
 // verifies the signed-in user and enforces the free/premium AI tiers. Returns the raw
@@ -14043,6 +14077,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
+      {!isPremium && (!DEMO || new URLSearchParams(window.location.search).has('sale')) && <SaleCard />}
       {(() => {
         // The hero's footer: the two things on the plan card that are acted on, not just read.
         const adjRow = (et.cyc !== 0 || et.carry !== 0) && (() => {
@@ -14110,11 +14145,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               { when: !msgControls && !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
                 render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge compact db={db} update={update} reason="free_limit" trackKey="dash_ai_low"
                   headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"} />; } },
-              // The sale, while it runs. Its own dismiss key, so someone who waved off the everyday nudge
-              // still hears about the deal once; dismissing it lasts the rest of the sale (a week).
-              { when: !msgControls && !isPremium && !eggIncubating && saleOn() && !nudgeDismissed(db, 'bf_2026'),
-                render: () => <PremiumNudge compact db={db} update={update} reason="manual" trackKey="bf_2026"
-                  headline={'Black Friday: a year of Premium for ' + SALE_PRICE_LABEL} sub={'Usually ' + PRICE_ANNUAL_LABEL + ' · ends Monday night'} action="See deal" /> },
               // Hidden while the egg incubates, so the first week stays about hatching.
               { when: !msgControls && !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
                 render: () => <PremiumNudge compact db={db} update={update} reason="manual" trackKey="today_top" headline="Log a meal in one snap" /> },
@@ -19279,7 +19309,7 @@ function FeedbackSheet({ email, onClose }) {
    levels down in Account. It is this screen's one Hero and its one gold button (DESIGN.md). Three
    perks, not six: enough to say what it is; the paywall behind the button has the full list. */
 function PremiumHero({ onUpgrade, freeLeft }) {
-  const sale = saleOn();
+  const sale = useSaleClock();
   return (
     <Hero className="mb-6 p-4">
       <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--link)' }}><Icon.star width="24" height="24" />
@@ -19287,7 +19317,7 @@ function PremiumHero({ onUpgrade, freeLeft }) {
       <div className="text-[13px] mb-3" style={{ color: 'var(--muted)' }}>{freeLeft + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month'}</div>
       {sale && <div className="mb-3 px-3 py-2" style={{ background: 'var(--sunk)' }}>
         <div className="text-[15px] font-semibold">Black Friday: your first year for {SALE_PRICE_LABEL}</div>
-        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Usually {PRICE_ANNUAL_LABEL}. Ends Monday night.</div>
+        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Usually {PRICE_ANNUAL_LABEL}. Ends in <span className="num">{saleLeft()}</span></div>
       </div>}
       <ul className="mb-4 space-y-2">
         {PREMIUM_PERKS.slice(0, 3).map(p => (
@@ -19297,7 +19327,7 @@ function PremiumHero({ onUpgrade, freeLeft }) {
           </li>))}
       </ul>
       <Btn kind="accent" className="w-full" onClick={onUpgrade}>{sale ? 'Get the ' + SALE_PRICE_LABEL + ' deal' : 'Try 7 days free'}</Btn>
-      <div className="text-[12px] text-center mt-2" style={{ color: 'var(--muted)' }}>{sale ? '7 days free first' : 'Then ' + PRICE_ANNUAL_LABEL + ' a year or ' + PRICE_MONTHLY_LABEL + ' a month'}. Cancel anytime.</div>
+      <div className="text-[12px] text-center mt-2" style={{ color: 'var(--muted)' }}>{sale ? 'Pay ' + SALE_PRICE_LABEL + ' today for the year' : '7 days free, then ' + PRICE_ANNUAL_LABEL + ' a year or ' + PRICE_MONTHLY_LABEL + ' a month'}. Cancel anytime.</div>
     </Hero>
   );
 }
@@ -22500,7 +22530,7 @@ function paywallCopy(reason, feature) {
    point at it, so the row for whatever you just tapped is the one with the ▶ cursor. Free's column
    says what you have now in words where a tick would lie ("10 a month" is not "no"). */
 const PREMIUM_COMPARE = [
-  { t: 'AI logging: snap, scan or describe', free: FREE_AI_MONTHLY + ' a month', prem: 'Unlimited', keys: ['free_limit', 'manual', 'ai'] },
+  { t: 'AI logging: snap, scan or describe', free: FREE_AI_MONTHLY + ' a month', prem: 'Unlimited', keys: ['free_limit', 'manual', 'ai', 'sale'] },
   { t: 'Training coach and block reviews', free: null, prem: true, keys: ['blockreview', 'coverage', 'training', 'block_review', 'coverage_advice', 'block_tweak', 'workout_import'] },
   { t: 'Plan your week in a sentence', free: null, prem: true, keys: ['weekplan'] },
   { t: 'Community recipes and fridge match', free: 'Your own', prem: 'All of them', keys: ['discover', 'fridge'] },
@@ -22524,12 +22554,17 @@ function Paywall({ reason, feature, buddy, buddyLabel, onCheckout, onClose }) {
   useBackClose(onClose);
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
-  const [headline, blurb] = paywallCopy(reason, feature);
+  const sale = useSaleClock();   // ticks, so the countdown moves and the deal vanishes on time
+  // Opened on purpose during the sale, it leads with the deal; opened by a locked feature, with that.
+  const [headline, blurb] = sale && (reason === 'sale' || reason === 'manual')
+    ? ['A year of Premium for ' + SALE_PRICE_LABEL, 'Half price on your first year, and everything in the table below. No code needed.']
+    : paywallCopy(reason, feature);
   const k = feature || reason;
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
-  const sale = saleOn();
+  // A sale annual checkout charges today with no trial (billing function, #177); everything else trials.
+  const payNow = sale && plan === 'annual';
   const plans = [
-    { k: 'annual', price: sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, per: sale ? 'your first year' : 'a year', was: sale ? PRICE_ANNUAL_LABEL : null, tag: sale ? 'Half price' : 'Best value · save 33%' },
+    { k: 'annual', price: sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, per: sale ? 'for the year' : 'a year', was: sale ? PRICE_ANNUAL_LABEL : null, tag: sale ? 'Half price · about 38p a week' : 'Best value · save 33%' },
     { k: 'monthly', price: PRICE_MONTHLY_LABEL, per: 'a month', was: null, tag: 'Billed monthly' },
   ];
   const hatched = !(buddy && buddy.hatched === false);
@@ -22549,8 +22584,8 @@ function Paywall({ reason, feature, buddy, buddyLabel, onCheckout, onClose }) {
           {sale && <div className="ms-deal mb-4 flex items-center gap-3 px-3 py-2.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: '0 0 0 2px var(--border)' }}>
             <span className="ms-coin shrink-0" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>Black Friday: first year for {SALE_PRICE_LABEL}</div>
-              <div className="text-[12px] mt-0.5">Usually {PRICE_ANNUAL_LABEL}. Ends Monday night.</div>
+              <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>Black Friday ends in <span className="num">{saleLeft()}</span></div>
+              <div className="text-[12px] mt-0.5">First year {SALE_PRICE_LABEL}, usually {PRICE_ANNUAL_LABEL}</div>
             </div>
           </div>}
           <table className="w-full mb-2" style={{ borderCollapse: 'collapse' }}>
@@ -22597,9 +22632,10 @@ function Paywall({ reason, feature, buddy, buddyLabel, onCheckout, onClose }) {
               );
             })}
           </div>
-          <Btn kind="accent" className="w-full" onClick={go} disabled={busy}>{busy ? 'Starting…' : 'Start my 7 days free'}</Btn>
+          <Btn kind="accent" className="w-full" onClick={go} disabled={busy}>{busy ? 'Starting…' : payNow ? 'Get my year for ' + SALE_PRICE_LABEL : 'Start my 7 days free'}</Btn>
           <div className="text-[12px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            Free for 7 days, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for the first year, ' + PRICE_ANNUAL_LABEL + ' a year after' : PRICE_ANNUAL_LABEL + ' a year') : PRICE_MONTHLY_LABEL + ' a month'}. Cancel anytime.
+            {payNow ? 'Pay ' + SALE_PRICE_LABEL + ' today for a full year of Premium. Renews at ' + PRICE_ANNUAL_LABEL + ' a year, cancel anytime.'
+              : 'Free for 7 days, then ' + (plan === 'annual' ? PRICE_ANNUAL_LABEL + ' a year' : PRICE_MONTHLY_LABEL + ' a month') + '. Cancel anytime.'}
           </div>
           {/* No "Restore": that is an App Store concept. Sales go through Stripe on the web and the
               subscription is attached to the account, so signing in already restores it. */}
