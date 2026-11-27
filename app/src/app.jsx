@@ -5725,12 +5725,91 @@ function LegalDoc({ doc, onClose }) {
     </Sheet>
   );
 }
+/* CATCHING A MISTYPED EMAIL AT SIGN-UP. An account made on "gmial.com" is an account whose
+   confirmation email goes nowhere, so the person never gets in and never knows why.
+   Not a second "confirm your email" box: that slows down everyone who typed it right, and people
+   paste the first box into the second, which copies the typo straight across. Instead we spot a
+   domain that is one or two keystrokes off a provider people actually use, and offer the fix
+   ("Did you mean ...?"), the pattern Mailcheck made standard. Returns the corrected address, or
+   null when there is nothing to suggest. Pure, so it is tested directly (tests/email-typo.test.js). */
+const EMAIL_DOMAINS = ['gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.co.uk', 'outlook.com', 'outlook.co.uk',
+  'live.com', 'live.co.uk', 'msn.com', 'yahoo.com', 'yahoo.co.uk', 'ymail.com', 'icloud.com', 'me.com', 'mac.com',
+  'aol.com', 'btinternet.com', 'sky.com', 'virginmedia.com', 'talktalk.net', 'protonmail.com', 'proton.me', 'gmx.com', 'mail.com'];
+// Damerau-Levenshtein (with adjacent swaps, because "gmial" is the commonest slip there is).
+function editDistance(a, b) {
+  const d = [];
+  for (let i = 0; i <= a.length; i++) { d[i] = [i]; }
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+function emailTypo(raw) {
+  const email = String(raw || '').trim().toLowerCase();
+  const at = email.lastIndexOf('@');
+  if (at < 1 || at === email.length - 1) return null;
+  const user = email.slice(0, at);
+  let dom = email.slice(at + 1).replace(/\.+$/, '').replace(/,/g, '.');
+  if (EMAIL_DOMAINS.indexOf(dom) >= 0) return null;
+  // A known name on a mangled ending: gmail.con, hotmail.co, outlook.cm, yahoo.couk, gmail (no dot).
+  const fixTld = dom.replace(/\.(con|cpm|cm|om|comm|vom|xom|c0m)$/, '.com').replace(/\.(couk|co\.k|co\.uj|cp\.uk|co\.ul|uk)$/, '.co.uk');
+  const tldOnly = [fixTld, dom.indexOf('.') < 0 ? dom + '.com' : null].filter(Boolean);
+  for (const t of tldOnly) if (t !== dom && EMAIL_DOMAINS.indexOf(t) >= 0) return user + '@' + t;
+  // Gmail is gmail.com everywhere, including the UK.
+  if (/^g(m|n)a?i?l\.co\.uk$/.test(dom) || dom === 'gmail.co') return user + '@gmail.com';
+  // Otherwise the closest provider, if it is close enough to be a slip rather than a different domain.
+  let best = null, bestD = Infinity;
+  for (const k of EMAIL_DOMAINS) { const dd = editDistance(dom, k); if (dd < bestD) { bestD = dd; best = k; } }
+  const limit = dom.length <= 8 ? 1 : 2;
+  return best && bestD > 0 && bestD <= limit ? user + '@' + best : null;
+}
+// Is it shaped like an email at all? Just enough to stop "name@gmail" and stray spaces, not RFC 5322.
+function emailLooksValid(raw) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(raw || '').trim()); }
+/* "Did you mean ...?" under the email field. The domain is the part that is shown corrected, in
+   bold, because that is the part people need to see to believe it; the name before the @ is theirs. */
+function EmailTypoHint({ id, typed, suggestion, onUse, onKeep }) {
+  const at = suggestion.lastIndexOf('@');
+  return (
+    <div id={id} role="status" className="-mt-1 mb-3 px-3 py-2.5" style={{ background: 'var(--sunk)', boxShadow: 'inset 3px 0 0 var(--link)' }}>
+      <div className="text-[13px] leading-snug" style={{ color: 'var(--text)' }}>
+        Did you mean <span className="break-all">{suggestion.slice(0, at + 1)}<b>{suggestion.slice(at + 1)}</b></span>?
+      </div>
+      <div className="flex gap-4 mt-1">
+        <button type="button" onClick={onUse} className="text-[13px]" style={{ color: 'var(--link)', fontWeight: 700, minHeight: 36 }}>Yes, fix it</button>
+        <button type="button" onClick={onKeep} className="text-[13px]" style={{ color: 'var(--muted)', fontWeight: 600, minHeight: 36 }}>No, {typed.slice(typed.lastIndexOf('@'))} is right</button>
+      </div>
+    </div>
+  );
+}
+/* After sign-up: the address, large, where the person can check it. This is the last moment a typo
+   can be caught cheaply, so "Wrong email?" is a real button, not small print. */
+function SentToPanel({ email, onWrong, onResend, busy, msg }) {
+  return (
+    <div className="text-center">
+      <div className="text-[13px]" style={{ color: 'var(--muted)' }}>We've sent a confirmation link to</div>
+      <div className="text-[17px] font-bold mt-1 mb-3 break-all">{email}</div>
+      <div className="text-[13px] leading-relaxed mb-4" style={{ color: 'var(--text2)' }}>Tap the link in it, then come back and log in. It can take a minute. On Hotmail or Outlook, check Junk too.</div>
+      <Btn kind="ghost" className="w-full" onClick={onWrong}>Wrong email? Change it</Btn>
+      <button onClick={onResend} disabled={busy} className="hit w-full text-[13px] mt-3 text-center underline" style={{ color: 'var(--link)' }}>{busy ? 'Sending…' : 'Didn’t get it? Send it again'}</button>
+      {msg && <div className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--header)' }}>{msg}</div>}
+    </div>
+  );
+}
 function Auth() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState('');
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false); const [legal, setLegal] = useState(null);
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [loginFailed, setLoginFailed] = useState(false); const [existing, setExisting] = useState(false);
+  // The typo check speaks once you leave the field (or press Create), not while you are mid-word.
+  const [emailDone, setEmailDone] = useState(false);
+  const [keptEmail, setKeptEmail] = useState(''); // an address the person said is right as typed
+  const [sentTo, setSentTo] = useState('');       // where the confirmation link actually went
+  const typo = mode !== 'login' && emailDone && email.trim().toLowerCase() !== keptEmail ? emailTypo(email) : null;
+  function startOver() { setNeedsConfirm(false); setSentTo(''); setMsg(''); setMode('signup'); setEmailDone(false); }
   async function resendConfirm() {
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
     if (!email) { setMsg('Enter your email above and we\'ll send the confirmation link again.'); return; }
@@ -5742,6 +5821,7 @@ function Auth() {
     setBusy(false);
   }
   async function submit() {
+    if (busy) return;   // a second tap while the first sign-up is in flight used to fire a second request
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
     setNeedsConfirm(false); setLoginFailed(false); setExisting(false);
     if (mode === 'forgot') {
@@ -5753,13 +5833,16 @@ function Auth() {
     }
     if (!email || !pw) { setMsg('Enter your email and a password.'); return; }
     if (mode === 'signup') {
+      if (!emailLooksValid(email)) { setMsg('That email doesn\'t look complete. It should be like name@gmail.com.'); return; }
+      // A likely typo stops sign-up once, with the fix one tap away. "Keep it" lets it through.
+      if (email.trim().toLowerCase() !== keptEmail && emailTypo(email)) { setEmailDone(true); setMsg(''); return; }
       if (pw.length < 6) { setMsg('Use a password of at least 6 characters.'); return; }
       if (pw !== pw2) { setMsg('Those passwords do not match, please retype them.'); return; }
     }
     setBusy(true); setMsg('');
     try {
       if (mode === 'signup') {
-        const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } });
+        const r = await supa.auth.signUp({ email: email.trim(), password: pw, options: { emailRedirectTo: window.location.origin } });
         if (r.error) throw r.error;
         // Supabase obfuscates "email already registered" as a success with no session and an empty
         // identities array (so signup can't be used to probe who has an account). Telling these users
@@ -5767,7 +5850,7 @@ function Auth() {
         // email" tickets - nothing is ever sent. Send them to log in / reset instead.
         const already = r.data && r.data.user && Array.isArray(r.data.user.identities) && r.data.user.identities.length === 0;
         if (already) { setMode('login'); setExisting(true); setMsg('You already have an account for ' + email + '. Log in below - or reset your password if you\'ve forgotten it.'); }
-        else { window.MTRACK && MTRACK('signup'); if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in. It can take a minute - and on Hotmail/Outlook, check your junk folder.'); } }
+        else { window.MTRACK && MTRACK('signup'); if (!r.data.session) { setNeedsConfirm(true); setSentTo(email.trim()); setMsg(''); } }
       }
       else { const r = await supa.auth.signInWithPassword({ email, password: pw }); if (r.error) throw r.error; }
     } catch (e) {
@@ -5775,7 +5858,10 @@ function Auth() {
       // A wrong password comes back as the generic "Invalid login credentials". Left as-is, returning
       // users read it as "my account/verification is broken" and open a ticket - so name the real fix
       // (reset) and surface the Forgot-password link.
-      if (/confirm/i.test(m)) { setNeedsConfirm(true); setMsg('Your email isn\'t confirmed yet - check your inbox (and junk folder) for the link, or resend it below.'); }
+      // Supabase refuses a second confirmation email within a minute. On sign-up that only happens
+      // when one was JUST sent, so say where it went instead of "only request this after 43 seconds".
+      if (mode === 'signup' && (e.code === 'over_email_send_rate_limit' || /security purposes|rate limit/i.test(m))) { setNeedsConfirm(true); setSentTo(email.trim()); setMsg(''); }
+      else if (/confirm/i.test(m)) { setNeedsConfirm(true); setMsg('Your email isn\'t confirmed yet - check your inbox (and junk folder) for the link, or resend it below.'); }
       else if (mode === 'login' && /invalid login credentials/i.test(m)) { setLoginFailed(true); setMsg('That email and password don\'t match. If you\'ve forgotten your password, reset it with the link below.'); }
       else setMsg(m);
     }
@@ -5794,11 +5880,16 @@ function Auth() {
         {/* Log in / Create an account as a pair of buttons at the top, per the design. It was a line
             of small print under the form, which is the last place a new arrival looks and the one
             decision they have to make before anything else on this screen means anything. */}
-        {mode !== 'forgot' && <div className="mb-4"><Seg value={mode} onChange={(m) => { setMode(m); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }}
+        {mode !== 'forgot' && <div className="mb-4"><Seg value={mode} onChange={(m) => { setMode(m); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); setSentTo(''); }}
           options={[{ v: 'login', l: 'Log in' }, { v: 'signup', l: 'Create an account' }]} /></div>}
         {mode === 'forgot' && <h2 className="text-[20px] font-bold mb-3">Reset your password</h2>}
         <div>
-          <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
+          {sentTo ? <SentToPanel email={sentTo} onWrong={startOver} onResend={resendConfirm} busy={busy} msg={msg} /> : <>
+          <Field label="Email"><input type="email" inputMode="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className={inputCls} value={email}
+            onChange={e => { setEmail(e.target.value); setEmailDone(false); }} onBlur={() => setEmailDone(true)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com"
+            aria-describedby={typo ? 'email-typo' : undefined} /></Field>
+          {typo && <EmailTypoHint id="email-typo" typed={email.trim()} suggestion={typo}
+            onUse={() => { setEmail(typo); setMsg(''); }} onKeep={() => setKeptEmail(email.trim().toLowerCase())} />}
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
           {mode === 'forgot' && <div className="text-[12px] text-[var(--muted)] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
@@ -5808,6 +5899,7 @@ function Auth() {
           {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--link)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
           {msg && <div className="text-[12px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[12px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
+          </>}
         </div>
         {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--link)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
         <div className="text-[12px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
@@ -22404,76 +22496,116 @@ function paywallCopy(reason, feature) {
   };
   return C[k] || ['Get more from Macrosaurus', 'Unlimited AI logging, a training coach and the whole recipe library. Everything free stays free.'];
 }
-function Paywall({ reason, feature, onCheckout, onClose }) {
+/* FREE VS PREMIUM, as the table the paywall draws. `keys` tie a row to the paywall reasons that
+   point at it, so the row for whatever you just tapped is the one with the ▶ cursor. Free's column
+   says what you have now in words where a tick would lie ("10 a month" is not "no"). */
+const PREMIUM_COMPARE = [
+  { t: 'AI logging: snap, scan or describe', free: FREE_AI_MONTHLY + ' a month', prem: 'Unlimited', keys: ['free_limit', 'manual', 'ai'] },
+  { t: 'Training coach and block reviews', free: null, prem: true, keys: ['blockreview', 'coverage', 'training', 'block_review', 'coverage_advice', 'block_tweak', 'workout_import'] },
+  { t: 'Plan your week in a sentence', free: null, prem: true, keys: ['weekplan'] },
+  { t: 'Community recipes and fridge match', free: 'Your own', prem: 'All of them', keys: ['discover', 'fridge'] },
+  { t: 'Fibre on every food', free: null, prem: true, keys: ['fibre'] },
+  { t: 'Body-fat scans and deeper dives', free: null, prem: true, keys: ['bodyfat', 'deepdive'] },
+  { t: 'Barcode, database, programmes, the game', free: true, prem: true, keys: [] },
+];
+function CompareCell({ v, strong }) {
+  if (v === true) return <span className="inline-flex" style={{ color: strong ? 'var(--link)' : 'var(--text)' }} aria-label="Included"><Tick size={12} /></span>;
+  if (v === null || v === false) return <span style={{ color: 'var(--muted)' }} aria-label="Not included">–</span>;
+  return <span className="text-[12px] leading-tight" style={{ color: strong ? 'var(--text)' : 'var(--muted)', fontWeight: strong ? 700 : 400 }}>{v}</span>;
+}
+/* The Premium sheet (design pass 2). Opened from the app-bar button, You, a Today prompt, or by
+   tapping something locked; `reason`/`feature` say which. Built from the app's own parts rather than
+   a generic sales page: the buddy makes the pitch in its own dialogue box, the offer is a Free vs
+   Premium table (the question people are actually asking), and the plans are inventory slots with
+   the ▶ cursor. Plans, button and price are pinned below the scroll so the cost is never hidden.
+   Checkout runs server-side (billing edge function): no Stripe code or keys live in the app. */
+function Paywall({ reason, feature, buddy, buddyLabel, onCheckout, onClose }) {
+  useSheetOpenClass();
+  useBackClose(onClose);
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
   const [headline, blurb] = paywallCopy(reason, feature);
-  // The perk that answers what you tapped goes first; the rest keep their order.
   const k = feature || reason;
-  const lead = PREMIUM_PERKS.findIndex(p => p.keys.indexOf(k) >= 0);
-  const perks = lead > 0 ? [PREMIUM_PERKS[lead]].concat(PREMIUM_PERKS.filter((_, i) => i !== lead)) : PREMIUM_PERKS;
-  const benefits = perks.map(p => [p.t, p.d]).concat([['Everything in Free, for good', 'Barcode, database, the adaptive engine, programmes and the whole game']]);
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
   const sale = saleOn();
+  const plans = [
+    { k: 'annual', price: sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, per: sale ? 'your first year' : 'a year', was: sale ? PRICE_ANNUAL_LABEL : null, tag: sale ? 'Half price' : 'Best value · save 33%' },
+    { k: 'monthly', price: PRICE_MONTHLY_LABEL, per: 'a month', was: null, tag: 'Billed monthly' },
+  ];
+  const hatched = !(buddy && buddy.hatched === false);
   return (
-    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="p-5 pb-3 overflow-y-auto min-h-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] uppercase pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-2xl leading-none"><Icon.close width="16" /></button>
-          </div>
-          <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
-          <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
-          {/* The deal sits under the headline, where it is read, not under seven perks where it was not. */}
-          {sale && <div className="pixel-box p-3 mb-4 text-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            <div className="pf text-[12px] uppercase" style={{ letterSpacing: '0.1em' }}>Black Friday</div>
-            <div className="text-[15px] font-semibold mt-1">Your first year of Premium for {SALE_PRICE_LABEL}</div>
-            <div className="text-[12px] mt-0.5" style={{ opacity: 0.85 }}>Annual plan, applied at checkout. Ends Monday night.</div>
-          </div>}
-          {/* The benefits are ONE framed panel divided by rules, not four floating rows. Each tick is
-              a filled accent chip rather than a bare glyph, which is what gives the list its weight:
-              four gold squares down the left edge read as a specification, and four loose ticks read
-              as a paragraph with bullets. */}
-          <div className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
-            {benefits.map(([t, d], i) => (
-              <div key={i} className="flex gap-3 items-start p-3" style={i < benefits.length - 1 ? { borderBottom: '2px solid var(--border)' } : null}>
-                <span className="shrink-0 flex items-center justify-center" style={{ width: 26, height: 26, background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}><Tick size={12} /></span>
-                <div className="min-w-0">
-                  <div className="text-[15px] font-semibold leading-tight">{t}</div>
-                  <div className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{d}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'var(--scrim, rgba(0,0,0,0.7))' }} onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Macrosaurus Premium" className="w-full max-w-md ms-hero flex flex-col max-h-[94vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between pl-5 pr-2 shrink-0" style={{ height: 52, background: 'var(--header)', color: 'var(--header-text)' }}>
+          <span className="flex items-center gap-2 text-[15px]" style={{ fontWeight: 700 }}><span style={{ color: 'var(--on-header-accent)' }}><Icon.star width="16" height="16" /></span>Macrosaurus Premium</span>
+          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><Icon.close width="16" /></button>
         </div>
-        {/* THE DECISION, pinned. Plans, the button and the price line stay on screen however long the
-            perks list above grows, so nobody has to scroll past the pitch to find out what it costs. */}
-        <div className="px-5 pt-3 pb-4 shrink-0" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
-          <div className="grid grid-cols-2 gap-2.5 mb-3">
-            {[['annual', sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, sale ? 'first year' : '/year', sale ? 'Half price' : 'Save 33%', sale ? PRICE_ANNUAL_LABEL : null], ['monthly', PRICE_MONTHLY_LABEL, '/month', '', null]].map(([k, price, per, tag, was]) => (
-              <button key={k} onClick={() => setPlan(k)} className="pixel-box box-tint p-3 text-left transition active:scale-[.99]"
-                style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === k ? 'var(--accent)' : 'var(--border)' }}>
-                <div className="pf text-[17px] leading-none mb-1.5">{price}{was && <span className="text-[12px] ml-1.5 line-through" style={{ color: 'var(--muted)' }}>{was}</span>}</div>
-                <div className="text-[13px]" style={{ color: 'var(--text)' }}>{per}</div>
-                {tag ? <div className="pf text-[11px] uppercase mt-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>{tag}</div>
-                     : <div className="text-[12px] mt-1.5" style={{ color: 'var(--muted)' }}>Billed monthly</div>}
-              </button>
-            ))}
+        <div className="px-5 pt-4 pb-3 overflow-y-auto min-h-0">
+          <Dialogue className="mb-4" name={buddyLabel || 'Your buddy'} emote="★"
+            sprite={hatched ? <BuddyAvatar buddy={buddy || {}} px={3} /> : <SpriteSheet palette="female" species="doux" group="egg" anim="move" px={3} fps={4} />}
+            text={<><b>{headline}.</b> {blurb}</>}>
+            <span />
+          </Dialogue>
+          {sale && <div className="ms-deal mb-4 flex items-center gap-3 px-3 py-2.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: '0 0 0 2px var(--border)' }}>
+            <span className="ms-coin shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] leading-tight" style={{ fontWeight: 700 }}>Black Friday: first year for {SALE_PRICE_LABEL}</div>
+              <div className="text-[12px] mt-0.5">Usually {PRICE_ANNUAL_LABEL}. Ends Monday night.</div>
+            </div>
+          </div>}
+          <table className="w-full mb-2" style={{ borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                <th className="text-left text-[13px] pb-2" style={{ fontWeight: 700 }}>What you get</th>
+                <th className="text-center text-[12px] pb-2 w-[64px]" style={{ fontWeight: 600, color: 'var(--muted)' }}>Free</th>
+                <th className="text-center text-[12px] pb-2 w-[76px]" style={{ fontWeight: 700, color: 'var(--link)' }}>Premium</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PREMIUM_COMPARE.map(r => {
+                const on = r.keys.indexOf(k) >= 0;
+                return (
+                  <tr key={r.t} style={{ borderBottom: '1px solid var(--hairline)', background: on ? 'var(--sunk)' : null }}>
+                    <td className="py-2.5 pr-2 text-[13px] leading-snug" style={{ fontWeight: on ? 700 : 500 }}>
+                      <span className="flex items-center gap-1.5">{on && <span style={{ color: 'var(--link)' }}><Cursor /></span>}{r.t}</span>
+                    </td>
+                    <td className="py-2.5 text-center align-middle"><CompareCell v={r.free} /></td>
+                    <td className="py-2.5 text-center align-middle"><CompareCell v={r.prem} strong /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Everything free stays free. Premium adds to it, it never takes away.</div>
+        </div>
+        {/* THE DECISION, pinned: plans, button and price stay on screen however long the table runs. */}
+        <div className="px-5 pt-3 shrink-0" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', paddingBottom: 'calc(0.9rem + env(safe-area-inset-bottom))' }}>
+          <div role="radiogroup" aria-label="Plan" className="grid grid-cols-2 gap-2.5 mb-3">
+            {plans.map(pl => {
+              const on = plan === pl.k;
+              return (
+                <button key={pl.k} role="radio" aria-checked={on} onClick={() => setPlan(pl.k)} className="ms-slot text-left px-3 py-2.5"
+                  style={{ background: on ? 'var(--accent-dim)' : 'var(--card)', boxShadow: on ? '0 0 0 3px var(--border)' : '0 0 0 2px var(--border)' }}>
+                  <div className="flex items-center gap-1.5 min-h-[22px]">
+                    <span style={{ color: 'var(--link)', visibility: on ? 'visible' : 'hidden' }}><Cursor /></span>
+                    <span className="num text-[20px] leading-none">{pl.price}</span>
+                    {pl.was && <span className="text-[12px] line-through" style={{ color: 'var(--muted)' }}>{pl.was}</span>}
+                  </div>
+                  <div className="text-[13px] mt-1 pl-3">{pl.per}</div>
+                  <div className="text-[12px] mt-0.5 pl-3" style={{ color: on ? 'var(--link)' : 'var(--muted)', fontWeight: on ? 700 : 400 }}>{pl.tag}</div>
+                </button>
+              );
+            })}
           </div>
-          <button onClick={go} disabled={busy} className="w-full pixel-btn py-3.5 pf text-[12px] uppercase disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-            {busy ? 'Starting…' : 'Start 7-day free trial'}
-          </button>
-          <div className="text-[12.5px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year, ' + PRICE_ANNUAL_LABEL + '/year after' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+          <Btn kind="accent" className="w-full" onClick={go} disabled={busy}>{busy ? 'Starting…' : 'Start my 7 days free'}</Btn>
+          <div className="text-[12px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
+            Free for 7 days, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for the first year, ' + PRICE_ANNUAL_LABEL + ' a year after' : PRICE_ANNUAL_LABEL + ' a year') : PRICE_MONTHLY_LABEL + ' a month'}. Cancel anytime.
           </div>
-          {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads
-              receipts the store holds. Macrosaurus sells through Stripe on the web, where the
-              subscription is attached to the account, so signing in already restores it and the
-              control would have been a button that does nothing. Terms and Privacy are real links. */}
-          <div className="flex items-center justify-center gap-5 mt-2 pf text-[11px] uppercase" style={{ letterSpacing: '0.1em' }}>
-            <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Terms</a>
-            <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Privacy</a>
+          {/* No "Restore": that is an App Store concept. Sales go through Stripe on the web and the
+              subscription is attached to the account, so signing in already restores it. */}
+          <div className="flex items-center justify-center gap-5 mt-1 text-[12px]">
+            <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Terms</a>
+            <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" className="py-2" style={{ color: 'var(--link)' }}>Privacy</a>
           </div>
         </div>
       </div>
@@ -23350,7 +23482,7 @@ function App() {
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
-      {paywall && <Paywall reason={paywall.reason} feature={paywall.feature} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {paywall && <Paywall reason={paywall.reason} feature={paywall.feature} buddy={db && db.buddy} buddyLabel={db ? buddyName(db) : null} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onLog={() => { setDexOpen(false); setAdding({ date: Store.todayISO(), mealId: meals[0].id }); }} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
