@@ -737,3 +737,22 @@ input[type="range"] { min-height: 44px; accent-color: var(--accent); }
 .ms-track { position: absolute; left: 0; right: 14px; bottom: 6px; height: 2px; background: repeating-linear-gradient(90deg, var(--header-text) 0 4px, transparent 4px 8px); opacity: .7; }
 .ms-rest-clock { position: absolute; right: 22px; top: 2px; font: 400 13px/1 'Silkscreen', monospace; color: var(--header-text); }
 .ms-prints-btn { position: absolute; inset: 0; padding: 0; border: 0; background: none; display: block; width: 100%; }
+
+/* The Premium button in the app bar (BarPremium). A pill outlined in the bar's own accent, so it
+   reads as a control rather than a label without bringing gold onto the page. The hit area is the
+   full 44px; the drawn pill is 32px. Square corners and a 4-axis ring, like every window. */
+.ms-bar-premium { position: relative; min-height: 44px; padding: 0 10px; margin-right: 2px; }
+.ms-bar-premium::before { content: ''; position: absolute; inset: 6px 0; box-shadow: 0 0 0 2px currentColor; pointer-events: none; }
+.ms-bar-premium:active { opacity: .8; }
+
+/* THE DEAL BANNER on the Premium sheet: it settles in with one stepped bump, and a pixel coin spins
+   twice beside it. Stepped (steps()), like every other motion in the game; nothing loops forever,
+   and none of it runs for anyone who has asked for reduced motion. */
+.ms-deal { animation: ms-deal-in .42s steps(3) .25s both; }
+@keyframes ms-deal-in { 0% { transform: scale(.94); opacity: 0; } 60% { transform: scale(1.03); opacity: 1; } 100% { transform: none; opacity: 1; } }
+.ms-coin { width: 18px; height: 18px; background: var(--card); box-shadow: 0 0 0 2px var(--border), inset -4px -4px 0 0 var(--accent-dim);
+  animation: ms-coin-spin .9s steps(4) .5s 2; }
+@keyframes ms-coin-spin { 0%, 100% { transform: scaleX(1); } 25% { transform: scaleX(.5); } 50% { transform: scaleX(.12); } 75% { transform: scaleX(.5); } }
+.ms-slot { transition: none; }
+.ms-slot:active { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) { .ms-deal, .ms-coin { animation: none; } }
