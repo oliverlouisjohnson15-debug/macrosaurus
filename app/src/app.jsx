@@ -12100,7 +12100,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
   const [diving, setDiving] = useState(false);
   const [diveErr, setDiveErr] = useState('');
   function runDive() {
-    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} return; }
+    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'deepdive' }); } catch (_) {} return; }
     setDiving(true); setDiveErr('');
     buddyDeepDive(db).then(t => { setDive(t || ''); setDiving(false); })
       .catch(e => { setDiving(false); if (!(e && e.aiError)) setDiveErr("Couldn't reach me for a deeper look just now. Try again in a bit."); });
@@ -12989,7 +12989,7 @@ function nudgeDismissed(db, trackKey) {
   const until = ((db.profile && db.profile.nudgesDismissed) || {})[trackKey];
   return !!until && (Date.now() - until) < 7 * 864e5;
 }
-function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '', compact }) {
+function PremiumNudge({ db, update, headline, blurb, sub, action, reason, trackKey, className = '', compact }) {
   if (nudgeDismissed(db, trackKey)) return null;
   const open = () => {
     try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
@@ -13000,7 +13000,7 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [trackKey]: Date.now() }); });
   };
   // A prompt row rather than a card, for the one prompt a 35-reset screen allows (PromptSlot).
-  if (compact) return <PromptRow title={headline} sub="Premium · 7 days free" action="Try free" tone="quiet" onAction={open} onDismiss={dismiss} />;
+  if (compact) return <PromptRow title={headline} sub={sub || 'Premium · 7 days free'} action={action || 'Try free'} tone="quiet" onAction={open} onDismiss={dismiss} />;
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
       <div className="pf text-[11px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
@@ -14018,6 +14018,11 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
               { when: !msgControls && !isPremium && Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)) <= 3 && !nudgeDismissed(db, 'dash_ai_low'),
                 render: () => { const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0)); return <PremiumNudge compact db={db} update={update} reason="free_limit" trackKey="dash_ai_low"
                   headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"} />; } },
+              // The sale, while it runs. Its own dismiss key, so someone who waved off the everyday nudge
+              // still hears about the deal once; dismissing it lasts the rest of the sale (a week).
+              { when: !msgControls && !isPremium && !eggIncubating && saleOn() && !nudgeDismissed(db, 'bf_2026'),
+                render: () => <PremiumNudge compact db={db} update={update} reason="manual" trackKey="bf_2026"
+                  headline={'Black Friday: a year of Premium for ' + SALE_PRICE_LABEL} sub={'Usually ' + PRICE_ANNUAL_LABEL + ' · ends Monday night'} action="See deal" /> },
               // Hidden while the egg incubates, so the first week stays about hatching.
               { when: !msgControls && !isPremium && !eggIncubating && !nudgeDismissed(db, 'today_top'),
                 render: () => <PremiumNudge compact db={db} update={update} reason="manual" trackKey="today_top" headline="Log a meal in one snap" /> },
@@ -19177,6 +19182,33 @@ function FeedbackSheet({ email, onClose }) {
     </Sheet>
   );
 }
+/* THE PREMIUM WINDOW at the top of You, for free users. You is where people go looking for their
+   plan, billing and "what do I get", so the answer is the first thing on it rather than a row two
+   levels down in Account. It is this screen's one Hero and its one gold button (DESIGN.md). Three
+   perks, not six: enough to say what it is; the paywall behind the button has the full list. */
+function PremiumHero({ onUpgrade, freeLeft }) {
+  const sale = saleOn();
+  return (
+    <Hero className="mb-6 p-4">
+      <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--link)' }}><Icon.star width="24" height="24" />
+        <h2 className="text-[20px] font-bold" style={{ color: 'var(--text)' }}>Macrosaurus Premium</h2></div>
+      <div className="text-[13px] mb-3" style={{ color: 'var(--muted)' }}>{freeLeft + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month'}</div>
+      {sale && <div className="mb-3 px-3 py-2" style={{ background: 'var(--sunk)' }}>
+        <div className="text-[15px] font-semibold">Black Friday: your first year for {SALE_PRICE_LABEL}</div>
+        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Usually {PRICE_ANNUAL_LABEL}. Ends Monday night.</div>
+      </div>}
+      <ul className="mb-4 space-y-2">
+        {PREMIUM_PERKS.slice(0, 3).map(p => (
+          <li key={p.t} className="flex gap-2.5 items-start">
+            <span className="shrink-0 mt-0.5 flex items-center justify-center" style={{ width: 20, height: 20, color: 'var(--link)' }}><Tick size={12} /></span>
+            <span className="min-w-0"><span className="block text-[15px] font-semibold leading-snug">{p.t}</span><span className="block text-[13px] leading-snug" style={{ color: 'var(--muted)' }}>{p.d}</span></span>
+          </li>))}
+      </ul>
+      <Btn kind="accent" className="w-full" onClick={onUpgrade}>{sale ? 'Get the ' + SALE_PRICE_LABEL + ' deal' : 'Try 7 days free'}</Btn>
+      <div className="text-[12px] text-center mt-2" style={{ color: 'var(--muted)' }}>{sale ? '7 days free first' : 'Then ' + PRICE_ANNUAL_LABEL + ' a year or ' + PRICE_MONTHLY_LABEL + ' a month'}. Cancel anytime.</div>
+    </Hero>
+  );
+}
 function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress, backTo, onReturn }) {
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -19235,7 +19267,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
             value="Manage" onClick={onManage} />
         : <>
           <Row icon={<Icon.star width="24" />} title="AI logs" sub={freeLeft + ' of ' + FREE_AI_MONTHLY + ' left this month' + (rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus' : '') + ', resetting on the 1st'} />
-          <div className="py-3"><Btn kind="accent" className="w-full" onClick={onUpgrade}>Try Premium free for 7 days</Btn></div>
+          <div className="py-3"><Btn kind="accent" className="w-full" onClick={() => onUpgrade('account')}>Try Premium free for 7 days</Btn></div>
         </>}
       <MenuRow icon={<Icon.share width="24" />} label="Invite friends" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' \u00b7 ' + rewards.referrals_count + ' joined so far' : '')} onClick={() => setInvite(true)} />
     </SettingsGroup>
@@ -19291,6 +19323,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageBar context="Your profile & settings" />
+      {!isPremium && <PremiumHero onUpgrade={() => onUpgrade('you_hero')} freeLeft={freeLeft} />}
       <Section>
         <Row icon={<Icon.user width="24" />} title={<span className="break-all">{email || 'Your account'}</span>} sub={planLine} onClick={() => setScreen('account')} aria-label="Account" />
       </Section>
@@ -20641,7 +20674,7 @@ function appBarContext(view, db) {
   if (view === 'train') { const b = typeof activeBlock === 'function' ? activeBlock(db) : null; return (b && b.name) || 'Train'; }
   return ({ foodlog: 'Food', recipes: 'Food', goals: 'Progress', more: 'You', admin: 'Admin' })[view] || '';
 }
-function Sidebar({ view, setView, onAdd, onOpenPlay }) {
+function Sidebar({ view, setView, onAdd, onOpenPlay, onPremium }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return (
@@ -20652,7 +20685,10 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
         <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[var(--muted)]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
         <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[var(--muted)]'}`}><Icon.more width="16" height="16" /> YOU</button>
       </div>
-      <div className="mt-auto pf text-[11px] text-[var(--muted)] px-1">{BRAND}</div>
+      {/* Premium on desktop: the same door as the app-bar button, at the foot of the nav. */}
+      {onPremium && <button onClick={onPremium} className="pixel-box mt-auto flex items-center gap-3 px-3 py-2.5 text-sm text-left" style={{ background: 'var(--accent)', color: 'var(--on-accent)', fontWeight: 700 }}>
+        <Icon.star width="24" height="24" /><span>{saleOn() ? 'Get the ' + SALE_PRICE_LABEL + ' deal' : 'Try Premium free'}</span></button>}
+      <div className={(onPremium ? 'mt-3' : 'mt-auto') + ' pf text-[11px] text-[var(--muted)] px-1'}>{BRAND}</div>
     </div>
   );
 }
@@ -20820,7 +20856,25 @@ function BarBuddy({ buddy, phase, away, onOpenPlay }) {
    page's context beside it (the date on Today, the block on Train), the buddy in the lane between them
    and the gear (BarBuddy, below; it is there only while the buddy is NOT standing in Today's valley),
    and the gear for You. Tapping the buddy opens Play. Before it hatches, the egg wobbles instead. A sub-screen's SubHeader pins over it at the same height. */
-function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away }) {
+/* THE PREMIUM BUTTON in the app bar. Free users only; it disappears the moment you subscribe.
+   Why the bar: it is the one surface on every screen, and the top-right corner beside the profile/
+   settings control is where people look for an account-level upgrade (the "Super"/"Pro" pill
+   pattern of Duolingo, Strava, MyFitnessPal). Before this, Premium was two taps deep in You ›
+   Account, or a dismissable row on Today, so most free users never saw what it was.
+   It is words, not just an icon: a lone star or crown is decoration until you know what it means.
+   During a sale it says the price instead, because "£20" is the reason to tap. Type on the bar
+   uses --on-header-accent (the gold's on-bar twin), the same as the active tab label. */
+function BarPremium({ onOpen }) {
+  const sale = saleOn();
+  return (
+    <button onClick={onOpen} aria-label={sale ? 'Premium, Black Friday deal' : 'Get Premium'}
+      className="ms-bar-premium shrink-0 flex items-center gap-1.5" style={{ color: 'var(--on-header-accent)' }}>
+      <Icon.star width="16" height="16" />
+      <span className="text-[13px]" style={{ fontWeight: 700 }}>{sale ? SALE_PRICE_LABEL + ' deal' : 'Premium'}</span>
+    </button>
+  );
+}
+function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away, onPremium }) {
   // Who has the buddy: the valley while it is standing on Today's page, the lane otherwise. The hand-off
   // between the two is animated only when it was a scroll (BUDDY_SPOT.soft); a tab change just swaps.
   const spot = useBuddySpot();
@@ -20839,8 +20893,9 @@ function MobileHeader({ onOpenPlay, onOpenYou, onHome, context, buddy, away }) {
     <div className="lg:hidden sticky top-0 z-40 flex items-center gap-1 px-1"
       style={{ background: 'var(--header)', height: 'var(--appbar-h)', boxShadow: '0 2px 0 0 var(--border)' }}>
       <button onClick={onHome} aria-label="Macrosaurus, go to Today" className="w-11 h-11 flex items-center justify-center shrink-0"><PixelEgg size={32} /></button>
-      <div className="truncate text-[15px] shrink-0" style={{ color: 'var(--header-text)', fontWeight: 600, maxWidth: '50vw' }}>{context}</div>
+      <div className="truncate text-[15px] shrink-0" style={{ color: 'var(--header-text)', fontWeight: 600, maxWidth: onPremium ? '34vw' : '50vw' }}>{context}</div>
       <BarBuddy buddy={buddy} phase={phase} away={away} onOpenPlay={onOpenPlay} />
+      {onPremium && <BarPremium onOpen={onPremium} />}
       <button onClick={onOpenYou} aria-label="You and settings" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--header-text)' }}>
         <Icon.gear width="24" height="24" />
       </button>
@@ -21705,7 +21760,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
   const [teaser, setTeaser] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [preview, setPreview] = useState(null);
-  const openPaywall = () => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} };
+  const openPaywall = () => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'discover' }); } catch (_) {} };
   async function load() {
     setBusy(true); setErr('');
     try {
@@ -22049,7 +22104,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
           ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
           : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[var(--muted)] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
       </Card>}
-      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[var(--muted)] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--link)' }}>Discover library</span> to what's in your fridge ›</button>}
+      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'fridge' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[var(--muted)] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--link)' }}>Discover library</span> to what's in your fridge ›</button>}
     </div>}
     {pubSheet && <FridgePublicSheet m={pubSheet} onClose={() => setPubSheet(null)}
       onCook={(pub) => { setPubSheet(null); onCookPublic(pub); }}
@@ -22315,38 +22370,67 @@ function Recipes({ onSwitch, db, update, showToast, importUrl, onConsumeImport, 
 // Premium upsell sheet. Opened manually (menu) or automatically when the AI proxy returns a
 // free-limit / premium-only error. Checkout runs entirely server-side (billing edge function),
 // so no Stripe code or keys live in the app; we just redirect to the returned Checkout URL.
-function Paywall({ reason, onCheckout, onClose }) {
+/* WHAT PREMIUM IS, in one list, so the paywall, the You screen and anything else that sells it say
+   the same thing. Every line is a feature the server actually gates (ai-proxy's premium_required
+   and free_limit checks); `keys` are the paywall reasons/features that line answers, so a paywall
+   opened by tapping a locked feature leads with that feature instead of making you hunt for it. */
+const PREMIUM_PERKS = [
+  { keys: ['free_limit', 'manual', 'ai'], t: 'Unlimited AI logging', d: 'Snap a meal, scan a label or describe it, with no monthly limit' },
+  { keys: ['blockreview', 'coverage', 'training', 'block_review', 'coverage_advice', 'block_tweak', 'workout_import'], t: 'A coach for your training', d: 'Block reviews, what to change, and gaps in what you train' },
+  { keys: ['weekplan'], t: 'Plan your week in a sentence', d: '"Out Friday, big lunch Sunday" and your targets reshuffle around it' },
+  { keys: ['discover', 'fridge'], t: 'The whole recipe library', d: 'Community recipes, matched to what is in your fridge' },
+  { keys: ['fibre'], t: 'Fibre on every food', d: 'Missing fibre filled in, so your daily fibre is real' },
+  { keys: ['bodyfat', 'deepdive'], t: 'Body-fat scans and deeper dives', d: 'Body fat from a progress photo, and a closer read of your week' },
+];
+// The paywall's headline and line for whatever opened it. `feature` is more specific than `reason`
+// (every locked feature arrives as reason 'premium_required'), so it is checked first.
+function paywallCopy(reason, feature) {
+  const k = feature || reason;
+  const C = {
+    free_limit: ["You've used your free AI logs", `That's your ${FREE_AI_MONTHLY} free AI logs for this month. Premium makes AI logging unlimited.`],
+    fibre: ['Fibre on every food', 'Premium fills in the fibre your foods are missing, so your daily fibre is real rather than an undercount.'],
+    bodyfat: ['Body-fat scans are Premium', 'Get an honest body-fat estimate from a progress photo.'],
+    weekplan: ['Plan your week in a sentence', 'Tell your buddy about the week ahead and Premium reshuffles your targets around it.'],
+    discover: ['The whole recipe library', 'Browse every community recipe, and match them to what is already in your fridge.'],
+    fridge: ['Cook from your fridge', 'Premium matches the whole recipe library to what you already have.'],
+    deepdive: ['A deeper read of your week', 'Your buddy looks properly at how the week went and what to change.'],
+    blockreview: ['Your block, read back to you', 'Premium writes up how the block went and what to keep or change next time.'],
+    block_review: ['Your block, read back to you', 'Premium writes up how the block went and what to keep or change next time.'],
+    coverage: ['Fix the gaps in your training', 'Premium tells you what to change so every muscle gets its share.'],
+    coverage_advice: ['Fix the gaps in your training', 'Premium tells you what to change so every muscle gets its share.'],
+    block_tweak: ['Tweak a block in plain words', 'Say what you want changed and Premium rewrites the block.'],
+    workout_import: ['Import any workout', 'Paste a programme from anywhere and Premium turns it into a block.'],
+    training: ['A coach for your training', 'Block reviews, what to change, and the gaps in what you train.'],
+  };
+  return C[k] || ['Get more from Macrosaurus', 'Unlimited AI logging, a training coach and the whole recipe library. Everything free stays free.'];
+}
+function Paywall({ reason, feature, onCheckout, onClose }) {
   const [plan, setPlan] = useState('annual');
   const [busy, setBusy] = useState(false);
-  const headline = reason === 'fibre' ? 'Fibre on every food is Premium'
-    : reason === 'premium_required' ? 'Body-fat scans are Premium'
-    : reason === 'free_limit' ? "You've used your free AI logs"
-    : 'Unlock Macrosaurus Premium';
-  const blurb = reason === 'free_limit'
-    ? `That's your ${FREE_AI_MONTHLY} free AI logs for this month. Go Premium for unlimited AI logging.`
-    : reason === 'fibre'
-    ? 'Premium fills in the fibre your foods are missing, so your daily fibre is real rather than an undercount.'
-    : reason === 'premium_required'
-    ? 'AI body-fat estimates from a progress photo are a Premium feature.'
-    : 'More AI, more insight, same honest coaching.';
-  const benefits = [
-    ['Fibre on every food', 'Missing fibre filled in automatically, so your daily fibre is real'],
-    ['Unlimited AI logging', 'Snap a meal, scan a label, or describe it, with no monthly limit'],
-    ['Body-fat photo scans', 'Estimate your body fat from a progress photo'],
-    ['Everything in Free', 'Barcode, database, manual entry, the adaptive engine and the whole game'],
-  ];
+  const [headline, blurb] = paywallCopy(reason, feature);
+  // The perk that answers what you tapped goes first; the rest keep their order.
+  const k = feature || reason;
+  const lead = PREMIUM_PERKS.findIndex(p => p.keys.indexOf(k) >= 0);
+  const perks = lead > 0 ? [PREMIUM_PERKS[lead]].concat(PREMIUM_PERKS.filter((_, i) => i !== lead)) : PREMIUM_PERKS;
+  const benefits = perks.map(p => [p.t, p.d]).concat([['Everything in Free, for good', 'Barcode, database, the adaptive engine, programmes and the whole game']]);
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
   const sale = saleOn();
   return (
     <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="p-5 overflow-y-auto">
+        <div className="p-5 pb-3 overflow-y-auto min-h-0">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[11px] uppercase pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
             <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[var(--muted)] text-2xl leading-none"><Icon.close width="16" /></button>
           </div>
           <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
           <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
+          {/* The deal sits under the headline, where it is read, not under seven perks where it was not. */}
+          {sale && <div className="pixel-box p-3 mb-4 text-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            <div className="pf text-[12px] uppercase" style={{ letterSpacing: '0.1em' }}>Black Friday</div>
+            <div className="text-[15px] font-semibold mt-1">Your first year of Premium for {SALE_PRICE_LABEL}</div>
+            <div className="text-[12px] mt-0.5" style={{ opacity: 0.85 }}>Annual plan, applied at checkout. Ends Monday night.</div>
+          </div>}
           {/* The benefits are ONE framed panel divided by rules, not four floating rows. Each tick is
               a filled accent chip rather than a bare glyph, which is what gives the list its weight:
               four gold squares down the left edge read as a specification, and four loose ticks read
@@ -22357,16 +22441,15 @@ function Paywall({ reason, onCheckout, onClose }) {
                 <span className="shrink-0 flex items-center justify-center" style={{ width: 26, height: 26, background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}><Tick size={12} /></span>
                 <div className="min-w-0">
                   <div className="text-[15px] font-semibold leading-tight">{t}</div>
-                  <div className="text-[12.5px] leading-snug mt-1" style={{ color: 'var(--muted)' }}>{d}</div>
+                  <div className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{d}</div>
                 </div>
               </div>
             ))}
           </div>
-          {sale && <div className="pixel-box p-3 mb-3 text-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            <div className="pf text-[12px] uppercase" style={{ letterSpacing: '0.1em' }}>Black Friday</div>
-            <div className="text-[15px] font-semibold mt-1">Your first year of Premium for {SALE_PRICE_LABEL}</div>
-            <div className="text-[12px] mt-0.5" style={{ opacity: 0.85 }}>Annual plan, applied at checkout. Ends Monday night.</div>
-          </div>}
+        </div>
+        {/* THE DECISION, pinned. Plans, the button and the price line stay on screen however long the
+            perks list above grows, so nobody has to scroll past the pitch to find out what it costs. */}
+        <div className="px-5 pt-3 pb-4 shrink-0" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
           <div className="grid grid-cols-2 gap-2.5 mb-3">
             {[['annual', sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, sale ? 'first year' : '/year', sale ? 'Half price' : 'Save 33%', sale ? PRICE_ANNUAL_LABEL : null], ['monthly', PRICE_MONTHLY_LABEL, '/month', '', null]].map(([k, price, per, tag, was]) => (
               <button key={k} onClick={() => setPlan(k)} className="pixel-box box-tint p-3 text-left transition active:scale-[.99]"
@@ -22381,14 +22464,14 @@ function Paywall({ reason, onCheckout, onClose }) {
           <button onClick={go} disabled={busy} className="w-full pixel-btn py-3.5 pf text-[12px] uppercase disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
             {busy ? 'Starting…' : 'Start 7-day free trial'}
           </button>
-          <div className="text-[12.5px] text-center mt-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
+          <div className="text-[12.5px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
             7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year, ' + PRICE_ANNUAL_LABEL + '/year after' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
           </div>
           {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads
               receipts the store holds. Macrosaurus sells through Stripe on the web, where the
               subscription is attached to the account, so signing in already restores it and the
               control would have been a button that does nothing. Terms and Privacy are real links. */}
-          <div className="flex items-center justify-center gap-5 mt-3.5 pf text-[11px] uppercase" style={{ letterSpacing: '0.1em' }}>
+          <div className="flex items-center justify-center gap-5 mt-2 pf text-[11px] uppercase" style={{ letterSpacing: '0.1em' }}>
             <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Terms</a>
             <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Privacy</a>
           </div>
@@ -22446,8 +22529,14 @@ function App() {
   const entryHandled = useRef(false);
   const ghHandled = useRef(false);
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
+  // True once the subscription has actually been read. Until then `sub` is null for EVERYONE, so
+  // anything that sells Premium (the app-bar button) waits for this rather than flashing at a subscriber.
+  const [subKnown, setSubKnown] = useState(false);
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
-  const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const [paywall, setPaywall] = useState(null);   // { reason, feature } when the upsell sheet is open
+  // Opening Premium on purpose (not because a locked feature was tapped). `source` says WHICH door,
+  // so PostHog can show which placements earn their keep: paywall_view { reason: 'manual', source }.
+  const openPremium = (source) => { setPaywall({ reason: 'manual' }); try { window.MTRACK && MTRACK('paywall_view', { reason: 'manual', source: source }); } catch (_) {} };
   const [feedbackOpen, setFeedbackOpen] = useState(false); // App-level feedback sheet (opened by the buddy's Suggest nudge via window.MFEEDBACK)
   const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
@@ -22519,8 +22608,8 @@ function App() {
   // tier until the next full reload. So errors retry with backoff and leave the last known state
   // alone, and coming back to the foreground re-reads.
   useEffect(() => {
-    if (DEMO) { setSub(null); setAiCalls(0); return; }   // demo is local-only; it has no cloud rows to read
-    if (!session || !supa) { setSub(null); setAiCalls(0); return; }
+    if (DEMO) { setSub(null); setAiCalls(0); setSubKnown(true); return; }   // demo is local-only; it has no cloud rows to read
+    if (!session || !supa) { setSub(null); setAiCalls(0); setSubKnown(false); return; }
     let cancelled = false, tries = 0, timer = null;
     const uid = session.user.id; const period = new Date().toISOString().slice(0, 7);
     const RETRY_MS = [800, 2500, 6000, 15000];
@@ -22538,7 +22627,7 @@ function App() {
         // and an absent row as data: null. Only the second one means "free".
         if ((res[0] && res[0].error) || (res[1] && res[1].error)) { retry(); return; }
         tries = 0;
-        setSub(res[0].data || null);
+        setSub(res[0].data || null); setSubKnown(true);
         setAiCalls(Number((res[1].data && res[1].data.calls) || 0));
       }, function () { if (!cancelled) retry(); });
     }
@@ -22555,7 +22644,7 @@ function App() {
   }, [session]);
   // Let aiRequest (a top-level helper) open the paywall when the proxy reports a limit/premium error.
   useEffect(() => {
-    window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
+    window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; const feature = (err && err.feature) || null; setPaywall({ reason: reason, feature: feature }); window.MTRACK && MTRACK('paywall_view', { reason: reason, feature: feature }); };
     window.MFEEDBACK = function () { setFeedbackOpen(true); };  // the buddy's "suggest a feature" nudge opens feedback from anywhere
     // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
     window.MGHCONNECT = function () { setGhConsentOpen(true); try { window.MTRACK && MTRACK('gh_disclosure_view'); } catch (_) {} };
@@ -23191,7 +23280,7 @@ function App() {
   const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">
-      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
+      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} onPremium={isPremium || !subKnown ? null : () => openPremium('sidebar')} />
       {/* On EVERY screen, sessions included. It used to step aside for a session, which made the
           player the one place in the app with no brand bar and no way to reach Play or You without
           first leaving what you were doing. The tab bar still hides (see BottomNav below) and that
@@ -23202,7 +23291,7 @@ function App() {
           contiguous now: the session bar pins directly under this one at `--appbar-h` with no gap,
           which is the SubHeader relationship the rest of the app already uses for going INTO
           something. */}
-      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} away={forageFor(db, Store.todayISO()).status === 'away'} />
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} onHome={() => setView('dashboard')} context={appBarContext(view, db)} buddy={db.buddy} away={forageFor(db, Store.todayISO()).status === 'away'} onPremium={isPremium || !subKnown ? null : () => openPremium('appbar')} />
       {/* Same rule as the toast: the strip is full width but only the bar inside it is a control, so
           the empty margins either side of it must not eat taps on whatever is underneath. */}
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
@@ -23228,7 +23317,7 @@ function App() {
       {/* Progress is a tab (35-reset), so it is a root with no way back - except when You opened it,
           where Back returns there. */}
       {view === 'goals' && <Goals onBack={goalsFrom === 'more' ? () => setView('more') : undefined} backLabel="You" db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onOpenSetting={(key) => { setSettingFrom('goals'); setSettingScreen(key); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={(source) => openPremium(source || 'menu')} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)}
         backTo={settingFrom} onReturn={() => { setSettingFrom(null); try { window.scrollTo(0, 0); } catch (_) {} _setView('goals'); }} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
@@ -23261,7 +23350,7 @@ function App() {
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
-      {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {paywall && <Paywall reason={paywall.reason} feature={paywall.feature} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onLog={() => { setDexOpen(false); setAdding({ date: Store.todayISO(), mealId: meals[0].id }); }} onClose={() => setDexOpen(false)} isPremium={isPremium} />}

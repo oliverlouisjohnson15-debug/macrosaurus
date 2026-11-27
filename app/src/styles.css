@@ -737,3 +737,10 @@ input[type="range"] { min-height: 44px; accent-color: var(--accent); }
 .ms-track { position: absolute; left: 0; right: 14px; bottom: 6px; height: 2px; background: repeating-linear-gradient(90deg, var(--header-text) 0 4px, transparent 4px 8px); opacity: .7; }
 .ms-rest-clock { position: absolute; right: 22px; top: 2px; font: 400 13px/1 'Silkscreen', monospace; color: var(--header-text); }
 .ms-prints-btn { position: absolute; inset: 0; padding: 0; border: 0; background: none; display: block; width: 100%; }
+
+/* The Premium button in the app bar (BarPremium). A pill outlined in the bar's own accent, so it
+   reads as a control rather than a label without bringing gold onto the page. The hit area is the
+   full 44px; the drawn pill is 32px. Square corners and a 4-axis ring, like every window. */
+.ms-bar-premium { position: relative; min-height: 44px; padding: 0 10px; margin-right: 2px; }
+.ms-bar-premium::before { content: ''; position: absolute; inset: 6px 0; box-shadow: 0 0 0 2px currentColor; pointer-events: none; }
+.ms-bar-premium:active { opacity: .8; }
