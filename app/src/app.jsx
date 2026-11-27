@@ -15262,7 +15262,7 @@ function searchGenericFoods(list, query, limit) {
    tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
    match depends on is the app's own food search. */
 function cofidCheck(list, items) { return Cofid.check(searchGenericFoods, list, items); }
-function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, onQuick, onScan, day }) {
+function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI, onAlcohol, onQuick, onScan, onLabel, day }) {
   const [q, setQ] = useState('');
   const [dbTry, setDbTry] = useState(0); const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -15354,12 +15354,15 @@ function FoodTab({ db, update, mealName, onPick, onPickMore, onLogMeal, onAskAI,
   const usual = mealName ? 'Usual for ' + mealName.toLowerCase() : 'Recent';
   return (<div>
     {/* Focused on open: searching is what this sheet is for. The barcode button sits INSIDE the
-        field (MacroFactor's toolbar), so a scan is one tap from the sheet opening. */}
+        field (MacroFactor's toolbar), so a scan is one tap from the sheet opening. The label camera sits
+        beside it (DESIGN.md: a Field holds its capture buttons): both read a pack, so they live together,
+        and as a fourth chip it wrapped the chip row onto two lines at phone width. */}
     <div className="flex items-center gap-2 pl-3 pr-1 field-focus" style={{ minHeight: 52, margin: 2 }}>
       <span style={{ color: 'var(--muted)' }}><Icon.search width="24" /></span>
       <input autoFocus type="search" placeholder="Search foods and brands" value={q} onChange={e => setQ(e.target.value)} aria-label="Search foods and brands"
         className="flex-1 min-w-0 bg-transparent outline-none text-[15px]" style={{ minHeight: 44 }} />
-      {onScan && <button onClick={onScan} aria-label="Scan a barcode" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.barcode width="24" /></button>}
+      {onLabel && <button onClick={onLabel} aria-label="Scan a nutrition label" title="Scan a nutrition label" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.cam width="24" /></button>}
+      {onScan && <button onClick={onScan} aria-label="Scan a barcode" title="Scan a barcode" className="w-11 h-11 flex items-center justify-center shrink-0" style={{ color: 'var(--link)' }}><Icon.barcode width="24" /></button>}
     </div>
     <div className="flex flex-wrap gap-2 mt-3">
       {onQuick && <button onClick={onQuick} className="ms-chip"><Icon.bolt width="16" style={{ color: 'var(--link)' }} />Quick add</button>}
@@ -15467,7 +15470,8 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const [drinkTab, setDrinkTab] = useState(hasDrinkRecents ? 'recent' : 'manual');
   const [aiTab, setAiTab] = useState('describe');
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
-  const setMode = (m) => { setModeRaw(m); setScanNow(m === 'scan' ? (n => n + 1) : 0); };
+  const [labelNow, setLabelNow] = useState(0);
+  const setMode = (m) => { setModeRaw(m); setScanNow(m === 'scan' ? (n => n + 1) : 0); setLabelNow(m === 'label' ? (n => n + 1) : 0); };
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
   const [added, setAdded] = useState([]);
   const day = dayContextFor(db, target.date);
@@ -15485,7 +15489,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   };
   const left = day ? { kcal: Math.round(day.target.kcal - day.rest.kcal), protein: Math.round(day.target.protein - day.rest.protein), carbs: Math.round(day.target.carbs - day.rest.carbs), fat: Math.round(day.target.fat - day.rest.fat), fiber: Math.round(day.target.fiber - day.rest.fiber) } : null;
   const addedTotal = added.reduce((t, x) => ({ kcal: t.kcal + (+x.macros.kcal || 0), protein: t.protein + (+x.macros.protein || 0), carbs: t.carbs + (+x.macros.carbs || 0), fat: t.fat + (+x.macros.fat || 0), fiber: t.fiber + (+x.macros.fiber || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
-  const aiNote = !isPremium && (mode === 'scan' || mode === 'describe') && (() => {
+  const aiNote = !isPremium && (mode === 'scan' || mode === 'label' || mode === 'describe') && (() => {
     const n = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
     return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: n > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-3 flex items-center justify-between gap-2 py-2" style={{ minHeight: 44, borderBottom: '1px solid var(--hairline)' }}>
       <span className="text-[13px]">{n > 0 ? (n + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
@@ -15520,7 +15524,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
       <div className="px-4 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {back}{aiNote}
         {mode === 'food' && <FoodTab db={db} update={update} mealName={meal.name} onPick={i => onAdd(mealId, i)} onPickMore={addKeep} onLogMeal={items => onAddMeal(mealId, items)}
-          onAskAI={() => setMode('describe')} onAlcohol={() => setMode('drink')} onQuick={() => setMode('quick')} onScan={() => setMode('scan')} day={day} />}
+          onAskAI={() => setMode('describe')} onAlcohol={() => setMode('drink')} onQuick={() => setMode('quick')} onScan={() => setMode('scan')} onLabel={() => setMode('label')} day={day} />}
         {mode === 'quick' && <QuickAddTab onPick={i => onAdd(mealId, i)} day={day} mealName={meal.name} />}
         {mode === 'describe' && <>
           <div className="mb-3"><Seg value={aiTab} onChange={setAiTab} options={[{ v: 'describe', l: 'Describe' }, { v: 'label', l: 'Label photo' }, { v: 'menu', l: 'Menu' }]} /></div>
@@ -15528,6 +15532,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
           {aiTab === 'label' && <PhotoTab db={db} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setAiTab('describe')} day={day} />}
           {aiTab === 'menu' && <MenuTab db={db} day={day} mealName={meal.name} planned={planned} onPick={i => onAdd(mealId, i)} onAddItems={(its, replaceIds) => onAddItems(mealId, its, replaceIds)} onScan={() => setAiTab('describe')} />}
         </>}
+        {mode === 'label' && <PhotoTab db={db} autoLabel={labelNow} onExit={() => setMode('food')} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setMode('describe')} day={day} />}
         {mode === 'scan' && <PhotoTab db={db} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={its => onAddItems(mealId, its)} onAskAI={() => setMode('describe')} day={day} />}
         {mode === 'drink' && <>
           <div className="mb-3"><Seg value={drinkTab} onChange={setDrinkTab} options={[{ v: 'recent', l: 'Your drinks' }, { v: 'manual', l: 'New drink' }, { v: 'photo', l: 'Scan' }]} /></div>
@@ -17064,10 +17069,12 @@ function labelReadReliable(est) {
     return Math.abs(miss) / kc <= 0.20;
   });
 }
-function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day }) {
-  const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [parsed, setParsed] = useState(null); const [mode, setMode] = useState(autoScan ? 'scan' : null); const [notFound, setNotFound] = useState(false); const [rescan, setRescan] = useState(false);
+function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, autoLabel, onExit, day }) {
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [parsed, setParsed] = useState(null); const [mode, setMode] = useState(autoScan ? 'scan' : autoLabel ? 'label' : null); const [notFound, setNotFound] = useState(false); const [rescan, setRescan] = useState(false);
   // The LogSheet barcode shortcut (and ?action=scan) jump straight into the live scanner.
   useEffect(() => { if (autoScan) { setNotFound(false); setMode('scan'); } }, [autoScan]);
+  // The LogSheet "Scan label" chip jumps straight into the label camera.
+  useEffect(() => { if (autoLabel) { setNotFound(false); setMode('label'); } }, [autoLabel]);
   async function onLabel(file) { if (!file) return; const wasRescan = rescan; setRescan(false); const srcNote = wasRescan ? 'Read from your nutrition label, replacing the database numbers.' : 'Read straight from your nutrition label.'; setBusy('Reading the label…'); setErr('');
     try {
       // Cost-smart OCR at high resolution: read with the cheap fast model first, and only escalate to
@@ -17119,7 +17126,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
   if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
   if (mode === 'meal') return <DescribeTab db={db} onPick={onPick} onAddItems={onAddItems} onBack={() => setMode(null)} />;
   if (mode === 'scan') return <LiveScanner onFound={lookupBarcode} onClose={() => setMode(null)} />;
-  if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
+  if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => (autoLabel && onExit) ? onExit() : setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div>
     <div className="text-[12px] text-[var(--muted)] mb-4">The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead.</div>
