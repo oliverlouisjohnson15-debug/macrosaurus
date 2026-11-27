@@ -6,6 +6,13 @@ const PRICE_ANNUAL  = Deno.env.get('STRIPE_PRICE_ANNUAL')  || 'price_1TuBIjDc0ye
 const TRIAL_DAYS = 7;
 const DEFAULT_ORIGIN = 'https://macrosaurus.com';
 
+// Black Friday 2026: £19.99 off the first year of annual, so year one is £20. Applied automatically
+// to annual checkouts inside the window (no code to type). The coupon is created on first use with a
+// fixed id, so there is nothing to set up in the Stripe dashboard. Keep SALE_END in sync with the app.
+const SALE_COUPON = 'BLACKFRIDAY2026';
+const SALE_END = Date.parse('2026-12-02T00:00:00Z'); // end of Cyber Monday, UK time (GMT)
+const SALE_OFF_PENCE = 1999;
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   // supabase-js functions.invoke adds x-client-info / x-supabase-api-version, so they must be allowed
@@ -95,11 +102,25 @@ Deno.serve(async (req) => {
     const plan = payload?.plan === 'annual' ? 'annual' : 'monthly';
     const price = plan === 'annual' ? PRICE_ANNUAL : PRICE_MONTHLY;
 
-    const session = await stripe('checkout/sessions', key, {
+    // Sale: make sure the coupon exists (idempotent by id), then attach it. Stripe rejects
+    // `discounts` together with `allow_promotion_codes`, so the sale session drops the code box.
+    let discount: Record<string, unknown> = { allow_promotion_codes: true };
+    if (plan === 'annual' && Date.now() < SALE_END) {
+      try {
+        await stripe('coupons', key, {
+          id: SALE_COUPON, name: 'Black Friday: first year £20', amount_off: SALE_OFF_PENCE, currency: 'gbp',
+          duration: 'once', redeem_by: Math.floor(SALE_END / 1000),
+        });
+      } catch (e) {
+        if (!/already exists/i.test((e as Error)?.message || '')) console.error('sale coupon', e);
+      }
+      discount = { 'discounts[0][coupon]': SALE_COUPON };
+    }
+
+    const base = {
       mode: 'subscription',
       customer: customerId,
       client_reference_id: userId,
-      allow_promotion_codes: true,
       'line_items[0][price]': price,
       'line_items[0][quantity]': 1,
       // The 7-day trial is applied here, not on the price, and the user id is stamped onto the
@@ -107,7 +128,16 @@ Deno.serve(async (req) => {
       subscription_data: { trial_period_days: TRIAL_DAYS, metadata: { user_id: userId, plan } },
       success_url: origin + '/?sub=success',
       cancel_url: origin + '/?sub=cancel',
-    });
+    };
+    let session;
+    try {
+      session = await stripe('checkout/sessions', key, { ...base, ...discount });
+    } catch (e) {
+      // Never let the sale break checkout: if the discount is refused, sell at full price.
+      if (!('discounts[0][coupon]' in discount)) throw e;
+      console.error('sale checkout fell back to full price', e);
+      session = await stripe('checkout/sessions', key, { ...base, allow_promotion_codes: true });
+    }
     return json({ url: session.url });
   } catch (e) {
     return json({ error: (e as Error)?.message || 'Billing request failed.' }, 502);

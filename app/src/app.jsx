@@ -2372,6 +2372,11 @@ async function imageToB64(file, max) {
 const FREE_AI_MONTHLY = 10;          // free-tier AI actions per month (mirrors app_config.free_ai_monthly)
 const PRICE_MONTHLY_LABEL = '£4.99';
 const PRICE_ANNUAL_LABEL = '£39.99';
+// Black Friday 2026: first year of annual for £20, applied automatically at checkout by the billing
+// function. Must match SALE_END there. The banner hides itself after this, no deploy needed.
+const SALE_END = Date.parse('2026-12-02T00:00:00Z');
+const SALE_PRICE_LABEL = '£20';
+const saleOn = () => Date.now() < SALE_END;
 
 // Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
 // verifies the signed-in user and enforces the free/premium AI tiers. Returns the raw
@@ -22331,6 +22336,7 @@ function Paywall({ reason, onCheckout, onClose }) {
     ['Everything in Free', 'Barcode, database, manual entry, the adaptive engine and the whole game'],
   ];
   async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
+  const sale = saleOn();
   return (
     <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -22356,11 +22362,16 @@ function Paywall({ reason, onCheckout, onClose }) {
               </div>
             ))}
           </div>
+          {sale && <div className="pixel-box p-3 mb-3 text-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            <div className="pf text-[12px] uppercase" style={{ letterSpacing: '0.1em' }}>Black Friday</div>
+            <div className="text-[15px] font-semibold mt-1">Your first year of Premium for {SALE_PRICE_LABEL}</div>
+            <div className="text-[12px] mt-0.5" style={{ opacity: 0.85 }}>Annual plan, applied at checkout. Ends Monday night.</div>
+          </div>}
           <div className="grid grid-cols-2 gap-2.5 mb-3">
-            {[['annual', PRICE_ANNUAL_LABEL, '/year', 'Save 33%'], ['monthly', PRICE_MONTHLY_LABEL, '/month', '']].map(([k, price, per, tag]) => (
+            {[['annual', sale ? SALE_PRICE_LABEL : PRICE_ANNUAL_LABEL, sale ? 'first year' : '/year', sale ? 'Half price' : 'Save 33%', sale ? PRICE_ANNUAL_LABEL : null], ['monthly', PRICE_MONTHLY_LABEL, '/month', '', null]].map(([k, price, per, tag, was]) => (
               <button key={k} onClick={() => setPlan(k)} className="pixel-box box-tint p-3 text-left transition active:scale-[.99]"
                 style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === k ? 'var(--accent)' : 'var(--border)' }}>
-                <div className="pf text-[17px] leading-none mb-1.5">{price}</div>
+                <div className="pf text-[17px] leading-none mb-1.5">{price}{was && <span className="text-[12px] ml-1.5 line-through" style={{ color: 'var(--muted)' }}>{was}</span>}</div>
                 <div className="text-[13px]" style={{ color: 'var(--text)' }}>{per}</div>
                 {tag ? <div className="pf text-[11px] uppercase mt-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>{tag}</div>
                      : <div className="text-[12px] mt-1.5" style={{ color: 'var(--muted)' }}>Billed monthly</div>}
@@ -22371,7 +22382,7 @@ function Paywall({ reason, onCheckout, onClose }) {
             {busy ? 'Starting…' : 'Start 7-day free trial'}
           </button>
           <div className="text-[12.5px] text-center mt-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
-            7 days free, then {plan === 'annual' ? PRICE_ANNUAL_LABEL + '/year' : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+            7 days free, then {plan === 'annual' ? (sale ? SALE_PRICE_LABEL + ' for your first year, ' + PRICE_ANNUAL_LABEL + '/year after' : PRICE_ANNUAL_LABEL + '/year') : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
           </div>
           {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads
               receipts the store holds. Macrosaurus sells through Stripe on the web, where the
