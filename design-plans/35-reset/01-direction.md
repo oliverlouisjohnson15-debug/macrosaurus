@@ -40,7 +40,7 @@ Tabs ── Today ─── Food ─── [+] ─── Train ─── Progres
 
 Today             Day in detail (sheet) · Weigh-in (sheet) · Recovery · Talk to Chompers
                   one buddy prompt slot: weigh-in / check-in due / Premium / evening
-+ Log (sheet)     search (barcode button inside) · chips: Quick add · Estimate · Drink
++ Log (sheet)     search (label camera + barcode buttons inside) · chips: Quick add · Estimate · Drink
                   recents for this meal with + · "Added" strip (multi-add) · Food detail / amount · Edit entry
 Food              Diary | Cook
   Diary           day ‹ › · one summary line · meals as sections · meal actions (sheet)
@@ -73,6 +73,7 @@ Onboarding        Sign in · Hello · Egg · About you · Active · Goal · Plan
 | Train: library | **Exercise picker** sheet inside Session and New block | |
 | Log sheet: 4 tabs + 3 "can't find it" routes + "Scan a barcode" step | Search with a **barcode button in the field**, plus chips **Quick add · Estimate · Drink** | MacroFactor toolbar (P4) |
 | Log sheet: **Menu** tab and **Scan the label** | Inputs inside **Estimate** (describe / photo / menu link) | one AI route |
+| Label scan only inside Estimate (2 taps, easy to miss) | Also a **camera button in the search field**, beside the barcode: one tap to the label camera. Still reachable from Estimate | used as often as the barcode (2026-11) |
 | Diary: ≡ menu on each entry | Tap the row → **Edit entry** (copy, move, delete) | its actions were already in the edit sheet |
 | Diary: day-total panel with 4 bars | A "left" headline, a thin HP meter and P/C/F left | Changed by 36-after-reset/01: Food leads with *left* too (§2.7) |
 | Cook: Discover \| Cookbook switch, contributor card | Cook root, with **Discover** as a row; contributor level at its foot | |
